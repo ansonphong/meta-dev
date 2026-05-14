@@ -37,6 +37,114 @@ Verify:
 
 `/meta-init` creates `plans/_dashboard/` with settings, versioning, changelog, state, and inbox — all validated against JSON schemas. Idempotent (safe to re-run).
 
+## Dashboard
+
+Run `/meta-dashboard` to see your entire development operation at a glance.
+
+```
+🎛  Control Plane — acme-platform
+
+2026-05-14 14:22 UTC
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                              P L A N S                                      ║
+╠══════════════════════════════════════════════════════════════════════════════╣
+║                                                                              ║
+║  🔐 auth-refactor           ████████████████████  24/24   ✅ shipped        ║
+║  💳 payments-v2             ██████████████░░░░░░  18/28   🟡 in-flight      ║
+║  🏠 onboarding-flow         ██████░░░░░░░░░░░░░░   7/22   🟡 in-flight      ║
+║  🔍 search-v3               ░░░░░░░░░░░░░░░░░░░░   0/14   ⬜ pending        ║
+║                                                                              ║
+║  ────────────────────────────────────────────────────────────────────────   ║
+║  TOTAL                                           49/88   56%                 ║
+║                                                                              ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                       A C T I V E   S E S S I O N S                         ║
+╠══════════════════════════════════════════════════════════════════════════════╣
+║                                                                              ║
+║  ┌──────────────────┬──────────────────────┬───────────┬──────────────────┐  ║
+║  │     Session      │        Plan          │   Task    │      Stage       │  ║
+║  ├──────────────────┼──────────────────────┼───────────┼──────────────────┤  ║
+║  │ meta-exec-03     │ payments-v2          │ P4.3/7    │ review           │  ║
+║  │ meta-exec-04     │ onboarding-flow      │ P2.1/5    │ implement        │  ║
+║  │ overlord-watch   │ payments-v2          │ —         │ reviewing P4.2    │  ║
+║  └──────────────────┴──────────────────────┴───────────┴──────────────────┘  ║
+║                                                                              ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║              I N B O X   ·   A D V I S O R I E S                            ║
+║                     awaiting your green-light                                ║
+╠══════════════════════════════════════════════════════════════════════════════╣
+║                                                                              ║
+║  ┌────────────┬─────────────────────────────────────────────────────────┐    ║
+║  │     ID     │                        Awaits                           │    ║
+║  ├────────────┼─────────────────────────────────────────────────────────┤    ║
+║  │ inb_01h9a2 │ 🟦 loop-gap done on auth-refactor — approve?            │    ║
+║  │            │   advice: executable, risk-low, 0 blockers               │    ║
+║  │            │   [1] approve → /meta-execute plans/auth-refactor       │    ║
+║  │            │   [2] another review pass                                │    ║
+║  │            │   [3] hold + ask question                                │    ║
+║  ├────────────┼─────────────────────────────────────────────────────────┤    ║
+║  │ inb_01h9b7 │ 🟦 deploy gate — auth-refactor ready for production     │    ║
+║  │            │   [1] deploy now → /meta-ship auth-refactor             │    ║
+║  │            │   [2] schedule for later                                 │    ║
+║  └────────────┴─────────────────────────────────────────────────────────┘    ║
+║                                                                              ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                I N B O X   ·   I S S U E S                                  ║
+║                  7 open  ·  4 auto-clearable                                ║
+╠══════════════════════════════════════════════════════════════════════════════╣
+║                                                                              ║
+║  ┌────────────┬──────────────────────────────────┬─────────────┬────────────┐ ║
+║  │     ID     │              Title               │   Source    │  Severity  │ ║
+║  ├────────────┼──────────────────────────────────┼─────────────┼────────────┤ ║
+║  │ inb_01h7c3 │ Checkbox drift on P4.6c          │ overlord    │ 🟡 mod     │ ║
+║  │ inb_01h7d1 │ Test flake: rate_limit_429       │ review      │ 🔴 high    │ ║
+║  │ inb_01h7e8 │ Unused import in auth.py         │ sweep       │ 🟢 low     │ ║
+║  │ inb_01h7f2 │ Schema drift on payment_status   │ overlord    │ 🟡 mod     │ ║
+║  │ inb_01h7f9 │ Stale TODO in plan checklist     │ sweep       │ ⚪ trivial  │ ║
+║  │ inb_01h8a4 │ Missing coverage: webhook.py     │ review      │ 🟡 mod     │ ║
+║  │ inb_01h8b1 │ Config missing from local layer  │ review      │ 🟢 low     │ ║
+║  └────────────┴──────────────────────────────────┴─────────────┴────────────┘ ║
+║                                                                              ║
+║  → /meta-inbox clear all          (clears 4 auto items, sonnet/haiku)       ║
+║  → /meta-inbox clear with best practices   (review-gated)                   ║
+║  → /meta-inbox clear --model opus          (heavy thinking for hard items)  ║
+║                                                                              ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                    S W E E P   L O G   ( 2 4 h )                            ║
+╠══════════════════════════════════════════════════════════════════════════════╣
+║                                                                              ║
+║  ✓  archived 2 stale plans — search-prototype, api-experiment  (14:00 UTC)  ║
+║  ✓  wip commit on 3 untracked files  (13:15 UTC)                            ║
+║                                                                              ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                 R E C E N T   C O M M I T S                                 ║
+╠══════════════════════════════════════════════════════════════════════════════╣
+║                                                                              ║
+║  a7f3d92  feat(payments): add Stripe webhook handler          2 min ago     ║
+║  b2e8c41  fix(auth): resolve token refresh race               14 min ago    ║
+║  9c1d5f6  chore(plan): mark P4.2 checkboxes DONE              31 min ago    ║
+║  e4f7a83  feat(payments): implement checkout session create   1 hour ago    ║
+║                                                                              ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+refresh: fast  ·  agents: 2 haiku  ·  dirty: 3  ·  unpushed: 0
+
+  [new idea]    [plan]    [execute]    [review]    [ship]    [overlord]
+```
+
+One glance. Every plan, session, inbox advisory, and commit. The Overlord watches plan edits and auto-reviews completed tasks. Issues flow into the inbox. You clear them with a single command. Sweep keeps the repo tidy. All driven by event-sourced state — replayable, auditable, zero drift.
+
 ## Architecture
 
 ```
