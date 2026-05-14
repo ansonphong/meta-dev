@@ -1,0 +1,15 @@
+{
+  "$schema": "https://raw.githubusercontent.com/ansonphong/meta-dev/main/plugins/meta-dev/schemas/changelog.schema.json",
+  "version": "1.0.0",
+  "active_period_file": "plans/_archive/changelogs/{{DATE}}--present.md",
+  "closed_pattern": "plans/_archive/changelogs/{{SINCE}}--{{UNTIL}}-{{SHA}}-{{SLUG}}.md",
+  "auto_cut": {
+    "mode": "manual",
+    "threshold": 20
+  },
+  "tags": ["feat", "fix", "chore", "breaking", "docs", "perf", "refactor", "test", "auto"],
+  "release_post": {
+    "enabled": false,
+    "target": null
+  }
+}

@@ -1,0 +1,3 @@
+# meta-dev harness
+plans/_dashboard/settings.local.json
+plans/_dashboard/overlord/*.cache.json

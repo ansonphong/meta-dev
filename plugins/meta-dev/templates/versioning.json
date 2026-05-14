@@ -1,0 +1,18 @@
+{
+  "$schema": "https://raw.githubusercontent.com/ansonphong/meta-dev/main/plugins/meta-dev/schemas/versioning.schema.json",
+  "version": "1.0.0",
+  "strategy": "semver",
+  "repos": [
+    {
+      "id": "main",
+      "name": "{{PROJECT_NAME}}",
+      "current_version": "0.1.0",
+      "strategy": "semver",
+      "version_files": ["package.json", "pyproject.toml"],
+      "follows": null,
+      "follows_mode": "patch",
+      "independent": false,
+      "git_tag_prefix": "v"
+    }
+  ]
+}

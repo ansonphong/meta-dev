@@ -1,0 +1,8 @@
+{
+  "version": "1.0.0",
+  "previous": "0.0.0",
+  "changelog": [
+    {"type": "added", "description": "Phase 1: Foundation"},
+    {"type": "added", "description": "Init project scaffolding"}
+  ]
+}

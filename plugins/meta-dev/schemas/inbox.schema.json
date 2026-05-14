@@ -1,0 +1,50 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/ansonphong/meta-dev/main/plugins/meta-dev/schemas/inbox.schema.json",
+  "title": "Meta-Dev Inbox Item",
+  "type": "object",
+  "required": ["id", "kind", "source", "severity", "title", "status", "created"],
+  "properties": {
+    "id": { "type": "string", "pattern": "^inb_[a-zA-Z0-9]+$" },
+    "kind": { "type": "string", "enum": ["issue", "advisory"] },
+    "source": {
+      "type": "string",
+      "enum": ["overlord_finding", "review_failure", "sweep_anomaly", "repair_dossier", "classify_blocked", "security_alert", "plan_ready_review", "plan_question", "loopgap_done", "decision_needed", "deploy_gate", "user"]
+    },
+    "severity": { "type": "string", "enum": ["trivial", "low", "moderate", "high", "critical"] },
+    "title": { "type": "string", "minLength": 1 },
+    "body": { "type": "string" },
+    "awaits": { "type": ["string", "null"] },
+    "options": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "label": { "type": "string" },
+          "command": { "type": "string" }
+        }
+      }
+    },
+    "ref": {
+      "type": "object",
+      "properties": {
+        "file": { "type": ["string", "null"] },
+        "line": { "type": ["integer", "null"] },
+        "commit": { "type": ["string", "null"] },
+        "plan": { "type": ["string", "null"] }
+      }
+    },
+    "recommended_action": { "type": ["string", "null"] },
+    "advice": { "type": "string" },
+    "auto_clearable": { "type": "boolean", "default": false },
+    "status": { "type": "string", "enum": ["open", "in_progress", "resolved", "dismissed"] },
+    "created": { "type": "string", "format": "date-time" },
+    "updated": { "type": "string", "format": "date-time" },
+    "resolved": { "type": ["string", "null"], "format": "date-time" },
+    "resolved_by": { "type": ["string", "null"] },
+    "resolution_note": { "type": ["string", "null"] },
+    "related_commits": { "type": "array", "items": { "type": "string" } },
+    "tags": { "type": "array", "items": { "type": "string" } },
+    "seen_count": { "type": "integer", "default": 1 }
+  }
+}

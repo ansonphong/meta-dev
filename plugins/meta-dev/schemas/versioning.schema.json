@@ -1,0 +1,32 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/ansonphong/meta-dev/main/plugins/meta-dev/schemas/versioning.schema.json",
+  "title": "Meta-Dev Versioning Config",
+  "type": "object",
+  "required": ["version", "repos"],
+  "properties": {
+    "version": { "type": "string" },
+    "strategy": { "type": "string", "enum": ["semver", "calver", "custom"], "default": "semver" },
+    "repos": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "current_version"],
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "current_version": { "type": "string" },
+          "strategy": { "type": "string", "enum": ["semver", "calver", "custom"] },
+          "version_files": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "follows": { "type": ["string", "null"] },
+          "follows_mode": { "type": "string", "enum": ["major", "minor", "patch"], "default": "patch" },
+          "independent": { "type": "boolean", "default": false },
+          "git_tag_prefix": { "type": "string", "default": "v" }
+        }
+      }
+    }
+  }
+}

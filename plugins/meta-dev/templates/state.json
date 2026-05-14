@@ -1,0 +1,21 @@
+{
+  "$schema": "https://raw.githubusercontent.com/ansonphong/meta-dev/main/plugins/meta-dev/schemas/state.schema.json",
+  "version": "1.0.0",
+  "initialized": "{{DATE}}",
+  "last_updated": "{{DATE}}",
+  "active_sessions": [],
+  "sweep_log": [],
+  "overlord": {
+    "active": false,
+    "watching": null,
+    "mode": null,
+    "model": null,
+    "auto_fix": null,
+    "tick_n": 0,
+    "last_review": null,
+    "tasks_reviewed": 0
+  },
+  "meta_dev_runs": [],
+  "meta_execute_runs": [],
+  "recent_commits": []
+}

@@ -1,0 +1,2 @@
+jsonschema>=4.0
+# Optional: ulid-py>=1.1 (scripts fall back to uuid4 if missing)

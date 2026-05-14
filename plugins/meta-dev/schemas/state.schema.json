@@ -1,0 +1,61 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/ansonphong/meta-dev/main/plugins/meta-dev/schemas/state.schema.json",
+  "title": "Meta-Dev Runtime State",
+  "type": "object",
+  "required": ["version", "initialized", "last_updated"],
+  "properties": {
+    "version": { "type": "string" },
+    "initialized": { "type": "string", "format": "date-time" },
+    "last_updated": { "type": "string", "format": "date-time" },
+    "active_sessions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "session_id": { "type": "string" },
+          "plan": { "type": "string" },
+          "task": { "type": "string" },
+          "started": { "type": "string", "format": "date-time" }
+        }
+      }
+    },
+    "overlord": {
+      "type": "object",
+      "properties": {
+        "active": { "type": "boolean" },
+        "watching": { "type": ["string", "null"] },
+        "mode": { "type": ["string", "null"] },
+        "model": { "type": ["string", "null"] },
+        "auto_fix": { "type": ["string", "null"] },
+        "tick_n": { "type": "integer" },
+        "last_review": { "type": ["string", "null"] },
+        "tasks_reviewed": { "type": "integer" }
+      }
+    },
+    "sweep_log": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "action": { "type": "string" },
+          "time": { "type": "string", "format": "date-time" }
+        }
+      }
+    },
+    "meta_dev_runs": { "type": "array", "items": { "type": "object" } },
+    "meta_execute_runs": { "type": "array", "items": { "type": "object" } },
+    "recent_commits": {
+      "type": "array",
+      "maxItems": 50,
+      "items": {
+        "type": "object",
+        "properties": {
+          "sha": { "type": "string" },
+          "message": { "type": "string" },
+          "time": { "type": "string", "format": "date-time" }
+        }
+      }
+    }
+  }
+}

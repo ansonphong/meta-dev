@@ -1,0 +1,7 @@
+{
+  "events": [
+    {"event": "plan_edit", "file": "plans/some-plan.md", "time": "2026-05-11T10:00:00Z"}
+  ],
+  "last_tick": 1,
+  "overlord": {"watching": "plans/some-plan.md", "last_check": "2026-05-11T10:00:00Z"}
+}

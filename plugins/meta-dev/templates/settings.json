@@ -1,0 +1,62 @@
+{
+  "$schema": "https://raw.githubusercontent.com/ansonphong/meta-dev/main/plugins/meta-dev/schemas/settings.schema.json",
+  "version": "1.0.0",
+  "meta_dev": {
+    "components": {
+      "dashboard": true,
+      "overlord": true,
+      "changelog": true,
+      "versioning": true,
+      "review_batch": true,
+      "auto_sweep": false,
+      "repair_loop": true,
+      "classify_hook": true,
+      "inbox": true
+    },
+    "dashboard": {
+      "auto_inject_on_session": true,
+      "refresh": "normal",
+      "show_sweep_log": true,
+      "show_inbox": true,
+      "show_exec_order": true,
+      "show_active_sessions": true
+    },
+    "inbox": {
+      "auto_register_sources": ["overlord_finding", "review_failure", "sweep_anomaly", "repair_dossier", "classify_blocked", "security_alert", "plan_ready_review", "plan_question", "loopgap_done", "decision_needed", "deploy_gate"],
+      "auto_clear_severity": "low",
+      "escalate_severity": "high",
+      "surface_severity": "critical",
+      "clear_default_model": "sonnet",
+      "clear_model_override": null,
+      "max_open_items": 50,
+      "max_overflow_action": "archive_oldest_resolved",
+      "stale_days": 14,
+      "dedup_window_hours": 72
+    },
+    "overlord": {
+      "trigger": "on_plan_edit",
+      "model": "sonnet",
+      "auto_fix": "moderate_and_below",
+      "auto_clear_inbox_per_tick": true,
+      "max_loops": 100
+    },
+    "changelog": {
+      "auto_add_on_commit": true,
+      "auto_cut_on": "manual",
+      "auto_cut_threshold": 20,
+      "version_strategy": "semver",
+      "release_post_target": null
+    },
+    "versioning": {
+      "default_strategy": "semver",
+      "auto_bump_on_cut": true,
+      "git_tag_on_bump": true,
+      "push_tags_on_bump": true
+    },
+    "gates": {
+      "low_risk": "auto_execute",
+      "medium_risk": "review_after",
+      "high_risk": "gate_before_execute"
+    }
+  }
+}

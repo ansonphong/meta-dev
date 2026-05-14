@@ -1,0 +1,13 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "meta-dev-marketplace",
+  "description": "Meta-Dev autonomous development harness",
+  "owner": { "name": "Phong", "url": "https://github.com/ansonphong" },
+  "plugins": [{
+    "name": "meta-dev",
+    "source": "./plugins/meta-dev",
+    "category": "development",
+    "homepage": "https://github.com/ansonphong/meta-dev",
+    "tags": ["development", "automation", "orchestration", "changelog", "versioning"]
+  }]
+}

@@ -1,0 +1,30 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/ansonphong/meta-dev/main/plugins/meta-dev/schemas/changelog.schema.json",
+  "title": "Meta-Dev Changelog Config",
+  "type": "object",
+  "required": ["version"],
+  "properties": {
+    "version": { "type": "string" },
+    "active_period_file": { "type": "string", "default": "plans/_archive/changelogs/<since>--present.md" },
+    "closed_pattern": { "type": "string", "default": "plans/_archive/changelogs/<since>--<until>-<sha>-<slug>.md" },
+    "auto_cut": {
+      "type": "object",
+      "properties": {
+        "mode": { "type": "string", "enum": ["manual", "weekly", "n_entries", "before_deploy"], "default": "manual" },
+        "threshold": { "type": "integer", "default": 20 }
+      }
+    },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string", "enum": ["feat", "fix", "chore", "breaking", "docs", "perf", "refactor", "test", "auto"] }
+    },
+    "release_post": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean", "default": false },
+        "target": { "type": ["string", "null"], "default": null }
+      }
+    }
+  }
+}

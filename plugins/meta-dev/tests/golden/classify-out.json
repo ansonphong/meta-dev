@@ -1,0 +1,9 @@
+{
+  "plan_slug": "test-plan",
+  "task_count": 3,
+  "classifications": {
+    "T1": {"category": "auth", "risk": "medium", "needs_review": true},
+    "T2": {"category": "docs", "risk": "low", "needs_review": false},
+    "T3": {"category": "payments", "risk": "high", "needs_review": true}
+  }
+}

@@ -1,0 +1,98 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/ansonphong/meta-dev/main/plugins/meta-dev/schemas/settings.schema.json",
+  "title": "Meta-Dev Settings",
+  "type": "object",
+  "required": ["version", "meta_dev"],
+  "properties": {
+    "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "meta_dev": {
+      "type": "object",
+      "required": ["components", "gates"],
+      "properties": {
+        "components": {
+          "type": "object",
+          "properties": {
+            "dashboard": { "type": "boolean", "default": true },
+            "overlord": { "type": "boolean", "default": true },
+            "changelog": { "type": "boolean", "default": true },
+            "versioning": { "type": "boolean", "default": true },
+            "review_batch": { "type": "boolean", "default": true },
+            "auto_sweep": { "type": "boolean", "default": false },
+            "repair_loop": { "type": "boolean", "default": true },
+            "classify_hook": { "type": "boolean", "default": true },
+            "inbox": { "type": "boolean", "default": true }
+          }
+        },
+        "dashboard": {
+          "type": "object",
+          "properties": {
+            "auto_inject_on_session": { "type": "boolean", "default": true },
+            "refresh": { "type": "string", "enum": ["fast", "normal", "lazy"], "default": "normal" },
+            "show_sweep_log": { "type": "boolean", "default": true },
+            "show_inbox": { "type": "boolean", "default": true },
+            "show_exec_order": { "type": "boolean", "default": true },
+            "show_active_sessions": { "type": "boolean", "default": true }
+          }
+        },
+        "inbox": {
+          "type": "object",
+          "properties": {
+            "auto_register_sources": {
+              "type": "array",
+              "items": { "type": "string" },
+              "default": ["overlord_finding", "review_failure", "sweep_anomaly", "repair_dossier", "classify_blocked", "security_alert", "plan_ready_review", "plan_question", "loopgap_done", "decision_needed", "deploy_gate"]
+            },
+            "auto_clear_severity": { "type": "string", "enum": ["trivial", "low", "moderate", "high", "critical"], "default": "low" },
+            "escalate_severity": { "type": "string", "enum": ["trivial", "low", "moderate", "high", "critical"], "default": "high" },
+            "surface_severity": { "type": "string", "enum": ["trivial", "low", "moderate", "high", "critical"], "default": "critical" },
+            "clear_default_model": { "type": "string", "enum": ["haiku", "sonnet", "opus"], "default": "sonnet" },
+            "clear_model_override": { "type": ["string", "null"], "enum": ["haiku", "sonnet", "opus", null], "default": null },
+            "max_open_items": { "type": "integer", "minimum": 1, "default": 50 },
+            "max_overflow_action": { "type": "string", "enum": ["archive_oldest_resolved", "block", "force"], "default": "archive_oldest_resolved" },
+            "stale_days": { "type": "integer", "minimum": 1, "default": 14 },
+            "dedup_window_hours": { "type": "integer", "minimum": 1, "default": 72 }
+          }
+        },
+        "overlord": {
+          "type": "object",
+          "properties": {
+            "trigger": { "type": "string", "enum": ["on_plan_edit", "manual", "scheduled"], "default": "on_plan_edit" },
+            "model": { "type": "string", "enum": ["sonnet", "opus"], "default": "sonnet" },
+            "auto_fix": { "type": "string", "enum": ["none", "trivial_only", "moderate_and_below", "all"], "default": "moderate_and_below" },
+            "auto_clear_inbox_per_tick": { "type": "boolean", "default": true },
+            "max_loops": { "type": "integer", "minimum": 1, "maximum": 1000, "default": 100 }
+          }
+        },
+        "changelog": {
+          "type": "object",
+          "properties": {
+            "auto_add_on_commit": { "type": "boolean", "default": true },
+            "auto_cut_on": { "type": "string", "enum": ["manual", "weekly", "n_entries", "before_deploy"], "default": "manual" },
+            "auto_cut_threshold": { "type": "integer", "default": 20 },
+            "version_strategy": { "type": "string", "enum": ["semver", "calver"], "default": "semver" },
+            "release_post_target": { "type": ["string", "null"], "default": null }
+          }
+        },
+        "versioning": {
+          "type": "object",
+          "properties": {
+            "default_strategy": { "type": "string", "enum": ["semver", "calver", "custom"], "default": "semver" },
+            "auto_bump_on_cut": { "type": "boolean", "default": true },
+            "git_tag_on_bump": { "type": "boolean", "default": true },
+            "push_tags_on_bump": { "type": "boolean", "default": true }
+          }
+        },
+        "gates": {
+          "type": "object",
+          "required": ["low_risk", "medium_risk", "high_risk"],
+          "properties": {
+            "low_risk": { "type": "string", "enum": ["auto_execute", "review_after", "gate_before_execute"], "default": "auto_execute" },
+            "medium_risk": { "type": "string", "enum": ["auto_execute", "review_after", "gate_before_execute"], "default": "review_after" },
+            "high_risk": { "type": "string", "enum": ["auto_execute", "review_after", "gate_before_execute"], "default": "gate_before_execute" }
+          }
+        }
+      }
+    }
+  }
+}

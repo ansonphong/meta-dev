@@ -1,0 +1,15 @@
+{
+  "plan_slug": "test-plan",
+  "name": "Test Plan",
+  "phases": [
+    {
+      "id": "P1",
+      "name": "Phase 1: Foundation",
+      "status": "done",
+      "tasks": [
+        {"id": "T1.1", "title": "Init project", "status": "done", "files": ["README.md"]},
+        {"id": "T1.2", "title": "Configure CI", "status": "done", "files": [".github/workflows/test.yml"]}
+      ]
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+# meta-dev repo gitignore
+__pycache__/
+*.pyc
+.pytest_cache/
+.coverage
+htmlcov/
+node_modules/
+.DS_Store
+*.swp
+*.swo
+.idea/
+.vscode/
+# Local test scratch
+tests/scratch/
