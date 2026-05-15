@@ -1,6 +1,6 @@
 ---
 name: headless-worker
-description: Patterns for headless Claude execution via claude -p --output-format json. Tool allowlist tiers, env inheritance, model override for DeepSeek V4 routing.
+description: Patterns for headless Claude execution via claude -p --output-format json. Tool allowlist tiers, env inheritance, model override for Sonnet routing.
 ---
 
 # Headless Worker
@@ -17,8 +17,8 @@ claude -p "analyze this diff: $(git diff)" --output-format json
 claude -p "check test results in /tmp/test-output.log" \
   --allowedTools Bash --output-format json
 
-# Model override for DeepSeek V4
-claude -p "complex architectural review" --model claude-opus-4-7
+# Model override for Sonnet
+claude -p "complex architectural review" --model claude-sonnet-4-6
 ```
 
 ## Tool Allowlist Tiers
@@ -37,6 +37,6 @@ Default: Tier 1.
 
 See `references/backend-env.md` for routing matrix.
 
-- DeepSeek V4: child `claude -p` inherits `ANTHROPIC_BASE_URL` + `ANTHROPIC_AUTH_TOKEN` from parent
+- Child `claude -p` inherits `ANTHROPIC_BASE_URL` + `ANTHROPIC_AUTH_TOKEN` from parent
 - Do NOT use `env -i` — it strips inherited vars
 - For systemd/CI: export both vars explicitly

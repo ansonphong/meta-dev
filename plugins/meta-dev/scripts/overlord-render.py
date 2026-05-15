@@ -106,7 +106,7 @@ if __name__ == "__main__":
             "tick_n": 3,
             "date": "2026-05-11",
             "poll_interval": "20m",
-            "executor_label": "DeepSeek",
+            "executor_label": "Sonnet",
             "phases": [
                 {"name": "Phase 0: Scaffold", "done": 1, "total": 1, "status": "done"},
                 {"name": "Phase 1: Config", "done": 5, "total": 5, "status": "done"},
