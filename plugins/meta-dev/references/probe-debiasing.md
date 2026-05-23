@@ -76,7 +76,7 @@ A probe ends in exactly one of:
 - **Convergence** — one hypothesis dominates, evidence-backed, survived strongest counter.
 - **Stall** — 2 consecutive rounds with ≈0 progress score (see meta-probe LH5). Long is fine; flat is not. Emit best-conclusion-so-far.
 - **Ceiling** — a hard cap hit (rounds / recursion depth / agent count, LH6). Graceful: land the best-supported verdict + remaining forks.
-- **Exhaustion** — distinct angles/rounds spent (insane budget enforces min-rounds first).
+- **Exhaustion** — the exploration frontier is dry: the end-of-round contemplation (meta-probe LH5) surfaces no remaining avenue that could change the verdict. This is the *intended* deep terminal — be exhaustive, then conclude. Don't spin rounds with no plausible payoff.
 - **Stable uncertainty** — genuinely undecidable from available evidence; the report names the single decisive experiment that *would* resolve it. This is a valid, honest outcome — not a failure.
 
 ---

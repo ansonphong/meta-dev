@@ -129,7 +129,7 @@ Run only when analysis cannot separate surviving hypotheses, or budget is high/i
 
 Collapse all surviving evidence into ONE report via **adversarial synthesis** (evidence + survival, not vote). Rank hypotheses by how much evidence supports them and how well they survived the strongest counter. Pick the terminal state: **convergence**, **exhaustion**, or **stable uncertainty** (see probe-debiasing.md). Stable uncertainty is honest and valid — name the decisive experiment that would resolve it.
 
-**Recursion (insane only):** for each hypothesis that survives but isn't decisively settled, spawn a fresh sub-probe (Wave 0→4) scoped narrowly to that hypothesis, with the parent's forbidden ruts inherited. Continue until one hypothesis dominates with evidence, OR distinct angles are exhausted, OR the rounds cap is hit.
+**Recursion (insane only):** spawn a fresh sub-probe (Wave 0→4) **only** for a surviving-but-unsettled hypothesis that has a non-trivial frontier item — an unexplored avenue that could decide it (LH5). A hypothesis that is unsettled but has no remaining avenue to settle it does NOT get a sub-probe — it goes to the report as stable-uncertainty with its decisive experiment named. Inherit the parent's forbidden ruts. Continue until one hypothesis dominates with evidence, OR the frontier is dry (exhaustion), OR a ceiling is hit.
 
 ---
 
@@ -143,7 +143,8 @@ A probe that runs for hours fails not from lack of effort but from **context rot
 - **Hypotheses** — each with status (alive / demoted / refuted / confirmed) and current confidence.
 - **Evidence ledger** — every load-bearing fact, **provenance-tagged** to its source (`file:line`, command + output, doc). This is ground truth.
 - **Forbidden ruts** — carried and extended.
-- **Round log** — round N: what changed (eliminated / new evidence / forks opened-or-closed) + the progress score (LH5).
+- **Frontier (LH5)** — the live list of unexplored avenues, each with its value-of-information note. The probe runs until this is dry. Items are added when an angle opens a new question and struck when pursued or judged zero-VOI.
+- **Round log** — round N: what changed (eliminated / new evidence / forks opened-or-closed) + the progress score (LH5) + frontier size.
 - **Current best verdict** — always present, even mid-run.
 
 The final report is generated FROM this ledger. The ledger is the resume point for `--background` runs and the source of truth after any compaction.
@@ -152,7 +153,19 @@ The final report is generated FROM this ledger. The ledger is the resume point f
 
 **LH4 — Provenance + re-anchoring (anti coordination-drift).** A claim advancing between rounds must be **re-verified against its ORIGINAL evidence** (the `file:line`/command in the ledger), never against a prior agent's summary. Summaries route attention; only source evidence decides. This stops one agent's early error from becoming the whole tree's "fact."
 
-**LH5 — Progress metric + stall detection (the productivity guardrail).** Each round, compute a **progress score** = (hypotheses eliminated-with-evidence) + (net-new provenance-tagged evidence items) + (forks resolved). Log it in the ledger. **Stall = 2 consecutive rounds with ≈0 progress** → stop and emit best-conclusion-so-far. Long is fine; *flat* is not. Spending more compute is only justified while the score stays positive.
+**LH5 — Exploration frontier (the productivity guardrail).** Compute is only justified while there is an **unexplored avenue that could plausibly change the verdict**. Maintain an explicit **frontier** in the ledger: a list of not-yet-pursued avenues (an untried angle, an unread file/region, an unrun experiment, an unresolved fork, a hypothesis with no decisive evidence either way). Each frontier item carries a one-line **value-of-information** note: *what could this change, and how likely?*
+
+The continue/stop decision each round is exactly:
+- **Continue** iff the frontier contains ≥1 item whose value-of-information is non-trivial — i.e. it could move the verdict, flip a hypothesis, or close an open fork. Pursue the highest-VOI item first.
+- **Stop (exhaustion)** when the frontier is empty, OR every remaining item is judged unable to change the conclusion (low/zero VOI: cosmetic, redundant, or already-decided). Then **come to conclusions** — do not spin another round to look busy.
+
+Also compute a **progress score** per round = (hypotheses eliminated-with-evidence) + (net-new provenance-tagged evidence) + (forks resolved); log it. Two consecutive ≈0-progress rounds is a strong signal the frontier is effectively dry — verify the frontier is genuinely exhausted, then conclude. Long is fine when avenues remain; **flat with a dry frontier means stop**. Never burn a round, an agent, or a recursion with no plausible payoff.
+
+**End-of-round contemplation (mandatory ritual).** At the close of EVERY round, before deciding to continue or stop, explicitly write into the ledger the answers to two questions:
+1. *Is there any other avenue we could look down?* — Actively try to generate new frontier items here: an angle not yet tried, a file/region not yet read, an assumption not yet inverted, an experiment not yet run, an analogy not yet drawn, a stakeholder/perspective not yet taken. Push for at least one candidate; only accept "none" after a genuine search.
+2. *Have we been exhaustive?* — Honestly: is every surviving hypothesis either decided by evidence or blocked only by a named decisive experiment? Is the frontier truly dry, or merely *tiring*?
+
+Continue iff Q1 surfaces a non-trivial avenue. Conclude iff Q1 genuinely yields nothing AND Q2 is yes. This contemplation is the gate — the progress score and stall counter only inform it.
 
 **LH6 — Hard ceilings (even on insane).** "Unbounded" means *not artificially short* — not literally forever. Default ceilings (configurable via `--rounds` / settings): ≤ 12 debate rounds, ≤ 3 recursion depth, ≤ 80 total agents. Hitting any ceiling is a **graceful terminal**: write the best-supported verdict + the remaining forks and the decisive experiment for each. Never crash-stop; always land the plane.
 
