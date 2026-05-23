@@ -74,6 +74,8 @@ The loop-breaking engine behind `/meta-probe`. Each technique below is grounded 
 
 A probe ends in exactly one of:
 - **Convergence** — one hypothesis dominates, evidence-backed, survived strongest counter.
+- **Stall** — 2 consecutive rounds with ≈0 progress score (see meta-probe LH5). Long is fine; flat is not. Emit best-conclusion-so-far.
+- **Ceiling** — a hard cap hit (rounds / recursion depth / agent count, LH6). Graceful: land the best-supported verdict + remaining forks.
 - **Exhaustion** — distinct angles/rounds spent (insane budget enforces min-rounds first).
 - **Stable uncertainty** — genuinely undecidable from available evidence; the report names the single decisive experiment that *would* resolve it. This is a valid, honest outcome — not a failure.
 

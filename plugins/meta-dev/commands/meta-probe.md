@@ -39,7 +39,7 @@ Use it when a problem is mission-critical, when you're tired of re-explaining th
 | low | ~6 core angles | 1 round | only to break an unresolved tie | none | single pass |
 | medium | ~12 angles | 2 rounds | tie-break only | none | converge or 2 rounds |
 | high | ~20–30 angles | 3+ rounds | yes, on every surviving hypothesis | none | converge or rounds cap |
-| **insane** | all angles + per-sub-question agents (50+) | until stable | yes, aggressively | **recursive sub-probe per surviving hypothesis** | convergence OR exhaustion; **min 3 rounds enforced**, no early exit |
+| **insane** | all angles + per-sub-question agents (50+) | until stable | yes, aggressively | **recursive sub-probe per surviving hypothesis** | convergence, stall (2 flat rounds), OR ceiling — see Long-Horizon Discipline; **min 3 rounds**, no early exit on convergence |
 
 **Flags:**
 - `--rounds N` — override the Wave 2 debate-round cap.
@@ -133,14 +133,43 @@ Collapse all surviving evidence into ONE report via **adversarial synthesis** (e
 
 ---
 
+## Long-Horizon Discipline (high / insane — multi-hour runs)
+
+A probe that runs for hours fails not from lack of effort but from **context rot, coordination drift, and wheel-spinning**. These rules make a long run *productive* — reaching real conclusions — instead of a slow, confident drift into nonsense. They are mandatory at `high` and `insane`; cheap to apply at `low`/`medium` too.
+
+**LH1 — Context isolation (the load-bearing rule).** The orchestrator NEVER holds raw agent transcripts. Every dispatched agent returns a **distilled artifact only** (≤ ~200 words: claim · evidence cites · confidence · one counterexample). Verbose exploration, file dumps, and reasoning chains die inside the subagent's own context. This is what lets the run survive hours without the orchestrator filling up and losing the plot.
+
+**LH2 — Externalized state ledger.** Maintain `plans/meta/probe-{slug}-state.md`, updated after **every wave and every round**. It is the durable memory — the run reads from it, not from accumulated chat. Contents:
+- **Hypotheses** — each with status (alive / demoted / refuted / confirmed) and current confidence.
+- **Evidence ledger** — every load-bearing fact, **provenance-tagged** to its source (`file:line`, command + output, doc). This is ground truth.
+- **Forbidden ruts** — carried and extended.
+- **Round log** — round N: what changed (eliminated / new evidence / forks opened-or-closed) + the progress score (LH5).
+- **Current best verdict** — always present, even mid-run.
+
+The final report is generated FROM this ledger. The ledger is the resume point for `--background` runs and the source of truth after any compaction.
+
+**LH3 — Compaction checkpoints.** After each round (or sooner if context is heavy), **compact**: discard raw debate, re-initialize the working context from the state ledger + the neutral statement. Never carry chatter across a round boundary — carry the ledger.
+
+**LH4 — Provenance + re-anchoring (anti coordination-drift).** A claim advancing between rounds must be **re-verified against its ORIGINAL evidence** (the `file:line`/command in the ledger), never against a prior agent's summary. Summaries route attention; only source evidence decides. This stops one agent's early error from becoming the whole tree's "fact."
+
+**LH5 — Progress metric + stall detection (the productivity guardrail).** Each round, compute a **progress score** = (hypotheses eliminated-with-evidence) + (net-new provenance-tagged evidence items) + (forks resolved). Log it in the ledger. **Stall = 2 consecutive rounds with ≈0 progress** → stop and emit best-conclusion-so-far. Long is fine; *flat* is not. Spending more compute is only justified while the score stays positive.
+
+**LH6 — Hard ceilings (even on insane).** "Unbounded" means *not artificially short* — not literally forever. Default ceilings (configurable via `--rounds` / settings): ≤ 12 debate rounds, ≤ 3 recursion depth, ≤ 80 total agents. Hitting any ceiling is a **graceful terminal**: write the best-supported verdict + the remaining forks and the decisive experiment for each. Never crash-stop; always land the plane.
+
+**LH7 — Incremental report (checkpoint value).** Update the report file after every wave so an interrupted or ceiling-stopped run still yields the full value gathered so far. Never defer all output to a final one-shot write.
+
+**LH8 — Trajectory review / course-correction.** Every 3 rounds (and before any recursion), a **fresh-context lead-reviewer agent** reads ONLY the state ledger and answers: (a) are we still answering the *original* question, or have we drifted? (b) are we in a rut the forbidden-list should already have caught? (c) is marginal value still positive, or should we terminate? Its verdict can re-plan, prune branches, or stop the probe. (Reflexion + "are you really still on track" — external, not self-judged.)
+
+---
+
 ## Output — the report that opens a conversation
 
-Write `plans/meta/probe-{slug}-{YYYY-MM-DD}.md` (slug from the neutral statement). Structure:
+Write `plans/meta/probe-{slug}-{YYYY-MM-DD}.md` (slug from the neutral statement), generated from the state ledger (LH2) and updated incrementally (LH7). The companion `probe-{slug}-state.md` ledger stays on disk as the audit trail and resume point. Report structure:
 
 ```markdown
 # Probe — {neutral question}
 
-> /meta-probe {target} --budget {budget}  ·  {ISO timestamp}  ·  terminal: {convergence|exhaustion|stable-uncertainty}
+> /meta-probe {target} --budget {budget}  ·  {ISO timestamp}  ·  terminal: {convergence|stall|ceiling|stable-uncertainty}  ·  rounds: {N}  ·  agents: {M}
 
 ## Verdict
 {single most-supported conclusion}  ·  confidence {0.0–1.0}
@@ -175,7 +204,7 @@ So what: {one line — what this means / what to do}
 
 **Interactive mode (default):** stream a one-line progress note per wave as you go. At the end, present the **Verdict** + **Conversation starters** inline and stop — wait for the user to pull a thread. Do not auto-act on the recommendations.
 
-**`--background` mode:** run to completion across turns, write the report, then post an advisory:
+**`--background` mode:** run to completion across turns. On wake, re-anchor from the state ledger (LH2) — never trust accumulated context after a resume. Write the report incrementally, then post an advisory:
 ```bash
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/inbox-add.sh" \
   --source probe_done \
@@ -198,7 +227,8 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/inbox-add.sh" \
 - **Majority vote is banned (T7).** Survival is adversarial, not popular.
 - **Honor forbidden ruts (T8).** Re-proposing a known rut requires new evidence overturning the prior failure — otherwise it's rejected.
 - **Stable uncertainty is a valid result.** Do not manufacture false confidence to "finish." Name the decisive experiment instead.
-- Respect budget and `--rounds` / `--no-converge`. Insane enforces min 3 rounds and no early exit.
+- **Long-horizon discipline is mandatory at high/insane (LH1–LH8).** Orchestrator holds distilled artifacts only, state lives in the ledger, every round scores progress, ceilings are graceful. A long run must be *productive* — flat rounds end it.
+- Respect budget and `--rounds` / `--no-converge`. Insane enforces min 3 rounds and no early exit on convergence, but stall (LH5) and ceilings (LH6) always apply.
 
 ---
 
