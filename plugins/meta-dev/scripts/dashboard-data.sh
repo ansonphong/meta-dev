@@ -2,7 +2,6 @@
 set -euo pipefail
 # Dashboard data gatherer — deterministic, no LLM. Outputs JSON to stdout.
 # Run from project root. Reads plans/, git, state, inbox.
-PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-.}"
 
 # Project name from directory or git
 PROJECT=$(basename "$(pwd)")
