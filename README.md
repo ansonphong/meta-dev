@@ -1,6 +1,6 @@
 # Meta-Dev
 
-Autonomous development harness for Claude Code. Dashboard, overlord, 6-phase orchestrator, HOTL classification, changelog engine, multi-repo versioning — all configurable via JSON.
+Autonomous development harness for Claude Code. Dashboard, overlord, 6-phase orchestrator, HOTL classification, deep-investigation probe, changelog engine, multi-repo versioning — all configurable via JSON.
 
 ## Prerequisites
 
@@ -206,6 +206,41 @@ CLAUDE_PLUGIN_ROOT/
 | `/meta-canary` | Post-deploy health monitor |
 | `/meta-guard` | Safety hooks — intercept dangerous commands |
 | `/housekeeping` | Post-completion cleanup — archive plans, update status |
+
+## Deep Investigation — `/meta-probe`
+
+The harness's heaviest thinking tool. Point it at one hard question — a bug nobody can crack, an architecture call, a loop where the same wrong answer keeps coming back — and it throws the kitchen sink: many agents across many angles, adversarial debate, real experiments, and a single report that **opens a conversation** instead of closing one. **It never edits source and never commits** — it investigates; fixing is a separate `/meta-execute` step the report can recommend.
+
+```bash
+/meta-probe "why does the feed query slow only past ~2k rows" --budget high
+/meta-probe backend/app/services/feed.py:142 --budget insane
+/probe feature:starlight-decay --budget medium --background
+```
+
+**Budget tiers** scale agents, debate rounds, experiments, and recursion:
+
+| Budget | Fan-out | Behavior |
+|--------|---------|----------|
+| `low` | ~8 agents, 1 round | Focused look at the issue + adjacent angles |
+| `medium` | ~18 agents, 2 rounds | Multi-angle + adversarial debate |
+| `high` | ~30 agents, 3+ rounds | Full debate + experiments on survivors |
+| `insane` | 50+ agents, recursive | Sub-probe per unsettled hypothesis; runs for hours until exhaustive |
+
+**Bias-loop breaking is the core feature** (full protocol: [`references/probe-debiasing.md`](plugins/meta-dev/references/probe-debiasing.md)). Depth alone *amplifies* a shared bias, so the structure forces diversity + adversarial pressure + evidence instead:
+
+- **Neutral re-framing + premise inversion** — strips your framing so agents don't anchor on it.
+- **Diverse strategies (DMAD)** — every agent uses a *different* method; never clones.
+- **Preset-stance debate + external critique** — hypotheses defended by assigned advocates and attacked by *other* agents (no self-grading).
+- **Consider-the-opposite + pre-mortem** — every conclusion must produce its own counterexample.
+- **Ground-truth injection** — every load-bearing claim cites `file:line` / command output; experiments settle ties.
+- **Banned majority vote** — a hypothesis survives by withstanding the strongest counter, not by being popular.
+- **Forbidden ruts** — mistakes already tried (mined from git log + prior probes) are named and banned up front.
+
+**Long-horizon discipline** keeps multi-hour `insane` runs *productive* instead of drifting (grounded in [Anthropic's long-running-agent guidance](https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents)): the orchestrator holds distilled artifacts only, all state lives in an externalized ledger (`probe-{slug}-state.md`), context compacts between rounds, and a fresh-context reviewer checks the trajectory every 3 rounds.
+
+**Compute is justified only while an unexplored avenue could change the verdict.** Every round ends with a mandatory contemplation — *is there any other avenue we could look down? have we been exhaustive?* — and the probe continues only if a real, potentially-decisive avenue remains. When the frontier is dry, it stops and concludes. Long when it's productive; never spinning for the sake of it.
+
+Output lands at `plans/meta/probe-{slug}-{date}.md`: verdict + confidence, hypothesis tournament, what was ruled out and why, open questions with the experiment that would resolve each, and pointed conversation-starters back to you. Interactive by default; `--background` detaches and posts an inbox advisory when done.
 
 ## Config
 
