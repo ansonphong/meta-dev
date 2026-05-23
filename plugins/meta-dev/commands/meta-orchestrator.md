@@ -16,6 +16,7 @@ Front-door dispatcher. Routes natural language to the correct meta-dev command.
 - "plan" / "restructure" / "master plan" → `/meta-planner`
 - "autopilot" / "cruise control" / "cruise" / "full send" / "build it" / "go" / "execute" / "implement" / "build" → **Autopilot sequence** (see below). NEVER route to `--from 5 --to 5` — that skips hardening.
 - "harden" / "gap scan" / "loop-gap" → `/loop-gap`
+- "probe" / "investigate deeply" / "dig into" / "go deep on" / "why does X keep" / "get to the bottom of" → `/meta-probe`
 - "review" / "evaluate" / "grade" → `/meta-eval`
 - "security" / "audit" → `/meta-security`
 - "UX" / "design review" → `/meta-ux` or `/meta-review-design`

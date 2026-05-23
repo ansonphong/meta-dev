@@ -192,6 +192,7 @@ CLAUDE_PLUGIN_ROOT/
 | `/meta-ux` | Comprehensive UX evaluation — multi-wave assessment |
 | `/meta-review-design` | Design quality audit — coherence, originality, craft, anti-slop |
 | `/meta-audit` | Harness simplification audit — detect unused/overhead components |
+| `/meta-probe` | Exhaustive deep-investigation probe — diverse-agent fan-out, adversarial debate, LLM bias-loop breaking, one report that opens a conversation |
 
 ### Maintenance
 | Command | Purpose |
