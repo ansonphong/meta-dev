@@ -143,6 +143,8 @@ refresh: fast  ·  agents: 2 haiku  ·  dirty: 3  ·  unpushed: 0
   [new idea]    [plan]    [execute]    [review]    [ship]    [overlord]
 ```
 
+> **`[execute]` = autopilot.** Routes through the orchestrator and runs the full sequence — **harden (`/loop-gap`) → execute (`/meta-execute`) → code review (`superpowers:requesting-code-review`)** — not execute-only. Hardening is default-on; pass `--no-harden` to skip it. See the Autopilot sequence in `meta-orchestrator.md`.
+
 One glance. Every plan, session, inbox advisory, and commit. The Overlord watches plan edits and auto-reviews completed tasks. Issues flow into the inbox. You clear them with a single command. Sweep keeps the repo tidy. All driven by event-sourced state — replayable, auditable, zero drift.
 
 ## Architecture
@@ -174,7 +176,7 @@ CLAUDE_PLUGIN_ROOT/
 ### Development Lifecycle
 | Command | Purpose |
 |---------|---------|
-| `/meta-dev` | 6-phase orchestrator: classify → dod → plan → execute → review → ship |
+| `/meta-dev` | 6-phase orchestrator: classify → dod → plan → harden → execute → review → ship |
 | `/meta-classify` | HOTL vs HITL task classification by blast radius |
 | `/meta-dod` | Generate definition-of-done contracts from task descriptions |
 | `/meta-planner` | Restructure plans for automated execution |

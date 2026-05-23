@@ -15,9 +15,11 @@ model: sonnet
 1. **Brainstorm** → invoke `hotl-classification` skill
 2. **Design** → invoke `dod-contract` skill + optional `/meta-ux`, `frontend-design`
 3. **Plan** → delegate to `/meta-planner`
-4. **Harden** → delegate to `/loop-gap`
+4. **Harden** → delegate to `/loop-gap` (plan gap-scan, BEFORE execute — never skip)
 5. **Execute** → delegate to `/meta-execute` (activates `/meta-guard`)
-6. **Review** → delegate to `/meta-eval`, `/meta-audit`, `/meta-ux`, `/housekeeping`
+6. **Review** → invoke `superpowers:requesting-code-review` (code review of built diff) + delegate to `/meta-eval`, `/meta-audit`, `/meta-ux`, `/housekeeping`
+
+> **Execute-intent (autopilot) runs stages 4→6, never stage 5 alone.** See the Autopilot sequence in `meta-orchestrator.md`. Hardening (stage 4) is default-on; `--no-harden` skips only that step.
 
 Config: `plans/_dashboard/settings.json` (read via scripts/config-get.sh).
 
