@@ -1,6 +1,6 @@
 {
   "name": "meta-dev",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "Autonomous dev harness — dashboard, overlord, 6-phase orchestrator, HOTL, changelog, multi-repo versioning.",
   "author": { "name": "Phong", "url": "https://github.com/ansonphong" },
   "homepage": "https://github.com/ansonphong/meta-dev",
