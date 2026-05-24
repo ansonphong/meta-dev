@@ -1,5 +1,18 @@
 # Meta-Dev Plugin — Development Guide
 
+## 🔴 HARD RULE #1 — BUMP VERSION EVERY PUSH
+
+**Every push to origin MUST bump the patch version (third number) in `plugins/meta-dev/.claude-plugin/plugin.json`.** `1.0.X` → increment X by 1 each push (1.1.0 → 1.1.1 → 1.1.2 …).
+
+**Why:** Claude Code caches installed plugins under `~/.claude/plugins/cache/<marketplace>/<plugin>/<version>/`. The cache is **version-keyed**. If the version does not change, Claude keeps loading the frozen cached snapshot and **new/edited commands, skills, and agents never register** — no matter how many times you `/plugin marketplace update`. Bumping the patch number forces a fresh cache build on the next update.
+
+**Procedure (do this as part of every push, never skip):**
+1. Edit `plugin.json` → bump patch (`version` field).
+2. Stage the bump with the rest of the change.
+3. Commit + push.
+
+After pushing, the user reloads with `/plugin marketplace update meta-dev-marketplace` + `/plugin install meta-dev@meta-dev-marketplace` + restart — the new version cache rebuilds and changes appear.
+
 ## Structure
 
 ```
