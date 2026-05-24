@@ -1,7 +1,7 @@
 ---
 name: meta-execute
-description: Subagent-driven plan execution — one fresh Sonnet per task, verify+commit+push between, auto-archive + deploy on completion
-argument-hint: <plan-path> [--inline] [--no-deploy] [--pause-before=<task-id>]
+description: Subagent-driven plan execution — one fresh Sonnet per task, verify+commit+push between, auto-archive on completion (never deploys)
+argument-hint: <plan-path> [--inline] [--deploy] [--pause-before=<task-id>]
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent]
 model: sonnet
 ---
@@ -9,6 +9,15 @@ model: sonnet
 # /meta-execute
 
 Parse plan, dispatch one Sonnet subagent per task, verify + commit + push between, escalate on drift.
+
+## NON-NEGOTIABLE: task tracker first
+
+**Before dispatching ANY subagent, before pre-flight gates, before anything else — the TodoWrite tracker must exist with one granular item per task.** The user relies on this list to watch progress; a run with no visible task list is a failed run regardless of whether the code lands.
+
+This is a hard gate, not a suggestion:
+- Step 1 (parse) and Step 2 (mirror to TodoWrite) happen FIRST, in order, every run. No exceptions for "small" plans.
+- Do not begin Step 3 until TodoWrite item count == task count from Step 1. If they differ, STOP and fix before proceeding.
+- Keep the tracker live: flip each item to `in_progress` when its subagent starts and `completed` the moment it verifies+commits. Never leave a task running while its item still reads `pending`, and never batch-complete.
 
 ## Flow
 
@@ -33,7 +42,11 @@ For each task extracted in step 1:
 
 After mirroring, count TodoWrite items. Compare against task count from step 1. They must match. If they don't, fix the gap before proceeding.
 
-**Self-check question before continuing:** "Does every `### Task N:` in the plan have a corresponding TodoWrite item?" If no, stop and fix.
+**STOP gate — do not pass until both are true:**
+1. Every `### Task N:` (and every split subtask) in the plan has a corresponding TodoWrite item.
+2. The TodoWrite list is visible to the user (you have actually called the tool, not just planned to).
+
+If either is false, fix it now. Dispatching a subagent before this gate passes is a defect.
 
 ### 3. Pre-flight gates
 
@@ -65,8 +78,8 @@ After ALL TodoWrite items are `completed`:
 - Archive plan to `plans/_archive/`
 - Update changelog via `meta-dev:meta-changelog`
 - Update `plans/STATUS.md` + `plans/exec-order.md`
-- Invoke `/deploy` (unless `--no-deploy`)
+- **Do NOT deploy.** Deployment is always a separate, manual `/deploy` run by the user. Completing a plan is NOT permission to deploy. Only invoke `/deploy` if the user passed the explicit `--deploy` flag on THIS run.
 
-Config: `plans/_dashboard/settings.json` (model tier, deploy toggle).
+Config: `plans/_dashboard/settings.json` (model tier).
 
 See `superpowers:subagent-driven-development` skill for dispatch template.
