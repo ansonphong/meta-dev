@@ -18,6 +18,10 @@ Use it when a problem is mission-critical, when you're tired of re-explaining th
 
 **Agent philosophy.** Be extremely liberal spawning agents — but **never spawn two agents that think the same way** (T2/DMAD). Each agent owns a distinct strategy or stance. Deep reasoning agents are dispatched as **opus** (mission-critical); mechanical indexing/archaeology agents may be **haiku**. Agent count scales with budget: low ≈ 8, medium ≈ 18, high ≈ 30, insane ≈ 50+ (and recursive).
 
+## Prompts & Interview Protocol
+
+When user-interview mode is active, read `references/probe-prompts.md` for the Q1-Q6 protocol and budget-tiered agent prompts.
+
 ## Usage
 
 ```
