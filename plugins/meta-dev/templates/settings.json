@@ -86,6 +86,18 @@
         "core_fsmonitor": false
       },
       "wsl_detection": "auto"
+    },
+    "guard": {
+      "scope_root": ".",
+      "destructive_categories": {
+        "rm_rf_non_temp": "block",
+        "rm_git_index": "block",
+        "git_reset_hard": "block",
+        "git_checkout_dot": "block",
+        "git_push_force_main": "block",
+        "no_verify_flag": "warn",
+        "drop_table": "block"
+      }
     }
   }
 }

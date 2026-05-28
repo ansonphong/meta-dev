@@ -139,6 +139,24 @@
             },
             "wsl_detection": { "type": "string", "enum": ["auto", "force", "never"], "default": "auto" }
           }
+        },
+        "guard": {
+          "type": "object",
+          "properties": {
+            "scope_root": { "type": "string", "default": "." },
+            "destructive_categories": {
+              "type": "object",
+              "properties": {
+                "rm_rf_non_temp": { "type": "string", "enum": ["block", "warn", "allow"], "default": "block" },
+                "rm_git_index": { "type": "string", "enum": ["block", "warn"], "default": "block" },
+                "git_reset_hard": { "type": "string", "enum": ["block", "warn", "allow"], "default": "block" },
+                "git_checkout_dot": { "type": "string", "enum": ["block", "warn", "allow"], "default": "block" },
+                "git_push_force_main": { "type": "string", "enum": ["block", "warn"], "default": "block" },
+                "no_verify_flag": { "type": "string", "enum": ["block", "warn", "allow"], "default": "warn" },
+                "drop_table": { "type": "string", "enum": ["block", "warn"], "default": "block" }
+              }
+            }
+          }
         }
       }
     }
