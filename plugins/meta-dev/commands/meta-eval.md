@@ -8,17 +8,32 @@ model: sonnet
 
 # /meta-eval
 
-Evaluate implementation against design criteria. Separate evaluator (not self-review) — catches issues implementer rationalizes away.
+Post-execution evaluation. Dispatch 8 specialized agents, score design quality, loop until grade ≥ B.
 
-## Scope
+## Flow
 
-1. Gather context: design doc, master plan, phase files, design rubric
-2. Launch parallel sonnet evaluation agents per category (API, security, error handling, integration, stubs)
-3. API contract verification against cached surfaces (meta-init refresh-cache)
-4. Design quality rubric scoring (if UI)
-5. Plan-vs-reality verification (check claims against code)
-6. Generate structured report with scores + issues + recommendation
+### 1. Environment health check
 
-Output: `plans/meta/eval-report-{date}.md`
+Run `references/eval-protocol.md` health check. Read health endpoints from config. If services are down, report and exit.
 
-Config: `plans/_dashboard/settings.json` (rounds, criteria defaults).
+### 2. Round 1: Dispatch all 8 agents
+
+Agents from `references/eval-agents.md`. Dispatch in parallel. Collect findings.
+
+### 3. Design quality scoring
+
+Invoke `design-eval` skill. Reads design doc path from `bash scripts/config-get.sh meta_dev.paths.design_doc`. Score on 4 dimensions.
+
+### 4. Triage + fix round
+
+Auto-fix trivials. Bundle findings by severity. Fix. Commit.
+
+### 5. Round 2 (and 3 if needed)
+
+Re-dispatch agents. Check resolution. Check regressions. Report grade.
+
+### 6. Final report
+
+Per `references/eval-protocol.md` template. Grade ≥ B → pass. Grade < B → flag for human review.
+
+Config: `bash scripts/config-get.sh` for paths/models/eval sections.
