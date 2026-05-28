@@ -91,6 +91,22 @@
             "medium_risk": { "type": "string", "enum": ["auto_execute", "review_after", "gate_before_execute"], "default": "review_after" },
             "high_risk": { "type": "string", "enum": ["auto_execute", "review_after", "gate_before_execute"], "default": "gate_before_execute" }
           }
+        },
+        "paths": {
+          "type": "object",
+          "properties": {
+            "plans_root": { "type": "string", "default": "plans" },
+            "plan_subdirs": {
+              "type": "array",
+              "items": { "type": "string" },
+              "default": ["app", "www", "gallery", "meta"]
+            },
+            "archive_subdir": { "type": "string", "default": "_archive" },
+            "design_doc": { "type": ["string", "null"], "default": null },
+            "learned_patterns": { "type": ["string", "null"], "default": null },
+            "exec_order": { "type": "string", "default": "plans/exec-order.md" },
+            "status_file": { "type": "string", "default": "plans/STATUS.md" }
+          }
         }
       }
     }
