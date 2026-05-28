@@ -9,6 +9,26 @@ At startup, `/meta-dev` detects the mode:
 - **Interactive:** Default. Stage-by-stage with user confirmation between stages.
 - **Probe-triggered:** Subject contains probe keywords ("why", "stuck", "loop", "keep failing", "wrong", "investigate", "debug")
 
+## Quick-Fix Waterfall Bypass
+
+**Before mode detection, triage the subject for triviality.** Not every subject deserves the full 6-stage waterfall. Trivial work bypasses Stages 1-4 and goes **straight to Stage 5 (Execute)**.
+
+A subject is **trivial** (bypass eligible) when ALL of these hold:
+- Touches roughly 3 files or fewer
+- Introduces NO new behavior (typo fix, config change, copy edit, dependency pin, mechanical refactor, version bump, status/doc update)
+- Has an obvious, well-understood implementation with no design questions
+
+A subject is **non-trivial** (full waterfall required) when EITHER holds:
+- Touches more than ~3 files, OR
+- Introduces new behavior (new feature, new API surface, new UX flow, schema change, new module)
+
+**Bypass routing:**
+- Trivial → skip Stages 1-4, run Stage 5 (`/meta-execute`) directly, then Stage 6 review as normal.
+- Non-trivial → run the full 6-stage pipeline.
+- When in doubt, treat as non-trivial (the full pipeline is the safe default).
+
+The bypass only skips the *planning/hardening* stages — it never skips execution review or the Stage-5 safety boundary below.
+
 ## Cruise Control (Autopilot) — THE HEADLINE FEATURE
 
 **Cruise mode drives all 6 stages unattended.** It chains: brainstorm → design → plan → harden → execute → review → done. Zero human prompts between stages.
@@ -77,3 +97,12 @@ When given multiple subjects (comma-separated or quoted list):
 - Each subject gets its own independent 6-stage pipeline
 - Error isolation: one subject failing does not affect others
 - Queue remaining subjects; advance next when one completes
+
+## Important Rules (Safety Invariants)
+
+These hold in ALL modes — interactive, cruise, probe, and quick-fix bypass.
+
+1. **NEVER write code before Stage 5.** Stages 1-4 (brainstorm, design, plan, harden) are pure documentation/planning. No source files are touched until Execute. (The quick-fix bypass is the only path that reaches Stage 5 early — and only because it has *no* planning stages to write code ahead of.)
+2. **The default stop is Stage 4 — execution requires explicit user permission. This is the safety boundary.** `/meta-dev` defaults to halting after hardening with a runnable, reviewed plan; it does NOT auto-execute unless the user explicitly authorizes Stage 5 (via `--to 5`/`--to 6`, cruise/autopilot, or a direct GO).
+   - **Cruise mode defaults its gate to `none`**, which removes per-stage prompts. That makes restating this Stage-5/Stage-4 boundary MORE important, not less: invoking cruise (or `--to 6`) IS the explicit permission to cross into execution. Absent that explicit signal, stop at Stage 4.
+3. **Plans NEVER go in source or doc directories.** ALL plans, designs, and hardening artifacts live under the configured `plans_root` (`bash scripts/config-get.sh meta_dev.paths.plans_root`). NEVER write them into source trees, `docs/`, or any child/sub-repo. This is non-negotiable across every stage.

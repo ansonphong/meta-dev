@@ -22,7 +22,19 @@
       "show_active_sessions": true
     },
     "inbox": {
-      "auto_register_sources": ["overlord_finding", "review_failure", "sweep_anomaly", "repair_dossier", "classify_blocked", "security_alert", "plan_ready_review", "plan_question", "loopgap_done", "decision_needed", "deploy_gate"],
+      "auto_register_sources": [
+        "overlord_finding",
+        "review_failure",
+        "sweep_anomaly",
+        "repair_dossier",
+        "classify_blocked",
+        "security_alert",
+        "plan_ready_review",
+        "plan_question",
+        "loopgap_done",
+        "decision_needed",
+        "deploy_gate"
+      ],
       "auto_clear_severity": "low",
       "escalate_severity": "high",
       "surface_severity": "critical",
@@ -60,7 +72,12 @@
     },
     "paths": {
       "plans_root": "plans",
-      "plan_subdirs": ["app", "www", "gallery", "meta"],
+      "plan_subdirs": [
+        "app",
+        "www",
+        "gallery",
+        "meta"
+      ],
       "archive_subdir": "_archive",
       "design_doc": null,
       "learned_patterns": null,
@@ -103,6 +120,202 @@
       "health_checks": [],
       "max_rounds": 3,
       "grade_threshold": "B"
+    },
+    "canary": {
+      "default_target": "default",
+      "default_duration": "10m",
+      "interval": {
+        "divisor": 10,
+        "min_seconds": 30,
+        "max_seconds": 120
+      },
+      "baseline": {
+        "enabled": true,
+        "latency_multiplier": 2.0
+      },
+      "escalation": {
+        "strike_count": 3
+      },
+      "errors": {
+        "warn_threshold": 0,
+        "fail_threshold": 5
+      },
+      "ssl_dns": {
+        "enabled": true,
+        "cert_expiry_warn_days": 7
+      },
+      "targets": {
+        "default": {
+          "endpoints": [
+            {
+              "name": "health",
+              "url": "https://example.com/api/health",
+              "method": "GET",
+              "expected_status": "200",
+              "latency_threshold_ms": 2000
+            }
+          ],
+          "ssh": null,
+          "domains": [
+            "example.com"
+          ]
+        }
+      }
+    },
+    "init_check": {
+      "total_budget_seconds": 30,
+      "default_check_timeout_seconds": 10,
+      "repos": [],
+      "services": [],
+      "test_baseline": {
+        "command": "",
+        "pass": "exit_zero",
+        "timeout_seconds": 15
+      },
+      "frontend": {
+        "deps_dir": "node_modules",
+        "typecheck_command": "",
+        "native_toolchain": []
+      },
+      "api_contract": {
+        "enabled": true,
+        "frontend_call_patterns": [
+          "fetch",
+          "invoke",
+          "apiClient"
+        ],
+        "backend_route_patterns": [
+          "@app\\.(get|post|put|delete)",
+          "@router\\.(get|post|put|delete)"
+        ]
+      },
+      "env_files": [
+        ".env"
+      ]
+    },
+    "security": {
+      "confidence_threshold": 0.8,
+      "always_checked_invariants": [],
+      "scope_phase_groups": {
+        "auth": [
+          1,
+          2,
+          6
+        ],
+        "payment": [
+          1,
+          4,
+          8
+        ],
+        "all": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9
+        ]
+      },
+      "model_tiers": {
+        "group_a_identity": "sonnet",
+        "group_b_input_infra": "sonnet",
+        "group_c_secrets_crypto_exposure": "sonnet",
+        "phase_8_crypto": "opus",
+        "group_d_value_paths": "opus",
+        "findings_synthesis": "opus"
+      }
+    },
+    "ux": {
+      "default_depth": "standard",
+      "default_rounds": 1,
+      "grade_threshold": "B",
+      "fix_min_severity": "high",
+      "domain_context": null,
+      "focus_areas": [],
+      "design_system_rules": [
+        {
+          "id": "no-glow",
+          "rule": "No glow/shadow highlights; use thicker borders for emphasis",
+          "severity": "medium"
+        },
+        {
+          "id": "zindex-scale",
+          "rule": "Overlays/modals/tooltips/dropdowns use the defined z-index scale, no ad-hoc magic numbers",
+          "severity": "medium"
+        }
+      ],
+      "scoring": {
+        "first_principles": 30,
+        "design_compliance": 30,
+        "accessibility": 20,
+        "coherence": 20
+      }
+    },
+    "review_design": {
+      "design_doc": null,
+      "token_map": {},
+      "default_token_namespace": "default",
+      "target_globs": [
+        "*.svelte",
+        "*.css",
+        "*.postcss",
+        "*.html",
+        "*.tsx",
+        "*.jsx",
+        "*.vue"
+      ],
+      "diff_base": "HEAD~1",
+      "depth": "standard",
+      "accent_color": null,
+      "craft_heuristic": {
+        "forbidden": [
+          "glow",
+          "shadow-glow"
+        ],
+        "deduction": 1,
+        "dimension": "craft"
+      },
+      "slop_patterns": {
+        "generic_gradients": true,
+        "hero_stock_phrases": true,
+        "identical_card_grids": true,
+        "unstyled_component_libs": true,
+        "excessive_loaders": true,
+        "placeholder_content": true,
+        "generic_ctas": true,
+        "no_type_hierarchy": true,
+        "craft_heuristic": true,
+        "stock_photos": true
+      },
+      "scoring": {
+        "weights": {
+          "coherence": 0.3,
+          "originality": 0.25,
+          "craft": 0.25,
+          "functionality": 0.2
+        },
+        "grade_threshold": "B"
+      }
+    },
+    "ship": {
+      "default_target": null,
+      "migration_gate": true,
+      "lockfile": "plans/_dashboard/.ship.lock",
+      "channels": null,
+      "preflight": {
+        "require_clean_tree": true,
+        "require_on_branch": true,
+        "require_no_index_lock": true,
+        "run_tests": true
+      },
+      "token_budget": {
+        "commit_count": 200,
+        "context_bytes": 80000
+      },
+      "targets": {}
     }
   }
 }

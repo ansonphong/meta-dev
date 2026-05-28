@@ -3,36 +3,95 @@
   "$id": "https://raw.githubusercontent.com/ansonphong/meta-dev/main/plugins/meta-dev/schemas/settings.schema.json",
   "title": "Meta-Dev Settings",
   "type": "object",
-  "required": ["version", "meta_dev"],
+  "required": [
+    "version",
+    "meta_dev"
+  ],
   "properties": {
-    "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
     "meta_dev": {
       "type": "object",
-      "required": ["components", "gates"],
+      "required": [
+        "components",
+        "gates"
+      ],
       "properties": {
         "components": {
           "type": "object",
           "properties": {
-            "dashboard": { "type": "boolean", "default": true },
-            "overlord": { "type": "boolean", "default": true },
-            "changelog": { "type": "boolean", "default": true },
-            "versioning": { "type": "boolean", "default": true },
-            "review_batch": { "type": "boolean", "default": true },
-            "auto_sweep": { "type": "boolean", "default": false },
-            "repair_loop": { "type": "boolean", "default": true },
-            "classify_hook": { "type": "boolean", "default": true },
-            "inbox": { "type": "boolean", "default": true }
+            "dashboard": {
+              "type": "boolean",
+              "default": true
+            },
+            "overlord": {
+              "type": "boolean",
+              "default": true
+            },
+            "changelog": {
+              "type": "boolean",
+              "default": true
+            },
+            "versioning": {
+              "type": "boolean",
+              "default": true
+            },
+            "review_batch": {
+              "type": "boolean",
+              "default": true
+            },
+            "auto_sweep": {
+              "type": "boolean",
+              "default": false
+            },
+            "repair_loop": {
+              "type": "boolean",
+              "default": true
+            },
+            "classify_hook": {
+              "type": "boolean",
+              "default": true
+            },
+            "inbox": {
+              "type": "boolean",
+              "default": true
+            }
           }
         },
         "dashboard": {
           "type": "object",
           "properties": {
-            "auto_inject_on_session": { "type": "boolean", "default": true },
-            "refresh": { "type": "string", "enum": ["fast", "normal", "lazy"], "default": "normal" },
-            "show_sweep_log": { "type": "boolean", "default": true },
-            "show_inbox": { "type": "boolean", "default": true },
-            "show_exec_order": { "type": "boolean", "default": true },
-            "show_active_sessions": { "type": "boolean", "default": true }
+            "auto_inject_on_session": {
+              "type": "boolean",
+              "default": true
+            },
+            "refresh": {
+              "type": "string",
+              "enum": [
+                "fast",
+                "normal",
+                "lazy"
+              ],
+              "default": "normal"
+            },
+            "show_sweep_log": {
+              "type": "boolean",
+              "default": true
+            },
+            "show_inbox": {
+              "type": "boolean",
+              "default": true
+            },
+            "show_exec_order": {
+              "type": "boolean",
+              "default": true
+            },
+            "show_active_sessions": {
+              "type": "boolean",
+              "default": true
+            }
           }
         },
         "inbox": {
@@ -40,72 +99,292 @@
           "properties": {
             "auto_register_sources": {
               "type": "array",
-              "items": { "type": "string" },
-              "default": ["overlord_finding", "review_failure", "sweep_anomaly", "repair_dossier", "classify_blocked", "security_alert", "plan_ready_review", "plan_question", "loopgap_done", "decision_needed", "deploy_gate"]
+              "items": {
+                "type": "string"
+              },
+              "default": [
+                "overlord_finding",
+                "review_failure",
+                "sweep_anomaly",
+                "repair_dossier",
+                "classify_blocked",
+                "security_alert",
+                "plan_ready_review",
+                "plan_question",
+                "loopgap_done",
+                "decision_needed",
+                "deploy_gate"
+              ]
             },
-            "auto_clear_severity": { "type": "string", "enum": ["trivial", "low", "moderate", "high", "critical"], "default": "low" },
-            "escalate_severity": { "type": "string", "enum": ["trivial", "low", "moderate", "high", "critical"], "default": "high" },
-            "surface_severity": { "type": "string", "enum": ["trivial", "low", "moderate", "high", "critical"], "default": "critical" },
-            "clear_default_model": { "type": "string", "enum": ["haiku", "sonnet", "opus"], "default": "sonnet" },
-            "clear_model_override": { "type": ["string", "null"], "enum": ["haiku", "sonnet", "opus", null], "default": null },
-            "max_open_items": { "type": "integer", "minimum": 1, "default": 50 },
-            "max_overflow_action": { "type": "string", "enum": ["archive_oldest_resolved", "block", "force"], "default": "archive_oldest_resolved" },
-            "stale_days": { "type": "integer", "minimum": 1, "default": 14 },
-            "dedup_window_hours": { "type": "integer", "minimum": 1, "default": 72 }
+            "auto_clear_severity": {
+              "type": "string",
+              "enum": [
+                "trivial",
+                "low",
+                "moderate",
+                "high",
+                "critical"
+              ],
+              "default": "low"
+            },
+            "escalate_severity": {
+              "type": "string",
+              "enum": [
+                "trivial",
+                "low",
+                "moderate",
+                "high",
+                "critical"
+              ],
+              "default": "high"
+            },
+            "surface_severity": {
+              "type": "string",
+              "enum": [
+                "trivial",
+                "low",
+                "moderate",
+                "high",
+                "critical"
+              ],
+              "default": "critical"
+            },
+            "clear_default_model": {
+              "type": "string",
+              "enum": [
+                "haiku",
+                "sonnet",
+                "opus"
+              ],
+              "default": "sonnet"
+            },
+            "clear_model_override": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "enum": [
+                "haiku",
+                "sonnet",
+                "opus",
+                null
+              ],
+              "default": null
+            },
+            "max_open_items": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 50
+            },
+            "max_overflow_action": {
+              "type": "string",
+              "enum": [
+                "archive_oldest_resolved",
+                "block",
+                "force"
+              ],
+              "default": "archive_oldest_resolved"
+            },
+            "stale_days": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 14
+            },
+            "dedup_window_hours": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 72
+            }
           }
         },
         "overlord": {
           "type": "object",
           "properties": {
-            "trigger": { "type": "string", "enum": ["on_plan_edit", "manual", "scheduled"], "default": "on_plan_edit" },
-            "model": { "type": "string", "enum": ["sonnet", "opus"], "default": "sonnet" },
-            "auto_fix": { "type": "string", "enum": ["none", "trivial_only", "moderate_and_below", "all"], "default": "moderate_and_below" },
-            "auto_clear_inbox_per_tick": { "type": "boolean", "default": true },
-            "max_loops": { "type": "integer", "minimum": 1, "maximum": 1000, "default": 100 }
+            "trigger": {
+              "type": "string",
+              "enum": [
+                "on_plan_edit",
+                "manual",
+                "scheduled"
+              ],
+              "default": "on_plan_edit"
+            },
+            "model": {
+              "type": "string",
+              "enum": [
+                "sonnet",
+                "opus"
+              ],
+              "default": "sonnet"
+            },
+            "auto_fix": {
+              "type": "string",
+              "enum": [
+                "none",
+                "trivial_only",
+                "moderate_and_below",
+                "all"
+              ],
+              "default": "moderate_and_below"
+            },
+            "auto_clear_inbox_per_tick": {
+              "type": "boolean",
+              "default": true
+            },
+            "max_loops": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000,
+              "default": 100
+            }
           }
         },
         "changelog": {
           "type": "object",
           "properties": {
-            "auto_add_on_commit": { "type": "boolean", "default": true },
-            "auto_cut_on": { "type": "string", "enum": ["manual", "weekly", "n_entries", "before_deploy"], "default": "manual" },
-            "auto_cut_threshold": { "type": "integer", "default": 20 },
-            "version_strategy": { "type": "string", "enum": ["semver", "calver"], "default": "semver" },
-            "release_post_target": { "type": ["string", "null"], "default": null }
+            "auto_add_on_commit": {
+              "type": "boolean",
+              "default": true
+            },
+            "auto_cut_on": {
+              "type": "string",
+              "enum": [
+                "manual",
+                "weekly",
+                "n_entries",
+                "before_deploy"
+              ],
+              "default": "manual"
+            },
+            "auto_cut_threshold": {
+              "type": "integer",
+              "default": 20
+            },
+            "version_strategy": {
+              "type": "string",
+              "enum": [
+                "semver",
+                "calver"
+              ],
+              "default": "semver"
+            },
+            "release_post_target": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "default": null
+            }
           }
         },
         "versioning": {
           "type": "object",
           "properties": {
-            "default_strategy": { "type": "string", "enum": ["semver", "calver", "custom"], "default": "semver" },
-            "auto_bump_on_cut": { "type": "boolean", "default": true },
-            "git_tag_on_bump": { "type": "boolean", "default": true },
-            "push_tags_on_bump": { "type": "boolean", "default": true }
+            "default_strategy": {
+              "type": "string",
+              "enum": [
+                "semver",
+                "calver",
+                "custom"
+              ],
+              "default": "semver"
+            },
+            "auto_bump_on_cut": {
+              "type": "boolean",
+              "default": true
+            },
+            "git_tag_on_bump": {
+              "type": "boolean",
+              "default": true
+            },
+            "push_tags_on_bump": {
+              "type": "boolean",
+              "default": true
+            }
           }
         },
         "gates": {
           "type": "object",
-          "required": ["low_risk", "medium_risk", "high_risk"],
+          "required": [
+            "low_risk",
+            "medium_risk",
+            "high_risk"
+          ],
           "properties": {
-            "low_risk": { "type": "string", "enum": ["auto_execute", "review_after", "gate_before_execute"], "default": "auto_execute" },
-            "medium_risk": { "type": "string", "enum": ["auto_execute", "review_after", "gate_before_execute"], "default": "review_after" },
-            "high_risk": { "type": "string", "enum": ["auto_execute", "review_after", "gate_before_execute"], "default": "gate_before_execute" }
+            "low_risk": {
+              "type": "string",
+              "enum": [
+                "auto_execute",
+                "review_after",
+                "gate_before_execute"
+              ],
+              "default": "auto_execute"
+            },
+            "medium_risk": {
+              "type": "string",
+              "enum": [
+                "auto_execute",
+                "review_after",
+                "gate_before_execute"
+              ],
+              "default": "review_after"
+            },
+            "high_risk": {
+              "type": "string",
+              "enum": [
+                "auto_execute",
+                "review_after",
+                "gate_before_execute"
+              ],
+              "default": "gate_before_execute"
+            }
           }
         },
         "paths": {
           "type": "object",
           "properties": {
-            "plans_root": { "type": "string", "default": "plans" },
+            "plans_root": {
+              "type": "string",
+              "default": "plans"
+            },
             "plan_subdirs": {
               "type": "array",
-              "items": { "type": "string" },
-              "default": ["app", "www", "gallery", "meta"]
+              "items": {
+                "type": "string"
+              },
+              "default": [
+                "app",
+                "www",
+                "gallery",
+                "meta"
+              ]
             },
-            "archive_subdir": { "type": "string", "default": "_archive" },
-            "design_doc": { "type": ["string", "null"], "default": null },
-            "learned_patterns": { "type": ["string", "null"], "default": null },
-            "exec_order": { "type": "string", "default": "plans/exec-order.md" },
-            "status_file": { "type": "string", "default": "plans/STATUS.md" }
+            "archive_subdir": {
+              "type": "string",
+              "default": "_archive"
+            },
+            "design_doc": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "default": null
+            },
+            "learned_patterns": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "default": null
+            },
+            "exec_order": {
+              "type": "string",
+              "default": "plans/exec-order.md"
+            },
+            "status_file": {
+              "type": "string",
+              "default": "plans/STATUS.md"
+            }
           }
         },
         "models": {
@@ -114,15 +393,71 @@
             "stage_overrides": {
               "type": "object",
               "properties": {
-                "brainstorm": { "type": "string", "enum": ["haiku", "sonnet", "opus"], "default": "sonnet" },
-                "design": { "type": "string", "enum": ["haiku", "sonnet", "opus"], "default": "sonnet" },
-                "plan": { "type": "string", "enum": ["haiku", "sonnet", "opus"], "default": "sonnet" },
-                "harden": { "type": "string", "enum": ["haiku", "sonnet", "opus"], "default": "opus" },
-                "execute": { "type": "string", "enum": ["haiku", "sonnet", "opus"], "default": "sonnet" },
-                "review": { "type": "string", "enum": ["haiku", "sonnet", "opus"], "default": "opus" }
+                "brainstorm": {
+                  "type": "string",
+                  "enum": [
+                    "haiku",
+                    "sonnet",
+                    "opus"
+                  ],
+                  "default": "sonnet"
+                },
+                "design": {
+                  "type": "string",
+                  "enum": [
+                    "haiku",
+                    "sonnet",
+                    "opus"
+                  ],
+                  "default": "sonnet"
+                },
+                "plan": {
+                  "type": "string",
+                  "enum": [
+                    "haiku",
+                    "sonnet",
+                    "opus"
+                  ],
+                  "default": "sonnet"
+                },
+                "harden": {
+                  "type": "string",
+                  "enum": [
+                    "haiku",
+                    "sonnet",
+                    "opus"
+                  ],
+                  "default": "opus"
+                },
+                "execute": {
+                  "type": "string",
+                  "enum": [
+                    "haiku",
+                    "sonnet",
+                    "opus"
+                  ],
+                  "default": "sonnet"
+                },
+                "review": {
+                  "type": "string",
+                  "enum": [
+                    "haiku",
+                    "sonnet",
+                    "opus"
+                  ],
+                  "default": "opus"
+                }
               }
             },
-            "default_model": { "type": "string", "enum": ["haiku", "sonnet", "opus"], "default": "sonnet" }
+            "default_model": {
+              "type": "string",
+              "enum": [
+                "haiku",
+                "sonnet",
+                "opus"
+              ],
+              "default": "sonnet"
+            }
           }
         },
         "filesystem": {
@@ -131,29 +466,105 @@
             "git_corruption_mitigations": {
               "type": "object",
               "properties": {
-                "core_filemode": { "type": "boolean", "default": false },
-                "core_preloadindex": { "type": "boolean", "default": false },
-                "core_untrackedcache": { "type": "boolean", "default": false },
-                "core_fsmonitor": { "type": "boolean", "default": false }
+                "core_filemode": {
+                  "type": "boolean",
+                  "default": false
+                },
+                "core_preloadindex": {
+                  "type": "boolean",
+                  "default": false
+                },
+                "core_untrackedcache": {
+                  "type": "boolean",
+                  "default": false
+                },
+                "core_fsmonitor": {
+                  "type": "boolean",
+                  "default": false
+                }
               }
             },
-            "wsl_detection": { "type": "string", "enum": ["auto", "force", "never"], "default": "auto" }
+            "wsl_detection": {
+              "type": "string",
+              "enum": [
+                "auto",
+                "force",
+                "never"
+              ],
+              "default": "auto"
+            }
           }
         },
         "guard": {
           "type": "object",
           "properties": {
-            "scope_root": { "type": "string", "default": "." },
+            "scope_root": {
+              "type": "string",
+              "default": "."
+            },
             "destructive_categories": {
               "type": "object",
               "properties": {
-                "rm_rf_non_temp": { "type": "string", "enum": ["block", "warn", "allow"], "default": "block" },
-                "rm_git_index": { "type": "string", "enum": ["block", "warn"], "default": "block" },
-                "git_reset_hard": { "type": "string", "enum": ["block", "warn", "allow"], "default": "block" },
-                "git_checkout_dot": { "type": "string", "enum": ["block", "warn", "allow"], "default": "block" },
-                "git_push_force_main": { "type": "string", "enum": ["block", "warn"], "default": "block" },
-                "no_verify_flag": { "type": "string", "enum": ["block", "warn", "allow"], "default": "warn" },
-                "drop_table": { "type": "string", "enum": ["block", "warn"], "default": "block" }
+                "rm_rf_non_temp": {
+                  "type": "string",
+                  "enum": [
+                    "block",
+                    "warn",
+                    "allow"
+                  ],
+                  "default": "block"
+                },
+                "rm_git_index": {
+                  "type": "string",
+                  "enum": [
+                    "block",
+                    "warn"
+                  ],
+                  "default": "block"
+                },
+                "git_reset_hard": {
+                  "type": "string",
+                  "enum": [
+                    "block",
+                    "warn",
+                    "allow"
+                  ],
+                  "default": "block"
+                },
+                "git_checkout_dot": {
+                  "type": "string",
+                  "enum": [
+                    "block",
+                    "warn",
+                    "allow"
+                  ],
+                  "default": "block"
+                },
+                "git_push_force_main": {
+                  "type": "string",
+                  "enum": [
+                    "block",
+                    "warn"
+                  ],
+                  "default": "block"
+                },
+                "no_verify_flag": {
+                  "type": "string",
+                  "enum": [
+                    "block",
+                    "warn",
+                    "allow"
+                  ],
+                  "default": "warn"
+                },
+                "drop_table": {
+                  "type": "string",
+                  "enum": [
+                    "block",
+                    "warn"
+                  ],
+                  "default": "block"
+                }
               }
             }
           }
@@ -163,11 +574,945 @@
           "properties": {
             "health_checks": {
               "type": "array",
-              "items": { "type": "string" },
+              "items": {
+                "type": "string"
+              },
               "default": []
             },
-            "max_rounds": { "type": "integer", "minimum": 1, "maximum": 10, "default": 3 },
-            "grade_threshold": { "type": "string", "enum": ["A", "B", "C", "D"], "default": "B" }
+            "max_rounds": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10,
+              "default": 3
+            },
+            "grade_threshold": {
+              "type": "string",
+              "enum": [
+                "A",
+                "B",
+                "C",
+                "D"
+              ],
+              "default": "B"
+            }
+          }
+        },
+        "canary": {
+          "type": "object",
+          "properties": {
+            "default_target": {
+              "type": "string",
+              "default": "default"
+            },
+            "default_duration": {
+              "type": "string",
+              "pattern": "^\\d+[smh]$",
+              "default": "10m"
+            },
+            "interval": {
+              "type": "object",
+              "properties": {
+                "divisor": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "default": 10
+                },
+                "min_seconds": {
+                  "type": "integer",
+                  "minimum": 30,
+                  "default": 30
+                },
+                "max_seconds": {
+                  "type": "integer",
+                  "minimum": 30,
+                  "default": 120
+                }
+              }
+            },
+            "baseline": {
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "type": "boolean",
+                  "default": true
+                },
+                "latency_multiplier": {
+                  "type": "number",
+                  "minimum": 1,
+                  "default": 2.0
+                }
+              }
+            },
+            "escalation": {
+              "type": "object",
+              "properties": {
+                "strike_count": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "default": 3
+                }
+              }
+            },
+            "errors": {
+              "type": "object",
+              "properties": {
+                "warn_threshold": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "default": 0
+                },
+                "fail_threshold": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "default": 5
+                }
+              }
+            },
+            "ssl_dns": {
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "type": "boolean",
+                  "default": true
+                },
+                "cert_expiry_warn_days": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "default": 7
+                }
+              }
+            },
+            "targets": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "object",
+                "required": [
+                  "endpoints"
+                ],
+                "properties": {
+                  "endpoints": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "name",
+                        "url",
+                        "expected_status"
+                      ],
+                      "properties": {
+                        "name": {
+                          "type": "string"
+                        },
+                        "url": {
+                          "type": "string"
+                        },
+                        "method": {
+                          "type": "string",
+                          "enum": [
+                            "GET",
+                            "POST",
+                            "HEAD"
+                          ],
+                          "default": "GET"
+                        },
+                        "expected_status": {
+                          "type": "string"
+                        },
+                        "latency_threshold_ms": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "default": 2000
+                        }
+                      }
+                    }
+                  },
+                  "ssh": {
+                    "type": [
+                      "object",
+                      "null"
+                    ],
+                    "default": null,
+                    "properties": {
+                      "host": {
+                        "type": "string"
+                      },
+                      "services": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  },
+                  "domains": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "default": []
+                  }
+                }
+              }
+            }
+          }
+        },
+        "init_check": {
+          "type": "object",
+          "properties": {
+            "total_budget_seconds": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 30
+            },
+            "default_check_timeout_seconds": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 10
+            },
+            "repos": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "default": []
+            },
+            "services": {
+              "type": "array",
+              "default": [],
+              "items": {
+                "type": "object",
+                "required": [
+                  "name",
+                  "command",
+                  "pass",
+                  "required"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "repo": {
+                    "type": "string"
+                  },
+                  "command": {
+                    "type": "string"
+                  },
+                  "pass": {
+                    "type": "string"
+                  },
+                  "timeout_seconds": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "default": 10
+                  },
+                  "required": {
+                    "type": "boolean",
+                    "default": true
+                  }
+                }
+              }
+            },
+            "test_baseline": {
+              "type": "object",
+              "properties": {
+                "command": {
+                  "type": "string"
+                },
+                "pass": {
+                  "type": "string",
+                  "default": "exit_zero"
+                },
+                "timeout_seconds": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "default": 15
+                }
+              }
+            },
+            "frontend": {
+              "type": "object",
+              "properties": {
+                "deps_dir": {
+                  "type": "string",
+                  "default": "node_modules"
+                },
+                "typecheck_command": {
+                  "type": "string"
+                },
+                "native_toolchain": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "default": []
+                }
+              }
+            },
+            "api_contract": {
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "type": "boolean",
+                  "default": true
+                },
+                "frontend_call_patterns": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "default": []
+                },
+                "backend_route_patterns": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "default": []
+                }
+              }
+            },
+            "env_files": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "default": [
+                ".env"
+              ]
+            }
+          }
+        },
+        "security": {
+          "type": "object",
+          "properties": {
+            "confidence_threshold": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "default": 0.8
+            },
+            "always_checked_invariants": {
+              "type": "array",
+              "default": [],
+              "items": {
+                "type": "object",
+                "required": [
+                  "id",
+                  "description"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "check": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "scope_phase_groups": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9
+                }
+              },
+              "default": {
+                "auth": [
+                  1,
+                  2,
+                  6
+                ],
+                "payment": [
+                  1,
+                  4,
+                  8
+                ],
+                "all": [
+                  1,
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7,
+                  8,
+                  9
+                ]
+              }
+            },
+            "model_tiers": {
+              "type": "object",
+              "properties": {
+                "group_a_identity": {
+                  "type": "string",
+                  "enum": [
+                    "haiku",
+                    "sonnet",
+                    "opus"
+                  ],
+                  "default": "sonnet"
+                },
+                "group_b_input_infra": {
+                  "type": "string",
+                  "enum": [
+                    "haiku",
+                    "sonnet",
+                    "opus"
+                  ],
+                  "default": "sonnet"
+                },
+                "group_c_secrets_crypto_exposure": {
+                  "type": "string",
+                  "enum": [
+                    "haiku",
+                    "sonnet",
+                    "opus"
+                  ],
+                  "default": "sonnet"
+                },
+                "phase_8_crypto": {
+                  "type": "string",
+                  "enum": [
+                    "haiku",
+                    "sonnet",
+                    "opus"
+                  ],
+                  "default": "opus"
+                },
+                "group_d_value_paths": {
+                  "type": "string",
+                  "enum": [
+                    "haiku",
+                    "sonnet",
+                    "opus"
+                  ],
+                  "default": "opus"
+                },
+                "findings_synthesis": {
+                  "type": "string",
+                  "enum": [
+                    "haiku",
+                    "sonnet",
+                    "opus"
+                  ],
+                  "default": "opus"
+                }
+              }
+            }
+          }
+        },
+        "ux": {
+          "type": "object",
+          "properties": {
+            "default_depth": {
+              "type": "string",
+              "enum": [
+                "shallow",
+                "standard",
+                "deep"
+              ],
+              "default": "standard"
+            },
+            "default_rounds": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10,
+              "default": 1
+            },
+            "grade_threshold": {
+              "type": "string",
+              "enum": [
+                "A",
+                "B",
+                "C",
+                "D"
+              ],
+              "default": "B"
+            },
+            "fix_min_severity": {
+              "type": "string",
+              "enum": [
+                "critical",
+                "high",
+                "medium",
+                "low"
+              ],
+              "default": "high"
+            },
+            "domain_context": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "default": null
+            },
+            "focus_areas": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "default": []
+            },
+            "design_system_rules": {
+              "type": "array",
+              "default": [],
+              "items": {
+                "type": "object",
+                "required": [
+                  "id",
+                  "rule",
+                  "severity"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "rule": {
+                    "type": "string"
+                  },
+                  "severity": {
+                    "type": "string",
+                    "enum": [
+                      "critical",
+                      "high",
+                      "medium",
+                      "low"
+                    ]
+                  }
+                }
+              }
+            },
+            "scoring": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "first_principles": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 100,
+                  "default": 30
+                },
+                "design_compliance": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 100,
+                  "default": 30
+                },
+                "accessibility": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 100,
+                  "default": 20
+                },
+                "coherence": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 100,
+                  "default": 20
+                }
+              }
+            }
+          }
+        },
+        "review_design": {
+          "type": "object",
+          "properties": {
+            "design_doc": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "default": null
+            },
+            "token_map": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              },
+              "default": {}
+            },
+            "default_token_namespace": {
+              "type": "string",
+              "default": "default"
+            },
+            "target_globs": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "default": [
+                "*.svelte",
+                "*.css",
+                "*.postcss",
+                "*.html",
+                "*.tsx",
+                "*.jsx",
+                "*.vue"
+              ]
+            },
+            "diff_base": {
+              "type": "string",
+              "default": "HEAD~1"
+            },
+            "depth": {
+              "type": "string",
+              "enum": [
+                "shallow",
+                "standard",
+                "deep"
+              ],
+              "default": "standard"
+            },
+            "accent_color": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "default": null
+            },
+            "craft_heuristic": {
+              "type": "object",
+              "properties": {
+                "forbidden": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "default": [
+                    "glow",
+                    "shadow-glow"
+                  ]
+                },
+                "deduction": {
+                  "type": "number",
+                  "minimum": 0,
+                  "default": 1
+                },
+                "dimension": {
+                  "type": "string",
+                  "enum": [
+                    "coherence",
+                    "originality",
+                    "craft",
+                    "functionality"
+                  ],
+                  "default": "craft"
+                }
+              }
+            },
+            "slop_patterns": {
+              "type": "object",
+              "properties": {
+                "generic_gradients": {
+                  "type": "boolean",
+                  "default": true
+                },
+                "hero_stock_phrases": {
+                  "type": "boolean",
+                  "default": true
+                },
+                "identical_card_grids": {
+                  "type": "boolean",
+                  "default": true
+                },
+                "unstyled_component_libs": {
+                  "type": "boolean",
+                  "default": true
+                },
+                "excessive_loaders": {
+                  "type": "boolean",
+                  "default": true
+                },
+                "placeholder_content": {
+                  "type": "boolean",
+                  "default": true
+                },
+                "generic_ctas": {
+                  "type": "boolean",
+                  "default": true
+                },
+                "no_type_hierarchy": {
+                  "type": "boolean",
+                  "default": true
+                },
+                "craft_heuristic": {
+                  "type": "boolean",
+                  "default": true
+                },
+                "stock_photos": {
+                  "type": "boolean",
+                  "default": true
+                }
+              }
+            },
+            "scoring": {
+              "type": "object",
+              "properties": {
+                "weights": {
+                  "type": "object",
+                  "properties": {
+                    "coherence": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1,
+                      "default": 0.3
+                    },
+                    "originality": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1,
+                      "default": 0.25
+                    },
+                    "craft": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1,
+                      "default": 0.25
+                    },
+                    "functionality": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1,
+                      "default": 0.2
+                    }
+                  }
+                },
+                "grade_threshold": {
+                  "type": "string",
+                  "enum": [
+                    "A",
+                    "B+",
+                    "B",
+                    "C+",
+                    "C",
+                    "D",
+                    "F"
+                  ],
+                  "default": "B"
+                }
+              }
+            }
+          }
+        },
+        "ship": {
+          "type": "object",
+          "properties": {
+            "default_target": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "default": null
+            },
+            "migration_gate": {
+              "type": "boolean",
+              "default": true
+            },
+            "lockfile": {
+              "type": "string",
+              "default": "plans/_dashboard/.ship.lock"
+            },
+            "channels": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": "string"
+              },
+              "default": null
+            },
+            "preflight": {
+              "type": "object",
+              "properties": {
+                "require_clean_tree": {
+                  "type": "boolean",
+                  "default": true
+                },
+                "require_on_branch": {
+                  "type": "boolean",
+                  "default": true
+                },
+                "require_no_index_lock": {
+                  "type": "boolean",
+                  "default": true
+                },
+                "run_tests": {
+                  "type": "boolean",
+                  "default": true
+                }
+              }
+            },
+            "token_budget": {
+              "type": "object",
+              "properties": {
+                "commit_count": {
+                  "type": "integer",
+                  "default": 200
+                },
+                "context_bytes": {
+                  "type": "integer",
+                  "default": 80000
+                }
+              }
+            },
+            "targets": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "object",
+                "required": [
+                  "kind",
+                  "repo_path"
+                ],
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "server",
+                      "artifact"
+                    ]
+                  },
+                  "repo_path": {
+                    "type": "string"
+                  },
+                  "branch": {
+                    "type": "string",
+                    "default": "main"
+                  },
+                  "version_repo_id": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "default": null
+                  },
+                  "test_cmd": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "default": []
+                  },
+                  "build_cmd": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "default": null
+                  },
+                  "migration": {
+                    "type": [
+                      "object",
+                      "null"
+                    ],
+                    "properties": {
+                      "check_cmd": {
+                        "type": "string"
+                      },
+                      "upgrade_cmd": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "downgrade_cmd": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    }
+                  },
+                  "deploy": {
+                    "type": [
+                      "object",
+                      "null"
+                    ],
+                    "properties": {
+                      "host": {
+                        "type": "string"
+                      },
+                      "path": {
+                        "type": "string"
+                      },
+                      "restart_cmd": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    }
+                  },
+                  "health": {
+                    "type": [
+                      "object",
+                      "null"
+                    ],
+                    "properties": {
+                      "url": {
+                        "type": "string"
+                      },
+                      "expected_status": {
+                        "type": "integer",
+                        "default": 200
+                      },
+                      "expected_body": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "default": null
+                      }
+                    }
+                  },
+                  "smoke_tests": {
+                    "type": "array",
+                    "default": [],
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string"
+                        },
+                        "url": {
+                          "type": "string"
+                        },
+                        "method": {
+                          "type": "string",
+                          "default": "GET"
+                        },
+                        "expected_status": {
+                          "type": "integer",
+                          "default": 200
+                        },
+                        "expected_body": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "default": null
+                        }
+                      }
+                    }
+                  },
+                  "canary_target": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "default": null
+                  }
+                }
+              }
+            }
           }
         }
       }

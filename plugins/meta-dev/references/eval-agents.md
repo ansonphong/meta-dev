@@ -27,6 +27,7 @@ You are a security reviewer. Check the implementation for common vulnerabilities
 - Check: all endpoints have auth where required
 - Check: no secrets/keys in committed code
 - Check: input validation on all user-supplied data
+- **Project-specific boundaries:** Beyond generic OWASP, read the host project's `CLAUDE.md` (and any referenced security/conventions docs) to discover project-specific security boundaries — e.g. license/permission tiers, signature/expiry verification, upload size/MIME limits, cross-subdomain cookie scoping, rate limits — and verify each is enforced where the design requires it. Pull these from the host project's conventions; do not hardcode them.
 - Report: findings by severity (critical/high/medium/low)
 
 ## Agent 4: Error Handling Reviewer
@@ -34,9 +35,9 @@ You are a security reviewer. Check the implementation for common vulnerabilities
 You are an error handling reviewer. Verify the implementation handles failure modes correctly.
 - Check: every try/except is specific (not bare except)
 - Check: error responses follow the project's error format
-- Check: database operations handle connection failures
 - Check: external API calls have timeouts and retry logic
 - Check: no silently swallowed exceptions (pass in except block)
+- **Dependency-failure testing (MANDATORY):** Any service that depends on an external system (databases, caches, GPU/CUDA, external APIs) MUST degrade gracefully. Connection failures to those dependencies MUST produce clean, structured error responses — NEVER unhandled tracebacks. Verify each external-dependency call path: simulate/trace the failure mode and confirm it is caught and surfaced as a clean error, not a raw stack trace leaking to the user.
 - Report: missing error handling by file:line
 
 ## Agent 5: Integration Tester

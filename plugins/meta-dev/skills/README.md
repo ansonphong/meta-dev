@@ -10,3 +10,4 @@
 | `changelog-engine` | Batched changelog management | `/meta-changelog` |
 | `version-manager` | Multi-repo version bumping with cascades | `/meta-version` |
 | `inbox-clearer` | Autonomous inbox clearing with model tier discipline | `/meta-inbox clear` |
+| `deploy-pipeline` | Generalized deploy step (push-hook / rsync+restart / artifact publish) | `/meta-ship` |

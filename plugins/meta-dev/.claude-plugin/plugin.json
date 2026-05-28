@@ -1,36 +1,76 @@
 {
   "name": "meta-dev",
-  "version": "1.1.4",
-  "description": "Autonomous dev harness — dashboard, overlord, 6-phase orchestrator, HOTL, changelog, multi-repo versioning.",
-  "author": { "name": "Phong", "url": "https://github.com/ansonphong" },
+  "version": "1.1.5",
+  "description": "Autonomous dev harness \u2014 dashboard, overlord, 6-phase orchestrator, HOTL, changelog, multi-repo versioning.",
+  "author": {
+    "name": "Phong",
+    "url": "https://github.com/ansonphong"
+  },
   "homepage": "https://github.com/ansonphong/meta-dev",
   "repository": "https://github.com/ansonphong/meta-dev",
   "license": "MIT",
-  "keywords": ["development", "automation", "orchestration", "dashboard", "changelog", "versioning"],
+  "keywords": [
+    "development",
+    "automation",
+    "orchestration",
+    "dashboard",
+    "changelog",
+    "versioning"
+  ],
   "hooks": {
-    "SessionStart": [{
-      "hooks": [{
-        "type": "command",
-        "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/on-session-start.sh",
-        "timeout": 15
-      }]
-    }],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/on-session-start.sh",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
         "matcher": "Bash(git commit:*)",
-        "hooks": [{
-          "type": "command",
-          "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/on-bash.sh",
-          "timeout": 15
-        }]
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/on-bash.sh",
+            "timeout": 15
+          }
+        ]
       },
       {
         "matcher": "Edit|Write|MultiEdit",
-        "hooks": [{
-          "type": "command",
-          "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/on-edit.sh",
-          "timeout": 15
-        }]
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/on-edit.sh",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/guard-check.sh",
+            "timeout": 15
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/guard-check.sh",
+            "timeout": 15
+          }
+        ]
       }
     ]
   }
