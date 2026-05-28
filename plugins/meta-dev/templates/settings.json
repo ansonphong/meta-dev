@@ -98,6 +98,11 @@
         "no_verify_flag": "warn",
         "drop_table": "block"
       }
+    },
+    "eval": {
+      "health_checks": [],
+      "max_rounds": 3,
+      "grade_threshold": "B"
     }
   }
 }

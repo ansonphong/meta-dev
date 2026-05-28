@@ -157,6 +157,18 @@
               }
             }
           }
+        },
+        "eval": {
+          "type": "object",
+          "properties": {
+            "health_checks": {
+              "type": "array",
+              "items": { "type": "string" },
+              "default": []
+            },
+            "max_rounds": { "type": "integer", "minimum": 1, "maximum": 10, "default": 3 },
+            "grade_threshold": { "type": "string", "enum": ["A", "B", "C", "D"], "default": "B" }
+          }
         }
       }
     }
