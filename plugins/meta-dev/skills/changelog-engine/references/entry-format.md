@@ -24,7 +24,7 @@ Each entry is a single line in `<today>--present.md`.
 
 ```
 2026-05-12T10:30:00Z | feat | Add payment intent endpoint (ref:abc1234)
-2026-05-12T11:15:00Z | fix | Correct gold balance race condition (ref:def5678)
+2026-05-12T11:15:00Z | fix | Correct account balance race condition (ref:def5678)
 2026-05-12T14:00:00Z | docs | Update API reference for payment flow (ref:ghi9012)
 ```
 
@@ -34,6 +34,6 @@ Multi-line entries attach a body block after the header line, indented by 2 spac
 
 ```
 2026-05-12T10:30:00Z | feat | Add payment intent endpoint (ref:abc1234)
-  Implements POST /api/v1/payments/intent with Stripe SDK.
+  Implements POST /api/v1/orders with the payment provider SDK.
   Configurable via plans/_dashboard/monetization.json.
 ```

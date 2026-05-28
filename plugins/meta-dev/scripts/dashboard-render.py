@@ -125,7 +125,7 @@ if __name__ == "__main__":
                 "wip commit on 3 untracked files (13:15 UTC)",
             ],
             "recent_commits": [
-                {"sha": "a7f3d92", "msg": "feat(payments): add Stripe webhook handler", "ago": "2 min"},
+                {"sha": "a7f3d92", "msg": "feat(api): add order webhook handler", "ago": "2 min"},
                 {"sha": "b2e8c41", "msg": "fix(auth): resolve token refresh race", "ago": "14 min"},
                 {"sha": "9c1d5f6", "msg": "chore(plan): mark P4.2 checkboxes DONE", "ago": "31 min"},
                 {"sha": "e4f7a83", "msg": "feat(payments): implement checkout session create", "ago": "1 hr"},

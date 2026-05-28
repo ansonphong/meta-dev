@@ -38,7 +38,7 @@ Inserted into hard rule #9 per the risk tag detected:
 
 - **schema-drift:** "After implementation, run `alembic check`. If migration task, also round-trip: `alembic upgrade head && alembic downgrade -1 && alembic upgrade head`."
 - **security-boundary:** "Confirm new code paths are gated by existing auth/permission helpers. Grep for auth decorators on any new endpoint."
-- **release-stability:** "Grep diff for ed25519 key material changes, version string format breaks, or release.json schema changes. Flag any."
+- **release-stability:** "Grep diff for signing-key/credential material changes, version-string format breaks, or release-manifest schema changes. Flag any."
 - **money-path:** "Confirm no silent value transfer, no rounding-down, no fee added without user-visible label. Full diff will be reviewed by orchestrator."
 - **perf/cache:** "Note this touches cache/async paths. Verify no cache-key collisions or race conditions."
 

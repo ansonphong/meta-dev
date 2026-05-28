@@ -2,6 +2,6 @@
   "tasks": [
     {"id": "T1", "title": "Add user avatar upload", "files": ["app/models/user.py", "app/api/v1/users.py", "app/services/storage.py"], "touches_auth": true, "touches_payments": false, "touches_migrations": false},
     {"id": "T2", "title": "Update README with install instructions", "files": ["README.md"], "touches_auth": false, "touches_payments": false, "touches_migrations": false},
-    {"id": "T3", "title": "Add Stripe webhook handler", "files": ["app/api/v1/webhooks.py", "app/services/payments.py"], "touches_auth": false, "touches_payments": true, "touches_migrations": false}
+    {"id": "T3", "title": "Add payment webhook handler", "files": ["api/webhooks.py", "services/payments.py"], "touches_auth": false, "touches_payments": true, "touches_migrations": false}
   ]
 }

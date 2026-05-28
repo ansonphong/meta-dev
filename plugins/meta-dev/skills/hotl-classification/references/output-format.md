@@ -11,7 +11,7 @@ Classify tasks as a JSON array. Each entry:
       "blast_radius": "high",
       "classification": "hitl",
       "confidence": 0.95,
-      "reasoning": "Monetization path – Stripe charge creation. Requires human audit per CLAUDE.md ethical boundary."
+      "reasoning": "Monetization path — payment charge creation. Requires human audit per the host project's CLAUDE.md policy."
     },
     {
       "id": "task-2",

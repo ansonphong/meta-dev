@@ -27,7 +27,7 @@ When user-interview mode is active, read `references/probe-prompts.md` for the Q
 ```
 /meta-probe "why does the feed query slow down only after ~2k rows"
 /meta-probe backend/app/services/feed.py:142 --budget high
-/meta-probe feature:starlight-decay --budget insane
+/meta-probe feature:checkout-timeout --budget insane
 /meta-probe "should we cut over to UUID PKs now or after launch" --budget high --background
 /meta-probe inbox:af83 --budget medium --no-converge
 ```

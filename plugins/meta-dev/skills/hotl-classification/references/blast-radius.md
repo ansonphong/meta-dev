@@ -6,7 +6,7 @@ Classify blast radius before dispatching. Higher blast radius → HITL gate requ
 
 | Blast Radius | Level | Examples | Gate |
 |-------------|-------|----------|------|
-| Payments / Monetization | HIGH | Gold balance, Stripe charges, subscription tiers, refunds, starlight-to-gold conversion | HITL required |
+| Payments / Monetization | HIGH | Account balances, payment charges, subscription tiers, refunds, credit conversion | HITL required |
 | Authentication / Authorization | HIGH | Login, signup, password reset, JWT, API keys, role changes, user deletion | HITL required |
 | Database Migrations | HIGH | Alembic revisions, column drops, data backfills, type changes | HITL required |
 | User Data Deletion | HIGH | Account removal, bulk content wipe, GDPR erasure | HITL required |

@@ -72,12 +72,7 @@
     },
     "paths": {
       "plans_root": "plans",
-      "plan_subdirs": [
-        "app",
-        "www",
-        "gallery",
-        "meta"
-      ],
+      "plan_subdirs": [],
       "archive_subdir": "_archive",
       "design_doc": null,
       "learned_patterns": null,
@@ -316,6 +311,15 @@
         "context_bytes": 80000
       },
       "targets": {}
+    },
+    "execute": {
+      "risk_keywords": {
+        "schema_drift": [],
+        "security_boundary": [],
+        "release_stability": [],
+        "money_path": [],
+        "perf_cache": []
+      }
     }
   }
 }

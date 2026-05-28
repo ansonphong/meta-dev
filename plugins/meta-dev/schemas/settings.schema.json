@@ -352,12 +352,8 @@
               "items": {
                 "type": "string"
               },
-              "default": [
-                "app",
-                "www",
-                "gallery",
-                "meta"
-              ]
+              "default": [],
+              "description": "Sub-areas under plans_root (repo names / domains). Empty = flat plans/. Projects define their own; the plugin ships none."
             },
             "archive_subdir": {
               "type": "string",
@@ -1510,6 +1506,52 @@
                     ],
                     "default": null
                   }
+                }
+              }
+            }
+          }
+        },
+        "execute": {
+          "type": "object",
+          "properties": {
+            "risk_keywords": {
+              "type": "object",
+              "description": "Project-specific risk keywords merged into risk-tag.sh's generic baseline. Add domain terms here instead of editing the script.",
+              "properties": {
+                "schema_drift": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "default": []
+                },
+                "security_boundary": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "default": []
+                },
+                "release_stability": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "default": []
+                },
+                "money_path": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "default": []
+                },
+                "perf_cache": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "default": []
                 }
               }
             }

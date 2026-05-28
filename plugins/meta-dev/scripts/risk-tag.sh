@@ -1,41 +1,59 @@
 #!/usr/bin/env bash
 set -euo pipefail
-# risk-tag.sh — Deterministic risk classification from task text
+# risk-tag.sh — Deterministic risk classification from task text.
+#
+# Ships a GENERIC baseline keyword set per category. Projects add their own
+# domain keywords (no plugin edit needed) via the settings cascade at:
+#   meta_dev.execute.risk_keywords.<category>
+# where <category> is one of:
+#   schema_drift | security_boundary | release_stability | money_path | perf_cache
+# Project keywords are merged into the baseline at match time.
+#
 # Usage: echo "$task_body" | bash scripts/risk-tag.sh
-# Output: one or more tags (comma-separated), or "none"
+# Output: comma-separated tags, or "none"
 
 TEXT=$(cat)
 TAGS=""
 
-# Word-boundary helper: \b plus underscore (common in code identifiers like validate_license)
+# Word-boundary helper: \b plus underscore (for code identifiers like validate_token)
 B='(\b|_)'
 
-# schema-drift: migrations, schema changes, alembic, postgres DDL
-if echo "$TEXT" | grep -qiE "${B}(migration|alembic|schema|postgres|ALTER TABLE|CREATE TABLE|DROP TABLE|ddl)${B}"; then
-  TAGS="${TAGS}schema-drift,"
-fi
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-.}"
 
-# security-boundary: auth, license, permission, ed25519, tokens
-if echo "$TEXT" | grep -qiE "${B}(permission|license|ed25519|gallery-token|auth|jwt|api\.key|secret|private\.key)${B}"; then
-  TAGS="${TAGS}security-boundary,"
-fi
+# Pull project-supplied extra keywords once (failure-safe: empty on any error / no config).
+EXTRA_ALL=$(python3 -c '
+import json, subprocess, sys
+cats = ["schema_drift", "security_boundary", "release_stability", "money_path", "perf_cache"]
+try:
+    out = subprocess.run(["python3", sys.argv[1] + "/scripts/config-merge.py"],
+                         capture_output=True, text=True, timeout=10).stdout
+    rk = json.loads(out).get("meta_dev", {}).get("execute", {}).get("risk_keywords", {})
+    if not isinstance(rk, dict):
+        rk = {}
+except Exception:
+    rk = {}
+for c in cats:
+    kw = rk.get(c, []) if isinstance(rk.get(c, []), list) else []
+    print(c + "\t" + "|".join(str(k).strip() for k in kw if str(k).strip()))
+' "$PLUGIN_ROOT" 2>/dev/null || true)
 
-# release-stability: release manifest, version strings, signatures
-if echo "$TEXT" | grep -qiE "${B}(release\.json|version\.manifest|ed25519\.signature|version\.string|release\.channel)${B}"; then
-  TAGS="${TAGS}release-stability,"
-fi
+# extra <category> -> project keyword alternation (may be empty)
+extra() { printf '%s\n' "$EXTRA_ALL" | awk -F'\t' -v c="$1" '$1==c{print $2}'; }
 
-# money-path: payments, stripe, refunds, subscriptions
-if echo "$TEXT" | grep -qiE "${B}(webhook|payment|stripe|refund|subscription|invoice|billing|checkout)${B}"; then
-  TAGS="${TAGS}money-path,"
-fi
+# match <category> <baseline-alternation>
+match() {
+  local base="$2" ex
+  ex=$(extra "$1")
+  [ -n "$ex" ] && base="${base}|${ex}"
+  echo "$TEXT" | grep -qiE "${B}(${base})${B}"
+}
 
-# perf/cache: redis, celery, cache, pipeline
-if echo "$TEXT" | grep -qiE "${B}(cache|redis|celery|pipeline|image\.processing|async\.queue)${B}"; then
-  TAGS="${TAGS}perf/cache,"
-fi
+if match schema_drift      "migration|alembic|schema|postgres|sqlite|mysql|ALTER TABLE|CREATE TABLE|DROP TABLE|ddl"; then TAGS="${TAGS}schema-drift,"; fi
+if match security_boundary "permission|license|auth|authz|jwt|token|oauth|session|credential|password|secret|private.key|api.key|signing.key"; then TAGS="${TAGS}security-boundary,"; fi
+if match release_stability "release|version.string|version.manifest|signature|changelog|semver|git.tag"; then TAGS="${TAGS}release-stability,"; fi
+if match money_path        "payment|billing|charge|refund|subscription|invoice|checkout|webhook|balance"; then TAGS="${TAGS}money-path,"; fi
+if match perf_cache        "cache|redis|memcache|celery|queue|worker|throttle|rate.limit|pipeline"; then TAGS="${TAGS}perf/cache,"; fi
 
-# Output
 if [ -z "$TAGS" ]; then
   echo "none"
 else

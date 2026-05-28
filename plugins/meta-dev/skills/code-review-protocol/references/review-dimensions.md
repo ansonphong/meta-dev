@@ -16,7 +16,7 @@
 | Auth check | Every mutation endpoint checks permissions | Missing permission decorator, user ID from URL not verified |
 | Input validation | Pydantic/schema validation on all public inputs | Raw user input passed to query, missing length limit |
 | Data leakage | No PII in logs, error messages, or responses | Stack trace in response, email in log, internal ID exposed |
-| Money path | Gold/starlight operations idempotent | Race condition on balance update, no rollback on failure |
+| Money path | Payment/balance operations idempotent | Race condition on balance update, no rollback on failure |
 
 ## 3. Patterns
 

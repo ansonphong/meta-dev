@@ -60,8 +60,8 @@ Resolve commands via the fallback chain — example shapes (discover real ones f
 - **Interpreter/venv present** — `test -d <venv>` (venv path from config, default `.venv`). Missing → report `DEPS_MISSING`; do NOT auto-create.
 - **App imports** — run the project's import smoke (e.g. a Flask `create_app` / FastAPI `app` import). Import error → `BLOCKED`.
 - **Database** — open a connection with the framework's engine (e.g. `db.engine.connect()`). Failure → `BLOCKED` if `required`, else `WARN`.
-- **Redis / cache** — `redis-cli ping` (or configured probe). Down + `required:false` → `WARN`.
-- **Task queue (Celery/RQ)** — import the worker module. **Redis-degradation heuristic:** if the queue is up but its broker (Redis) is DOWN, grep the codebase for broker-dependent paths lacking a try/except fallback; if found, raise `WARN` ("app will crash if broker unavailable").
+- **Cache / broker** — a ping probe (e.g. `redis-cli ping`, or the configured probe). Down + `required:false` → `WARN`.
+- **Task queue (e.g. Celery/RQ)** — import the worker module. **Broker-degradation heuristic:** if the queue is up but its broker (e.g. Redis) is DOWN, grep the codebase for broker-dependent paths lacking a try/except fallback; if found, raise `WARN` ("app will crash if broker unavailable").
 
 Guardrail: **never start a service.** If a required service is down, report it and let the user start it.
 

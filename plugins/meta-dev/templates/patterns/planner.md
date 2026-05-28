@@ -32,11 +32,11 @@ Patterns are discovered by downstream commands (loop-gap, meta-eval, meta-execut
 - **Rule:** When a task adds a field/property to any model or type, generate subtasks to propagate that field through ALL consuming layers: backend model → API response schema → frontend types → frontend store → UI component props.
 - **Applies to:** During task inventory (Stage 1, step 3).
 
-### LP-004: Svelte version awareness — check file for runes vs stores before generating code
+### LP-004: Framework/idiom version awareness — match the target file's existing conventions before generating code
 - **Source:** loop-gap (seen 4x across multiple plans)
 - **Added:** 2026-03-28
-- **Rule:** Before generating Svelte code, check whether the target file uses Svelte 5 runes ($state, $derived, $effect) or Svelte 4 stores. New files always use Svelte 5 runes. Existing files must match their current pattern.
-- **Applies to:** During phase file generation (Stage 2) for .svelte files.
+- **Rule:** Before generating code in an existing file, inspect which framework idioms / API version it uses (e.g. reactivity model, module/import syntax, component pattern, ORM style) and match it. New files follow the project's current standard as documented in the host CLAUDE.md. Never mix an old and a new idiom in the same file.
+- **Applies to:** During phase file generation (Stage 2) for any framework-coupled source file.
 
 ### LP-005: Test tasks must include edge cases, error paths, and boundary conditions
 - **Source:** loop-gap (seen 4x across multiple plans)
