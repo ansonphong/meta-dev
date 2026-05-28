@@ -8,19 +8,38 @@ model: sonnet
 
 # /meta-dev
 
-6-stage development waterfall orchestrator. Invokes HOTL skills for classification/contract, delegates to meta-planner, meta-execute, meta-eval, and housekeeping.
+6-stage development waterfall orchestrator. Autopilot (cruise control) drives all stages unattended.
 
-## Stage pipeline
+## Mode Detection
 
-1. **Brainstorm** → invoke `hotl-classification` skill
-2. **Design** → invoke `dod-contract` skill + optional `/meta-ux`, `frontend-design`
-3. **Plan** → delegate to `/meta-planner`
-4. **Harden** → delegate to `/loop-gap` (plan gap-scan, BEFORE execute — never skip)
-5. **Execute** → delegate to `/meta-execute` (activates `/meta-guard`)
-6. **Review** → invoke `superpowers:requesting-code-review` (code review of built diff) + delegate to `/meta-eval`, `/meta-audit`, `/meta-ux`, `/housekeeping`
+Read `references/dev-modes.md`. Detect: cruise (--cruise flag, keyword, or Accept Edits), interactive (default), or probe-trigger (investigative keywords).
 
-> **Execute-intent (autopilot) runs stages 4→6, never stage 5 alone.** See the Autopilot sequence in `meta-orchestrator.md`. Hardening (stage 4) is default-on; `--no-harden` skips only that step.
+## Stage Pipeline
 
-Config: `plans/_dashboard/settings.json` (read via scripts/config-get.sh).
+Stage definitions in `references/dev-swarms.md`. Each stage delegates to ported plugin commands:
 
-See `.claude/commands/meta-planner.md` for plan structuring, `.claude/commands/meta-execute.md` for execution.
+1. **Brainstorm** → research swarm (Wave 1)
+2. **Design** → design doc + design-eval quality gate (Stage 2.5)
+3. **Plan** → `/meta-planner` (generates master + phase files + loop-gap config)
+4. **Harden** → `/loop-gap` (gap-scan to "NO GAPS REMAINING")
+5. **Execute** → `/meta-execute` (subagent-driven, verify + commit per task)
+6. **Review** → `/meta-eval` + `/meta-audit` + `/housekeeping` (archive + sync dashboards)
+
+## Cruise Control (Autopilot)
+
+Read `references/dev-modes.md` for the full autopilot loop. Key rules:
+- Complete each stage fully (including its internal swarm/gates) before advancing
+- Per-stage exit criteria must be met (see dev-modes.md table)
+- Commit after every stage (minimum 6 commits for a full run)
+- Error isolation: one failing stage halts only that subject, not the whole run
+- Chains the PORTED plugin commands, not local
+
+## Multi-Item Mode
+
+When given multiple subjects: cap 2 concurrent. Each independent pipeline. Queue remainder.
+
+## Post-Stage Housekeeping
+
+After each stage: update exec-order `Stage: N/6` annotation. After Stage 6: full housekeeping per `references/dev-housekeeping.md` (archive, update STATUS, update exec-order, commit).
+
+Config: `bash scripts/config-get.sh` for paths/models/filesystem sections.
