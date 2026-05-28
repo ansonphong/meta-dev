@@ -8,17 +8,15 @@ model: sonnet
 
 # /meta-audit
 
-Harness component audit. Tests assumptions, classifies components as load-bearing/insurance/overhead/migrating.
+Pipeline health audit. Periodically tests whether pipeline components are still load-bearing or have become overhead.
 
-## Pipeline
+## Flow
 
-1. Component inventory — list every pipeline component and its assumption
-2. Evidence collection — read recent execution artifacts, quantify value
-3. Classification — load-bearing / insurance / overhead / migrating
-4. Recommendations — keep, simplify, or remove each component
-5. Pattern ecosystem review — read all commands' Learned Patterns, detect stale/contradictory/over-cap patterns. meta-audit is the ONLY command authorized to remove patterns.
-6. Apply changes (with confirmation)
+1. **Component inventory** — per `references/audit-protocol.md`
+2. **Assumption extraction** — what does each component assume?
+3. **Evidence collection** — read code, run components, check git log, check callers
+4. **Classification** — load-bearing / insurance / overhead / migrating
+5. **Pattern Ecosystem Review** — the ONLY command that can prune learned patterns (cap 20, check contradictions, staleness, overlap)
+6. **Report** — per audit-protocol.md template
 
-Output: `plans/meta/audit-{date}.md`.
-
-Lazy-load via `.claude/cache/learned-patterns-index.json` + `.claude/cache/last-audit.json`.
+Config: `bash scripts/config-get.sh` for paths section.
