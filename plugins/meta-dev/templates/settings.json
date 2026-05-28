@@ -77,6 +77,15 @@
         "review": "opus"
       },
       "default_model": "sonnet"
+    },
+    "filesystem": {
+      "git_corruption_mitigations": {
+        "core_filemode": false,
+        "core_preloadindex": false,
+        "core_untrackedcache": false,
+        "core_fsmonitor": false
+      },
+      "wsl_detection": "auto"
     }
   }
 }

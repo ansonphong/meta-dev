@@ -124,6 +124,21 @@
             },
             "default_model": { "type": "string", "enum": ["haiku", "sonnet", "opus"], "default": "sonnet" }
           }
+        },
+        "filesystem": {
+          "type": "object",
+          "properties": {
+            "git_corruption_mitigations": {
+              "type": "object",
+              "properties": {
+                "core_filemode": { "type": "boolean", "default": false },
+                "core_preloadindex": { "type": "boolean", "default": false },
+                "core_untrackedcache": { "type": "boolean", "default": false },
+                "core_fsmonitor": { "type": "boolean", "default": false }
+              }
+            },
+            "wsl_detection": { "type": "string", "enum": ["auto", "force", "never"], "default": "auto" }
+          }
         }
       }
     }
