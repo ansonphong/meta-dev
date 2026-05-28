@@ -30,7 +30,7 @@ Define request/response shapes, error codes, endpoints before implementation tas
 
 ### 5. Generate phase files with TDD + Verify hooks
 
-Each phase file: Codebase Snapshot → tasks with Verify-Before/After hooks → TDD steps (test→fail→impl→pass→commit). Use semantic anchors (function/class names), never line numbers (LP-001).
+Each phase file: Codebase Snapshot → tasks with Verify-Before/After hooks → TDD steps (test→fail→impl→pass→commit). Use semantic anchors (function/class names), never line numbers (see `templates/patterns/planner.md`).
 
 ### 6. Generate master plan with checklist + execution rules
 
