@@ -66,6 +66,17 @@
       "learned_patterns": null,
       "exec_order": "plans/exec-order.md",
       "status_file": "plans/STATUS.md"
+    },
+    "models": {
+      "stage_overrides": {
+        "brainstorm": "sonnet",
+        "design": "sonnet",
+        "plan": "sonnet",
+        "harden": "opus",
+        "execute": "sonnet",
+        "review": "opus"
+      },
+      "default_model": "sonnet"
     }
   }
 }

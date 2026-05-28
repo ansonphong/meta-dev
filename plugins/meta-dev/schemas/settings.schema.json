@@ -107,6 +107,23 @@
             "exec_order": { "type": "string", "default": "plans/exec-order.md" },
             "status_file": { "type": "string", "default": "plans/STATUS.md" }
           }
+        },
+        "models": {
+          "type": "object",
+          "properties": {
+            "stage_overrides": {
+              "type": "object",
+              "properties": {
+                "brainstorm": { "type": "string", "enum": ["haiku", "sonnet", "opus"], "default": "sonnet" },
+                "design": { "type": "string", "enum": ["haiku", "sonnet", "opus"], "default": "sonnet" },
+                "plan": { "type": "string", "enum": ["haiku", "sonnet", "opus"], "default": "sonnet" },
+                "harden": { "type": "string", "enum": ["haiku", "sonnet", "opus"], "default": "opus" },
+                "execute": { "type": "string", "enum": ["haiku", "sonnet", "opus"], "default": "sonnet" },
+                "review": { "type": "string", "enum": ["haiku", "sonnet", "opus"], "default": "opus" }
+              }
+            },
+            "default_model": { "type": "string", "enum": ["haiku", "sonnet", "opus"], "default": "sonnet" }
+          }
         }
       }
     }
