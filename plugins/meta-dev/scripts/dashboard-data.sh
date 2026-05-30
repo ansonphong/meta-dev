@@ -7,42 +7,64 @@ set -euo pipefail
 PROJECT=$(basename "$(pwd)")
 GIT_REPO=$(git remote get-url origin 2>/dev/null | sed 's/.*[:/]\(.*\)\.git/\1/' || echo "$PROJECT")
 
-# Plans: parse STATUS.md for active initiatives
+# Plans: scan active plan units (dirs with a master plan, plus loose top-level
+# plan files) and derive progress from task checkboxes. This is authoritative —
+# the ledger itself — rather than parsing STATUS.md prose. Active-first, capped.
 PLANS_JSON="[]"
-if [ -f plans/STATUS.md ]; then
+if [ -d plans ]; then
     PLANS_JSON=$(python3 -c "
-import json, re, sys
-plans = []
-try:
-    with open('plans/STATUS.md') as f:
-        content = f.read()
-    # Match lines like: - **Plan Name**: status (N/M tasks)
-    # Also match: ## Plan Name or ### Active
-    for line in content.split('\n'):
-        line = line.strip()
-        # Pattern: bullet with bold name and status
-        m = re.match(r'[-*]\s+\*\*(.+?)\*\*:?\s*(.+)', line)
-        if m:
-            name = m.group(1).strip()
-            rest = m.group(2).strip()
-            # Extract status and counts
-            status = 'pending'
-            done = 0; total = 0
-            if 'done' in rest.lower() or 'complete' in rest.lower() or 'shipped' in rest.lower():
-                status = 'done'
-            elif 'inflight' in rest.lower() or 'active' in rest.lower() or 'in progress' in rest.lower() or 'in-flight' in rest.lower():
-                status = 'inflight'
-            elif 'blocked' in rest.lower():
-                status = 'blocked'
-            # Extract N/M if present
-            nm = re.search(r'(\d+)/(\d+)', rest)
-            if nm:
-                done = int(nm.group(1))
-                total = int(nm.group(2))
-            plans.append({'name': name, 'tasks_done': done, 'tasks_total': total, 'status': status})
-except Exception:
-    pass
-print(json.dumps(plans))
+import json, os, re, glob
+ROOTS = ['app', 'www', 'gallery', 'meta']
+EXCL = ('_archive', '_future', '_research', '_dashboard')
+CHECKBOX = re.compile(r'^\s*[-*]\s*\[([ xX])\]')  # anchored: skips inline prose
+
+def excluded(path):
+    parts = path.replace('\\\\', '/').split('/')
+    return any(e in parts for e in EXCL)
+
+units = []  # (display_name, file_to_count)
+for r in ROOTS:
+    base = 'plans/' + r
+    if not os.path.isdir(base):
+        continue
+    for pat in ('00-master-plan.md', '*master-plan*.md'):
+        for mp in glob.glob(base + '/**/' + pat, recursive=True):
+            if not excluded(mp):
+                units.append((os.path.basename(os.path.dirname(mp)), mp))
+    for f in glob.glob(base + '/*.md'):
+        if os.path.basename(f) not in ('STATUS.md', 'exec-order.md', 'README.md'):
+            units.append((os.path.splitext(os.path.basename(f))[0], f))
+
+seen, plans = set(), []
+for name, f in units:
+    if f in seen:
+        continue
+    seen.add(f)
+    done = todo = 0
+    try:
+        with open(f, encoding='utf-8', errors='ignore') as fh:
+            for line in fh:
+                m = CHECKBOX.match(line)
+                if m:
+                    if m.group(1) in 'xX':
+                        done += 1
+                    else:
+                        todo += 1
+    except Exception:
+        pass
+    total = done + todo
+    if total == 0 or done == 0:
+        status = 'pending'
+    elif todo == 0:
+        status = 'done'
+    else:
+        status = 'inflight'
+    nm = re.sub(r'^\d{4}-\d{2}-\d{2}-', '', name)[:24]
+    plans.append({'name': nm, 'tasks_done': done, 'tasks_total': total, 'status': status})
+
+order = {'inflight': 0, 'blocked': 1, 'pending': 2, 'done': 3}
+plans.sort(key=lambda p: (order.get(p['status'], 4), -p['tasks_total']))
+print(json.dumps(plans[:12]))
 " 2>/dev/null || echo "[]")
 fi
 
