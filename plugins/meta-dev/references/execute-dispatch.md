@@ -48,3 +48,36 @@ Inserted into hard rule #9 per the risk tag detected:
 2. Re-run verify command (don't trust subagent paste)
 3. Re-run stub grep on diff: `git diff HEAD~1 -- <files> | grep -E '^\+.*(TODO|FIXME|coming soon|Phase [0-9]|placeholder|pass$|return \[\]|return \{\}|NotImplementedError)'`
 4. Risk-tag-specific gates (schema round-trip, security diff review, release signature check, money-path full review)
+
+A red verify or stub-grep hit is, by default, a RECOVERABLE regression → spawn the background fixer below and keep moving (see `references/execute-charter.md` → Momentum gate). Under `--strict`, re-dispatch once then STOP on 2nd red.
+
+## Background fixer prompt (optimistic mode)
+
+Dispatched in the background (`Agent`, `subagent_type: general-purpose`, `model: sonnet`, `run_in_background: true`) when a task hits a recoverable regression, so the main loop keeps advancing independent tasks.
+
+```
+You are a REGRESSION FIXER. A task in a running plan failed its verify. Plan path: <PLAN_PATH>
+Failed task: <TASK_ID> — <TASK_TITLE>
+Verify command that went red: <VERIFY_CMD>
+Failure output:
+<PASTE RED OUTPUT>
+
+Hard rules (binding):
+- Work on master. No worktrees, no branches, no stashing.
+- Touch ONLY the files <TASK_ID> declares: <FILE LIST>. If the fix needs a file outside that set, STOP and report — do NOT widen scope (a wider fix can collide with tasks the main loop is running in parallel).
+- Diagnose root cause, repair/extend the failing test, implement the smallest correct fix, re-run <VERIFY_CMD> until green.
+- Stub grep your diff before declaring done. No Co-Authored-By / Claude attribution.
+- git add <files> && git commit -m "fix(<scope>): repair <TASK_ID> regression" && git push origin master. If push rejects (behind), `git pull --rebase origin master` then push.
+- Report: SHA, green verify output tail, root cause in one line. If you cannot get green, report BLOCKED with the reason — do not fake a pass.
+```
+
+On fixer return: green → re-verify, flip task `completed`, re-open tasks deferred on it. BLOCKED/red first return → re-dispatch once. Red twice → escalate to TRUE BLOCKER, surface. Concurrent fixer pool cap: 3 (queue beyond).
+
+## Mandatory post-run code review (orchestrator, completion step)
+
+Always run once all tasks are DONE and the foundation is solid (every fixer green, no deferred tasks left, acceptance suite green):
+
+1. Collect the full run diff: `git log --oneline <start-sha>..HEAD` then `git diff <start-sha>..HEAD`.
+2. Invoke `meta-dev:code-review-protocol` (or the `meta-dev:review-agent` subagent) over that diff.
+3. Route findings: trivial/mechanical → background fixer + commit; substantive (logic/security/contract/scope creep) → surface to user with file:line, do not silently auto-fix.
+4. Skip only if per-task review already covered every changed file this run — and say so in the final summary.
