@@ -8,7 +8,7 @@ model: sonnet
 
 # /meta-execute
 
-Parse plan, dispatch one Sonnet subagent per task, verify + commit + push between. **Optimistic by default:** keep moving when a task regresses — spawn a background fixer scoped to it, defer dependents, advance independent work, then solidify the foundation before completion. `--strict` = old serial gate.
+Parse plan, dispatch one Sonnet subagent per task, commit + push between. **Optimistic by default:** never block forward progress on tests. After each task, run only the instant inline checks, then launch the task's test/verify suite **async in the background** and advance to the next task immediately — tests run in parallel while the run keeps moving. When an async verify comes back red, spawn a background fixer scoped to it, defer dependents, advance independent work, then solidify the foundation before completion. Only critical-risk tasks (`money-path` / `release-stability` / `schema-drift`) verify synchronously. `--strict` = old serial gate (every test runs inline and blocks).
 
 ## Charter
 
@@ -39,20 +39,20 @@ For EACH TodoWrite item:
 
 1. Mark `in_progress`. CLAIM in plan file (per execute-charter.md). Commit claim.
 2. Run `echo "<task body>" | bash scripts/risk-tag.sh` → get risk tags
-3. Dispatch Sonnet subagent with prompt from `references/execute-dispatch.md` + risk-tag clauses. Default: dispatch the next dep-satisfied, non-deferred task without waiting on in-flight fixers (momentum). `--strict`: wait for the prior task to go green first.
-4. Subagent returns → post-task verify gate (re-run verify, stub grep, risk-tag-specific gates per execute-charter.md)
-5. **Green** → mark `completed`, flip checkbox to `[x] DONE`, commit + push. **Recoverable red (default)** → spawn background fixer (execute-dispatch.md), mark task `blocked`, defer dependents, keep dispatching independents. **TRUE BLOCKER** → STOP, surface (see charter momentum gate).
+3. Dispatch Sonnet subagent with prompt from `references/execute-dispatch.md` + risk-tag clauses. Default: dispatch the next dep-satisfied, non-deferred task without waiting on in-flight fixers or in-flight tests (momentum). `--strict`: wait for the prior task to go green first.
+4. Subagent returns → **instant inline checks only** (stub grep on the diff + declared-file existence — milliseconds). Commit + push. Then **launch the task's `Verify:`/test suite async in the background** (`Bash run_in_background`, tracked as its own tracker entry `🧪 testing <ID> (async)`) and DO NOT block on it. **Exception — critical gate:** if the task is risk-tagged `money-path`, `release-stability`, or `schema-drift`, run its verify synchronously and require green before advancing. **Never run the full baseline suite per task** — that's the slow part; it runs once at solidify (step 5).
+5. **Advance immediately** to the next dep-satisfied task while tests run. Mark the task `✅ code done, tests pending`. When its async verify returns: **green** → mark `completed`, flip checkbox to `[x] DONE`. **Recoverable red** → spawn background fixer (execute-dispatch.md), mark task `blocked`, defer dependents, keep dispatching independents. **TRUE BLOCKER** → STOP, surface (see charter momentum gate).
 
 ### 5. Completion
 
-Solidify foundation (all fixers green, no deferred tasks left) → run acceptance suite → **mandatory post-run code review of the full run diff** (execute-dispatch.md) → archive plan → update STATUS.md + exec-order.md → report.
+Solidify foundation: **drain all in-flight async test/verify jobs** (wait for every backgrounded suite to report), all fixers green, no deferred tasks left → run the **full acceptance suite once** (the clustered test pass deferred from per-task) → **mandatory post-run code review of the full run diff** (execute-dispatch.md) → archive plan → update STATUS.md + exec-order.md → report. The run is NOT done while any async test job is still pending or red.
 
 ## Flags
 
 | Flag | Effect |
 |------|--------|
 | `--inline` | Main-thread execution, no subagents |
-| `--strict` | Disable optimistic momentum — serial gate, every red is a hard STOP, no background fixers |
+| `--strict` | Disable optimistic momentum — every verify/test runs inline and blocks, serial gate, every red is a hard STOP, no background fixers, no async tests |
 | `--no-deploy` | Skip deploy prompt after archive |
 | `--pause-before=<id>` | Hard stop before that task |
 | `--no-pause` | Disable auto-pause on money-path/release-stability |

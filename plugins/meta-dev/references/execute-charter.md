@@ -4,6 +4,19 @@
 
 `/meta-execute` is **optimistic by default**: assume each task passes and keep dispatching forward. Do NOT stall the whole run waiting for every verify to go green. When something breaks, repair it *asynchronously* and keep advancing on independent work — then circle back to solidify the foundation before completion. `--strict` restores the serial gate (one green before the next, every red is a hard STOP).
 
+## Verify Posture — Async Tests (default)
+
+**The per-task verify gate must never block the run.** Tests are the slow part; waiting on them inline serializes the whole plan behind the test suite. Instead:
+
+1. **Inline = instant only.** After a subagent returns, run ONLY checks that finish in milliseconds: stub-grep on the diff, declared-file existence. These gate the commit.
+2. **Commit + push the code**, then **launch the task's `Verify:`/test command async in the background** (`Bash run_in_background`). Track each as its own tracker entry (`🧪 testing <ID> (async)`). **Advance to the next task immediately** — do not await the test result.
+3. **Tests run in parallel with forward progress.** As each async verify reports: green → mark the task `completed`; red → it's a regression, apply the momentum gate below (background fixer, defer dependents, keep moving).
+4. **No full baseline suite per task.** The expensive whole-suite run is *clustered* to the solidify step at completion — run once, not once-per-task.
+5. **Critical gate (the only synchronous verify).** If a task is risk-tagged `money-path`, `release-stability`, or `schema-drift`, run its verify **synchronously and require green before advancing** — these are too costly to discover late. Everything else verifies async.
+6. **Solidify drains the queue.** Completion blocks until every async test job has reported and the full acceptance suite is green. Optimism defers the wait; it never skips it.
+
+`--strict` disables all of this: every verify runs inline and blocks, every red is a hard STOP, no background fixers, no async tests.
+
 **Momentum gate.** When a task `T` returns red / regressed, classify:
 
 - **TRUE BLOCKER → halt the whole run, surface.** Only these:

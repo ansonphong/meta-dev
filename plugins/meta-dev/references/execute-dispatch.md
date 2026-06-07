@@ -44,12 +44,17 @@ Inserted into hard rule #9 per the risk tag detected:
 
 ## Post-task verification gates (run by orchestrator, not subagent)
 
+**Instant inline (gate the commit — milliseconds):**
 1. `git show --stat <sha>` — diff scope matches declared files?
-2. Re-run verify command (don't trust subagent paste)
-3. Re-run stub grep on diff: `git diff HEAD~1 -- <files> | grep -E '^\+.*(TODO|FIXME|coming soon|Phase [0-9]|placeholder|pass$|return \[\]|return \{\}|NotImplementedError)'`
-4. Risk-tag-specific gates (schema round-trip, security diff review, release signature check, money-path full review)
+2. Re-run stub grep on diff: `git diff HEAD~1 -- <files> | grep -E '^\+.*(TODO|FIXME|coming soon|Phase [0-9]|placeholder|pass$|return \[\]|return \{\}|NotImplementedError)'`
 
-A red verify or stub-grep hit is, by default, a RECOVERABLE regression → spawn the background fixer below and keep moving (see `references/execute-charter.md` → Momentum gate). Under `--strict`, re-dispatch once then STOP on 2nd red.
+**Async after commit (do NOT block — advance to next task while these run):**
+3. Re-run the verify/test command (don't trust subagent paste) via `Bash run_in_background`; track as `🧪 testing <ID> (async)`. Reap the result later.
+4. Risk-tag-specific gates (schema round-trip, security diff review, release signature check, money-path full review).
+
+**Exception — critical gate runs synchronously:** when the task is risk-tagged `money-path`, `release-stability`, or `schema-drift`, run steps 3–4 inline and require green BEFORE advancing. Everything else verifies async (see `references/execute-charter.md` → Verify Posture).
+
+A red async verify or stub-grep hit is, by default, a RECOVERABLE regression → spawn the background fixer below and keep moving (see `references/execute-charter.md` → Momentum gate). Under `--strict`, all gates run inline; re-dispatch once then STOP on 2nd red.
 
 ## Background fixer prompt (optimistic mode)
 
