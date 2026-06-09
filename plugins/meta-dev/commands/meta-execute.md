@@ -43,9 +43,69 @@ For EACH TodoWrite item:
 4. Subagent returns → **instant inline checks only** (stub grep on the diff + declared-file existence — milliseconds). Commit + push. Then **launch the task's `Verify:`/test suite async in the background** (`Bash run_in_background`, tracked as its own tracker entry `🧪 testing <ID> (async)`) and DO NOT block on it. **Exception — critical gate:** if the task is risk-tagged `money-path`, `release-stability`, or `schema-drift`, run its verify synchronously and require green before advancing. **Never run the full baseline suite per task** — that's the slow part; it runs once at solidify (step 5).
 5. **Advance immediately** to the next dep-satisfied task while tests run. Mark the task `✅ code done, tests pending`. When its async verify returns: **green** → mark `completed`, flip checkbox to `[x] DONE`. **Recoverable red** → spawn background fixer (execute-dispatch.md), mark task `blocked`, defer dependents, keep dispatching independents. **TRUE BLOCKER** → STOP, surface (see charter momentum gate).
 
-### 5. Completion
+### 5. Solidify foundation
 
-Solidify foundation: **drain all in-flight async test/verify jobs** (wait for every backgrounded suite to report), all fixers green, no deferred tasks left → run the **full acceptance suite once** (the clustered test pass deferred from per-task) → **mandatory post-run code review of the full run diff** (execute-dispatch.md) → archive plan → update STATUS.md + exec-order.md → report. The run is NOT done while any async test job is still pending or red.
+### 5. Solidify foundation
+
+**Drain all in-flight async test/verify jobs** (wait for every backgrounded suite to report), all fixers green, no deferred/blocked tasks left → run the **full acceptance suite once** (the clustered test pass deferred from per-task). Gate: all green before proceeding. The run is NOT done while any async test job is still pending or red.
+
+### 6. Mandatory post-run code review
+
+**ALWAYS invoke `superpowers:requesting-code-review`** over the full run diff (`git diff <start-sha>..HEAD`). This is NON-NEGOTIABLE — every `/meta-execute` run ends with an independent code review. Route findings:
+
+- **Trivial/mechanical** (lint, format, missing annotation) → fix inline, commit, push
+- **Substantive** (logic, security, contract, scope creep) → surface to user with file:line in the Follow-ups section of the report card, do NOT silently auto-fix
+
+Record verdict in the report card. If the review returns substantive findings, fix them before proceeding to housekeeping.
+
+### 7. Housekeeping
+
+Archive the plan (unless manual gates remain — e.g., GPU acceptance, in-app verification), update STATUS.md + exec-order.md, commit + push both repos.
+
+### 8. Render execution report card
+
+ALWAYS end with this structured dashboard. Use `references/execute-report-card.md` for the exact layout. The report MUST include every section below — no sprawl, no stream-of-consciousness narration.
+
+```
+╔══════════════════════════════════════════════════════════════════╗
+║         📋 /meta-execute — EXECUTION REPORT CARD               ║
+╚══════════════════════════════════════════════════════════════════╝
+
+  Plan:         <plan-title>
+  Path:         <plan-path>
+  Status:       EXECUTED + REVIEWED (or EXECUTED · awaiting manual gate)
+  Duration:     <elapsed>
+
+  ── Tasks ──
+  ✅ <done>/<total> completed · <failed> failed · <deferred> deferred
+
+  ── Commits (on <repo> master) ──
+  <short-sha>  <description>                    <verify-result>
+
+  ── Code Review ──
+  ✅ CLEAN — 0 findings (or)
+  ⚠️  <N> findings fixed · 0 remaining (or)
+  ❌ <N> findings surfaced — see Follow-ups
+
+  ── Acceptance ──
+  <test-suite> <pass>/<total> · <other-gates>
+
+  ── Plan Location ──
+  ✅ Archived: plans/<repo>/_archive/<name>/  (or)
+  📍 Active:   plans/<repo>/<name>/  (reason: <manual gate pending>)
+
+  ── Follow-ups ──
+  • <item> — <action needed> — <who>
+  • (empty if none)
+```
+
+**Rules for the report card:**
+- Every section is mandatory. If a section has no content, write "(none)" — never omit.
+- Commit table: one row per commit, short SHA, one-line description, verify result (e.g., "6/6 pass", "check clean", "sync-verified ✓")
+- Plan location: state where the plan lives NOW. If archived, show the archive path. If still active, say WHY (e.g., "manual GPU acceptance pending", "awaiting user verification of X")
+- Follow-ups: structured list. Each item = what needs doing + what action + who owns it. Include: manual gates, unarchived plans, findings surfaced from code review, deploy prompts
+- No narrative. No conversational wrap-up. The report card IS the wrap-up.
+- Do NOT repeat the entire plan description. The report card is a summary of execution results, not a re-cap of the design doc.
 
 ## Flags
 

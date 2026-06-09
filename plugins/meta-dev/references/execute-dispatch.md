@@ -80,9 +80,12 @@ On fixer return: green → re-verify, flip task `completed`, re-open tasks defer
 
 ## Mandatory post-run code review (orchestrator, completion step)
 
-Always run once all tasks are DONE and the foundation is solid (every fixer green, no deferred tasks left, acceptance suite green):
+**ALWAYS run** once all tasks are DONE and the foundation is solid (every fixer green, no deferred tasks left, acceptance suite green). This is NON-NEGOTIABLE — every `/meta-execute` run ends with an independent code review. No skip conditions.
 
 1. Collect the full run diff: `git log --oneline <start-sha>..HEAD` then `git diff <start-sha>..HEAD`.
-2. Invoke `meta-dev:code-review-protocol` (or the `meta-dev:review-agent` subagent) over that diff.
-3. Route findings: trivial/mechanical → background fixer + commit; substantive (logic/security/contract/scope creep) → surface to user with file:line, do not silently auto-fix.
-4. Skip only if per-task review already covered every changed file this run — and say so in the final summary.
+2. **Invoke `superpowers:requesting-code-review`** over the full run diff. This is the project's code review skill — use it, not the meta-dev internal reviewer.
+3. Route findings per the review's verdict:
+   - **Trivial/mechanical** (lint, format, missing annotation) → fix inline, commit, push.
+   - **Substantive** (logic error, security, contract breach, scope creep) → surface to user with file:line in the Follow-ups section of the report card. Do NOT silently auto-fix.
+4. Record the verdict in the report card's Code Review section: `✅ CLEAN — 0 findings`, `⚠️ <N> findings fixed · 0 remaining`, or `❌ <N> findings surfaced — see Follow-ups`.
+5. **Never skip.** Even if per-task review covered individual files, the full-diff review catches cross-task interactions, ordering effects, and integration gaps that per-task review misses.
