@@ -693,7 +693,7 @@ After generating/updating loop-gap.md:
 5. If budget ≥ medium: spawn ALL Wave 2 agents (parallel — could be 17-42+ agents) with Context Index
 6. After Wave 2: if cross-file gaps found, spawn Wave 2.5 verification agents (parallel)
 7. If budget = high: spawn Wave 3 agents
-8. Compile, dedup, apply fixes, update metadata, report
+8. Compile, dedup, apply fixes, commit, update metadata → **render report card (Step 7)**
 
 **Multi-iteration:**
 ```
@@ -703,11 +703,11 @@ while iteration <= N:
     Progressive depth: iter 1 or gaps>10 → W0+W1 | gaps≥3 → W0+W1+W2 | gaps<3 → W0+W1+W2+W3
     Apply fixes, update ## Last Scan, /compact
     Zero gaps + W3 ran → DONE | Zero gaps + no W3 → promote, continue
-    Low-conf only → report, DONE | Max iter → report remaining
+    Low-conf only → DONE | Max iter → DONE (carry remaining gaps into card)
     iteration += 1
 ```
 
-Report to user: file count, budget, waves run, gaps found/fixed/remaining.
+When the loop terminates (converged, low-conf only, or max-iter), proceed to Step 6 then render the report card (Step 7). Track these counters across all iterations so the card is accurate: files scanned, agents spawned, gaps found/fixed/flagged/remaining (by severity + category), and every fix commit SHA.
 
 ---
 
@@ -722,6 +722,57 @@ After completing the scan, check for recurring gap patterns:
    - Patch `meta-planner.md`'s `## Learned Patterns` section (upstream): "Plans must include {X} subtask to prevent {gap category}"
    - Add LP entry to THIS file as well (extends gap category list)
    - Commit: `improve: LP-NNN added to loop-gap + meta-planner from gap scan`
+
+---
+
+## Step 7 — Render Gap Scan Report Card (MANDATORY)
+
+ALWAYS end the run with this structured dashboard — the loop-gap analogue of the `/meta-execute` report card. It makes the hardening outcome obvious at a glance: which files were hardened, what was committed, whether the plan reached **NO GAPS REMAINING** (the Stage 4 exit criteria), and what (if anything) is left. Use `references/loopgap-report-card.md` for the exact layout. Render it ONCE, at the very end — not per wave, not per iteration.
+
+```
+╔══════════════════════════════════════════════════════════════════════╗
+║           /meta-loop-gap — GAP SCAN REPORT CARD                    ║
+╚══════════════════════════════════════════════════════════════════════╝
+
+  Scope:        <scope-name>
+  Path:         <plan-dir | target path>
+  Mode:         plan | project | code | feature
+  Status:       HARDENED — NO GAPS REMAINING  (or "GAPS REMAIN — <N> unresolved")
+  Duration:     <iterations · agents · tokens>
+
+  ── Scan ──
+  <N> files · <budget> budget · waves W0+W1+W2+W3 · <I> iteration(s)
+
+  ── Gaps ──
+  ✅ <fixed>/<found> fixed   <flagged> flagged   <remaining> remaining
+     severity:  <H> high · <M> med · <L> low
+     category:  <top categories by count>
+
+  ── Files Hardened ──
+  <file>                                        <K> fixed
+
+  ── Commits (on <repo> master, all pushed) ──
+  <short-sha>  <one-line description>                    <K gaps>
+
+  ── Review Gate ──
+  ✅ Wave 3 review CLEAN — fixes verified, no scope creep
+
+  ── Remaining Gaps ──
+  • <file:line> — <category> — sev:<H> conf:<X.XX> — <why unresolved>
+  • (none)
+
+  ── Follow-ups ──
+  • <item> — <action> — <owner>
+  • (none)
+```
+
+**Rules for the report card:**
+- Every section is mandatory. If a section has no content, write "(none)" — never omit.
+- **Status must match reality:** never render `NO GAPS REMAINING` while the Remaining Gaps list is non-empty. Use `GAPS REMAIN — <N> unresolved` when high/med gaps are left, `HARDENED — <N> advisories` when only report-only items remain.
+- **Files Hardened** lists only files that received ≥1 fix (not read-only consumer/reference files).
+- **Commits** is one row per fix commit, with the count of gaps it closed. If nothing was committed, say so honestly (`(uncommitted — N files modified)` or `(none — scan clean)`).
+- **Follow-ups** carries the next action — for a HARDENED plan that is `Ready for /meta-execute <plan>` (owner: you). Include any LP patches from Step 6.
+- No narrative, no per-wave recap, no conversational sign-off. The report card IS the wrap-up. See `references/loopgap-report-card.md` for full section rules and anti-sprawl constraints.
 
 ---
 
