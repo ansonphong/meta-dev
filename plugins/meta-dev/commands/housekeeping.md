@@ -3,7 +3,7 @@ name: housekeeping
 description: Post-completion housekeeping — archive plan, update context/status/exec-order, commit. Scoped to current conversation by default; --all for full project sweep.
 argument-hint: [--all | --dry-run | --area status|plans|context|git]
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent]
-model: sonnet
+model: opus
 ---
 
 # /housekeeping

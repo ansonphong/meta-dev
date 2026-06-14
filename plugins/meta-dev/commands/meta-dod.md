@@ -3,7 +3,7 @@ name: meta-dod
 description: Invoke DOD contract skill — define Definition of Done contract for a feature or task
 argument-hint: <feature-or-task-description>
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent]
-model: sonnet
+model: opus
 ---
 
 # /meta-dod

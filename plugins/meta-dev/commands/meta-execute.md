@@ -3,7 +3,7 @@ name: meta-execute
 description: Subagent-driven plan execution — optimistic momentum (fix regressions async, keep moving), mandatory post-run code review, verify+commit+push between, auto-archive on completion (never deploys)
 argument-hint: <plan-path> [--inline] [--strict] [--deploy] [--pause-before=<task-id>]
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent]
-model: sonnet
+model: opus
 ---
 
 # /meta-execute

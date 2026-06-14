@@ -3,7 +3,7 @@ name: meta-overlord
 description: Event-driven execution overseer for plan phases — polls state, renders dashboard, dispatches review agent per completed task, auto-fixes drift within threshold
 argument-hint: [--event-driven|--tick <seconds>]
 allowed-tools: [Read, Bash(bash:*), Bash(python3:*), Agent]
-model: sonnet
+model: opus
 ---
 
 # /meta-overlord

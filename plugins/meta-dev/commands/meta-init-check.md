@@ -3,7 +3,7 @@ name: meta-init-check
 description: Environment health check — verifies services, tests, and dependencies before meta-execute starts
 argument-hint: [backend | frontend | full | auto | refresh-cache]
 allowed-tools: [Read, Write, Bash, Grep]
-model: haiku
+model: opus
 ---
 
 # /meta-init-check

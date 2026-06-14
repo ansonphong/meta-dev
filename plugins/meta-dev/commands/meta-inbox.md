@@ -3,7 +3,7 @@ name: meta-inbox
 description: Issue inbox — single surface for all issues (overlord findings, review failures, sweep anomalies, repair dossiers). View, resolve, dismiss, or auto-clear.
 argument-hint: [list | add | resolve <id> | dismiss <id> | clear [all | --source S | --severity S | --dry-run] | render | archive]
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent]
-model: sonnet
+model: opus
 ---
 
 # /meta-inbox

@@ -3,7 +3,7 @@ name: meta-orchestrator
 description: Front-door dispatcher — detects intent and routes to the right meta-dev command
 argument-hint: <natural-language-intent>
 allowed-tools: [Read, Write, Bash, Glob, Grep, Agent]
-model: sonnet
+model: opus
 ---
 
 # /meta-orchestrator

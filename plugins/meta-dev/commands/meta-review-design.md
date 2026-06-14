@@ -3,7 +3,7 @@ name: meta-review-design
 description: Design quality audit — scores UI against coherence, originality, craft, functionality with AI slop detection and anti-sycophancy rules
 argument-hint: <component-path | page-url | "current"> [--scope full|diff] [--fix] [--depth shallow|standard|deep]
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent]
-model: sonnet
+model: opus
 ---
 
 # /meta-review-design

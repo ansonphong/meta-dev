@@ -3,7 +3,7 @@ name: meta-version
 description: Multi-repo version manager — declarative versioning.json config, semver/calver/custom strategies, atomic version_files updates
 argument-hint: [status [--repo id] | bump [--repo id] [--type major|minor|patch|auto] | sync [--repo id] | config]
 allowed-tools: [Read, Write, Edit, Bash(bash:*), Bash(python3:*), Bash(git:*)]
-model: sonnet
+model: opus
 ---
 
 # /meta-version

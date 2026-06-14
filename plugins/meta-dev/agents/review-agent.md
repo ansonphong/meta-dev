@@ -1,7 +1,7 @@
 ---
 name: review-agent
 description: Code review specialist. Invokes code-review-protocol skill, outputs structured verdict.
-model: sonnet
+model: opus
 ---
 
 # review-agent

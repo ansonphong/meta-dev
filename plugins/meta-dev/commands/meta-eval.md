@@ -3,7 +3,7 @@ name: meta-eval
 description: Dedicated evaluator agent — tests implementations against design criteria, catches what self-review misses
 argument-hint: <plan-path | feature-name> [--criteria design|functional|full] [--rounds N]
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent]
-model: sonnet
+model: opus
 ---
 
 # /meta-eval

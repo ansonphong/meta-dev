@@ -3,7 +3,7 @@ name: meta-init
 description: Bootstrap meta-dev harness in a project — create plans/ structure, copy templates, configure .gitignore and CLAUDE.md marker
 argument-hint: [--auto | --dry-run]
 allowed-tools: [Read, Write, Edit, Bash(bash:*), Bash(python3:*), Bash(git:*)]
-model: haiku
+model: opus
 ---
 
 # /meta-init

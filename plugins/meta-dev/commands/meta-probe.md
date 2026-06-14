@@ -3,7 +3,7 @@ name: meta-probe
 description: Exhaustive deep-investigation probe — fans diverse agents across every angle, debates adversarially, breaks LLM bias loops, collapses to one report that opens a conversation
 argument-hint: <issue text | file:line | feature:name | inbox-id | "question"> [--budget low|medium|high|insane] [--rounds N] [--background] [--no-converge]
 allowed-tools: [Read, Bash, Glob, Grep, Agent, TaskCreate, TaskUpdate]
-model: sonnet
+model: opus
 ---
 
 # /meta-probe — Deep-Investigation Probe

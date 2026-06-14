@@ -2,7 +2,7 @@
 name: meta-dashboard
 description: Control plane dashboard — gathers plan, session, inbox, git state and renders inline
 allowed-tools: [Bash(bash:*), Bash(python3:*)]
-model: haiku
+model: opus
 ---
 
 # /meta-dashboard

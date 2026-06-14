@@ -3,7 +3,7 @@ name: meta-headless
 description: Invoke headless worker skill — run a task in a dedicated subagent, report results
 argument-hint: <task-description> [--model haiku|sonnet|opus]
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent]
-model: haiku
+model: opus
 ---
 
 # /meta-headless

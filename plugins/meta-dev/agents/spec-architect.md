@@ -1,7 +1,7 @@
 ---
 name: spec-architect
 description: Turns brainstorm outputs into structured spec.md + architecture.md + risks.md. References codebase patterns + CLAUDE.md conventions.
-model: sonnet
+model: opus
 ---
 
 # spec-architect

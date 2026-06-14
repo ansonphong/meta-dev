@@ -3,7 +3,7 @@ name: meta-ship
 description: Unified release pipeline — chains version bump, build, test, deploy, and verify with non-negotiable gates between each stage
 argument-hint: <target> [--dry-run] [--resume] [--abort] [--reset <version>] [--hotfix]
 allowed-tools: [Read, Write, Edit, Bash, Grep, Agent]
-model: sonnet
+model: opus
 ---
 
 # /meta-ship

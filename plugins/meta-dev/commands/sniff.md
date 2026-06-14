@@ -3,7 +3,7 @@ name: sniff
 description: Grug-brain sniff test — detect code smells, hacks, and bad practices in a diff/file/directory and recommend the simplest best-practice fix for each. Report-only, never edits code.
 argument-hint: "[path | (empty=working diff)] [--staged] [--all]"
 allowed-tools: [Read, Bash, Glob, Grep]
-model: sonnet
+model: opus
 ---
 
 # /sniff — grug smell your code

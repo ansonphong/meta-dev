@@ -1,7 +1,7 @@
 ---
 name: sweep-agent
 description: Plan maintenance agent. Calls sweep scripts to archive stale plans and wip-commit untracked files.
-model: haiku
+model: opus
 ---
 
 # sweep-agent

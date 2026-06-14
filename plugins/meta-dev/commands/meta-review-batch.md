@@ -3,7 +3,7 @@ name: meta-review-batch
 description: Batched review queue — review multiple items in sequence, render results via review-batch-render.py
 argument-hint: [<path> | <file-glob> | <plan-dir>]
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent]
-model: sonnet
+model: opus
 ---
 
 # /meta-review-batch

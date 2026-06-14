@@ -3,7 +3,7 @@ name: meta-sweep
 description: Call sweep-agent + scripts — archive stale plans and wip-commit untracked files
 argument-hint: [--archive-only | --wip-only]
 allowed-tools: [Read, Write, Bash, Glob, Grep, Agent]
-model: haiku
+model: opus
 ---
 
 # /meta-sweep

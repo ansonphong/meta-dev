@@ -3,7 +3,7 @@ name: meta-ux
 description: UX evaluation and improvement — heuristic + design-system + accessibility audit against the configured design system, with iterative fix rounds
 argument-hint: [plan-path | "running app" | feature:<name> | <repo>] [--depth shallow|standard|deep] [--focus <area>] [--rounds N]
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent]
-model: sonnet
+model: opus
 ---
 
 # /meta-ux

@@ -3,7 +3,7 @@ name: meta-visual-critique
 description: Visual critique of attached image(s) — daisy-chains frontend-design skill for design vocabulary, returns structured critique within user-supplied context (defaults to GUI/web UI)
 argument-hint: [free-form context, e.g. "landing page hero" | "mobile nav" | "dashboard card"] (images attached separately)
 allowed-tools: [Read, Bash, Glob, Grep]
-model: sonnet
+model: opus
 ---
 
 # /meta-visual-critique — Visual Critique of Attached Image(s)

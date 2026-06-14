@@ -3,7 +3,7 @@ name: meta-planner
 description: Restructure plans into execution-ready format with master checklist, phase files, verification hooks, and loop-gap config
 argument-hint: <path-to-plan-file-or-directory>
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent]
-model: sonnet
+model: opus
 ---
 
 # /meta-planner

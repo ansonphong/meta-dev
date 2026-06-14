@@ -3,7 +3,7 @@ name: sweep
 description: Shortcut for /meta-sweep — Archive stale plans and wip-commit untracked files
 argument-hint: [--dry-run | --force]
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep]
-model: sonnet
+model: opus
 ---
 
 # /sweep → /meta-sweep

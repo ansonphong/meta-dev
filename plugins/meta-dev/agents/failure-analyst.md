@@ -1,7 +1,7 @@
 ---
 name: failure-analyst
 description: Reads failure outputs and proposes the smallest single-change fix with confidence rating and alternatives.
-model: sonnet
+model: opus
 ---
 
 # failure-analyst

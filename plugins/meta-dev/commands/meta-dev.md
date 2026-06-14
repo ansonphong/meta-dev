@@ -3,7 +3,7 @@ name: meta-dev
 description: Universal development lifecycle orchestrator — pushes any subject through the 6-stage waterfall using agent swarms
 argument-hint: <subject | plan-path | "idea one" "idea two" ...> [--from <stage>] [--to <stage>] [--gate all|exec|none]
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent]
-model: sonnet
+model: opus
 ---
 
 # /meta-dev

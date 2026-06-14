@@ -3,7 +3,7 @@ name: meta-classify
 description: Invoke HOTL classification skill — categorize subjects by type, complexity, and risk
 argument-hint: <subject-description>
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent]
-model: sonnet
+model: opus
 ---
 
 # /meta-classify

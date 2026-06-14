@@ -3,7 +3,7 @@ name: meta-changelog
 description: Engineering changelog — append entries during work, cut batched periods to closed files, draft release posts, pair with version bumps
 argument-hint: [add --tag T --title T --body B | cut [--dry-run] | status]
 allowed-tools: [Read, Write, Edit, Bash(bash:*), Bash(git:*)]
-model: sonnet
+model: opus
 ---
 
 # /meta-changelog

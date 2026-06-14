@@ -3,7 +3,7 @@ name: meta-repair
 description: Invoke repair-loop skill — diagnose a failure, propose smallest fix, iterate until passing
 argument-hint: <failure-description-or-path-to-failure-log>
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent]
-model: sonnet
+model: opus
 ---
 
 # /meta-repair
