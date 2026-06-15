@@ -2,11 +2,15 @@
 name: meta-execute
 description: Subagent-driven plan execution — optimistic momentum (fix regressions async, keep moving), mandatory post-run code review, verify+commit+push between, auto-archive on completion (never deploys)
 argument-hint: <plan-path> [--inline] [--strict] [--deploy] [--pause-before=<task-id>]
-allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent]
+allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, TaskCreate, TaskUpdate]
 model: opus
 ---
 
 # /meta-execute
+
+## ⛔ Prerequisite — visible main-thread task list (non-negotiable)
+
+**Before starting work on ANY task (whether dispatched to a subagent or run `--inline`), the main thread MUST stand up a visible task list via `TaskCreate` — one entry per `### Task N:` in the plan — and keep it live with `TaskUpdate` for the whole run.** The user runs `/meta-execute` to *watch* progress, so the task list is a primary deliverable, not a side effect. No tracker visible = the run has not started correctly. Updates are mirrored *as each state changes* — never batched at the end.
 
 Parse plan, dispatch one Sonnet subagent per task, commit + push between. **Optimistic by default:** never block forward progress on tests. After each task, run only the instant inline checks, then launch the task's test/verify suite **async in the background** and advance to the next task immediately — tests run in parallel while the run keeps moving. When an async verify comes back red, spawn a background fixer scoped to it, defer dependents, advance independent work, then solidify the foundation before completion. Only critical-risk tasks (`money-path` / `release-stability` / `schema-drift`) verify synchronously. `--strict` = old serial gate (every test runs inline and blocks).
 
@@ -20,9 +24,9 @@ Read `references/execute-charter.md` before dispatching. Execution posture (opti
 
 Read the plan. Extract every `### Task N:` heading. Count them. Sub-tasks with `### Task N.M:` are separate. Phase headings are NOT tasks.
 
-### 2. Mirror EVERY task into the task tracker (MANDATORY)
+### 2. Mirror EVERY task into the visible task list (MANDATORY — see Prerequisite)
 
-One tracker item per task via `TaskCreate`. **Descriptive, well-named** content (`<ID> — what it builds/fixes`, not bare IDs) so progress is readable. Set dependencies. Count must match step 1 inventory. **Hard gate: do not dispatch before the tracker is visible and complete.** Surface every state through the run via `TaskUpdate`: `in_progress` → `🔧 repairing (async)` / `deferred — waiting on <ID>` / `blocked` → `completed`, plus one entry per background fixer and a final `📋 code review` entry.
+Call `TaskCreate` once per task — **descriptive, well-named** content (`<ID> — what it builds/fixes`, not bare IDs) so progress is readable. Set dependencies. The tracker item count MUST equal the step-1 inventory. **Hard gate: do not dispatch before the task list is visible and complete** — if you find yourself dispatching a subagent with no live task list, STOP and create it first. Surface every state through the run via `TaskUpdate`: `in_progress` → `🔧 repairing (async)` / `deferred — waiting on <ID>` / `blocked` → `completed`, plus one entry per background fixer and a final `📋 code review` entry.
 
 ### 3. Pre-flight gates
 
@@ -35,9 +39,9 @@ One tracker item per task via `TaskCreate`. **Descriptive, well-named** content 
 
 ### 4. Per task: claim → risk-tag → dispatch → verify → commit
 
-For EACH TodoWrite item:
+For EACH task-list item:
 
-1. Mark `in_progress`. CLAIM in plan file (per execute-charter.md). Commit claim.
+1. Mark `in_progress` via `TaskUpdate`. CLAIM in plan file (per execute-charter.md). Commit claim.
 2. Run `echo "<task body>" | bash scripts/risk-tag.sh` → get risk tags
 3. Dispatch Sonnet subagent with prompt from `references/execute-dispatch.md` + risk-tag clauses. Default: dispatch the next dep-satisfied, non-deferred task without waiting on in-flight fixers or in-flight tests (momentum). `--strict`: wait for the prior task to go green first.
 4. Subagent returns → **instant inline checks only** (stub grep on the diff + declared-file existence — milliseconds). Commit + push. Then **launch the task's `Verify:`/test suite async in the background** (`Bash run_in_background`, tracked as its own tracker entry `🧪 testing <ID> (async)`) and DO NOT block on it. **Exception — critical gate:** if the task is risk-tagged `money-path`, `release-stability`, or `schema-drift`, run its verify synchronously and require green before advancing. **Never run the full baseline suite per task** — that's the slow part; it runs once at solidify (step 5).
