@@ -30,6 +30,26 @@ Discover plans → dispatch 1 agent per plan (parallel, fresh context) → cross
 5. **Append changelog entry** — one entry summarizing all housekeeping actions.
 6. **Commit + push** — single commit covering all changes.
 
+## Archive Gate — HARD RULE
+
+**⛔ NEVER archive a plan that is still in active development or on the critical path.** Checkboxes alone are not enough — the plan must be **finalized and confirmed implemented**.
+
+A plan is NOT archivable if ANY of these are true:
+
+| Condition | Check |
+|-----------|-------|
+| Frontmatter `Status:` is NOT `Done` | Read plan frontmatter — `Active`, `Blocked`, `Pending`, `Draft` → **DO NOT ARCHIVE** |
+| Plan appears in `exec-order.md` without `[x]` | Grep exec-order for the plan path — if it's listed as an unchecked dependency → **DO NOT ARCHIVE** |
+| Plan appears in `STATUS.md` under Active/Blocked | Grep STATUS for the plan — if listed as in-progress → **DO NOT ARCHIVE** |
+| Plan `Blocks:` other plans that are not yet Done | Read frontmatter `Blocks:` list — if any blocked plan is still active → **DO NOT ARCHIVE** |
+
+**Only archive when ALL of these hold:**
+- Frontmatter `Status: Done`
+- All checkboxes `[x]`
+- Not in exec-order.md, OR listed there with `[x]`
+- Not listed as Active/Blocked in STATUS.md
+- No downstream plans blocked by this one that are still active
+
 ## Per-Plan Agent Template
 
 When dispatching each plan agent, give it this exact brief:
@@ -39,11 +59,18 @@ When dispatching each plan agent, give it this exact brief:
 > **Plan path:** `<plan-path>`
 > **Dry run:** `true/false`
 >
-> 1. Read the plan. Verify every checkbox is `[x]` (completed). If not, note what's unchecked and DO NOT archive — return with `archived: false`.
-> 2. If complete and not dry-run: move it to `plans/<repo>/_archive/<plan-filename>.md`.
-> 3. If archived, update any context files (`.claude/context/`) that reference this plan — remove stale pointers, update status.
-> 4. If archived, update any dashboard files (`plans/_dashboard/`) that track this plan.
-> 5. Return: `{plan, repo, archived, context_files_updated, dashboard_files_updated, notes}`.
+> **⛔ ARCHIVE GATE — check BEFORE archiving:**
+> 1. Read the plan frontmatter. `Status:` MUST be `Done`. If `Active`, `Blocked`, `Pending`, or `Draft` → STOP, return `archived: false` with reason "status is <status>, not Done".
+> 2. Verify every checkbox is `[x]`. If any unchecked → STOP, `archived: false`.
+> 3. Check `plans/exec-order.md` — if this plan appears without `[x]` → STOP, `archived: false` with reason "still on critical path in exec-order".
+> 4. Check `plans/STATUS.md` — if this plan is listed under Active or Blocked → STOP, `archived: false`.
+> 5. Read the plan's `Blocks:` frontmatter. For each blocked plan, check if its status is `Done`. If any blocked plan is still active → STOP, `archived: false` with reason "blocks <plan> which is still active".
+>
+> **Only if all 5 gates pass:**
+> 6. If not dry-run: move the plan to `plans/<repo>/_archive/<plan-filename>.md`.
+> 7. Update any context files (`.claude/context/`) that reference this plan — remove stale pointers, update status.
+> 8. Update any dashboard files (`plans/_dashboard/`) that track this plan.
+> 9. Return: `{plan, repo, archived: true, context_files_updated, dashboard_files_updated, notes}`.
 >
 > Do NOT touch STATUS.md or exec-order.md — the orchestrator handles those.
 > Do NOT commit — the orchestrator commits everything at the end.
