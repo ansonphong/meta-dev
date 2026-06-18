@@ -1,6 +1,6 @@
 ---
 name: init-check
-description: Shortcut for /meta-init-check — Environment health check, verifies services/tests/dependencies before execution
+description: Alias of /meta-init-check — identical command (pure redirect: `Execute /meta-init-check $ARGUMENTS`). /init-check and /meta-init-check are the SAME skill — invoke either, there is nothing to choose between them.
 argument-hint: [--quick | --full]
 allowed-tools: [Read, Bash, Glob, Grep]
 model: opus

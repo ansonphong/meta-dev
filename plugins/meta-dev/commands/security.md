@@ -1,6 +1,6 @@
 ---
 name: security
-description: Shortcut for /meta-security — Security audit, OWASP Top 10 + STRIDE threat modeling with parallel agent swarm
+description: Alias of /meta-security — identical command (pure redirect: `Execute /meta-security $ARGUMENTS`). /security and /meta-security are the SAME skill — invoke either, there is nothing to choose between them.
 argument-hint: "[<repo> | <path>] [--scope auth|payment|all] [--fix]"
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent]
 model: opus

@@ -1,6 +1,6 @@
 ---
 name: dod
-description: Shortcut for /meta-dod — Definition of Done contract, generates structured acceptance criteria and test plan
+description: Alias of /meta-dod — identical command (pure redirect: `Execute /meta-dod $ARGUMENTS`). /dod and /meta-dod are the SAME skill — invoke either, there is nothing to choose between them.
 argument-hint: <task-description>
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep]
 model: opus

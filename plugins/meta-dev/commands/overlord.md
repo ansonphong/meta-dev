@@ -1,6 +1,6 @@
 ---
 name: overlord
-description: Shortcut for /meta-overlord — Event-driven execution overseer, polls state, renders dashboard, dispatches review agents
+description: Alias of /meta-overlord — identical command (pure redirect: `Execute /meta-overlord $ARGUMENTS`). /overlord and /meta-overlord are the SAME skill — invoke either, there is nothing to choose between them.
 argument-hint: [start | stop | status]
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent]
 model: opus

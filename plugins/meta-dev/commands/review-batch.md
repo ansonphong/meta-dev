@@ -1,6 +1,6 @@
 ---
 name: review-batch
-description: Shortcut for /meta-review-batch — Batched review queue, review multiple items in sequence, render results
+description: Alias of /meta-review-batch — identical command (pure redirect: `Execute /meta-review-batch $ARGUMENTS`). /review-batch and /meta-review-batch are the SAME skill — invoke either, there is nothing to choose between them.
 argument-hint: [--since <ref> | --all]
 allowed-tools: [Read, Bash, Glob, Grep, Agent]
 model: opus

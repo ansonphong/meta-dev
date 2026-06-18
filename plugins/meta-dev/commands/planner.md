@@ -1,6 +1,6 @@
 ---
 name: planner
-description: Shortcut for /meta-planner — Restructure plans into execution-ready format with master checklist, phase files, verification hooks
+description: Alias of /meta-planner — identical command (pure redirect: `Execute /meta-planner $ARGUMENTS`). /planner and /meta-planner are the SAME skill — invoke either, there is nothing to choose between them.
 argument-hint: <plan-path>
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep]
 model: opus

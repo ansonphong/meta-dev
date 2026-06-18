@@ -1,6 +1,6 @@
 ---
 name: visual-critique
-description: Shortcut for /meta-visual-critique — Visual critique of attached image(s) with anti-sycophancy grading
+description: Alias of /meta-visual-critique — identical command (pure redirect: `Execute /meta-visual-critique $ARGUMENTS`). /visual-critique and /meta-visual-critique are the SAME skill — invoke either, there is nothing to choose between them.
 argument-hint: [free-form context, e.g. "landing page hero" | "mobile nav" | "dashboard card"] (images attached separately)
 allowed-tools: [Read, Bash, Glob, Grep]
 model: opus

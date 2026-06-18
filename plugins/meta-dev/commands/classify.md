@@ -1,6 +1,6 @@
 ---
 name: classify
-description: Shortcut for /meta-classify — Classify task as HOTL-safe or HITL-required by blast radius
+description: Alias of /meta-classify — identical command (pure redirect: `Execute /meta-classify $ARGUMENTS`). /classify and /meta-classify are the SAME skill — invoke either, there is nothing to choose between them.
 argument-hint: <task-description | plan-path>
 allowed-tools: [Read, Bash, Glob, Grep]
 model: opus

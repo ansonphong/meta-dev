@@ -1,6 +1,6 @@
 ---
 name: headless
-description: Shortcut for /meta-headless — Invoke headless worker, run task in dedicated subagent
+description: Alias of /meta-headless — identical command (pure redirect: `Execute /meta-headless $ARGUMENTS`). /headless and /meta-headless are the SAME skill — invoke either, there is nothing to choose between them.
 argument-hint: <task-prompt>
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent]
 model: opus

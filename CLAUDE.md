@@ -51,3 +51,4 @@ bash plugins/meta-dev/scripts/test-plugin.sh --check-scripts   # Scripts only
 - `${CLAUDE_PLUGIN_ROOT}` for all plugin-relative paths
 - `${PROJECT_ROOT}` or `plans/` for project-relative paths
 - Commit messages: `feat(phase):`, `fix(phase):`, `chore(phase):`
+- **Command-pairing invariant:** every `meta-<name>` command has a bare `<name>` shortcut (same dir) that is a pure redirect — body `Execute /meta-<name> $ARGUMENTS`. They are ONE command. When either form is typed, invoke `meta-dev:meta-<name>` directly; never deliberate between the pair (each shortcut's `description:` says so explicitly). Exceptions with no `meta-` counterpart (standalone): `housekeeping`, `sniff`.
