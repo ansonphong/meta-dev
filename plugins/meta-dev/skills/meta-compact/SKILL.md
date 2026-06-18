@@ -34,9 +34,23 @@ NEVER fire when:
 
 **Rule:** if it isn't safe to compact yet, say so and name the one thing to finish first. A clean boundary is earned, not declared.
 
+## Where the handoff goes — one unique file per compaction, in the active plan's folder
+
+Every compaction writes a **NEW** file. Never overwrite. Never a single rolling "LATEST". This keeps the full handoff history per plan, so multiple compactions during one effort never erase each other.
+
+1. **Find the active plan folder.** Prefer the plan this session is actively working on (you usually know it from context). If unclear, auto-detect — the most-recently-modified plan file's parent directory:
+   ```bash
+   find plans -type f -name '*.md' -not -path '*/_archive/*' -not -path '*/_dashboard/*' -printf '%T@\t%p\n' 2>/dev/null | sort -rn | head -1
+   ```
+   `--plan <path>` overrides either.
+2. **Placement.** If the plan has a dedicated folder (e.g. `plans/app/VECTOR-TO-TILE-RENAME/`), write the handoff **into it**. If the plan is a loose file directly under `plans/<repo>/` (no project folder), fall back to `plans/_dashboard/handoffs/`.
+3. **Filename is unique per compaction:** `handoff-<YYYY-MM-DD>-<HHMM>.md` (date + time, so same-day compactions don't collide). If that exact name already exists, append `-2`, `-3`, … — **never clobber an existing handoff**.
+
+The newest `handoff-*.md` in a folder is the de-facto current one for that plan. Resume uses the exact path (echoed in step 6), not a rolling pointer. Legacy `handoff-LATEST.md` files from older versions are left in place, not migrated or overwritten.
+
 ## The handoff artifact
 
-Write to `plans/_dashboard/handoffs/handoff-LATEST.md` (durable — survives compaction; the rolling LATEST is always the resume target). Use this exact skeleton; fill every field, delete none:
+Write the unique file per the rules above. Use this exact skeleton; fill every field, delete none:
 
 ```markdown
 # Forward Handoff — <subject>
@@ -75,16 +89,15 @@ The ordering is deliberate: **NEXT ACTION sits above the backward state** becaus
 1. **Check the seam.** Assess the boundary against the criteria above. If not safe, STOP — report the one thing to finish first (offer to do it), do not write a handoff against dirty mid-task state.
 2. **Capture git state.** `git status -s` + `git log -1 --oneline` + branch + pushed?/ahead. This is the spine of "State now".
 3. **Distill, don't dump.** Fill the skeleton. NEXT ACTION must be executable cold. Working set = only files that matter for the next step. Pull Decisions/Gotchas from THIS session's reasoning — that's the knowledge a backward summary loses.
-4. **Write** `plans/_dashboard/handoffs/handoff-LATEST.md` (create the `handoffs/` dir if missing). Overwrite — LATEST is rolling.
-5. **Echo a 4-line preview** to the user: Mission, ▶ NEXT ACTION, git state, handoff path.
-6. **Hand the trigger back:**
-   > Handoff written → `plans/_dashboard/handoffs/handoff-LATEST.md`. Compact now with:
-   > `/compact read plans/_dashboard/handoffs/handoff-LATEST.md and continue from ▶ NEXT ACTION`
-   > (or plain `/compact` — the file survives and is the resume target).
+4. **Write the unique handoff file** in the active plan folder per the "Where the handoff goes" rules (create the dir if missing). NEVER overwrite an existing handoff — on name collision, increment the `-N` suffix.
+5. **Echo a 4-line preview** to the user: Mission, ▶ NEXT ACTION, git state, and the **exact handoff path** just written.
+6. **Hand the trigger back** with that exact path:
+   > Handoff written → `<plan-folder>/handoff-<YYYY-MM-DD>-<HHMM>.md`. Compact now with:
+   > `/compact read <plan-folder>/handoff-<YYYY-MM-DD>-<HHMM>.md and continue from ▶ NEXT ACTION`
 
 ## After compaction (resume contract)
 
-The next session's first action is: **read `plans/_dashboard/handoffs/handoff-LATEST.md`, then execute ▶ NEXT ACTION.** Do not re-summarize, do not re-explore — the handoff IS the orientation. If the custom `/compact` instruction above was used, this is automatic.
+The next session's first action is: **read the exact handoff path from the compact instruction, then execute ▶ NEXT ACTION.** If the path isn't handy, read the newest handoff in the active plan folder — `ls -t <plan-folder>/handoff-*.md | head -1`. Do not re-summarize, do not re-explore — the handoff IS the orientation. If the custom `/compact read <path>` instruction above was used, this is automatic.
 
 ## Rules
 
@@ -92,4 +105,4 @@ The next session's first action is: **read `plans/_dashboard/handoffs/handoff-LA
 - **Never write a handoff against dirty mid-task state** — a forward-compact points at a committed seam. Finish + commit, or capture why-dirty explicitly, first.
 - **NEXT ACTION is mandatory and must be concrete** — if you can't name the next move, the work isn't at a seam; say so.
 - **Distill, never dump** — the value is signal density, not a transcript. A backward summary already exists; this adds the *forward* delta.
-- **Rolling LATEST** — always overwrite `handoff-LATEST.md` so the resume target is unambiguous. (Keep timestamped archives only if the user asks.)
+- **Never overwrite a handoff — unique per compaction** — every compaction writes a new `handoff-<date>-<time>.md` in the active plan folder. The history is the audit trail; the newest file is the resume target. (Legacy `handoff-LATEST.md` files are left in place, not migrated.)

@@ -46,7 +46,7 @@ passes; if green, that's the last gate before push.
 
 ## 🔒 Decisions locked  (do NOT re-litigate)
 - Both trigger modes (proactive watch + on-demand /meta-compact) — user chose "both".
-- Handoff lives at plans/_dashboard/handoffs/handoff-LATEST.md, rolling — single resume target.
+- Handoff lives in the active plan's folder as a unique `handoff-<date>-<time>.md` — never overwritten, one file per compaction (full history kept per plan).
 - Skill never runs /compact itself — hands trigger to user.
 
 ## ⚠️ Gotchas
