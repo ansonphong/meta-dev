@@ -1,9 +1,10 @@
 ---
-name: sniff-test
-description: Grug-brain code sniff test — detect smells, hacks, and bad practices in a diff/file/directory and recommend the simplest best-practice fix for each. Report-only, never edits code. Use when reviewing code quality, before merging, or when something "smells off".
+name: sniff
+description: Grug-brain sniff test — detect code smells, hacks, and bad practices and recommend the simplest best-practice fix for each. Report-only, never edits code. Invoked as /sniff. By default sniffs the code under discussion in the current conversation; takes a path, or --diff/--staged/--all. Use when reviewing code quality, before merging, or when something "smells off".
+allowed-tools: [Read, Bash, Glob, Grep]
 ---
 
-# Sniff Test — grug smell code, grug tell you
+# /sniff — grug smell code, grug tell you
 
 grug sniff code for smell. grug find bad practice, hack, complexity demon spirit. grug NOT fix — grug TELL you what stink and what best practice instead. you read, you decide, you fix.
 
@@ -39,7 +40,11 @@ Seven groups. Full detection heuristics + grug-approved fixes in `references/sni
 
 ## Procedure
 
-1. **Resolve target.** `$ARGUMENTS` is a path (file or dir) → sniff that. No arg → sniff the working `git diff` (changed + staged files). `--staged` → staged only. `--all` → whole repo (warn if large, suggest a path).
+1. **Resolve target (priority order — STOP at the first that matches).**
+   - **Explicit path** in `$ARGUMENTS` (file or dir) → sniff exactly that.
+   - **`--diff`** → the working `git diff` (changed + staged). **`--staged`** → staged only. **`--all`** → whole repo (warn if large, suggest a path instead).
+   - **No argument → the conversation focus (DEFAULT).** Sniff the code that is the live subject of *this* conversation: files you just read/edited/wrote, the module/symbol under discussion, the change you and the user have been working through. Pick the most recent, most-relevant code in context.
+   - **No clear target in context → ASK, do not guess.** If the conversation has no concrete code subject yet (e.g. only a design was discussed, no code written), say so in grug voice and ask what to sniff — offer `--diff` as the option for "just sniff my working changes". **NEVER silently fall back to `git diff`** — the working tree often holds unrelated scratch/leftover files (a stale rename script, a scratch test) that have nothing to do with the conversation, and sniffing those wastes the run and confuses the user.
 2. **Read the code.** Load target files. For a diff target, sniff the changed regions but read enough surrounding context to judge (a smell needs its neighborhood).
 3. **Mechanical pass (fast).** grep the hack patterns from catalog §4 (TODO/FIXME/HACK, empty `catch`/`except: pass`, hardcoded `password=`/`api_key=`/`secret`, magic-number literals, large commented-out blocks). Every hit is a candidate at high confidence.
 4. **Semantic pass (judgment).** Read for the structural smells (groups 1,2,3,5,6,7). These need understanding, not grep. Apply the catalog thresholds — do NOT flag below threshold.
@@ -52,17 +57,19 @@ Seven groups. Full detection heuristics + grug-approved fixes in `references/sni
 Each finding is exactly three grug lines + location:
 
 ```
-🦗 <smell-name>  [<stink>]  <file>:<line>
+[<stink>] <smell-name>  <file>:<line>
    grug see:   <what is there — one line, concrete>
    grug smell: <which principle/smell it violates — why grug no like>
    grug say:   <the simplest best-practice fix — concrete and actionable>
 ```
 
+The `[<stink>]` tag is the only marker — no decorative emoji on finding lines (it is noise, not signal). The grug see/smell/say triad carries the meaning.
+
 `grug say` must be a real, minimal change — not "consider refactoring". Name the constant. Handle the error. Inline the abstraction. Move the method to the data. If the honest answer is "leave it", say that and why.
 
-## Report card
+## Report
 
-Always end with the grug Sniff Report card (`references/sniff-report.md`). It tallies stink by level, lists findings grouped by stink (big stink first), states files sniffed, and gives one "grug final word" verdict line. No narrative, no per-file recap, no conversational sign-off — the card is the wrap-up.
+Render the grug Sniff Report — exact layout in `references/sniff-report.md`. **Summary first:** a one-line target header + a one-line plain-text stink tally, so the reader knows scope and severity before reading anything. Then the findings (worst stink first). Then exactly one `— grug final word —` verdict line, with the single most important caveat folded into it. No ASCII box, no emoji tally, no "see above" pointer, no trailing prose after the verdict — that line IS the wrap-up.
 
 ## Rules
 
