@@ -35,30 +35,9 @@ The bypass only skips the *planning/hardening* stages — it never skips executi
 
 ### Stage Progress Task List (autopilot/walk — MANDATORY)
 
-**Cruise/walk exists so the user can walk away and watch the waterfall progress.** That watching surface is a visible task list — stand it up via `TaskCreate` BEFORE Stage 1 and keep it live with `TaskUpdate` for the whole run. No tracker visible = the run has not started correctly. This mirrors the proven pattern in `/meta-execute` (`commands/meta-execute.md` → "visible main-thread task list"), but at the *stage* granularity instead of the *task* granularity.
+**Cruise/walk exists so the user can walk away and watch the waterfall progress.** Stand up a visible stage-level task list via `TaskCreate` BEFORE Stage 1 and keep it live with `TaskUpdate` for the whole run — `in_progress` on start, `completed` on exit-criteria, `blocked` on halt. No tracker visible = the run has not started correctly. It is the *stage*-level tracker; Stage 5's `/meta-execute` runs its own *task*-level list, distinct and never mirrored. Interactive mode: recommended but optional; autopilot/walk makes it mandatory.
 
-**Create once, up front — one entry per waterfall stage:**
-
-```
-Stage 1 — Brainstorm
-Stage 2 — Design
-Stage 3 — Plan (/meta-planner)
-Stage 4 — Harden (/loop-gap)
-Stage 5 — Execute (/meta-execute)
-Stage 6 — Review (/meta-eval + audit + housekeeping)
-```
-
-Chain dependencies (each stage depends on the prior). For multi-item runs, create one stage list per subject (prefix entries with the subject) so concurrent pipelines stay legible.
-
-**Update as state changes (never batched at the end):**
-- Stage starts → `TaskUpdate` to `in_progress`.
-- Exit criteria met (table below) → `completed`. Commit the stage artifacts (see "commit per stage").
-- Stage halts after max retries → `blocked` with the failure reason; the rest of that subject's stages stay `pending` (error isolation).
-- Quick-fix bypass skips Stages 1-4 → mark them `completed` with a `⏭ skipped (trivial)` note so the trail is honest about what ran.
-
-**Nested, not duplicated.** Stage 5 delegates to `/meta-execute`, which stands up its OWN per-*task* list (one entry per `### Task N:` in the plan). That is a separate, finer-grained tracker. The orchestrator marks `Stage 5 — Execute` `in_progress`, lets `/meta-execute` drive its task list, then marks `Stage 5` `completed` on return. Do NOT mirror execute's individual tasks into the stage list — two lists at two granularities, no overlap.
-
-**Interactive mode:** the stage list is recommended (it makes the GO/stop prompts clearer) but optional. Autopilot/walk makes it mandatory.
+**The full procedure (entries, dependencies, multi-item, skip/block handling, nesting) lives in the `waterfall-tracking` skill** (`skills/waterfall-tracking/SKILL.md`) — invoke it; the loop below wires its updates into stage advancement.
 
 ### The 6-Stage Complete-Then-Advance Loop
 

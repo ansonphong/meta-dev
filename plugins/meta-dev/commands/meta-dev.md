@@ -29,7 +29,7 @@ Stage definitions in `references/dev-swarms.md`. Each stage delegates to ported 
 
 ## Stage Progress Tracking (autopilot/walk — non-negotiable)
 
-**When the run is autopilot (`cruise`/`autopilot`/`auto`/`walk`/`unattended`/`--cruise`), stand up a visible 6-stage task list via `TaskCreate` BEFORE Stage 1** — one entry per waterfall stage — **and keep it live with `TaskUpdate`** (`in_progress` on start → `completed` on exit-criteria → `blocked` on halt). The user walks away to watch the waterfall progress, so this tracker is a primary deliverable; no tracker visible = run not started correctly. It is the *stage*-level tracker; Stage 5's `/meta-execute` runs its own *task*-level list — distinct, never mirrored. Full pattern: `references/dev-modes.md` → "Stage Progress Task List".
+**When the run is autopilot (`cruise`/`autopilot`/`auto`/`walk`/`unattended`/`--cruise`), invoke the `waterfall-tracking` skill BEFORE Stage 1** to stand up a visible 6-stage task list (`TaskCreate`) and keep it live with `TaskUpdate` (`in_progress` on start → `completed` on exit-criteria → `blocked` on halt). The user walks away to watch the waterfall progress, so this tracker is a primary deliverable; no tracker visible = run not started correctly. It is the *stage*-level tracker; Stage 5's `/meta-execute` runs its own *task*-level list — distinct, never mirrored. Detail: skill `waterfall-tracking` (`plugins/meta-dev/skills/waterfall-tracking/`); exit-criteria table in `references/dev-modes.md`.
 
 ## Cruise Control (Autopilot)
 
