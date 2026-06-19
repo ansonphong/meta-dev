@@ -103,7 +103,7 @@ check_command_frontmatter() {
 import os
 # Heavy procedure-commands carry their full spec in the command body by design
 # (massively-parallel agent swarms, wave protocols). Thin-delegate commands stay <=50.
-HEAVY = {'meta-loop-gap', 'meta-probe', 'meta-visual-critique', 'meta-planner', 'meta-execute'}
+HEAVY = {'meta-loop-gap', 'meta-probe', 'meta-visual-critique', 'meta-planner', 'meta-execute', 'housekeeping'}
 name = os.path.basename('$cmd_file')[:-3]
 with open('$cmd_file') as f:
     content = f.read()
