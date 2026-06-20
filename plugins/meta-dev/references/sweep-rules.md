@@ -2,11 +2,12 @@
 
 Autonomous maintenance actions. Never destructive.
 
-## Archive Stale Plans
+## Archive Finished Plans
 
-- Trigger: plan file mtime > 30 days, no git commits touching it
-- Action: move to `plans/_archive/stale/YYYY-MM/`
-- Never: delete, rm, git rm
+- **Trigger: the plan is FINISHED — and nothing else.** Decided solely by `scripts/archive-guard.sh` (Status: Done, zero unchecked `[ ]`, no CLAIMED/WIP/in-progress marker, not unchecked in exec-order).
+- **Age is NEVER a trigger.** An old plan that is unfinished STAYS. We do not archive plans for being old, only for being done.
+- Action: move to `plans/<repo>/_archive/` (the plan's real archive, not a stale bucket).
+- Never: delete, rm, git rm. Never archive a guard-BLOCKed plan.
 
 ## WIP Commit
 
