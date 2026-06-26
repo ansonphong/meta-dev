@@ -11,7 +11,7 @@ Read the plan section for this task in full. Read .claude/context/<relevant>.md 
 
 Hard rules (from host CLAUDE.md + plan, all binding):
 1. Work on master. No worktrees, no branches, no stashing.
-2. TDD: write failing test -> run -> impl -> run -> commit.
+2. <TEST_DIRECTIVE>   ← orchestrator inserts ONE of the two variants below per the task's `test:` tag.
 3. Auto-commit + push at every closure. No Co-Authored-By trailer. No Claude attribution.
 4. Run the task's declared Verify: command. Paste output. Green = done, red = STOP.
 5. Stub grep on touched files before declaring done: grep for TODO, FIXME, pass, return [], return {}, NotImplementedError, "coming soon", "Phase N", placeholder.
@@ -22,15 +22,28 @@ Hard rules (from host CLAUDE.md + plan, all binding):
 
 Steps:
 1. Read the task. List files you'll touch. Confirm they exist + match plan claims.
-2. Write failing test (or extend existing). Run it. Paste failure output.
+2. <TEST_STEP>   ← orchestrator inserts the matching variant (test-first, or "no test — skip to impl").
 3. Implement.
 4. Run task's Verify command exactly: <VERIFY_CMD>. Paste output.
 5. Run stub grep on touched files. Paste output. Must be empty.
 6. git add <files> && git commit -m "<conventional commit>" && git push origin master. Paste commit SHA.
 7. Report: SHA, files changed, verify output tail, anything surprising.
 
-Do NOT: modify the plan checkbox (orchestrator owns that), touch files outside scope, run /deploy, archive plans.
+Do NOT: modify the plan checkbox (orchestrator owns that), touch files outside scope, run /deploy, archive plans. Do NOT write a test the task did not ask for — if `<TEST_DIRECTIVE>` says no test, adding one is scope creep.
 ```
+
+## Test directive — fill `<TEST_DIRECTIVE>` / `<TEST_STEP>` per task
+
+`/meta-execute` chooses the variant from the task's `test:` tag (set by `/meta-planner`), falling back to `meta_dev.execute.test_policy` config (default `critical-only`) when a task carries no tag:
+
+- **`test: yes`** (critical-breakage task, or `test_policy: tdd-all`) →
+  - Hard rule #2: `TDD: write failing test -> run -> impl -> run -> commit.`
+  - Step 2: `Write failing test (or extend existing). Run it. Paste failure output.`
+- **`test: no`** (default for ordinary tasks under `critical-only`, and all tasks under `none`) →
+  - Hard rule #2: `No new test for this task — verify by the declared Verify command (build / grep / run / by-eye). Do not author a test.`
+  - Step 2: `No test step — go straight to implementation. (Verify via step 4.)`
+
+**What counts as `test: yes` (critical-breakage):** data corruption paths, auth/crypto verification, payment/value transfer, DB migration, serialization round-trip, cross-service API contract — refined by the host `CLAUDE.md` testing policy if it names specific critical surfaces. Everything else is `test: no`. When in doubt, prefer `test: no` and lean on the Verify command — fewer tests is the intended posture.
 
 ## Risk-tag clauses
 
@@ -43,6 +56,9 @@ Inserted into hard rule #9 per the risk tag detected:
 - **perf/cache:** "Note this touches cache/async paths. Verify no cache-key collisions or race conditions."
 
 ## Post-task verification gates (run by orchestrator, not subagent)
+
+**⛔ FIRST — flip the plan checkbox (BEFORE any other post-task action):**
+Once a task's verify returns green, the orchestrator MUST immediately edit the plan file and flip `- [ ] CLAIMED` → `- [x] DONE`, then commit `chore(plan): mark <Task ID> DONE`. This is step zero — do it before the inline checks below, before advancing, before anything else. The checkbox is the user's visibility; unchecked = "nothing happened."
 
 **Instant inline (gate the commit — milliseconds):**
 1. `git show --stat <sha>` — diff scope matches declared files?

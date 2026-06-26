@@ -38,8 +38,8 @@ Patterns are discovered by downstream commands (loop-gap, meta-eval, meta-execut
 - **Rule:** Before generating code in an existing file, inspect which framework idioms / API version it uses (e.g. reactivity model, module/import syntax, component pattern, ORM style) and match it. New files follow the project's current standard as documented in the host CLAUDE.md. Never mix an old and a new idiom in the same file.
 - **Applies to:** During phase file generation (Stage 2) for any framework-coupled source file.
 
-### LP-005: Test tasks must include edge cases, error paths, and boundary conditions
+### LP-005: When a task IS test-worthy, the test should cover edge + error paths — but most tasks are not test-worthy
 - **Source:** loop-gap (seen 4x across multiple plans)
-- **Added:** 2026-03-28
-- **Rule:** Test subtasks must list: (1) at least one error/failure path, (2) at least one boundary/edge case, (3) fixture patterns matching the project's existing test structure.
-- **Applies to:** During phase file generation (Stage 2) — every test subtask.
+- **Added:** 2026-03-28 · **Revised:** 2026-06-26
+- **Rule:** This applies ONLY to tasks tagged `test: yes` (critical-breakage — see `test_policy`, default `critical-only`). For those few, the test should list at least one error/failure path and one boundary/edge case, matching the project's existing fixture structure. **Do NOT generate a test subtask for `test: no` tasks** — they verify by their Verify-After (build / grep / run / by-eye). Fewer tests is the intended posture; don't pad ordinary tasks with exhaustive test matrices.
+- **Applies to:** During phase file generation (Stage 2) — only the `test: yes` subtasks.

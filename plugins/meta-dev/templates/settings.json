@@ -313,6 +313,7 @@
       "targets": {}
     },
     "execute": {
+      "test_policy": "critical-only",
       "risk_keywords": {
         "schema_drift": [],
         "security_boundary": [],

@@ -17,6 +17,16 @@
 
 `--strict` disables all of this: every verify runs inline and blocks, every red is a hard STOP, no background fixers, no async tests.
 
+## Test Policy — Critical-Only (default)
+
+**Do not write a test for every task.** Most tasks verify by their cheap `Verify-After` check (build passes, grep is clean, run-by-eye) — not by an authored test. Governed by `meta_dev.execute.test_policy` (default `critical-only`):
+
+- **`critical-only` (default)** — a written test is generated/run ONLY for **critical-breakage** tasks: data-corruption paths, auth/crypto verification, payment/value transfer, DB migration, serialization round-trip, cross-service API contract (refined by the host `CLAUDE.md` testing policy if it names specific critical surfaces). Every other task is verified by its Verify command alone.
+- **`tdd-all`** — legacy: every task runs the full failing-test-first TDD cycle.
+- **`none`** — no authored tests; verify by cheap checks only.
+
+`/meta-planner` encodes the decision per task as a `test: yes` / `test: no` tag; `/meta-execute` reads that tag to pick the dispatch directive (`references/execute-dispatch.md` → Test directive), falling back to this config when a task is untagged. **`test: no` tasks must NOT have a test written for them** — adding one is scope creep. Verify ≠ test: a Verify-After is satisfied by a build/grep/run, and only critical tasks escalate to an actual test. Fewer tests is the intended posture; the verify gates above (async, non-blocking) still apply to whatever verification a task does declare.
+
 **Momentum gate.** When a task `T` returns red / regressed, classify:
 
 - **TRUE BLOCKER → halt the whole run, surface.** Only these:
@@ -46,14 +56,41 @@
 - **Do not pause between tasks for confirmation** unless a hard pause-gate trips.
 - **Stay in lane.** Out-of-scope dirty files are not your problem — leave them exactly as they are.
 
-## CLAIMED Protocol
+## CLAIMED → DONE — Full Checkbox Lifecycle (MANDATORY)
+
+The plan file's checkboxes are the user's ONLY visibility into execution progress. Every task MUST pass through ALL three states in the plan file. No exceptions, no batching, no "I'll do it at the end."
+
+### State 1: CLAIM (before dispatch)
 
 Before dispatching a subagent for a task:
-1. Edit the plan file: insert `` `CLAIMED` `` tag next to the task checkbox.
+1. Edit the plan file: change `- [ ] Task N: <title>` to `` - [ ] CLAIMED `Task N: <title>` ``
 2. Commit + push the claim immediately: `chore(plan): claim <Task ID>`
 3. This prevents parallel sessions from picking up the same task.
 
-Stale CLAIMED check: if a task has been CLAIMED for >2 hours with no DONE, prompt the user before re-claiming.
+### State 2: DONE (immediately after green verify)
+
+**The instant a task's verify returns green** (async or sync), you MUST flip its checkbox before doing anything else:
+1. Edit the plan file: change `` - [ ] CLAIMED `Task N: <title>` `` to `` - [x] DONE `Task N: <title>` ``
+2. Commit + push immediately: `chore(plan): mark <Task ID> DONE`
+3. Only THEN advance to the next task or do any other work.
+
+**This is the step that keeps getting missed.** The checkbox flip + commit takes 5 seconds. Do it after EVERY single task — never batch, never defer. Unchecked boxes read as "nothing happened" to the user watching the plan file.
+
+**If the task was never CLAIMED** (resume, --inline, or direct execution):
+- Find: `- [ ] Task N: <title>`
+- Replace with: `- [x] DONE Task N: <title>`
+
+### State 3: Verify (before report card)
+
+Before rendering the execution report card (step 8), run:
+```bash
+grep -cE '^[[:space:]]*[-*][[:space:]]+\[[[:space:]]\]' <plan-file>
+```
+If the count is non-zero for tasks you believe are done, STOP — go back and flip those checkboxes NOW. Never render the report card with unchecked completed tasks.
+
+### Stale CLAIMED check
+
+If a task has been CLAIMED for >2 hours with no DONE, prompt the user before re-claiming.
 
 ## Resume Logic
 

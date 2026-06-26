@@ -28,9 +28,17 @@ Run `references/codebase-verification.md` protocol: collect file refs → read e
 
 Define request/response shapes, error codes, endpoints before implementation tasks reference them.
 
-### 5. Generate phase files with TDD + Verify hooks
+### 5. Generate phase files with Verify hooks (tests only where they earn their keep)
 
-Each phase file: Codebase Snapshot → tasks with Verify-Before/After hooks → TDD steps (test→fail→impl→pass→commit). Use semantic anchors (function/class names), never line numbers (see `templates/patterns/planner.md`).
+Each phase file: Codebase Snapshot → tasks with Verify-Before/After hooks. Use semantic anchors (function/class names), never line numbers (see `templates/patterns/planner.md`).
+
+**Tag every task `test: yes` or `test: no` (default `no`).** Read `meta_dev.execute.test_policy` (`bash scripts/config-get.sh meta_dev.execute.test_policy`, default `critical-only`) and the host `CLAUDE.md` testing policy first:
+
+- **`critical-only` (default)** — tag `test: yes` ONLY for critical-breakage tasks: data-corruption paths, auth/crypto verification, payment/value transfer, DB migration, serialization round-trip, cross-service API contract (refined by any critical surfaces the host CLAUDE.md names). Every other task is `test: no`.
+- **`tdd-all`** — every task `test: yes` (legacy behavior).
+- **`none`** — every task `test: no`.
+
+Only `test: yes` tasks get a TDD subtask (test→fail→impl→pass→commit). **`test: no` tasks get NO test subtask** — they verify via the Verify-After hook (build / grep / run / by-eye), which is cheaper and is what the validator checks. Do not pad ordinary tasks with tests; fewer tests is the intended posture (see `references/execute-charter.md` → Test Policy). The task's `test:` tag is what `/meta-execute` reads to pick its dispatch directive.
 
 ### 6. Generate master plan with checklist + execution rules
 

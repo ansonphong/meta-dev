@@ -36,6 +36,10 @@ for f in "$PLAN_DIR"/*phase*.md; do
 done
 
 # Check 3: Every Verify-After has at least one checklist item (non-empty verification)
+# NOTE: a checklist item is ANY cheap check — build passes, grep is clean, run-by-eye.
+# It need NOT be an authored test. Under test_policy=critical-only (default) most tasks
+# verify this way; only critical-breakage tasks (test: yes) add a real test. Do not tighten
+# this check to require a test command — that would re-inflate the suite.
 for f in "$PLAN_DIR"/*phase*.md; do
   [ -f "$f" ] || continue
   # Get line numbers of Verify-After headers
