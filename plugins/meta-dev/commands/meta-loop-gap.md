@@ -1,7 +1,7 @@
 ---
 name: meta-loop-gap
 description: Four-Wave Gap Scanner — scans plans OR source code, finds bugs, fixes them directly
-argument-hint: <plan-dir | feature:name | code-path | project> [--budget low|medium|high] [--iterations N]
+argument-hint: <plan-dir | feature:name | code-path | project> [--budget auto|low|medium|high] [--iterations N]
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, TaskCreate, TaskUpdate]
 model: opus
 ---
@@ -10,7 +10,7 @@ model: opus
 
 Scan plans, source code, features, or entire projects for gaps, bugs, and issues. Four waves: Tools → Haiku → Sonnet/Opus → Opus. **In code/feature mode, agents find AND fix bugs directly in source files.**
 
-**Agent philosophy:** Be extremely liberal spawning agents. Every independent analysis axis gets its own agent. Haiku agents are cheap — spawn dozens. Sonnet agents are worth it for deep analysis — one per file plus semantic specialists. Agent count should scale dynamically with plan complexity: small plans get ~30 total agents across all waves, large plans get 70+. Only spawn agents that do genuinely independent work — never spawn an agent that duplicates another's exact scope. Spin up fast, collect results, spin up the next wave. Conditional agents (per-endpoint, per-consumer, cross-file verification) spawn only when applicable — 0 endpoints = 0 endpoint agents.
+**Agent philosophy — scale to signal, not just size.** Be liberal with *cheap* agents (Wave 0 tools, Wave 1 Haiku) — run them on everything; that is the recall floor. Be *signal-gated* with *expensive* agents (Wave 2 Sonnet/Opus, Wave 3 Opus): under the default `auto` budget they escalate only where the cheap waves found something, where code changed since the last scan, or on high-bug-density files (see the Budget table). Every independent analysis axis still gets its own agent **when it escalates**; never spawn an agent that duplicates another's exact scope. Agent count scales with **signal × complexity**, not complexity alone — a clean re-scan should cost a fraction of the first pass, while a virgin plan still gets full breadth. Conditional agents (per-endpoint, per-consumer, cross-file verification) spawn only when applicable — 0 endpoints = 0 endpoint agents. Spin up fast, collect results, spin up the next wave.
 
 ## Usage
 
@@ -26,15 +26,23 @@ Scan plans, source code, features, or entire projects for gaps, bugs, and issues
 
 **Mode:** Path inside `plans/` → `plan` | `feature:{name}` → `feature` | `project` → `project` | other paths → `code`
 
-**Budget** (default `medium`):
+**Budget** (default `auto` — self-calibrating):
 
 | Budget | Wave 0 | Wave 1 | Wave 2 | Wave 3 |
 |--------|--------|--------|--------|--------|
+| **auto** (default) | Always | Always | **Signal-gated — only flagged / changed / complex files** | **Only if Wave 2 left an unresolved high-sev gap** |
 | low | Always | Always | Single consolidated Sonnet | Never |
 | medium | Always | Always | Full (one agent/file + semantic agents) | Final iteration only |
 | high | Always | Always | Full (one agent/file + semantic agents) | Every iteration |
 
-**Iterations** (default `1`): Multi-iteration uses progressive depth — early iterations run Wave 0+1 only, promoting to deeper waves as gap count drops below 10 → below 3 → zero.
+**`auto` is the calibration mode** — it spends cheap waves everywhere and expensive waves only where the cheap waves point. This is the default; use `low`/`medium`/`high` to **force** a fixed depth and override calibration.
+
+- **Wave 0 + Wave 1 always run** on every file (tools are free; Haiku is cheap) — the recall floor.
+- **Wave 2 escalates per-file, not globally.** A file gets a Wave 2 (Sonnet/Opus) per-file agent ONLY if: **(a)** Wave 0/1 reported ≥1 gap in it, **OR (b)** it changed since the last scan (`git diff` vs the prior `loop-gap.md` `git_sha`), **OR (c)** it is opus-tier (200+ lines / cross-module / complex logic — the high-bug-density files). Clean, unchanged, simple files skip Wave 2. The **semantic + role agents still always spawn** (Data Flow, Behavioral Claim, Mental Dry Run, etc.) — they run on the Context Index, not per-file, so they remain the cross-cutting safety net regardless of which files escalated.
+- **Wave 3 runs ONLY if Wave 2 left an unresolved high-severity gap.** A clean Wave 2 means the cheap waves already converged — Opus holistic review would add cost without signal.
+- **First scan vs re-scan:** no prior `loop-gap.md` (virgin plan) → treat ALL files as changed → first pass gets full breadth. On re-scan, only changed + flagged + complex files escalate → re-hardening a green plan costs a fraction of the first pass.
+
+**Iterations** (default `1`): Multi-iteration uses progressive depth — early iterations run Wave 0+1 only, promoting to deeper waves as gap count drops below 10 → below 3 → zero. (Under `auto`, the per-file escalation gating above applies *within* each iteration too.)
 
 ## Step 0.5 — Read Learned Patterns
 
@@ -93,7 +101,7 @@ Before scanning, read this command's `## Learned Patterns` section (at the botto
 
 **Model per file:** Files 200+ lines, cross-module, or containing complex logic (loops, state machines, error handling chains) → **opus**. Everything else → **sonnet**. Test files → **sonnet**.
 
-**Agent spawning rule: ONE AGENT PER FILE. Never batch.** For large plans with 10+ files, this means 10+ Wave 2 agents running in parallel. This is intentional — parallel agents are cheap and thorough.
+**Agent spawning rule: one agent per *substantive* file; batch the trivial ones.** Each opus-tier file (200+ lines / cross-module / complex logic) gets its OWN Wave 2 agent — never batch these. Small, simple files (short, single-responsibility, no complex logic — e.g. a constants/types/config file) may be **batched 2–4 per agent** when they're related, to cut agent count without losing recall. For large plans this still means many parallel Wave 2 agents — parallel agents are cheap and thorough — but don't burn a full agent on a 20-line constants file. (Under `auto` budget, only files in the escalation set get a Wave 2 agent at all — see the Budget table.)
 
 ## Step 3 — Check for Existing loop-gap.md
 
@@ -446,14 +454,14 @@ master:TaskN ↔ phase:TaskN — title:✓ test:✓ files:✓
 
 ### Wave 2 — Deep Analysis (Sonnet/Opus, massively parallel)
 
-**Spawn ALL agents in a single parallel message.** Be aggressive — every independent analysis axis gets its own agent. Wall-clock time is bounded by the slowest agent, not the count.
+**Spawn the wave in a single parallel message.** Every independent analysis axis gets its own agent. Wall-clock time is bounded by the slowest agent, not the count. **Under `auto` budget, per-file agents spawn ONLY for the escalation set** (flagged / changed / complex files — see Budget table); the semantic + role agents below always spawn (they run on the Context Index). Under medium/high, every file gets a per-file agent.
 
 **Per-file agents (one per file, NEVER batch):**
 Each agent's prompt MUST include:
 1. Its primary file — read in full
 2. The merged Context Index (NOT raw files) — including Reactive State Map, Architecture Registry, Contract Registry
 3. Wave 0 tool results (skip checks tools already covered)
-4. All gap categories applicable to the current mode — plan mode: cats 1-24 + 34, code/feature mode: cats 15-34 + applicable plan cats if hybrid scan
+4. **Only the gap categories that can actually fire on this file.** Start from the mode set (plan mode: cats 1-24 + 34; code/feature mode: cats 15-34 + applicable plan cats if hybrid), then **prune to what the plan/code actually contains**: no endpoints → drop the contract/API-drift cats (7, 7a-e, 30); pure-frontend with no async/shared state → drop concurrency/race (28); no data-model/schema change → drop migration (21); no loops/pipelines/accumulators in the code blocks → drop value-correctness (23); no multi-step smoke tests → drop verification-reachability (24). Carrying dead categories just bloats the prompt — give each agent only the lenses that can fire on its file.
 5. **Semantic verification mandate:** For every behavioral claim ("always/locked/forced/only") → check Reactive State Map mutation paths. For every UI component change → check for dead-end state combos. For every scope limiter → trace all data paths in Context Index. For every implementation mapping → check Architecture Registry. For every function call → check GUARDS in Codebase Signatures. **For every code block with a loop/pipeline** → trace variable values through iterations and verify return/response uses the correct (cumulative vs. last-iteration) value (cat 23). **For every multi-step verification procedure** → simulate state after each step and verify next step is reachable (cat 24).
 6. Instructions: **Plan mode:** fix own file only, report cross-file gaps, preserve checkboxes, no new tasks, no deletions. **Code/feature mode:** fix source code in own file directly (conf ≥ 0.8), report cross-file gaps, never delete public functions without consumer verification, produce at least 1 adversarial scenario. **Stub detection (ALL modes):** Check for category 33 patterns in every file. A route handler that returns hardcoded data when a service function exists for real data is ALWAYS a bug. A component showing "coming soon" or "Phase N" text in production is ALWAYS a bug. Report these at sev:HIGH conf:0.95 regardless of mode.
 
@@ -606,7 +614,7 @@ Only spawn these if Wave 2 found cross-file gaps. 0 cross-file gaps = skip this 
 
 ### Wave 3 — Holistic Review (Opus, conditional)
 
-Runs when: high budget (every iteration) | medium budget (final pass when prior gaps < 3) | low budget (never).
+Runs when: high (every iteration) | medium (final pass when prior gaps < 3) | **auto (only if Wave 2 left an unresolved high-severity gap)** | low (never).
 
 **3a: Review Agent** (opus, `subagent_type: "superpowers:code-reviewer"`) — Verify all Wave 1-2 fixes. Correctness, no scope creep, consistency, checkboxes preserved.
 
@@ -636,7 +644,7 @@ Runs when: high budget (every iteration) | medium budget (final pass when prior 
 23. **Algorithmic value correctness** — Pick EVERY loop/pipeline in the plan's code blocks. Execute it mentally with concrete values. Does the return/response use the cumulative result or the last-iteration's local value? Build a variable trace table. If the plan is ambiguous about which value to use, that IS the gap.
 24. **Sequential verification reachability** — Take EVERY manual smoke test / QA procedure. Simulate state step by step. After step N mutates state, is step N+1 still physically executable? Pay special attention to: UI elements disabled by threshold rules, entities reused across steps whose state changed, resources consumed by earlier steps.
 
-Minimum 5 findings.
+Report only **real** findings — zero is a valid result. Do NOT manufacture findings to hit a quota: a forced minimum generates false positives and noise (the opposite of hardening). If the plan is genuinely clean after Waves 0-2, say so plainly and let Wave 3 confirm convergence.
 
 ### Collect + Apply
 
@@ -685,14 +693,17 @@ Minimum 5 findings.
 
 After generating/updating loop-gap.md:
 
-**Single iteration (default):**
+**Single iteration (default — `auto` budget self-calibrates):**
 1. Run Wave 0 (tools)
 2. If > 20 tool errors → report, stop unless user says continue
-3. Spawn ALL Wave 1 agents (parallel Haiku — could be 13-50+ agents) with Wave 0 results
-4. After Wave 1: merge Context Index
-5. If budget ≥ medium: spawn ALL Wave 2 agents (parallel — could be 17-42+ agents) with Context Index
+3. Spawn ALL Wave 1 agents (parallel Haiku) with Wave 0 results — always, every file
+4. After Wave 1: merge Context Index. **Compute the Wave 2 escalation set** (`auto` budget): files that are (a) flagged by Wave 0/1, OR (b) changed since the prior scan's `git_sha`, OR (c) opus-tier complex. No prior `loop-gap.md` → ALL files escalate (first-pass breadth).
+5. Spawn Wave 2 agents:
+   - **auto:** per-file agents ONLY for the escalation set (batch trivial files); semantic + role agents always (they run on the Context Index). If the escalation set is empty → skip per-file agents, run semantic/role only.
+   - **medium / high:** full Wave 2 — one agent per file + semantic agents.
+   - **low:** single consolidated Sonnet.
 6. After Wave 2: if cross-file gaps found, spawn Wave 2.5 verification agents (parallel)
-7. If budget = high: spawn Wave 3 agents
+7. Run Wave 3 when: budget=high | budget=medium (final pass, prior gaps < 3) | **budget=auto AND Wave 2 left an unresolved high-sev gap**. Skip otherwise.
 8. Compile, dedup, apply fixes, commit, update metadata → **render report card (Step 7)**
 
 **Multi-iteration:**
