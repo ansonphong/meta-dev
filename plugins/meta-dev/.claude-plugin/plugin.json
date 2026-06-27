@@ -1,6 +1,6 @@
 {
   "name": "meta-dev",
-  "version": "1.1.25",
+  "version": "1.1.27",
   "description": "Autonomous dev harness \u2014 dashboard, overlord, 6-phase orchestrator, HOTL, changelog, multi-repo versioning.",
   "author": {
     "name": "Phong",
@@ -24,6 +24,17 @@
           {
             "type": "command",
             "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/on-session-start.sh",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/on-stage-prompt.sh",
             "timeout": 15
           }
         ]
