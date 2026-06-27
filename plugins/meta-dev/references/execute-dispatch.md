@@ -30,6 +30,12 @@ Steps:
 7. Report: SHA, files changed, verify output tail, anything surprising.
 
 Do NOT: modify the plan checkbox (orchestrator owns that), touch files outside scope, run /deploy, archive plans. Do NOT write a test the task did not ask for — if `<TEST_DIRECTIVE>` says no test, adding one is scope creep.
+
+TEST DISCIPLINE (hard rule — every cycle must be CHEAP):
+- PATH-SCOPE your test, ALWAYS. Run ONLY the named file for THIS task: `pytest path/to/test_thisfeature.py -q` (or `…::test_name`). NEVER run bare `pytest`, `pytest <dir>/`, or `pytest … -k <expr>` — they collect all ~hundreds of test files (~30s tax) every cycle; the named path is ~1.7s (~18× faster). `-k`/`-x` only ON TOP of a named file, never alone.
+- FAST-ONLY: pass `-m "not slow and not gpu and not integration"` if the suite uses markers. Do NOT run GPU/model/integration tests in your cycle.
+- FORBIDDEN in your cycle: the full suite, `svelte-check`, `tsc --noEmit`, `npm run build`, or any whole-tree command. The orchestrator runs those ONCE at phase end — not your job.
+- Run your one test ONCE to confirm green. Do NOT re-run a passing test "to be sure". One green is green.
 ```
 
 ## Test directive — fill `<TEST_DIRECTIVE>` / `<TEST_STEP>` per task

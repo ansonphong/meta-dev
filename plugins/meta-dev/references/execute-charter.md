@@ -27,6 +27,16 @@
 
 `/meta-planner` encodes the decision per task as a `test: yes` / `test: no` tag; `/meta-execute` reads that tag to pick the dispatch directive (`references/execute-dispatch.md` → Test directive), falling back to this config when a task is untagged. **`test: no` tasks must NOT have a test written for them** — adding one is scope creep. Verify ≠ test: a Verify-After is satisfied by a build/grep/run, and only critical tasks escalate to an actual test. Fewer tests is the intended posture; the verify gates above (async, non-blocking) still apply to whatever verification a task does declare.
 
+## Fast Test Doctrine — make every test cycle CHEAP (non-negotiable)
+
+The single biggest execution cost is slow test cycles. Measured on a real run: `pytest backend/tests/ -k "headline or refresh"` = **30s** (it collects all 233 files, THEN deselects — `-k` filters *after* collection), versus `pytest backend/tests/test_base_node.py` = **1.7s**. That's an **~18× tax paid on every red→green cycle.** These rules make every cycle cheap; they apply to ALL backends (the main thread, and every GLM/DeepSeek/Codex worker).
+
+1. **PATH-SCOPE ALWAYS — `-k` is BANNED as the primary selector.** Name the file(s) or node: `pytest path/to/test_thisfeature.py -q` (or `…::test_name`). NEVER run bare `pytest`, `pytest <dir>/`, or `pytest … -k <expr>` in a per-task cycle — they all collect the whole tree and pay the full collection tax every time. Path-scope first; you may add `-k`/`-x` *on top of* a named file to narrow further, never as the only selector.
+2. **FAST-ONLY in the inner loop — defer slow/GPU/integration.** The loop runs only fast, pure-logic unit tests. Default selector `-m "not slow and not gpu and not integration"`. GPU/model-loading/integration tests (the ones that actually take minutes-to-hours in a diffusion app) are deferred to the **one** end-of-phase acceptance gate or a deliberate manual/CI run — NEVER per task, NEVER on "one line changed".
+3. **NO broad commands per task.** `svelte-check`, `tsc --noEmit`, `npm run build`, and any full-suite run are FORBIDDEN in a per-task cycle. They run **exactly once**, at the end-of-phase acceptance gate. Per task you run only that task's single path-scoped test.
+4. **Optimistic + async (per Verify Posture above).** Launch the one path-scoped test in the background, advance immediately, circle back only if it actually goes red. Never wait on a green test. Never re-run a passing test "to be sure" — one green is green.
+5. **SECURE — speed never skips the security gate.** Critical-breakage and security-critical tasks (`money-path`, `release-stability`, `schema-drift`, auth/crypto verification, payment/value transfer, DB migration) STILL verify **synchronously and block** before advancing (per Verify Posture #5). Fast ≠ unverified: the optimization removes redundant whole-suite collection, not the gates that protect correctness and security. The final acceptance gate (full suite, slow+GPU markers included) still runs once before completion — optimism defers the heavy verification to one place, it never deletes it.
+
 **Momentum gate.** When a task `T` returns red / regressed, classify:
 
 - **TRUE BLOCKER → halt the whole run, surface.** Only these:
