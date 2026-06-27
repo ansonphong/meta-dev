@@ -278,6 +278,31 @@ EOF
     FAIL=$((FAIL+1)); red "  FAIL repo-topology should be empty for unknown name (got: '$resolved')"
   fi
   rm -rf "$TMPDIR"
+
+  # ── context-gauge: exists + threshold logic (hermetic via HOME override) ──
+  local gauge="$PLUGIN_DIR/scripts/context-gauge.py"
+  if [ -x "$gauge" ]; then
+    PASS=$((PASS+1)); green "  PASS exists+exec: scripts/context-gauge.py"
+  else
+    FAIL=$((FAIL+1)); red "  FAIL missing/!exec: scripts/context-gauge.py"
+  fi
+  local GHOME GSID gdir gout
+  GHOME=$(mktemp -d); GSID="testsession-0001"; gdir="$GHOME/.claude/projects/proj"
+  mkdir -p "$gdir"
+  printf '%s\n' '{"message":{"usage":{"input_tokens":10,"cache_read_input_tokens":350000,"cache_creation_input_tokens":0}}}' > "$gdir/$GSID.jsonl"
+  gout=$(HOME="$GHOME" CLAUDE_CODE_SESSION_ID="$GSID" python3 "$gauge" --threshold 300000 2>/dev/null || true)
+  if echo "$gout" | grep -q 'CONTEXT_VERDICT=OVER'; then
+    PASS=$((PASS+1)); green "  PASS context-gauge OVER above threshold"
+  else
+    FAIL=$((FAIL+1)); red "  FAIL context-gauge should be OVER (got: $(echo "$gout" | tr '\n' ' '))"
+  fi
+  gout=$(HOME="$GHOME" CLAUDE_CODE_SESSION_ID="$GSID" python3 "$gauge" --threshold 900000 2>/dev/null || true)
+  if echo "$gout" | grep -q 'CONTEXT_VERDICT=OK'; then
+    PASS=$((PASS+1)); green "  PASS context-gauge OK below threshold"
+  else
+    FAIL=$((FAIL+1)); red "  FAIL context-gauge should be OK (got: $(echo "$gout" | tr '\n' ' '))"
+  fi
+  rm -rf "$GHOME"
 }
 
 # Main

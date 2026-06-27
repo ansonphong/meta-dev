@@ -55,7 +55,13 @@ You run this loop on the main thread. **Never just fire one giant task at a back
    - **PASS** → integrate, mark the chunk done, go to the next.
    - **CONDITIONAL_PASS** → apply the suggested fixes via one deep Fixer, then advance (no re-review).
    - **FAIL** → fix inline if trivial, else **re-dispatch — escalating DeepSeek→GLM** (a chunk DeepSeek fumbled is exactly an escalation signal). Fix ladder: deep → glm fixer, max 2 attempts, then surface. Don't loop the same backend on the same failure twice.
-6. **Compact between waves** — for long jobs, `/meta-compact` (or summarize) between chunk batches so the main window stays light across round-trips.
+6. **Context watchdog — compact at a wave seam when OVER.** Between chunk batches (a committed seam), run the gauge and read only `CONTEXT_VERDICT`:
+
+   ```bash
+   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/context-gauge.py   # default threshold 300000
+   ```
+
+   `OK`/`UNKNOWN` → continue to the next wave. `OVER` → don't start the next wave: invoke `/meta-compact` (forward handoff whose ▶ NEXT ACTION is "resume at the next wave/chunk"), surface the `/compact read …` trigger, and STOP for the user to compact. Resume continues the loop. Threshold: `--threshold N` or env `META_DEV_CONTEXT_THRESHOLD`. This is the same watchdog the per-phase loop uses (agentic-exec-loop → "Context watchdog"); it keeps long jobs ahead of the harness's blunt hard auto-compact.
 7. **Integrate & report** — once all chunks pass, summarize what landed, what was reviewed, residual risk. Close with the Next Steps Dashboard.
 
 ## Multi-phase plans — one phase/wave per round (meta-planner plans)
@@ -81,7 +87,7 @@ plans/<repo>/<plan-dir>/
 3. **The worker runs `/meta-execute <phase-file>` internally.** The chunk spec you hand the worker is: *"Run `/meta-execute plans/.../phase-N-<slug>.md`. Read `00-master-plan.md` first for context. Execute every task in that ONE phase file in order; do not touch other phase files. Follow the project test policy (critical-breakage tests only)."* `/meta-execute` is the per-task executor (claim → dispatch → verify → commit → checkbox flip) — it keeps the worker on-thread within the phase. Do **not** ask the worker to freelance task-by-task.
 4. **Code-review the phase** when the worker returns — read the worker's distilled result (`OUTPUT_FILE`) to confirm `is_error: false`. Then dispatch `meta-dev:review-agent` for the phase (per the agentic-exec-loop protocol). Read ONLY its verdict; do NOT read the diff into this context. The verdict is your quality gate, per the Round-trip review step.
 5. **Advance — branch on the review-agent verdict.** PASS → move to phase N+1. CONDITIONAL_PASS → apply fixes via one deep Fixer, then advance. FAIL → fix inline if trivial, else re-dispatch escalating DeepSeek→GLM (fix ladder: deep → glm, max 2 attempts, then surface). Respect dependencies: never start phase N+1 if it depends on a phase that hasn't landed green.
-6. **Compact between phases** for long plans (`/meta-compact`) so the main window stays light across rounds.
+6. **Context watchdog between phases.** After phase N lands green and is committed, run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/context-gauge.py` (default 300000). On `CONTEXT_VERDICT=OVER`, pause at this seam: `/meta-compact` (handoff ▶ NEXT ACTION = "resume at phase N+1"), surface the trigger, STOP for the user to compact, then resume. On `OK`, advance to phase N+1. (Same watchdog as agentic-exec-loop → "Context watchdog".)
 
 **Routing per phase:** a phase is a cohesive, stateful, multi-task unit (Task N.1 → N.2 → …), so it usually leans **GLM** (keep-it-whole). Use **DeepSeek** for a phase whose tasks are small and disjoint/mechanical. Default per the core bias; escalate DeepSeek→GLM on a failed phase review.
 

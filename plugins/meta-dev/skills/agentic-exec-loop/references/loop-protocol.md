@@ -38,9 +38,47 @@
    - Still FAIL → failure dossier to the inbox (repair-loop convention) +
      surface the one-line `summary`. Leave the phase uncommitted-beyond-tasks. Stop.
 
+## Context watchdog — pause-and-compact at a seam (conductor-run, NON-NEGOTIABLE on long runs)
+A long playbook (many phases) accretes context in the orchestrating Opus thread
+even though diffs never cross back — task tracker, verdicts, worker result lines,
+and the user-facing narration all accumulate. Left unchecked the harness fires
+its blunt hard auto-compact (`CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`) mid-phase. The
+watchdog gets ahead of that with a GRACEFUL forward-compact at a clean seam.
+
+**The phase boundary IS the convenient seam** — the tree is committed there
+(per-task commits + phase gate), so it is always safe to compact.
+
+At **each phase gate, AFTER the verdict resolves and the phase's work is
+committed** (i.e. right before advancing to the next phase), the conductor runs:
+
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/context-gauge.py   # default threshold 300000
+```
+
+Read only `CONTEXT_VERDICT`:
+- **`OK`** (or `UNKNOWN`) → advance to the next phase as normal.
+- **`OVER`** → do NOT start the next phase. The current phase is already
+  committed (clean seam), so:
+  1. Invoke `/meta-compact` (the `meta-dev:meta-compact` skill) — it writes a
+     forward handoff whose **▶ NEXT ACTION is "resume the playbook at phase
+     N+1"**, naming the plan path + the next phase file + the per-phase loop.
+  2. Surface the one-line pause notice + the exact `/compact read …` trigger to
+     the user and STOP. Compaction is the user's (or auto-compact's) to pull —
+     the loop never runs `/compact` itself.
+  3. After the user compacts, the resume contract reads the handoff and
+     continues the loop at phase N+1 — no re-orientation, no lost momentum.
+
+Threshold is configurable: `--threshold N`, or env `META_DEV_CONTEXT_THRESHOLD`
+(default 300000). This watchdog is a SESSION practice of the orchestrating Opus
+(it owns the `/meta-compact` + `/compact` primitives); it is NEVER handed to a
+headless worker. Workers have fresh, isolated context per task and never compact.
+
 ## Plans without `## Phase N` structure
 Treat the whole plan as one phase → a single review at the end (this matches
-bare meta-execute's end-of-run review timing).
+bare meta-execute's end-of-run review timing). With only one seam (the end), the
+context watchdog has no mid-run boundary to act on — for such single-phase plans
+the harness auto-compact remains the backstop; the watchdog matters for the
+multi-phase playbooks it was built for.
 
 ## Context-hygiene contract (NON-NEGOTIABLE)
 Per phase, the only things crossing back to main: N one-line worker `result`s
