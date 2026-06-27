@@ -95,6 +95,8 @@ When you run a **waterfall stage on a plan** through this skill — above all wh
 
 Emit by appending one event to the project's dashboard log — self-contained, no dependency on the worker or the plugin path:
 
+> **⛔ NEVER emit the raw worker `result` text to the dashboard.** The emit writes ONLY verdict/metadata fields below. Defense-in-depth: the distillers (`distill-headless-result.py`, `distill-codex-result.py`) redact known key shapes before writing `result`.
+
 ```bash
 python3 - "<plan-path>" "<stage>" "<status>" <<'PY'
 import json, sys, os, datetime

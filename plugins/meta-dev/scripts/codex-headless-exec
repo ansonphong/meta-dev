@@ -81,9 +81,7 @@ if ! command -v codex &>/dev/null; then
     echo "        Install + authenticate Codex CLI first: https://developers.openai.com/codex/cli" >&2
     exit 1
 fi
-if [[ ! -f "$HOME/.codex/auth.json" ]]; then
-    echo "[WARN] ~/.codex/auth.json not found — codex may not be authenticated." >&2
-fi
+[ -f "$HOME/.codex/auth.json" ] || { echo "[codex] ~/.codex/auth.json missing — run codex login or set OPENAI_API_KEY" >&2; exit 2; }
 
 # --- repo resolution (was: inline REPO_PATHS map + cwd auto-detect) ---
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

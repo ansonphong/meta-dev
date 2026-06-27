@@ -21,6 +21,11 @@
 # ============================================================================
 import json
 import sys
+import re
+
+_SECRET = re.compile(r'(sk-ant-[A-Za-z0-9_-]{12,}|sk-[A-Za-z0-9]{16,}|[0-9a-f]{16,}\.[A-Za-z0-9]{16,})')
+def _redact(s):
+    return _SECRET.sub('[REDACTED]', s) if isinstance(s, str) else s
 
 
 def main() -> int:
@@ -73,6 +78,8 @@ def main() -> int:
                 result = lm
     except OSError:
         pass
+
+    result = _redact(result)
 
     # is_error reflects RUN failure (crash / non-zero exit / error event) — not
     # empty content — matching the claude distiller's semantics.

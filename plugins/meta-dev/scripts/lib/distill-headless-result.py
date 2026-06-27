@@ -17,6 +17,11 @@ Anthropic rates, so it's meaningless.)
 """
 import sys
 import json
+import re
+
+_SECRET = re.compile(r'(sk-ant-[A-Za-z0-9_-]{12,}|sk-[A-Za-z0-9]{16,}|[0-9a-f]{16,}\.[A-Za-z0-9]{16,})')
+def _redact(s):
+    return _SECRET.sub('[REDACTED]', s) if isinstance(s, str) else s
 
 
 def try_parse(s):
@@ -69,6 +74,7 @@ def main():
     result_text = r.get("result", "")
     if not isinstance(result_text, str):
         result_text = json.dumps(result_text, ensure_ascii=False)
+    result_text = _redact(result_text)
 
     clean = {
         "is_error": r.get("is_error", False),

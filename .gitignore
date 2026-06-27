@@ -12,3 +12,10 @@ node_modules/
 .vscode/
 # Local test scratch
 tests/scratch/
+
+# Secret files
+*.env
+secrets.env
+*.key
+*.pem
+.secrets/
