@@ -10,6 +10,14 @@ model: opus
 
 Convert plan docs into execution-ready format with phase files, verification hooks, and loop-gap config.
 
+## Dashboard stage signal (waterfall — MANDATORY)
+
+This command owns the **PLAN** waterfall stage (3/6). Keep `/meta-dashboard` in sync by emitting a stage transition — fire-and-forget, never let it block the real work:
+- **First action:** `bash ${CLAUDE_PLUGIN_ROOT}/scripts/stage-emit.sh "<plan-path>" plan in_progress`
+- **On successful finish:** `bash ${CLAUDE_PLUGIN_ROOT}/scripts/stage-emit.sh "<plan-path>" plan completed` (use `blocked` instead if you halt)
+
+`<plan-path>` is the plan file/dir you were invoked on (the `$ARGUMENTS` target). This is what makes the dashboard show this plan at Stage 3 automatically.
+
 ## Pipeline
 
 ### 1. Read input + detect project context

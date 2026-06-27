@@ -112,7 +112,15 @@ def plans_body(plans):
         tt += t
         st = p.get("status", "pending")
         g = GLYPH.get(st, "⬜")
-        body.append(f"{g} {col(p.get('name', '?'), 22)} {bar(d, t)} {d:>3}/{t:<3} {pct(d, t)}")
+        stg = p.get("stage")
+        if stg:
+            sn = p.get("stage_num")
+            ss = p.get("stage_status", "")
+            mark = "✓" if ss == "completed" else ("!" if ss == "blocked" else "→")
+            stage_tag = f"  S{sn if sn else '?'}·{stg}{mark}"
+        else:
+            stage_tag = ""
+        body.append(f"{g} {col(p.get('name', '?'), 22)} {bar(d, t)} {d:>3}/{t:<3} {pct(d, t)}{stage_tag}")
     body.append("─" * FIELD)
     body.append(f"   {col('TOTAL', 22)} {bar(td, tt)} {td:>3}/{tt:<3} {pct(td, tt)}")
     return body

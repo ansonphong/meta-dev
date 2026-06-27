@@ -8,6 +8,14 @@ model: opus
 
 # /meta-execute
 
+## Dashboard stage signal (waterfall — MANDATORY)
+
+This command owns the **EXECUTE** waterfall stage (5/6). Keep `/meta-dashboard` in sync — fire-and-forget, never let a dashboard emit block execution:
+- **Before the first task dispatches:** `bash ${CLAUDE_PLUGIN_ROOT}/scripts/stage-emit.sh "<plan-path>" execute in_progress`
+- **After the run completes (post code-review, before archive):** `bash ${CLAUDE_PLUGIN_ROOT}/scripts/stage-emit.sh "<plan-path>" execute completed` (use `blocked` if you halt mid-run)
+
+`<plan-path>` is the plan you were invoked on. This lights up the plan at Stage 5 (and the Active Sessions STAGE column) automatically.
+
 ## ⛔ Prerequisite — visible main-thread task list (non-negotiable)
 
 **Before starting work on ANY task (whether dispatched to a subagent or run `--inline`), the main thread MUST stand up a visible task list via `TaskCreate` — one entry per `### Task N:` in the plan — and keep it live with `TaskUpdate` for the whole run.** The user runs `/meta-execute` to *watch* progress, so the task list is a primary deliverable, not a side effect. No tracker visible = the run has not started correctly. Updates are mirrored *as each state changes* — never batched at the end.
@@ -45,7 +53,28 @@ For EACH task-list item:
 2. Run `echo "<task body>" | bash scripts/risk-tag.sh` → get risk tags
 3. Dispatch Sonnet subagent with prompt from `references/execute-dispatch.md` + risk-tag clauses. Default: dispatch the next dep-satisfied, non-deferred task without waiting on in-flight fixers or in-flight tests (momentum). `--strict`: wait for the prior task to go green first.
 4. Subagent returns → **instant inline checks only** (stub grep on the diff + declared-file existence — milliseconds). Commit + push. Then **launch the task's `Verify:`/test suite async in the background** (`Bash run_in_background`, tracked as its own tracker entry `🧪 testing <ID> (async)`) and DO NOT block on it. **Exception — critical gate:** if the task is risk-tagged `money-path`, `release-stability`, or `schema-drift`, run its verify synchronously and require green before advancing. **Never run the full baseline suite per task** — that's the slow part; it runs once at solidify (step 5).
-5. **Advance immediately** to the next dep-satisfied task while tests run. Mark the task `✅ code done, tests pending`. When its async verify returns: **green** → mark `completed`, flip checkbox to `[x] DONE`. **Recoverable red** → spawn background fixer (execute-dispatch.md), mark task `blocked`, defer dependents, keep dispatching independents. **TRUE BLOCKER** → STOP, surface (see charter momentum gate).
+5. **Advance immediately** to the next dep-satisfied task while tests run. Mark the task `✅ code done, tests pending`. When its async verify returns: **green** → mark `completed`, **IMMEDIATELY flip the plan checkbox to `[x] DONE`** (see ⛔ CHECKBOX RULE below). **Recoverable red** → spawn background fixer (execute-dispatch.md), mark task `blocked`, defer dependents, keep dispatching independents. **TRUE BLOCKER** → STOP, surface (see charter momentum gate).
+
+### ⛔ MANDATORY CHECKBOX RULE — NEVER SKIP, NEVER DEFER
+
+**Every time a task completes (green verify), you MUST edit the plan file and flip its checkbox BEFORE dispatching the next task or doing anything else.** This is the user's primary visibility into progress — unchecked boxes read as "nothing happened." Do NOT batch them, do NOT "do it at the end," do NOT assume the user won't notice. The checkbox is the single source of truth.
+
+**The exact Edit operation (do this for EVERY completed task):**
+
+```
+Find in plan file:    - [ ] CLAIMED `Task N: <title>`
+Replace with:         - [x] DONE `Task N: <title>`
+```
+
+If the task was never CLAIMED (resume or --inline):
+```
+Find in plan file:    - [ ] Task N: <title>
+Replace with:         - [x] DONE Task N: <title>
+```
+
+**After each flip, commit immediately:** `chore(plan): mark <Task ID> DONE`. Then advance to the next task.
+
+**Self-check before the report card (step 8):** `grep -cE '^[[:space:]]*[-*][[:space:]]+\[[[:space:]]\]' <plan-file>`. If the count is not zero for completed tasks, you missed checkboxes — go back and flip them NOW, before rendering the report card.
 
 ### 5. Solidify foundation
 

@@ -31,6 +31,12 @@ Stage definitions in `references/dev-swarms.md`. Each stage delegates to ported 
 
 **When the run is autopilot (`cruise`/`autopilot`/`auto`/`walk`/`unattended`/`--cruise`), invoke the `waterfall-tracking` skill BEFORE Stage 1** to stand up a visible 6-stage task list (`TaskCreate`) and keep it live with `TaskUpdate` (`in_progress` on start → `completed` on exit-criteria → `blocked` on halt). The user walks away to watch the waterfall progress, so this tracker is a primary deliverable; no tracker visible = run not started correctly. It is the *stage*-level tracker; Stage 5's `/meta-execute` runs its own *task*-level list — distinct, never mirrored. Detail: skill `waterfall-tracking` (`plugins/meta-dev/skills/waterfall-tracking/`); exit-criteria table in `references/dev-modes.md`.
 
+**Durable dashboard signal — emit alongside every `TaskUpdate`.** The `TaskUpdate` tracker is ephemeral (gone when the run ends); `/meta-dashboard` needs a persisted record. So at EACH stage transition, mirror the TaskUpdate with a stage event — non-blocking, never let it stall the run:
+```
+bash ${CLAUDE_PLUGIN_ROOT}/scripts/stage-emit.sh "<plan-path>" <stage> <in_progress|completed|blocked>
+```
+where `<stage>` ∈ `brainstorm|design|plan|harden|execute|review` (1→6). This is what keeps the dashboard's per-plan STAGE current after every phase movement. The stage-owning commands (`/meta-planner`, `/meta-loop-gap`, `/meta-execute`, `/meta-eval`) also emit when invoked standalone — emitting twice is harmless (the reducer keeps the latest), so always emit here too for the stages this orchestrator drives directly (brainstorm, design).
+
 ## Cruise Control (Autopilot)
 
 Read `references/dev-modes.md` for the full autopilot loop. Key rules:

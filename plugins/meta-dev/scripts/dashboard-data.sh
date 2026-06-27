@@ -35,6 +35,26 @@ for r in ROOTS:
         if os.path.basename(f) not in ('STATUS.md', 'exec-order.md', 'README.md'):
             units.append((os.path.splitext(os.path.basename(f))[0], f))
 
+# Durable waterfall stage per plan, folded from state.events.jsonl into
+# plan_stages by the reducer. This is what makes the dashboard stage-aware.
+stages_map = {}
+try:
+    with open('plans/_dashboard/state.json', encoding='utf-8') as _sf:
+        stages_map = json.load(_sf).get('plan_stages', {})
+except Exception:
+    stages_map = {}
+
+def stage_for(f):
+    d = os.path.dirname(f).replace('\\\\', '/').rstrip('/')
+    ff = f.replace('\\\\', '/')
+    best = None
+    for k, v in stages_map.items():
+        kk = k.replace('\\\\', '/').rstrip('/')
+        if kk == ff or kk == d or os.path.dirname(kk) == d or kk in ff or (d and d in kk):
+            if best is None or (v.get('time', '') > best.get('time', '')):
+                best = v
+    return best
+
 seen, plans = set(), []
 for name, f in units:
     if f in seen:
@@ -60,10 +80,20 @@ for name, f in units:
     else:
         status = 'inflight'
     nm = re.sub(r'^\d{4}-\d{2}-\d{2}-', '', name)[:24]
-    plans.append({'name': nm, 'tasks_done': done, 'tasks_total': total, 'status': status})
+    sinfo = stage_for(f) or {}
+    plans.append({'name': nm, 'tasks_done': done, 'tasks_total': total, 'status': status,
+                  'stage': sinfo.get('stage', ''), 'stage_num': sinfo.get('stage_num'),
+                  'stage_status': sinfo.get('status', ''), 'stage_time': sinfo.get('time', '')})
 
 order = {'inflight': 0, 'blocked': 1, 'pending': 2, 'done': 3}
-plans.sort(key=lambda p: (order.get(p['status'], 4), -p['tasks_total']))
+# Most-recently-moved-through-the-waterfall plans float to the top (that's
+# 'show the most recently developed plans'); plans never staged fall back to
+# the status/size ordering beneath them.
+staged = [p for p in plans if p.get('stage_time')]
+unstaged = [p for p in plans if not p.get('stage_time')]
+staged.sort(key=lambda p: p.get('stage_time', ''), reverse=True)
+unstaged.sort(key=lambda p: (order.get(p['status'], 4), -p['tasks_total']))
+plans = staged + unstaged
 print(json.dumps(plans[:12]))
 " 2>/dev/null || echo "[]")
 fi

@@ -1,7 +1,7 @@
 ---
 name: waterfall-tracking
 description: Stand up and maintain a visible stage-level task list for the /meta-dev 6-stage waterfall. Use in autopilot/walk runs so the user can walk away and watch Brainstorm→Design→Plan→Harden→Execute→Review progress live. Stage granularity only — never mirrors /meta-execute's per-task list.
-allowed-tools: [TaskCreate, TaskUpdate]
+allowed-tools: [TaskCreate, TaskUpdate, Bash]
 ---
 
 # Waterfall Tracking Skill
@@ -33,6 +33,19 @@ No tracker visible = the run has not started correctly. For multi-item runs, cre
 - Exit criteria met (the per-stage exit-criteria table in the plugin's `dev-modes` reference) → `completed`; then commit the stage artifacts.
 - Stage halts after max retries → `blocked` with the failure reason; the rest of that subject's stages stay `pending` (error isolation — one subject's failure never halts others).
 - Quick-fix bypass skips Stages 1-4 → mark them `completed` with a `⏭ skipped (trivial)` note so the trail is honest about what actually ran.
+
+### 2b. Mirror every transition to the durable dashboard (MANDATORY)
+
+The `TaskUpdate` list is **ephemeral** — it vanishes when the run ends, which is exactly why `/meta-dashboard` goes stale. So at **every** stage transition, alongside the `TaskUpdate`, emit a durable stage event (fire-and-forget — never let it block the run):
+
+```
+bash ${CLAUDE_PLUGIN_ROOT}/scripts/stage-emit.sh "<plan-path>" <stage> <status>
+```
+- `<plan-path>` — the plan file/dir for this subject (prefix per subject in multi-item runs).
+- `<stage>` — `brainstorm | design | plan | harden | execute | review` (maps to 1→6).
+- `<status>` — `in_progress` on start, `completed` on exit-criteria, `blocked` on halt — mirror the same status you pass to `TaskUpdate`.
+
+This is the single source of truth the dashboard reads (`plan_stages` in `state.json`, via the reducer). Emit on start AND on completion of each stage; emitting twice is harmless (the reducer keeps the latest). The stage-owning commands also emit when run standalone, so the dashboard stays correct whether the waterfall runs via `/meta-dev` or a command is invoked directly.
 
 ### 3. Nested, not duplicated
 

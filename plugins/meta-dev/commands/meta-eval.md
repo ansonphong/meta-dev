@@ -10,6 +10,14 @@ model: opus
 
 Post-execution evaluation. Dispatch 8 specialized agents, score design quality, loop until grade ≥ B.
 
+## Dashboard stage signal (waterfall — MANDATORY)
+
+This command owns the **REVIEW** waterfall stage (6/6). Keep `/meta-dashboard` in sync — fire-and-forget, never let it block evaluation:
+- **First action:** `bash ${CLAUDE_PLUGIN_ROOT}/scripts/stage-emit.sh "<plan-path>" review in_progress`
+- **On finish (grade ≥ B):** `bash ${CLAUDE_PLUGIN_ROOT}/scripts/stage-emit.sh "<plan-path>" review completed` (use `blocked` if it fails the bar)
+
+`<plan-path>` is the plan/feature you were invoked on. This shows the plan at Stage 6 — the waterfall's terminal stage before archive.
+
 ## Flow
 
 ### 1. Environment health check

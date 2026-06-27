@@ -25,7 +25,8 @@ def load_base() -> dict:
             "last_updated": "", "active_sessions": [], "sweep_log": [],
             "overlord": {"active": False, "watching": None, "mode": None, "model": None,
                          "auto_fix": None, "tick_n": 0, "last_review": None, "tasks_reviewed": 0},
-            "meta_dev_runs": [], "meta_execute_runs": [], "recent_commits": []}
+            "meta_dev_runs": [], "meta_execute_runs": [], "recent_commits": [],
+            "plan_stages": {}}
 
 
 def fold(state: dict, event: dict) -> dict:
@@ -91,6 +92,25 @@ def fold(state: dict, event: dict) -> dict:
             "action": event.get("action", ""), "time": now
         })
         state["sweep_log"] = state["sweep_log"][-100:]  # cap
+
+    elif event_type == "stage_transition":
+        # Durable per-plan waterfall position — the dashboard's source of truth
+        # for "which of the 6 stages is this plan at". Keyed by plan path/name;
+        # the latest transition for a plan wins (event-sourced overwrite).
+        plan = event.get("plan", "")
+        if plan:
+            stages = state.setdefault("plan_stages", {})
+            stages[plan] = {
+                "stage": event.get("stage", ""),
+                "stage_num": event.get("stage_num"),
+                "status": event.get("status", ""),
+                "time": event.get("time", now),
+            }
+            # Reflect onto any active session for this plan so the sessions
+            # STAGE column lights up live during a run.
+            for s in state.get("active_sessions", []):
+                if s.get("plan") == plan:
+                    s["stage"] = event.get("stage", "")
 
     return state
 

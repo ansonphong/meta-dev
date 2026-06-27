@@ -10,6 +10,14 @@ model: opus
 
 Scan plans, source code, features, or entire projects for gaps, bugs, and issues. Four waves: Tools → Haiku → Sonnet/Opus → Opus. **In code/feature mode, agents find AND fix bugs directly in source files.**
 
+## Dashboard stage signal (waterfall — MANDATORY in plan mode)
+
+When scanning a **plan** (the HARDEN stage, 4/6), keep `/meta-dashboard` in sync — fire-and-forget, never block the scan:
+- **First action:** `bash ${CLAUDE_PLUGIN_ROOT}/scripts/stage-emit.sh "<plan-dir>" harden in_progress`
+- **On finish:** `bash ${CLAUDE_PLUGIN_ROOT}/scripts/stage-emit.sh "<plan-dir>" harden completed` (use `blocked` if you stop with gaps unresolved)
+
+`<plan-dir>` is the plan directory you were invoked on. Skip this for `code`/`feature`/`project` scans (not a plan-stage transition).
+
 **Agent philosophy — scale to signal, not just size.** Be liberal with *cheap* agents (Wave 0 tools, Wave 1 Haiku) — run them on everything; that is the recall floor. Be *signal-gated* with *expensive* agents (Wave 2 Sonnet/Opus, Wave 3 Opus): under the default `auto` budget they escalate only where the cheap waves found something, where code changed since the last scan, or on high-bug-density files (see the Budget table). Every independent analysis axis still gets its own agent **when it escalates**; never spawn an agent that duplicates another's exact scope. Agent count scales with **signal × complexity**, not complexity alone — a clean re-scan should cost a fraction of the first pass, while a virgin plan still gets full breadth. Conditional agents (per-endpoint, per-consumer, cross-file verification) spawn only when applicable — 0 endpoints = 0 endpoint agents. Spin up fast, collect results, spin up the next wave.
 
 ## Usage

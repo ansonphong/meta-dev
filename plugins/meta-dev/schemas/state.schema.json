@@ -56,6 +56,19 @@
           "time": { "type": "string", "format": "date-time" }
         }
       }
+    },
+    "plan_stages": {
+      "type": "object",
+      "description": "Per-plan waterfall position, keyed by plan path/dir. Folded from stage_transition events; the dashboard reads this to show each plan's current stage (1-6).",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "stage": { "type": "string", "enum": ["brainstorm", "design", "plan", "harden", "execute", "review"] },
+          "stage_num": { "type": "integer", "minimum": 1, "maximum": 6 },
+          "status": { "type": "string", "enum": ["in_progress", "completed", "blocked"] },
+          "time": { "type": "string", "format": "date-time" }
+        }
+      }
     }
   }
 }
