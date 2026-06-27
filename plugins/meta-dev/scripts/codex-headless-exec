@@ -1,0 +1,228 @@
+#!/usr/bin/env bash
+# ============================================================================
+# codex-headless-exec — Execute a task via headless OpenAI Codex CLI
+#                       (`codex exec`), emitting the SAME clean result
+#                       contract as claude-headless-exec so /auto-execute can
+#                       consume codex workers identically to deep/glm.
+#
+# Codex is its OWN agent harness (not Claude Code on an Anthropic endpoint),
+# so this is a separate runner — but the OUTPUT_FILE contract is identical:
+#   {is_error, subtype, num_turns, duration_ms, session_id, result, usage}
+#
+# Usage:
+#   codex-headless-exec [options] -- <prompt>
+#
+# Options:
+#   --repo app|www|gallery   cd to this repo first (default: auto-detect from cwd)
+#   --model <model>          Override codex model (default: codex's configured default)
+#   --timeout <ms>           Wall-clock timeout in ms (default: 600000 = 10 min)
+#   --readonly               Sandbox = read-only (audits / gap-checks / reviews)
+#   --sandbox <mode>         read-only | workspace-write | danger-full-access
+#                            (default: workspace-write; --readonly forces read-only)
+#   --output json|text       Output format (default: json)
+#   -h, --help               Show this help
+#
+# Examples:
+#   codex-headless-exec --repo app --readonly -- "Audit src/lib/license.ts for Ed25519 verify bugs"
+#   codex-headless-exec --repo www -- "Fix the failing pytest in tests/test_billing.py"
+#
+# Prerequisites:
+#   - codex CLI on PATH, already authenticated (~/.codex/auth.json) — Codex
+#     Plus/Pro login or OPENAI_API_KEY. No env key is injected here; codex uses
+#     its own stored auth.
+# ============================================================================
+
+set -euo pipefail
+
+# ── Resolve project root ────────────────────────────────────────────────
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# ── Defaults ────────────────────────────────────────────────────────────
+REPO=""
+MODEL=""
+TIMEOUT="600000"          # 10 min — codex Plus is a sparing/premium backend
+SANDBOX="workspace-write"
+READONLY=false
+OUTPUT_FORMAT="json"
+PROMPT=""
+OUTPUT_FILE=""
+
+# ── Help ────────────────────────────────────────────────────────────────
+show_help() {
+    sed -n '2,40p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+    exit 0
+}
+
+# ── Parse args ──────────────────────────────────────────────────────────
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --repo)     REPO="$2"; shift 2 ;;
+        --model)    MODEL="$2"; shift 2 ;;
+        --timeout)  TIMEOUT="$2"; shift 2 ;;
+        --sandbox)  SANDBOX="$2"; shift 2 ;;
+        --readonly) READONLY=true; shift ;;
+        --output)   OUTPUT_FORMAT="$2"; shift 2 ;;
+        --output-file) OUTPUT_FILE="$2"; shift 2 ;;
+        -h|--help)  show_help ;;
+        --)         shift; PROMPT="$*"; break ;;
+        *)          PROMPT="$*"; break ;;
+    esac
+done
+
+if [[ -z "$PROMPT" ]]; then
+    echo "[ERROR] No prompt provided. Usage: codex-headless-exec [options] -- <prompt>" >&2
+    exit 1
+fi
+
+# ── Validate codex CLI ──────────────────────────────────────────────────
+if ! command -v codex &>/dev/null; then
+    echo "[ERROR] 'codex' CLI not found on PATH." >&2
+    echo "        Install + authenticate Codex CLI first: https://developers.openai.com/codex/cli" >&2
+    exit 1
+fi
+if [[ ! -f "$HOME/.codex/auth.json" ]]; then
+    echo "[WARN] ~/.codex/auth.json not found — codex may not be authenticated." >&2
+fi
+
+# --- repo resolution (was: inline REPO_PATHS map + cwd auto-detect) ---
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+WORK_DIR="$(pwd)"
+if [[ -n "${REPO:-}" ]]; then
+  RESOLVED="$(python3 "$SCRIPT_DIR/lib/repo-topology.py" "$REPO" 2>/dev/null || true)"
+  if [[ -n "$RESOLVED" && -d "$RESOLVED" ]]; then
+    WORK_DIR="$RESOLVED"
+  else
+    echo "[headless] --repo '$REPO' not in topology config; using cwd $WORK_DIR" >&2
+  fi
+else
+  REPO="$(basename "$WORK_DIR")"   # banner label only
+fi
+# downstream banner refs + `cd "$WORK_DIR"` stay unchanged
+
+# ── Readonly override ───────────────────────────────────────────────────
+if [[ "$READONLY" == "true" ]]; then
+    SANDBOX="read-only"
+fi
+
+# ── Resolve output ──────────────────────────────────────────────────────
+if [[ -z "$OUTPUT_FILE" ]]; then
+    TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+    OUTPUT_FILE="/tmp/claude-headless-codex-${TIMESTAMP}-$$.json"
+fi
+RAW_FILE="${OUTPUT_FILE}.raw"
+STDERR_FILE="${OUTPUT_FILE}.stderr"
+LASTMSG_FILE="${OUTPUT_FILE}.lastmsg"
+
+# Convert ms → whole seconds for the `timeout` coreutil (min 1s).
+TIMEOUT_S=$(( TIMEOUT / 1000 ))
+[[ "$TIMEOUT_S" -lt 1 ]] && TIMEOUT_S=1
+
+# ── Dashboard ───────────────────────────────────────────────────────────
+cat <<EOF
+
+╔══════════════════════════════════════════════════════════════════════════╗
+║  HEADLESS EXECUTION — Codex (OpenAI)
+╠══════════════════════════════════════════════════════════════════════════╣
+║  Backend   : Codex
+║  Model     : ${MODEL:-"(codex default)"}
+║  Repo      : ${REPO:-"(auto: $(basename "$WORK_DIR"))"}
+║  Work Dir  : ${WORK_DIR}
+║  Sandbox   : ${SANDBOX}
+║  Timeout   : ${TIMEOUT}ms (${TIMEOUT_S}s)
+║  Output    : ${OUTPUT_FILE}
+╠══════════════════════════════════════════════════════════════════════════╣
+║  Task:
+║    ${PROMPT:0:70}...
+╚══════════════════════════════════════════════════════════════════════════╝
+
+EOF
+
+echo "[codex-headless-exec] Starting headless Codex..."
+echo "[codex-headless-exec] Working directory: $WORK_DIR"
+echo "[codex-headless-exec] Output file: $OUTPUT_FILE"
+echo ""
+
+# ── Execute ─────────────────────────────────────────────────────────────
+# Prompt is piped via stdin (codex reads it when the positional arg is `-`),
+# which is robust against prompts that begin with a dash.
+# --json     → JSONL event stream to stdout (→ RAW_FILE)
+# -o FILE    → final agent message (→ LASTMSG_FILE, the canonical result)
+# -s MODE    → sandbox policy (read-only for audits, workspace-write for fixes)
+cd "$WORK_DIR"
+
+START_TIME=$(date +%s%3N 2>/dev/null || echo "$(( $(date +%s) * 1000 ))")
+EXIT_CODE=0
+printf '%s' "$PROMPT" | timeout "${TIMEOUT_S}s" codex exec \
+    --json \
+    -o "$LASTMSG_FILE" \
+    -s "$SANDBOX" \
+    --skip-git-repo-check \
+    ${MODEL:+-m "$MODEL"} \
+    - \
+    > "$RAW_FILE" 2> "$STDERR_FILE" || EXIT_CODE=$?
+
+END_TIME=$(date +%s%3N 2>/dev/null || echo "$(( $(date +%s) * 1000 ))")
+ELAPSED_MS=$(( END_TIME - START_TIME ))
+ELAPSED_S=$(( ELAPSED_MS / 1000 ))
+
+# timeout(1) exits 124 when it kills the child — surface as an error.
+if [[ $EXIT_CODE -eq 124 ]]; then
+    echo "[WARN] codex exec timed out after ${TIMEOUT_S}s." >> "$STDERR_FILE"
+fi
+
+# ── Distill RAW → clean result ──────────────────────────────────────────
+RESULT_TEXT=""
+IS_ERROR="unknown"
+PARSE_OK=false
+if [[ "$OUTPUT_FORMAT" == "json" ]]; then
+    if RESULT_TEXT=$(python3 "$SCRIPT_DIR/lib/distill-codex-result.py" \
+            "$RAW_FILE" "$LASTMSG_FILE" "$OUTPUT_FILE" "$EXIT_CODE" "$ELAPSED_MS" \
+            2>>"$STDERR_FILE"); then
+        PARSE_OK=true
+        IS_ERROR=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1])).get('is_error'))" "$OUTPUT_FILE" 2>/dev/null || echo unknown)
+    fi
+fi
+if [[ "$PARSE_OK" != "true" ]]; then
+    cp "$RAW_FILE" "$OUTPUT_FILE"
+    if [[ "$OUTPUT_FORMAT" == "json" ]]; then
+        RESULT_TEXT="[distill failed — inspect raw payload: $RAW_FILE / stderr: $STDERR_FILE]"
+        [[ $EXIT_CODE -eq 0 ]] && EXIT_CODE=3
+    else
+        RESULT_TEXT="$(cat "$LASTMSG_FILE" 2>/dev/null || cat "$RAW_FILE")"
+    fi
+fi
+
+# A run that reported is_error:true should not look like success.
+if [[ "$IS_ERROR" == "True" && $EXIT_CODE -eq 0 ]]; then
+    EXIT_CODE=4
+fi
+
+# ── Result summary ──────────────────────────────────────────────────────
+echo ""
+echo "────────────────────────────────────────────────────────────────────────"
+echo "  HEADLESS EXECUTION COMPLETE"
+echo "────────────────────────────────────────────────────────────────────────"
+echo "  Backend   : Codex (${MODEL:-default})"
+echo "  Exit code : $EXIT_CODE"
+echo "  is_error  : $IS_ERROR"
+echo "  Elapsed   : ${ELAPSED_S}s"
+echo "  Result    : $OUTPUT_FILE   (clean JSON — result/is_error/turns)"
+echo "  Raw trace : $RAW_FILE"
+echo "  Stderr    : $STDERR_FILE"
+echo "────────────────────────────────────────────────────────────────────────"
+
+if [[ $EXIT_CODE -ne 0 ]]; then
+    echo ""
+    echo "[WARN] Headless execution exit code $EXIT_CODE (is_error=$IS_ERROR)."
+    echo "       Inspect: $STDERR_FILE"
+fi
+
+# ── Surface the distilled result text for the orchestrator ──────────────
+echo ""
+echo "════════════════════════ RESULT ════════════════════════════════════════"
+printf '%s\n' "$RESULT_TEXT"
+echo "═════════════════════════════════════════════════════════════════════════"
+echo "OUTPUT_FILE=$OUTPUT_FILE"
+
+exit $EXIT_CODE

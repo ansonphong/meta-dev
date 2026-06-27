@@ -1,0 +1,413 @@
+#!/usr/bin/env bash
+# ============================================================================
+# claude-headless-exec — Execute a task via headless Claude Code on a
+#                        specified backend (deepseek or glm).
+#
+# Usage:
+#   claude-headless-exec --backend deep|glm [options] -- <prompt>
+#
+# Options:
+#   --backend deep|glm      Required. Backend to use.
+#   --repo app|www|gallery   cd to this repo first (default: auto-detect from cwd)
+#   --model <model>          Override default model for this backend
+#   --timeout <ms>           Timeout in ms (default: 600000 = 10 min)
+#   --tools <list>           Comma-separated tool list (default: Read,Write,Edit,Bash,Grep,Glob)
+#   --readonly               Restrict to read-only tools (Read,Bash,Grep)
+#   --output json|text       Output format (default: json)
+#   --max-turns <n>          Max agent turns for the headless worker (default: unset)
+#   -h, --help               Show this help
+#
+# Examples:
+#   claude-headless-exec --backend deep --repo app -- "Fix all TypeScript errors"
+#   claude-headless-exec --backend glm --repo www --readonly -- "Audit for SQL injection"
+#   claude-headless-exec --backend deep --model deepseek-v4-flash -- "Rename getCwd to getCurrentWorkingDirectory across my project"
+#
+# Backend defaults:
+#   deep → deepseek-v4-pro (opus/sonnet), deepseek-v4-flash (haiku)
+#   glm  → glm-5.2[1m] (opus/sonnet), glm-4.7-flashx (haiku)
+#
+# Prerequisites:
+#   - DEEPSEEK_API_KEY env var (for --backend deep)
+#   - GLM_API_KEY env var (for --backend glm)
+#   - claude CLI on PATH
+# ============================================================================
+
+set -euo pipefail
+
+# ── Resolve project root ────────────────────────────────────────────────
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# ── Backend defaults ────────────────────────────────────────────────────
+declare -A BACKEND_BASE_URL
+declare -A BACKEND_AUTH_KEY_ENV
+declare -A BACKEND_OPUS_MODEL
+declare -A BACKEND_SONNET_MODEL
+declare -A BACKEND_HAIKU_MODEL
+declare -A BACKEND_SUBAGENT_MODEL
+declare -A BACKEND_LABEL
+
+BACKEND_BASE_URL[deep]="https://api.deepseek.com/anthropic"
+BACKEND_AUTH_KEY_ENV[deep]="DEEPSEEK_API_KEY"
+BACKEND_OPUS_MODEL[deep]="deepseek-v4-pro"
+BACKEND_SONNET_MODEL[deep]="deepseek-v4-pro"
+BACKEND_HAIKU_MODEL[deep]="deepseek-v4-flash"
+BACKEND_SUBAGENT_MODEL[deep]="deepseek-v4-pro"
+BACKEND_LABEL[deep]="DeepSeek"
+
+BACKEND_BASE_URL[glm]="https://api.z.ai/api/anthropic"
+BACKEND_AUTH_KEY_ENV[glm]="GLM_API_KEY"
+BACKEND_OPUS_MODEL[glm]="glm-5.2[1m]"
+BACKEND_SONNET_MODEL[glm]="glm-5.2[1m]"
+BACKEND_HAIKU_MODEL[glm]="glm-4.7-flashx"
+BACKEND_SUBAGENT_MODEL[glm]="glm-5.2[1m]"
+BACKEND_LABEL[glm]="GLM"
+
+# ── Defaults ────────────────────────────────────────────────────────────
+BACKEND=""
+REPO=""
+MODEL=""
+TIMEOUT=""   # resolved per-backend after parse (deep→600000, glm→3000000) unless --timeout given
+TOOLS="Read,Write,Edit,Bash,Grep,Glob"
+OUTPUT_FORMAT="json"
+READONLY=false
+MAX_BUDGET_USD=""
+MAX_TURNS=""
+PROMPT=""
+OUTPUT_FILE=""
+
+# ── Help ────────────────────────────────────────────────────────────────
+show_help() {
+    cat <<'EOF'
+╔══════════════════════════════════════════════════════════════════════════╗
+║                    claude-headless-exec                                 ║
+║     Spawn a headless Claude Code worker on a chosen AI backend          ║
+╚══════════════════════════════════════════════════════════════════════════╝
+
+Usage:
+  claude-headless-exec --backend deep|glm [options] -- <prompt>
+
+Required:
+  --backend deep|glm       Backend to execute on
+
+Options:
+  --repo app|www|gallery    cd to this repo first (auto-detect if omitted)
+  --model <model>           Override the default model
+  --timeout <ms>            Timeout in ms via API_TIMEOUT_MS (default: 600000 = 10 min)
+  --tools <list>            Comma-separated tools (default: Read,Write,Edit,Bash,Grep,Glob)
+  --readonly                Restrict to Read,Bash,Grep only
+  --output json|text        Output format (default: json)
+  --max-budget-usd <n>      Max API spend in USD (default: unlimited)
+  --max-turns <n>           Max agent turns for the headless worker (default: unset)
+  --output-file <path>      Write result to file instead of stdout
+  -h, --help                Show this help
+
+Backend defaults:
+  deep → deepseek-v4-pro            (DeepSeek API)
+  glm  → glm-5.2[1m]                (Z.AI API)
+
+Examples:
+  claude-headless-exec --backend deep --repo app -- "Fix all TS errors"
+  claude-headless-exec --backend glm --repo www --readonly -- "Audit auth"
+  claude-headless-exec --backend deep --model deepseek-v4-flash -- \
+    "Rename getCwd across the project"
+
+Prerequisites:
+  DEEPSEEK_API_KEY env var (for --backend deep)
+  GLM_API_KEY env var (for --backend glm)
+  claude CLI on PATH
+EOF
+}
+
+# ── Parse args ──────────────────────────────────────────────────────────
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --backend)
+            BACKEND="$2"
+            shift 2
+            ;;
+        --repo)
+            REPO="$2"
+            shift 2
+            ;;
+        --model)
+            MODEL="$2"
+            shift 2
+            ;;
+        --timeout)
+            TIMEOUT="$2"
+            shift 2
+            ;;
+        --tools)
+            TOOLS="$2"
+            shift 2
+            ;;
+        --output)
+            OUTPUT_FORMAT="$2"
+            shift 2
+            ;;
+        --max-budget-usd)
+            MAX_BUDGET_USD="$2"
+            shift 2
+            ;;
+        --max-turns)
+            MAX_TURNS="$2"
+            shift 2
+            ;;
+        --output-file)
+            OUTPUT_FILE="$2"
+            shift 2
+            ;;
+        --readonly)
+            READONLY=true
+            shift
+            ;;
+        -h|--help)
+            show_help
+            exit 0
+            ;;
+        --)
+            shift
+            PROMPT="$*"
+            break
+            ;;
+        *)
+            # Catch-all: treat as start of prompt
+            PROMPT="$*"
+            break
+            ;;
+    esac
+done
+
+# ── Validate ────────────────────────────────────────────────────────────
+if [[ -z "$BACKEND" ]]; then
+    echo "[ERROR] --backend is required. Use 'deep' or 'glm'." >&2
+    echo "        Run with --help for usage." >&2
+    exit 1
+fi
+
+if [[ "$BACKEND" != "deep" && "$BACKEND" != "glm" ]]; then
+    echo "[ERROR] Unknown backend '$BACKEND'. Use 'deep' or 'glm'." >&2
+    exit 1
+fi
+
+if [[ -z "$PROMPT" ]]; then
+    echo "[ERROR] No prompt provided." >&2
+    echo "        Usage: claude-headless-exec --backend deep -- <prompt>" >&2
+    exit 1
+fi
+
+# --- repo resolution (was: inline REPO_PATHS map + cwd auto-detect) ---
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+WORK_DIR="$(pwd)"
+if [[ -n "${REPO:-}" ]]; then
+  RESOLVED="$(python3 "$SCRIPT_DIR/lib/repo-topology.py" "$REPO" 2>/dev/null || true)"
+  if [[ -n "$RESOLVED" && -d "$RESOLVED" ]]; then
+    WORK_DIR="$RESOLVED"
+  else
+    echo "[headless] --repo '$REPO' not in topology config; using cwd $WORK_DIR" >&2
+  fi
+else
+  REPO="$(basename "$WORK_DIR")"   # banner label only
+fi
+# downstream banner refs + `cd "$WORK_DIR"` stay unchanged
+
+if [[ ! -d "$WORK_DIR" ]]; then
+    echo "[ERROR] Working directory not found: $WORK_DIR" >&2
+    exit 1
+fi
+
+# ── Validate API key ────────────────────────────────────────────────────
+AUTH_KEY_ENV="${BACKEND_AUTH_KEY_ENV[$BACKEND]}"
+AUTH_KEY="${!AUTH_KEY_ENV:-}"
+
+if [[ -z "$AUTH_KEY" ]]; then
+    cat <<EOF >&2
+[ERROR] $AUTH_KEY_ENV is not set.
+
+The $AUTH_KEY_ENV environment variable is required for --backend $BACKEND.
+Set it with:
+
+  export $AUTH_KEY_ENV="your-api-key"
+
+Then persist in ~/.bashrc:
+
+  echo 'export $AUTH_KEY_ENV="your-api-key"' >> ~/.bashrc
+
+EOF
+    exit 1
+fi
+
+# ── Validate claude CLI ─────────────────────────────────────────────────
+if ! command -v claude &>/dev/null; then
+    echo "[ERROR] 'claude' CLI not found on PATH." >&2
+    echo "        Install Claude Code first: https://docs.anthropic.com/en/docs/claude-code" >&2
+    exit 1
+fi
+
+# ── Readonly override ───────────────────────────────────────────────────
+if [[ "$READONLY" == "true" ]]; then
+    TOOLS="Read,Bash,Grep"
+fi
+
+# ── Resolve model ───────────────────────────────────────────────────────
+if [[ -z "$MODEL" ]]; then
+    MODEL="${BACKEND_SONNET_MODEL[$BACKEND]}"
+fi
+
+# ── Resolve timeout (per-backend default unless --timeout given) ─────────
+# GLM runs long-horizon agentic work and warrants a longer ceiling than deep.
+if [[ -z "$TIMEOUT" ]]; then
+    if [[ "$BACKEND" == "glm" ]]; then
+        TIMEOUT=3000000   # 50 min
+    else
+        TIMEOUT=600000    # 10 min
+    fi
+fi
+
+# ── Resolve output ──────────────────────────────────────────────────────
+if [[ -z "$OUTPUT_FILE" ]]; then
+    TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+    OUTPUT_FILE="/tmp/claude-headless-${BACKEND}-${TIMESTAMP}-$$.json"
+fi
+
+# ── Build env ───────────────────────────────────────────────────────────
+# Start clean: unset any existing backend routing so only our vars apply.
+# (We don't export these unsets — they only affect this process.)
+ENV_VARS=(
+    "ANTHROPIC_BASE_URL=${BACKEND_BASE_URL[$BACKEND]}"
+    "ANTHROPIC_AUTH_TOKEN=${AUTH_KEY}"
+    "ANTHROPIC_DEFAULT_OPUS_MODEL=${BACKEND_OPUS_MODEL[$BACKEND]}"
+    "ANTHROPIC_DEFAULT_SONNET_MODEL=${BACKEND_SONNET_MODEL[$BACKEND]}"
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL=${BACKEND_HAIKU_MODEL[$BACKEND]}"
+    "CLAUDE_CODE_SUBAGENT_MODEL=${BACKEND_SUBAGENT_MODEL[$BACKEND]}"
+    "API_TIMEOUT_MS=${TIMEOUT}"
+)
+
+# GLM-specific extras
+if [[ "$BACKEND" == "glm" ]]; then
+    ENV_VARS+=(
+        "CLAUDE_CODE_EFFORT_LEVEL=high"
+    )
+fi
+
+# ── Dashboard ───────────────────────────────────────────────────────────
+MASKED_KEY="${AUTH_KEY:0:5}...${AUTH_KEY: -4}"
+BACKEND_LABEL="${BACKEND_LABEL[$BACKEND]}"
+
+cat <<EOF
+
+╔══════════════════════════════════════════════════════════════════════════╗
+║  HEADLESS EXECUTION — $BACKEND_LABEL
+╠══════════════════════════════════════════════════════════════════════════╣
+║  Backend   : ${BACKEND_LABEL}
+║  Model     : ${MODEL}
+║  Repo      : ${REPO:-"(auto: $(basename "$WORK_DIR"))"}
+║  Work Dir  : ${WORK_DIR}
+║  Tools     : ${TOOLS}
+║  Timeout   : ${TIMEOUT}ms
+║  Budget    : ${MAX_BUDGET_USD:-\$unlimited}
+║  Output    : ${OUTPUT_FILE}
+║  Auth Key  : ${MASKED_KEY}
+╠══════════════════════════════════════════════════════════════════════════╣
+║  Task:
+║    ${PROMPT:0:70}...
+╚══════════════════════════════════════════════════════════════════════════╝
+
+EOF
+
+# ── Execute ─────────────────────────────────────────────────────────────
+echo "[claude-headless-exec] Starting headless Claude Code on $BACKEND_LABEL..."
+echo "[claude-headless-exec] Working directory: $WORK_DIR"
+echo "[claude-headless-exec] Output file: $OUTPUT_FILE"
+echo ""
+
+# Keep the full raw transcript and stderr separate from the clean result so
+# OUTPUT_FILE stays a single parseable JSON object the caller can json.load().
+RAW_FILE="${OUTPUT_FILE}.raw"
+STDERR_FILE="${OUTPUT_FILE}.stderr"
+
+START_TIME=$(date +%s)
+
+# Run headless Claude Code with the backend-specific env vars.
+# env(1) sets vars for just this child process — no shell-state leak.
+#   --no-session-persistence            Don't clutter the session resume list
+#   --permission-mode bypassPermissions Trust the --allowedTools gate
+# stdout (the JSON payload) → RAW_FILE ; stderr (warnings) → STDERR_FILE.
+# Keeping the two streams apart is what makes OUTPUT_FILE cleanly parseable.
+cd "$WORK_DIR"
+
+EXIT_CODE=0
+env "${ENV_VARS[@]}" \
+    claude -p "$PROMPT" \
+        --output-format "$OUTPUT_FORMAT" \
+        --model "$MODEL" \
+        --allowedTools "$TOOLS" \
+        --no-session-persistence \
+        --permission-mode bypassPermissions \
+        ${MAX_TURNS:+--max-turns "$MAX_TURNS"} \
+        ${MAX_BUDGET_USD:+--max-budget-usd "$MAX_BUDGET_USD"} \
+        > "$RAW_FILE" 2> "$STDERR_FILE" || EXIT_CODE=$?
+
+END_TIME=$(date +%s)
+ELAPSED=$((END_TIME - START_TIME))
+
+# ── Distill RAW → clean result ──────────────────────────────────────────
+# claude --output-format json may emit a single {type:result,...} object OR a
+# JSON array of all stream events, sometimes behind a leading warning line.
+# The distiller normalizes that to a compact result object written to
+# OUTPUT_FILE and echoes the result text (which we capture for the summary).
+RESULT_TEXT=""
+IS_ERROR="unknown"
+PARSE_OK=false
+if [[ "$OUTPUT_FORMAT" == "json" ]]; then
+    if RESULT_TEXT=$(python3 "$SCRIPT_DIR/lib/distill-headless-result.py" "$RAW_FILE" "$OUTPUT_FILE" 2>>"$STDERR_FILE"); then
+        PARSE_OK=true
+        IS_ERROR=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1])).get('is_error'))" "$OUTPUT_FILE" 2>/dev/null || echo unknown)
+    fi
+fi
+if [[ "$PARSE_OK" != "true" ]]; then
+    # Text output mode, or JSON distill failed — fall back to raw verbatim.
+    cp "$RAW_FILE" "$OUTPUT_FILE"
+    if [[ "$OUTPUT_FORMAT" == "json" ]]; then
+        RESULT_TEXT="[distill failed — inspect raw payload: $RAW_FILE / stderr: $STDERR_FILE]"
+        [[ $EXIT_CODE -eq 0 ]] && EXIT_CODE=3
+    else
+        RESULT_TEXT="$(cat "$RAW_FILE")"
+    fi
+fi
+
+# A model that ran but reported is_error:true should not look like success.
+if [[ "$IS_ERROR" == "True" && $EXIT_CODE -eq 0 ]]; then
+    EXIT_CODE=4
+fi
+
+# ── Result summary ──────────────────────────────────────────────────────
+echo ""
+echo "────────────────────────────────────────────────────────────────────────"
+echo "  HEADLESS EXECUTION COMPLETE"
+echo "────────────────────────────────────────────────────────────────────────"
+echo "  Backend   : $BACKEND_LABEL ($MODEL)"
+echo "  Exit code : $EXIT_CODE"
+echo "  is_error  : $IS_ERROR"
+echo "  Elapsed   : ${ELAPSED}s"
+echo "  Result    : $OUTPUT_FILE   (clean JSON — result/is_error/turns)"
+echo "  Raw trace : $RAW_FILE"
+echo "  Stderr    : $STDERR_FILE"
+echo "────────────────────────────────────────────────────────────────────────"
+
+if [[ $EXIT_CODE -ne 0 ]]; then
+    echo ""
+    echo "[WARN] Headless execution exit code $EXIT_CODE (is_error=$IS_ERROR)."
+    echo "       Inspect: $STDERR_FILE"
+fi
+
+# ── Surface the distilled result text for the orchestrator ──────────────
+echo ""
+echo "════════════════════════ RESULT ════════════════════════════════════════"
+printf '%s\n' "$RESULT_TEXT"
+echo "═════════════════════════════════════════════════════════════════════════"
+# Machine-parseable trailer (last line stays OUTPUT_FILE for back-compat).
+echo "OUTPUT_FILE=$OUTPUT_FILE"
+
+exit $EXIT_CODE
