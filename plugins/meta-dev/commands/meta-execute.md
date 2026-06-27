@@ -1,7 +1,7 @@
 ---
 name: meta-execute
 description: Subagent-driven plan execution — optimistic momentum (fix regressions async, keep moving), mandatory post-run code review, verify+commit+push between, auto-archive on completion (never deploys)
-argument-hint: <plan-path> [--inline] [--strict] [--deploy] [--pause-before=<task-id>]
+argument-hint: <plan-path> [--inline] [--strict] [--deep] [--glm] [--codex] [--deploy] [--pause-before=<task-id>]
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, TaskCreate, TaskUpdate]
 model: opus
 ---
@@ -27,6 +27,19 @@ Parse plan, dispatch one Sonnet subagent per task, commit + push between. **Opti
 Read `references/execute-charter.md` before dispatching. Execution posture (optimistic momentum), anti-paranoia, CLAIMED protocol, failure posture matrix, resume logic, pause gates — all there.
 
 ## Flow
+
+### Worker tier (`--deep`/`--glm`/`--codex`)
+
+When a tier flag is present, run the **agentic-exec-loop** (skill: agentic-exec-loop, references/loop-protocol.md) instead of the Sonnet-subagent executor:
+
+- Execute each task via a fresh headless worker — `${CLAUDE_PLUGIN_ROOT}/scripts/claude-headless-exec --backend deep|glm --repo <plan-repo> -- <task spec incl. its Verify: command>`, or `${CLAUDE_PLUGIN_ROOT}/scripts/codex-headless-exec` for `--codex` (no `--backend`). The worker self-verifies.
+- KEEP the per-task checkbox flip + per-task commit (unchanged).
+- At each `## Phase N` boundary (or once at end for phase-less plans), dispatch `meta-dev:review-agent` over `git diff <phase_pre_sha>..HEAD`; branch on PASS/CONDITIONAL_PASS/FAIL per the protocol; run the deep→glm fix-ladder on FAIL.
+- The conductor holds only the task list + per-phase verdict; it never reads diffs.
+
+If you (the orchestrating session) dispatch a worker expected to idle past ~4 min, keep your prompt cache warm per loop-protocol's cache-keepalive (270s) — session practice, not command automation.
+
+Bare invocation (no tier flag) keeps the existing Sonnet path + Step 6 unchanged.
 
 ### 1. Resolve plan path + parse task inventory
 
@@ -84,7 +97,7 @@ Replace with:         - [x] DONE Task N: <title>
 
 ### 6. Mandatory post-run code review
 
-**ALWAYS invoke `superpowers:requesting-code-review`** over the full run diff (`git diff <start-sha>..HEAD`). This is NON-NEGOTIABLE — every `/meta-execute` run ends with an independent code review. Route findings:
+**Default path:** end-of-run `superpowers:requesting-code-review` over `git diff <start>..HEAD`. **Tier-flag path (`--deep`/`--glm`/`--codex`):** the closing review is satisfied by the per-phase `meta-dev:review-agent` passes — the final phase review IS the closing review (no separate end-of-run review). Either way, a run NEVER ends unreviewed. Route findings:
 
 - **Trivial/mechanical** (lint, format, missing annotation) → fix inline, commit, push
 - **Substantive** (logic, security, contract, scope creep) → surface to user with file:line in the Follow-ups section of the report card, do NOT silently auto-fix
@@ -146,6 +159,9 @@ ALWAYS end with this structured dashboard. Use `references/execute-report-card.m
 |------|--------|
 | `--inline` | Main-thread execution, no subagents |
 | `--strict` | Disable optimistic momentum — every verify/test runs inline and blocks, serial gate, every red is a hard STOP, no background fixers, no async tests |
+| `--deep` | Per-task headless DeepSeek worker + phase-gated review-agent (default cheap tier; GLM only on fix-escalation) |
+| `--glm` | Per-task headless GLM worker + phase-gated review-agent |
+| `--codex` | Per-task headless Codex worker (sparing) + phase-gated review-agent |
 | `--no-deploy` | Skip deploy prompt after archive |
 | `--pause-before=<id>` | Hard stop before that task |
 | `--no-pause` | Disable auto-pause on money-path/release-stability |
