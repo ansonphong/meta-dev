@@ -15,11 +15,12 @@ BOX_W = 74            # total visible width including both borders
 FIELD = BOX_W - 4     # text field inside "│ … │"
 BAR_W = 18
 
-# Status markers use geometric dots, NOT emoji. Emoji are spec-width-2 but many
-# renderers (incl. inline markdown) draw them at 1 cell, which shifts every box
-# border. Dots are width-1-stable, so the rounded boxes stay aligned everywhere.
-# Real emoji are confined to the header line, which sits outside every box.
-GLYPH = {"done": "●", "inflight": "◐", "pending": "○", "blocked": "◆", "paused": "◌"}
+# Status markers use geometric/symbol glyphs, NOT emoji. Emoji are spec-width-2
+# but many renderers (incl. inline markdown) draw them at 1 cell, which shifts
+# every box border. These glyphs are width-1-stable, so the rounded boxes stay
+# aligned everywhere. Real emoji are confined to the header line (outside boxes).
+# Keyed on the plan-index status enum: done / blocked / active / draft.
+GLYPH = {"done": "✓", "blocked": "!", "active": "→", "draft": "◦"}
 
 
 # ── display width ────────────────────────────────────────────────────────────
@@ -110,19 +111,36 @@ def plans_body(plans):
         t = p.get("tasks_total", 0)
         td += d
         tt += t
-        st = p.get("status", "pending")
-        g = GLYPH.get(st, "⬜")
-        stg = p.get("stage")
-        if stg:
-            sn = p.get("stage_num")
-            ss = p.get("stage_status", "")
-            mark = "✓" if ss == "completed" else ("!" if ss == "blocked" else "→")
-            stage_tag = f"  S{sn if sn else '?'}·{stg}{mark}"
-        else:
-            stage_tag = ""
+        st = p.get("status", "draft")
+        g = GLYPH.get(st, "◦")
+        stg = p.get("stage", 0)
+        stage_tag = f"  S{stg}·{st}"
         body.append(f"{g} {col(p.get('name', '?'), 22)} {bar(d, t)} {d:>3}/{t:<3} {pct(d, t)}{stage_tag}")
     body.append("─" * FIELD)
     body.append(f"   {col('TOTAL', 22)} {bar(td, tt)} {td:>3}/{tt:<3} {pct(td, tt)}")
+    return body
+
+
+def milestones_body(ms):
+    if not ms:
+        return ["(none)"]
+    body = []
+    for i, m in enumerate(ms):
+        if i:
+            body.append("─" * FIELD)
+        typ = m.get("type", "MILESTONE")
+        lbl = m.get("label", "")
+        ver = m.get("version", "")
+        tgt = m.get("target", "")
+        d = m.get("plans_done", 0)
+        t = m.get("plans_total", 0)
+        body.append(col(f"{typ} · {lbl}", FIELD))
+        meta = f"{bar(d, t)} {d}/{t} done"
+        if ver:
+            meta += f"   v{ver}"
+        if tgt:
+            meta += f"   target {tgt}"
+        body.append(meta)
     return body
 
 
@@ -164,7 +182,20 @@ def render(data):
     L.append("   " + datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
     L.append("")
 
-    L += panel("Plans", plans_body(data.get("plans", [])))
+    counts = data.get("counts", {}) or {}
+    tracked = counts.get("tracked", len(data.get("plans", [])))
+    plans_title = f"Plans · {tracked} tracked"
+    extra = []
+    if counts.get("malformed"):
+        extra.append(f"{counts['malformed']} malformed")
+    untr = data.get("untracked", [])
+    if untr:
+        extra.append(f"{len(untr)} untracked")
+    if extra:
+        plans_title += " · " + " · ".join(extra)
+    L += panel(plans_title, plans_body(data.get("plans", [])))
+    L.append("")
+    L += panel("Milestones", milestones_body(data.get("milestones", [])))
     L.append("")
     L += panel("Active Sessions", sessions_body(data.get("active_sessions", [])))
     L.append("")
@@ -190,10 +221,16 @@ def render(data):
 TEST_DATA = {
     "project": "meta-dev",
     "plans": [
-        {"name": "auth-refactor", "tasks_done": 24, "tasks_total": 24, "status": "done"},
-        {"name": "payments-v2", "tasks_done": 18, "tasks_total": 28, "status": "inflight"},
-        {"name": "onboarding-flow", "tasks_done": 7, "tasks_total": 22, "status": "inflight"},
-        {"name": "search-v3", "tasks_done": 0, "tasks_total": 14, "status": "pending"},
+        {"name": "auth-refactor", "tasks_done": 24, "tasks_total": 24, "status": "done", "stage": 6},
+        {"name": "payments-v2", "tasks_done": 18, "tasks_total": 28, "status": "active", "stage": 5},
+        {"name": "onboarding-flow", "tasks_done": 7, "tasks_total": 22, "status": "blocked", "stage": 4},
+        {"name": "search-v3", "tasks_done": 0, "tasks_total": 14, "status": "draft", "stage": 2},
+    ],
+    "counts": {"tracked": 4, "malformed": 0, "archived": 0},
+    "untracked": [],
+    "milestones": [
+        {"type": "PRODUCT LAUNCH", "label": "Public Beta", "version": "1.1.0-beta.1",
+         "target": "2026-06-30", "plans_done": 1, "plans_total": 4},
     ],
     "active_sessions": [
         {"session": "meta-exec-03", "plan": "payments-v2", "task": "P4.3/7", "stage": "review"},

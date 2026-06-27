@@ -1,107 +1,20 @@
 #!/usr/bin/env bash
 set -euo pipefail
 # Dashboard data gatherer — deterministic, no LLM. Outputs JSON to stdout.
-# Run from project root. Reads plans/, git, state, inbox.
+# Run from project root. Reads plans (via plan-index.py), git, state, inbox.
 
 # Project name from directory or git
 PROJECT=$(basename "$(pwd)")
 GIT_REPO=$(git remote get-url origin 2>/dev/null | sed 's/.*[:/]\(.*\)\.git/\1/' || echo "$PROJECT")
 
-# Plans: scan active plan units (dirs with a master plan, plus loose top-level
-# plan files) and derive progress from task checkboxes. This is authoritative —
-# the ledger itself — rather than parsing STATUS.md prose. Active-first, capped.
-PLANS_JSON="[]"
-if [ -d plans ]; then
-    PLANS_JSON=$(python3 -c "
-import json, os, re, glob
-ROOTS = ['app', 'www', 'gallery', 'meta']
-EXCL = ('_archive', '_future', '_research', '_dashboard')
-CHECKBOX = re.compile(r'^\s*[-*]\s*\[([ xX])\]')  # anchored: skips inline prose
-
-def excluded(path):
-    parts = path.replace('\\\\', '/').split('/')
-    return any(e in parts for e in EXCL)
-
-units = []  # (display_name, file_to_count)
-for r in ROOTS:
-    base = 'plans/' + r
-    if not os.path.isdir(base):
-        continue
-    for pat in ('00-master-plan.md', '*master-plan*.md'):
-        for mp in glob.glob(base + '/**/' + pat, recursive=True):
-            if not excluded(mp):
-                units.append((os.path.basename(os.path.dirname(mp)), mp))
-    for f in glob.glob(base + '/*.md'):
-        if os.path.basename(f) not in ('STATUS.md', 'exec-order.md', 'README.md'):
-            units.append((os.path.splitext(os.path.basename(f))[0], f))
-
-# Durable waterfall stage per plan, folded from state.events.jsonl into
-# plan_stages by the reducer. This is what makes the dashboard stage-aware.
-stages_map = {}
-try:
-    with open('plans/_dashboard/state.json', encoding='utf-8') as _sf:
-        stages_map = json.load(_sf).get('plan_stages', {})
-except Exception:
-    stages_map = {}
-
-def stage_for(f):
-    d = os.path.dirname(f).replace('\\\\', '/').rstrip('/')
-    ff = f.replace('\\\\', '/')
-    best = None
-    for k, v in stages_map.items():
-        kk = k.replace('\\\\', '/').rstrip('/')
-        if kk == ff or kk == d or os.path.dirname(kk) == d or kk in ff or (d and d in kk):
-            if best is None or (v.get('time', '') > best.get('time', '')):
-                best = v
-    return best
-
-seen, plans = set(), []
-for name, f in units:
-    if f in seen:
-        continue
-    seen.add(f)
-    done = todo = 0
-    try:
-        with open(f, encoding='utf-8', errors='ignore') as fh:
-            for line in fh:
-                m = CHECKBOX.match(line)
-                if m:
-                    if m.group(1) in 'xX':
-                        done += 1
-                    else:
-                        todo += 1
-    except Exception:
-        pass
-    total = done + todo
-    if total == 0 or done == 0:
-        status = 'pending'
-    elif todo == 0:
-        status = 'done'
-    else:
-        status = 'inflight'
-    nm = re.sub(r'^\d{4}-\d{2}-\d{2}-', '', name)[:24]
-    sinfo = stage_for(f) or {}
-    plans.append({'name': nm, 'tasks_done': done, 'tasks_total': total, 'status': status,
-                  'stage': sinfo.get('stage', ''), 'stage_num': sinfo.get('stage_num'),
-                  'stage_status': sinfo.get('status', ''), 'stage_time': sinfo.get('time', '')})
-
-order = {'inflight': 0, 'blocked': 1, 'pending': 2, 'done': 3}
-# Most-recently-moved-through-the-waterfall plans float to the top (that's
-# 'show the most recently developed plans'); plans never staged fall back to
-# the status/size ordering beneath them.
-staged = [p for p in plans if p.get('stage_time')]
-unstaged = [p for p in plans if not p.get('stage_time')]
-staged.sort(key=lambda p: p.get('stage_time', ''), reverse=True)
-unstaged.sort(key=lambda p: (order.get(p['status'], 4), -p['tasks_total']))
-plans = staged + unstaged
-print(json.dumps(plans[:12]))
-" 2>/dev/null || echo "[]")
-fi
-
-# Exec order: current position
-EXEC_POS=""
-if [ -f plans/exec-order.md ]; then
-    EXEC_POS=$(head -20 plans/exec-order.md 2>/dev/null | grep -i "current\|next\|now" | head -1 | sed 's/^#*\s*//' | cut -c1-80 || echo "")
+# Plans: delegate ALL plan scanning to plan-index.py — the single source of
+# truth. It parses the runbook Sequence (display order), milestones, and each
+# plan's status/stage/progress from frontmatter + checkboxes. This script no
+# longer reads plans/ directly, nor STATUS.md / exec-order.md (both retired).
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLAN_INDEX_JSON="{}"
+if [ -f "$SCRIPT_DIR/plan-index.py" ]; then
+    PLAN_INDEX_JSON=$(python3 "$SCRIPT_DIR/plan-index.py" 2>/dev/null || echo "{}")
 fi
 
 # State: read from state.json via state-read.sh
@@ -196,21 +109,57 @@ try:
 except: print('[]')
 " 2>/dev/null || echo "[]")
 
-# Output full JSON
+# Output full JSON. The plan-index payload is passed via env (not string
+# interpolation) so unicode escapes / quotes in plan titles can't corrupt the
+# generated Python source. Reshape plan-index's plans into the fields the
+# renderer expects, ordered by the runbook Sequence first, extras after.
+export PLAN_INDEX_JSON SESSIONS SWEEP_JSON COMMITS_JSON
 python3 -c "
-import json, sys, os
+import json, os, re
+
+def plan_name(path):
+    base = os.path.basename(path)
+    if 'master-plan' in base:
+        nm = os.path.basename(os.path.dirname(path))
+    else:
+        nm = os.path.splitext(base)[0]
+    return re.sub(r'^\d{4}-\d{2}-\d{2}-', '', nm)
+
+idx = json.loads(os.environ.get('PLAN_INDEX_JSON') or '{}')
+order = idx.get('order', [])
+pos = {p: i for i, p in enumerate(order)}
+raw = list(idx.get('plans', []))
+# Sequence order first; anything not in the runbook sorts to the end.
+raw.sort(key=lambda p: pos.get(p.get('path', ''), 10**6))
+plans = []
+for p in raw:
+    prog = p.get('progress', {}) or {}
+    plans.append({
+        'name': plan_name(p.get('path', '?')),
+        'path': p.get('path', ''),
+        'repo': p.get('repo', ''),
+        'tasks_done': prog.get('done', 0),
+        'tasks_total': prog.get('total', 0),
+        'status': p.get('status') or 'draft',
+        'stage': p.get('stage', 0),
+        'why': p.get('why', ''),
+        'malformed': bool(p.get('malformed', False)),
+    })
+
 data = {
     'project': '$GIT_REPO',
-    'plans': json.loads('''$PLANS_JSON'''),
-    'exec_position': '$EXEC_POS',
-    'active_sessions': json.loads('''$SESSIONS'''),
+    'plans': plans,
+    'milestones': idx.get('milestones', []),
+    'untracked': idx.get('untracked', []),
+    'counts': idx.get('counts', {}),
+    'active_sessions': json.loads(os.environ.get('SESSIONS') or '[]'),
     'inbox': {
         'advisories': $INBOX_ADVISORIES,
         'issues_open': $INBOX_OPEN,
         'auto_clearable': $INBOX_AUTO
     },
-    'sweep_log': json.loads('''$SWEEP_JSON'''),
-    'recent_commits': json.loads('''$COMMITS_JSON'''),
+    'sweep_log': json.loads(os.environ.get('SWEEP_JSON') or '[]'),
+    'recent_commits': json.loads(os.environ.get('COMMITS_JSON') or '[]'),
     'refresh_rate': 'once',
     'agent_count': 0,
     'dirty_count': $DIRTY,
