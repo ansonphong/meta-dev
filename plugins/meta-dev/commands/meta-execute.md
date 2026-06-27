@@ -93,7 +93,7 @@ Record verdict in the report card. If the review returns substantive findings, f
 
 ### 7. Housekeeping
 
-Archive the plan (unless manual gates remain — e.g., GPU acceptance, in-app verification), update STATUS.md + exec-order.md, commit + push both repos.
+Archive the plan (unless manual gates remain — e.g., GPU acceptance, in-app verification), commit + push both repos. The stage already propagated to the plan's YAML via the `stage-emit.sh` call above; cross-plan ordering lives in `plans/meta-runbook.md` — touch it only if execution priority changed.
 
 ### 8. Render execution report card
 

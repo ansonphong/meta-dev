@@ -18,8 +18,9 @@ set -euo pipefail
 # If the file is missing or has no frontmatter block, WARN and skip patching
 # (never create frontmatter, never error). Still emits the event.
 #
-# Reuses state-append.sh (validates + appends). The reducer (state-reduce.py)
-# folds stage_transition into the per-plan `plan_stages` map.
+# Reuses state-append.sh (validates + appends). stage_transition is HISTORY/timeline
+# only — the reducer does NOT fold it; current stage/status is the plan's YAML
+# frontmatter (patched above), read live by the dashboard via plan-index.py.
 #
 # Examples:
 #   stage-emit.sh plans/app/FOO/00-master-plan.md harden in_progress

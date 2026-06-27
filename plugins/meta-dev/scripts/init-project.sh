@@ -75,22 +75,33 @@ if [ ! -f "$CHANGELOG_FILE" ]; then
   echo "Created $CHANGELOG_FILE"
 fi
 
-# Create STATUS.md and exec-order.md if missing
-STATUS_FILE="plans/STATUS.md"
-if [ ! -f "$STATUS_FILE" ]; then
-  echo "# Project Status — $PROJECT_NAME" > "$STATUS_FILE"
-  echo "" >> "$STATUS_FILE"
-  echo "Active period: $TODAY — present" >> "$STATUS_FILE"
-  echo "- Initializing meta-dev harness" >> "$STATUS_FILE"
-  echo "Created $STATUS_FILE"
-fi
+# Create meta-runbook.md if missing — the single hand-maintained ledger.
+# Status/stage/% live in each plan's YAML frontmatter (read live by the
+# dashboard via plan-index.py); this file is the EDITORIAL layer ONLY:
+# priority order (## Sequence), milestones, wave strategy, and shipped log.
+RUNBOOK_FILE="plans/meta-runbook.md"
+if [ ! -f "$RUNBOOK_FILE" ]; then
+  cat > "$RUNBOOK_FILE" <<EOF
+# Meta-Runbook — Build Order & Release Ledger — $PROJECT_NAME
 
-EXEC_ORDER_FILE="plans/exec-order.md"
-if [ ! -f "$EXEC_ORDER_FILE" ]; then
-  echo "# Execution Order — $PROJECT_NAME" > "$EXEC_ORDER_FILE"
-  echo "" >> "$EXEC_ORDER_FILE"
-  echo "1. Define goals in STATUS.md" >> "$EXEC_ORDER_FILE"
-  echo "Created $EXEC_ORDER_FILE"
+> Editorial layer ONLY. Status/stage/% are NOT stored here — the dashboard reads them live
+> from each plan's YAML frontmatter + checkboxes. Edit this file to change PRIORITY ORDER,
+> MILESTONES, or wave strategy — nothing else.
+
+## Wave Strategy / Critical Path
+
+_What to work on right now, in what order. Update as waves complete._
+
+## Sequence
+
+_Ordered list of ACTIVE plan paths (build order). One \`plans/...\` path per line._
+_Insert \`=== MILESTONE: TYPE · label ===\` markers between entries to mark releases._
+
+## Shipped
+
+_Completed plans, newest first (\`plans/.../00-master-plan.md — Title  (archived: ...)\`)._
+EOF
+  echo "Created $RUNBOOK_FILE"
 fi
 
 # Validate JSON files

@@ -25,8 +25,7 @@ def load_base() -> dict:
             "last_updated": "", "active_sessions": [], "sweep_log": [],
             "overlord": {"active": False, "watching": None, "mode": None, "model": None,
                          "auto_fix": None, "tick_n": 0, "last_review": None, "tasks_reviewed": 0},
-            "meta_dev_runs": [], "meta_execute_runs": [], "recent_commits": [],
-            "plan_stages": {}}
+            "meta_dev_runs": [], "meta_execute_runs": [], "recent_commits": []}
 
 
 def fold(state: dict, event: dict) -> dict:
@@ -39,9 +38,6 @@ def fold(state: dict, event: dict) -> dict:
         commits.insert(0, {"sha": event.get("sha", ""), "message": event.get("message", ""),
                            "time": event.get("time", now)})
         state["recent_commits"] = commits[:50]  # cap
-
-    elif event_type == "plan_edit":
-        pass  # tracked via last_updated timestamp per file in overlord cache
 
     elif event_type == "overlord_start":
         state["overlord"] = {
@@ -93,24 +89,10 @@ def fold(state: dict, event: dict) -> dict:
         })
         state["sweep_log"] = state["sweep_log"][-100:]  # cap
 
-    elif event_type == "stage_transition":
-        # Durable per-plan waterfall position — the dashboard's source of truth
-        # for "which of the 6 stages is this plan at". Keyed by plan path/name;
-        # the latest transition for a plan wins (event-sourced overwrite).
-        plan = event.get("plan", "")
-        if plan:
-            stages = state.setdefault("plan_stages", {})
-            stages[plan] = {
-                "stage": event.get("stage", ""),
-                "stage_num": event.get("stage_num"),
-                "status": event.get("status", ""),
-                "time": event.get("time", now),
-            }
-            # Reflect onto any active session for this plan so the sessions
-            # STAGE column lights up live during a run.
-            for s in state.get("active_sessions", []):
-                if s.get("plan") == plan:
-                    s["stage"] = event.get("stage", "")
+    # NOTE: stage_transition events are NOT folded here. Plan stage/status is no
+    # longer derived from the event log — it lives in each plan's YAML frontmatter
+    # and is read live by the dashboard via plan-index.py. stage_transition rows
+    # remain in state.events.jsonl purely as a HISTORY/timeline record.
 
     return state
 

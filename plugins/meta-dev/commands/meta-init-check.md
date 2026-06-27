@@ -14,7 +14,7 @@ Full procedure: `references/init-check-protocol.md`. All project-specifics (repo
 
 ## Modes
 
-- `backend` — git health + runtime/service probes (interpreter, app import, DB, Redis/queue) + test baseline + `.env` + FAILURES.md + STATUS.md
+- `backend` — git health + runtime/service probes (interpreter, app import, DB, Redis/queue) + test baseline + `.env` + FAILURES.md + meta-runbook staleness
 - `frontend` — git health + frontend toolchain (deps, typecheck, native toolchain) + test baseline
 - `full` — all checks + **API contract smoke test** (frontend `/api/` URLs vs backend routes)
 - `auto` (default) — detect scope from the plan being executed (`Repo:`/scope field); a plan touching both frontend and backend resolves to `full`
@@ -26,7 +26,7 @@ Full procedure: `references/init-check-protocol.md`. All project-specifics (repo
 2. **Git health (per in-scope repo).** Run `CLAUDE_PLUGIN_ROOT="$CLAUDE_PLUGIN_ROOT" bash scripts/init-check.sh <repo-dir>` — does stale `.git/index.lock` removal (the one safe auto-fix), corruption detection via `git status`, dirty-tree warning, and WSL git-config verify+apply (keys from config).
 3. **Service & runtime probes** (backend modes) — the probe set comes from `meta_dev.init_check.services` config; the host project supplies the actual probes. Examples: import smoke, a DB connection check (e.g. `db.engine.connect()`), a cache/broker ping (e.g. `redis-cli ping`), a task-queue import (e.g. Celery/RQ) + broker-degradation heuristic. `required:false` failures → WARN, not BLOCKED.
 4. **Frontend toolchain** (frontend/full) — deps present, typecheck at error threshold, native toolchain `--version`.
-5. **`.env` presence**, **test-baseline collection** (`--collect-only`), **FAILURES.md detection**, **STATUS.md staleness**.
+5. **`.env` presence**, **test-baseline collection** (`--collect-only`), **FAILURES.md detection**, **`plans/meta-runbook.md` staleness**.
 6. **API contract smoke test** (full / both-stack plans) — grep frontend `/api/` call URLs and backend route handlers, cross-reference, report any unmatched frontend URL as **BLOCKED**. This is the most important check: a runtime 404 is worse than a missing dependency.
 
 See the reference for the exact procedure, grep shapes, and graceful-degradation logic.

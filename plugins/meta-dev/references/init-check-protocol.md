@@ -16,7 +16,7 @@ Argument selects which checks run (`backend` | `frontend` | `full` | `auto` | `r
 2. Read the env-probe config:
    - `bash scripts/config-get.sh meta_dev.init_check` → expected services, per-check timeouts, total budget.
    - `bash scripts/config-get.sh meta_dev.filesystem.git_corruption_mitigations` → the four WSL git keys (consumed by `init-check.sh`).
-   - `bash scripts/config-get.sh meta_dev.paths.status_file` → STATUS.md location.
+   - `bash scripts/config-get.sh meta_dev.paths.plans_root` → plans root (the runbook is `<plans_root>/meta-runbook.md`).
 3. If `init_check` config is absent, fall back to host CLAUDE.md (repo list, test/build commands) then to the safe defaults in `host-claude-contract.md`.
 4. **`auto`**: detect scope from the plan being executed. Read the plan's `Repo:`/scope field; map to the configured repos. A plan that touches both frontend and backend files → treat as `full`.
 5. **`refresh-cache`**: rebuild `.claude/cache/` artifacts only, then exit.
@@ -122,9 +122,9 @@ Present → read it and announce: **"N documented failed approaches will be avoi
 
 ---
 
-## Step 8 — STATUS.md staleness — LOW
+## Step 8 — meta-runbook staleness — LOW
 
-Read the first ~30 lines of the configured `status_file`. If the current initiative/stage it names does not match the plan about to run, flag `WARN` ("STATUS.md may be stale"). Informational only.
+Read the `## Sequence` section of `<plans_root>/meta-runbook.md`. If the plan about to run is NOT listed there (and is not freshly created this session), flag `WARN` ("plan not in meta-runbook `## Sequence` — runbook may be stale"). Informational only.
 
 ---
 
@@ -148,7 +148,7 @@ Emit one table. One row per check actually run for the scope.
 | API contracts  | OK     | N frontend calls, all matched            |
 | .env           | OK     | present                                  |
 | FAILURES.md    | INFO   | 3 documented dead ends                   |
-| STATUS.md      | OK     | current initiative matches               |
+| meta-runbook   | OK     | plan listed in Sequence                  |
 
 Overall: READY (W warnings)
 ```

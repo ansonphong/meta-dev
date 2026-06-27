@@ -31,11 +31,11 @@ Stage definitions in `references/dev-swarms.md`. Each stage delegates to ported 
 
 **When the run is autopilot (`cruise`/`autopilot`/`auto`/`walk`/`unattended`/`--cruise`), invoke the `waterfall-tracking` skill BEFORE Stage 1** to stand up a visible 6-stage task list (`TaskCreate`) and keep it live with `TaskUpdate` (`in_progress` on start → `completed` on exit-criteria → `blocked` on halt). The user walks away to watch the waterfall progress, so this tracker is a primary deliverable; no tracker visible = run not started correctly. It is the *stage*-level tracker; Stage 5's `/meta-execute` runs its own *task*-level list — distinct, never mirrored. Detail: skill `waterfall-tracking` (`plugins/meta-dev/skills/waterfall-tracking/`); exit-criteria table in `references/dev-modes.md`.
 
-**Durable dashboard signal — emit alongside every `TaskUpdate`.** The `TaskUpdate` tracker is ephemeral (gone when the run ends); `/meta-dashboard` needs a persisted record. So at EACH stage transition, mirror the TaskUpdate with a stage event — non-blocking, never let it stall the run:
+**Durable stage signal — emit alongside every `TaskUpdate`.** The `TaskUpdate` tracker is ephemeral (gone when the run ends). So at EACH stage transition, mirror the TaskUpdate with a stage event — non-blocking, never let it stall the run:
 ```
 bash ${CLAUDE_PLUGIN_ROOT}/scripts/stage-emit.sh "<plan-path>" <stage> <in_progress|completed|blocked>
 ```
-where `<stage>` ∈ `brainstorm|design|plan|harden|execute|review` (1→6). This is what keeps the dashboard's per-plan STAGE current after every phase movement. The stage-owning commands (`/meta-planner`, `/meta-loop-gap`, `/meta-execute`, `/meta-eval`) also emit when invoked standalone — emitting twice is harmless (the reducer keeps the latest), so always emit here too for the stages this orchestrator drives directly (brainstorm, design).
+where `<stage>` ∈ `brainstorm|design|plan|harden|execute|review` (1→6). `stage-emit.sh` patches the plan's YAML `stage:`/`status:` frontmatter in place — that frontmatter is the single source of truth for the plan's stage — and appends a slim history event to `events.jsonl`. `/meta-dashboard` then computes live from the plans via `scripts/plan-index.py`; there is no separate plan state to maintain. The stage-owning commands (`/meta-planner`, `/meta-loop-gap`, `/meta-execute`, `/meta-eval`) also emit when invoked standalone — emitting twice is harmless (last write wins), so always emit here too for the stages this orchestrator drives directly (brainstorm, design).
 
 ## Cruise Control (Autopilot)
 
@@ -52,7 +52,7 @@ When given multiple subjects: cap 2 concurrent. Each independent pipeline. Queue
 
 ## Post-Stage Housekeeping
 
-After each stage: update exec-order `Stage: N/6` annotation. After Stage 6: full housekeeping per `references/dev-housekeeping.md` (archive, update STATUS, update exec-order, commit).
+After each stage: the stage is already recorded by the `stage-emit.sh`→YAML call above — no ledger to hand-edit. After Stage 6: full housekeeping per `references/dev-housekeeping.md` (archive, commit). Cross-plan ordering/milestones live in `plans/meta-runbook.md` — edit it only when execution priority or milestones change.
 
 ## Safety Invariants
 

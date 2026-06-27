@@ -33,13 +33,13 @@ The `_verify/` bucket exists because "code done but waiting for a human to eyeba
 1. **Discover plans to process** — scoped to current conversation (plans touched this session), or all active plans under `plans/` with `--all`.
 2. **Dispatch one agent per plan** (parallel, independent). Each agent receives ONLY its plan path and the three-outcome brief below. Agents must:
    - **Lock 1:** run `scripts/archive-guard.sh` — a deterministic, non-overridable PASS/BLOCK gate.
-   - **Lock 2:** verify every deliverable exists in the child repo's actual code; confirm not Active/Blocked in STATUS.md.
+   - **Lock 2:** verify every deliverable exists in the child repo's actual code; confirm the plan's YAML `status:` is not Active/Blocked and it is not on the active `## Sequence` in `plans/meta-runbook.md`.
    - **If Lock 1 = PASS AND Lock 2 clean** → archive to `_archive/`. Return `{archived: true}`.
    - **If Lock 1 = BLOCK** → classify: is this plan code-complete with ONLY manual/human verification gates remaining? If yes → move to `_verify/`. Return `{verified: true}`.
    - **Otherwise** → leave in place. Return `{archived: false, verified: false}` with `block_reasons`.
    - Return: `{plan, repo, archived: bool, verified: bool, guard: PASS|BLOCK, destination: "_archive"|"_verify"|null, block_reasons: [...], notes}`
 3. **Gather results** — collect agent returns. Skip cross-cutting if dry-run.
-4. **Cross-cutting files** — update `plans/STATUS.md` and `plans/exec-order.md` to reflect plans that were archived OR moved to `_verify/`.
+4. **Cross-cutting ledger** — update `plans/meta-runbook.md` to reflect plans that were archived OR moved to `_verify/`: drop them from the `## Sequence`, add archived plans to the `## Shipped` index, and refresh `## Wave Strategy / Critical Path` if they were on it.
 5. **Append changelog entry** — one entry summarizing all housekeeping actions (archived count, verify count, left-in-place count).
 6. **Commit + push** — single commit covering all changes.
 7. **Report** — structured report card showing all three buckets (archived, verify, left-in-place) with block reasons for every plan left in place.
@@ -61,7 +61,7 @@ bash scripts/archive-guard.sh <plan-path>
 - Exit **0** + `PASS` → Lock 1 open. Proceed to Lock 2.
 - Exit **non-zero** + `BLOCK: <reasons>` → Archive is blocked. But the plan MAY still qualify for `_verify/` — proceed to the Verify Classification step below. **Do NOT archive. Do NOT rationalize. Do NOT edit the plan to make it pass.**
 
-The guard BLOCKs on ANY of: `Status:` not exactly `Done`; any unchecked `[ ]` checkbox; an active-work marker (`CLAIMED`/`WIP`/🚧/in-progress); or the plan listed unchecked in `exec-order.md`. These are exactly the signals of "in development / unfinished / in process". The guard fails safe — missing files or unreadable status also BLOCK.
+The guard BLOCKs on ANY of: the plan's YAML `status:` not exactly `Done`; any unchecked `[ ]` checkbox; an active-work marker (`CLAIMED`/`WIP`/🚧/in-progress). These are exactly the signals of "in development / unfinished / in process". The guard fails safe — missing files or unreadable status also BLOCK.
 
 ### 🔒 Lock 2 — Implementation verified in code (judgment, can only BLOCK)
 
@@ -71,9 +71,9 @@ Even with Lock 1 open, **paper status is not proof of code.** Verify the impleme
 2. Extract every concrete deliverable — files created/modified, functions, components, endpoints, config, DB migrations.
 3. `cd` into the child repo and verify each exists on disk (`ls`/`find` for files, `grep` for symbols/components/routes/config, migration file present).
 4. **Any deliverable NOT found → STOP. Return `archived: false`** with a specific missing list `["missing: <path/func>", ...]`.
-5. Also confirm the plan is **not** listed under Active/Blocked in `STATUS.md` (grep). If it is → STOP, `archived: false`.
+5. Also confirm the plan's YAML `status:` is not `Active`/`Blocked` and it is **not** on the active `## Sequence` in `plans/meta-runbook.md`. If it is → STOP, `archived: false`.
 
-**Archive ONLY when Lock 1 returned `PASS` AND Lock 2 found every deliverable present AND STATUS.md does not list it active.** Any failure in either lock → leave the plan exactly where it is.
+**Archive ONLY when Lock 1 returned `PASS` AND Lock 2 found every deliverable present AND the plan is not active per its YAML `status:` / the meta-runbook Sequence.** Any failure in either lock → leave the plan exactly where it is.
 
 ## Verify Classification — when Lock 1 BLOCKs but code is shipped
 
@@ -84,7 +84,7 @@ The agent applies judgment to classify. ALL of these must be true to move to `_v
 1. **No active-work markers** — no `CLAIMED`, `WIP`, `🚧`, or `in-progress` in the plan. The plan is not currently being worked on.
 2. **Code tasks are complete** — every implementation/development task checkbox is `[x]`. Grep the plan: the only unchecked `[ ]` items are clearly labeled as manual verification gates (GPU smoke test, human acceptance, visual check, in-app verification, manual E2E, hardware gate, operator sign-off, etc.).
 3. **Code deliverables exist** — run the Lock 2 code verification: every file/function/component the plan claims to create actually exists in the child repo. If code is missing, the plan is NOT verify-ready (it's unfinished or abandoned).
-4. **Not listed unchecked in exec-order.md** as an active execution dependency (same as Lock 1 Gate 4 — if it's on the critical path with an unchecked box, it stays put).
+4. **Not on the active `## Sequence` / Critical Path in `plans/meta-runbook.md`** as an active execution dependency (if it's on the critical path and unfinished, it stays put).
 5. **The plan's own text confirms this state** — it explicitly says things like "awaiting manual GPU acceptance," "human gate pending," "Stage 6 manual verification," "operator sign-off required," etc. Not just the agent inferring — the plan itself declares it's waiting on a human.
 
 **If ALL five criteria pass → move to `plans/<repo>/_verify/`. Return `verified: true`.**
@@ -127,9 +127,9 @@ When dispatching each plan agent, give it this exact brief:
 > You may NOT archive on your own judgment. If you did not run the guard, or it did not print `PASS` with exit 0, you may NOT archive — full stop.
 >
 > **🔒 LOCK 2 — Implementation verified in code (MANDATORY, can only block):**
-> Extract every concrete deliverable from the plan (files, functions, components, endpoints, migrations, config). `cd` into the child repo named in the plan's `Repo:` frontmatter and verify each one exists on disk (`ls`, `find`, `grep`). If ANY deliverable is missing → STOP, `archived: false`, `block_reasons: ["missing: <path/func>", ...]`. Then grep `plans/STATUS.md`: if this plan is listed under Active or Blocked → STOP, `archived: false`. Lock 2 can only ever block — it never approves an archive by itself.
+> Extract every concrete deliverable from the plan (files, functions, components, endpoints, migrations, config). `cd` into the child repo named in the plan's `Repo:` frontmatter and verify each one exists on disk (`ls`, `find`, `grep`). If ANY deliverable is missing → STOP, `archived: false`, `block_reasons: ["missing: <path/func>", ...]`. Then check the plan's YAML `status:` and the `## Sequence` in `plans/meta-runbook.md`: if `status:` is `Active`/`Blocked` or the plan is on the active Sequence → STOP, `archived: false`. Lock 2 can only ever block — it never approves an archive by itself.
 >
-> **Only if Lock 1 printed `PASS` (exit 0) AND Lock 2 found every deliverable present AND STATUS.md does not list it active:**
+> **Only if Lock 1 printed `PASS` (exit 0) AND Lock 2 found every deliverable present AND the plan is not active per its YAML `status:` / the meta-runbook Sequence:**
 > 1. If not dry-run: move the plan to `plans/<repo>/_archive/` (preserve directory structure for subfolder plans).
 > 2. Update any context files (`.claude/context/`) that reference this plan — remove stale pointers, update status.
 > 3. Update any dashboard files (`plans/_dashboard/`) that track this plan.
@@ -144,7 +144,7 @@ When dispatching each plan agent, give it this exact brief:
 > 1. **No active-work markers** — grep for `CLAIMED\|WIP\|🚧\|in-progress`. Zero hits required.
 > 2. **Code tasks are complete** — read the plan. Every implementation task must be `[x]`. The ONLY unchecked `[ ]` items must be explicitly labeled as manual/human gates (GPU smoke, visual acceptance, human sign-off, manual E2E, operator gate, hardware test, in-app verification). If any unchecked item is a code task (write feature, add test, author docs, make design decision) → NOT verify-ready.
 > 3. **Code deliverables exist** — run Lock 2 verification (extract deliverables, verify in child repo). If code claimed by the plan is missing → NOT verify-ready.
-> 4. **Not unchecked in exec-order.md** — same as archive guard Gate 4. If it's an unchecked critical-path item → NOT verify-ready.
+> 4. **Not on the active `## Sequence` in `plans/meta-runbook.md`** — if it's an unfinished critical-path item → NOT verify-ready.
 > 5. **Plan text confirms** — the plan must explicitly say it's waiting on a human gate. Look for phrases like "awaiting manual GPU acceptance," "human gate pending," "operator sign-off," "Stage 6 manual verification," "MANUAL-ACCEPTANCE," "GPU/Tauri smoke checklist." The plan itself declares the human bottleneck.
 >
 > **If ALL five pass → move to `plans/<repo>/_verify/`.** Return `{plan, repo, archived: false, verified: true, destination: "_verify", notes: "<what manual gates remain>"}`.
@@ -154,7 +154,7 @@ When dispatching each plan agent, give it this exact brief:
 >
 > ---
 >
-> Do NOT touch STATUS.md or exec-order.md — the orchestrator handles those.
+> Do NOT touch `plans/meta-runbook.md` — the orchestrator handles the cross-cutting ledger.
 > Do NOT commit — the orchestrator commits everything at the end.
 
 ## Flags

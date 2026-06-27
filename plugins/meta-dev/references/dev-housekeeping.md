@@ -1,45 +1,45 @@
-# Dev Housekeeping — Exec-Order, STATUS, Archive Integration
+# Dev Housekeeping — Meta-Runbook, Plan YAML, Archive Integration
 
 Post-stage bookkeeping that `/meta-dev` runs after each stage completes (and after Stage 6 final review).
+
+## Source-of-truth model
+
+- **Plan YAML frontmatter** (`status`/`stage`/`repo`/`depends`/`blocks`/`why`) is the SINGLE source of truth for a plan's stage and status. Tasks are `- [ ]`/`- [x]` checkboxes inside the plan file.
+- **`plans/meta-runbook.md`** is the ONLY hand-maintained ledger: `## Sequence` (ordered active plan paths), `=== MILESTONE: TYPE · label ===` markers, `## Wave Strategy / Critical Path`, `## Shipped`, `## Residual`. It REPLACES the old `STATUS.md` + `exec-order.md` pair.
+- The dashboard computes live state via `scripts/plan-index.py` (reads plan YAML + checkboxes). There is no plan state stored in `state.json` / the event log.
 
 ## Paths
 
 All paths read from config at runtime:
-- `bash scripts/config-get.sh meta_dev.paths.exec_order` → exec-order.md path
-- `bash scripts/config-get.sh meta_dev.paths.status_file` → STATUS.md path
 - `bash scripts/config-get.sh meta_dev.paths.plans_root` → plans root
 - `bash scripts/config-get.sh meta_dev.paths.archive_subdir` → archive subdirectory
 
+The runbook lives at `<plans_root>/meta-runbook.md`.
+
 ## Per-Stage Updates
 
-After each stage completes, update the exec-order entry for this plan:
-- Format: `Stage: N/6` annotation on the plan's line
-- Stage 1 done → `Stage: 1/6`
-- Stage 6 done → `Stage: 6/6 Done`
+Stage transitions are written ONLY by `scripts/stage-emit.sh`, which patches the plan's YAML `stage:`/`status:` and appends a slim history event. `on-stage-prompt.sh` calls it on stage-command submit. Do NOT hand-edit `stage:` in a plan — let stage-emit own it.
 
 ## Post-Stage-6 Housekeeping (full)
 
 After Stage 6 (Review) completes successfully:
 
-1. **Archive the plan:**
+1. **Confirm the plan is Done:** its YAML `status:` is `done` and all checkboxes are `[x]` (the deterministic gate is `scripts/archive-guard.sh`).
+
+2. **Archive the plan:**
    ```bash
    mv <plan-dir> <plans_root>/<archive_subdir>/<plan-name>/
    ```
 
-2. **Update STATUS.md:**
-   - Mark the initiative as Done in the active work table
-   - Update blockers section (remove this plan's blockers)
-   - Update Execution Strategy waves (move completed items, advance wave status)
-
-3. **Update exec-order.md:**
-   - Check off the completed step
-   - Update `Stage: 6/6` annotation
-   - Note what it unlocked
+3. **Update `plans/meta-runbook.md`:**
+   - Remove the plan's path from `## Sequence` (it is no longer active).
+   - Add a line under `## Shipped` (newest first): `<archived-path> — <Title>  (archived: <path>)`.
+   - Advance `## Wave Strategy / Critical Path` if a wave/milestone just cleared.
 
 4. **Commit:**
    ```bash
-   git add <plan-dir> plans/STATUS.md plans/exec-order.md
-   git commit -m "chore: archive <plan-name>, update STATUS + exec-order"
+   git add <plan-dir> plans/meta-runbook.md
+   git commit -m "chore: archive <plan-name>, update meta-runbook"
    git push
    ```
 

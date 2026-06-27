@@ -4,9 +4,9 @@ set -euo pipefail
 #
 # Age is NEVER a reason to archive. A plan that is old but unfinished STAYS.
 # A plan is archived if and only if the deterministic archive-guard says PASS
-# (Status: Done, no unchecked boxes, no active-work markers, not unchecked in
-# exec-order). This is the same guard /housekeeping uses — single source of
-# truth for "is this plan finished?".
+# (YAML status: Done, no unchecked boxes, no active-work markers, not listed
+# active in meta-runbook.md `## Sequence`). This is the same guard /housekeeping
+# uses — single source of truth for "is this plan finished?".
 #
 # Never delete — move only.
 

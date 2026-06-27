@@ -29,11 +29,14 @@ plans_dir="$(dirname "$PLAN")"
 while [ "$(basename "$plans_dir")" != "plans" ] && [ "$plans_dir" != "/" ] && [ "$plans_dir" != "." ]; do
   plans_dir="$(dirname "$plans_dir")"
 done
-STATUS_FILE="$plans_dir/STATUS.md"
-EXEC_FILE="$plans_dir/exec-order.md"
-base="$(basename "$PLAN")"
+RUNBOOK_FILE="$plans_dir/meta-runbook.md"
+# Normalize the plan path to its repo-relative form (plans/...) so it can be
+# matched against the runbook Sequence entries regardless of how it was passed.
+plan_rel="plans/${PLAN#*plans/}"
 
-# --- Gate 1: frontmatter Status MUST be exactly Done -------------------------
+# --- Gate 1: YAML/frontmatter status MUST be exactly Done --------------------
+# The plan's YAML frontmatter status: is the SINGLE source of truth for whether
+# a plan is finished. (Plain "Status:" prose is also accepted for legacy plans.)
 # Handles "**Status:** Done", "Status: Done", any case. Reads first match only.
 status_line="$(grep -m1 -iE '^[*[:space:]]*status[*[:space:]]*:' "$PLAN" || true)"
 if [ -z "$status_line" ]; then
@@ -59,10 +62,22 @@ if grep -qiE '(\bCLAIMED\b|\bWIP\b|🚧|in[ -]progress)' "$PLAN"; then
   reasons+=("plan contains an active-work marker (CLAIMED/WIP/🚧/in-progress)")
 fi
 
-# --- Gate 4: not listed unchecked in exec-order.md ---------------------------
-if [ -f "$EXEC_FILE" ]; then
-  if grep -nE "\[[[:space:]]\].*${base}|${base}.*\[[[:space:]]\]" "$EXEC_FILE" >/dev/null 2>&1; then
-    reasons+=("listed UNCHECKED in exec-order.md — still on the critical path")
+# --- Gate 4: not listed active in meta-runbook.md `## Sequence` ---------------
+# meta-runbook.md is the hand-maintained ledger. Its `## Sequence` section lists
+# every ACTIVE plan path, in build order. A plan whose path appears there is, by
+# definition, still on the critical path and MUST NOT be archived.
+if [ -f "$RUNBOOK_FILE" ]; then
+  # Extract the Sequence block (from `## Sequence` to the next `## ` header),
+  # then check whether the plan's repo-relative path is the first token of any
+  # entry line. MILESTONE markers and prose are ignored by the token match.
+  if awk '
+      /^## Sequence[[:space:]]*$/ { inseq=1; next }
+      /^## / { inseq=0 }
+      inseq { print }
+    ' "$RUNBOOK_FILE" \
+    | awk '{print $1}' \
+    | grep -qxF "$plan_rel"; then
+    reasons+=("listed active in meta-runbook.md \`## Sequence\` — still on the critical path")
   fi
 fi
 

@@ -36,7 +36,7 @@ No tracker visible = the run has not started correctly. For multi-item runs, cre
 
 ### 2b. Mirror every transition to the durable dashboard (MANDATORY)
 
-The `TaskUpdate` list is **ephemeral** — it vanishes when the run ends, which is exactly why `/meta-dashboard` goes stale. So at **every** stage transition, alongside the `TaskUpdate`, emit a durable stage event (fire-and-forget — never let it block the run):
+The `TaskUpdate` list is **ephemeral** — it vanishes when the run ends. So at **every** stage transition, alongside the `TaskUpdate`, emit a durable stage event (fire-and-forget — never let it block the run):
 
 ```
 bash ${CLAUDE_PLUGIN_ROOT}/scripts/stage-emit.sh "<plan-path>" <stage> <status>
@@ -45,7 +45,7 @@ bash ${CLAUDE_PLUGIN_ROOT}/scripts/stage-emit.sh "<plan-path>" <stage> <status>
 - `<stage>` — `brainstorm | design | plan | harden | execute | review` (maps to 1→6).
 - `<status>` — `in_progress` on start, `completed` on exit-criteria, `blocked` on halt — mirror the same status you pass to `TaskUpdate`.
 
-This is the single source of truth the dashboard reads (`plan_stages` in `state.json`, via the reducer). Emit on start AND on completion of each stage; emitting twice is harmless (the reducer keeps the latest). The stage-owning commands also emit when run standalone, so the dashboard stays correct whether the waterfall runs via `/meta-dev` or a command is invoked directly.
+`stage-emit.sh` patches the plan's YAML `stage:`/`status:` frontmatter in place — that frontmatter is the single source of truth for the plan's stage — and appends a slim history event to `events.jsonl`. `/meta-dashboard` then computes live from the plans via `scripts/plan-index.py`; there is no plan `state.json` to maintain. Emit on start AND on completion of each stage; emitting twice is harmless (last write wins). The stage-owning commands also emit when run standalone, so the dashboard stays correct whether the waterfall runs via `/meta-dev` or a command is invoked directly.
 
 ### 3. Nested, not duplicated
 

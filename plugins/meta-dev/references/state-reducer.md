@@ -2,12 +2,11 @@
 
 Event sourcing pattern. `state.events.jsonl` = append-only log. `state.json` = materialized view.
 
-## Event Types
+## Event Types (folded into state.json)
 
 | Event | Fields | Effect |
 |-------|--------|--------|
 | `commit` | sha, message, time | Prepend to recent_commits (cap 50) |
-| `plan_edit` | file, time | Update last_plan_edit per file |
 | `overlord_start` | watching, mode, model, auto_fix | Set overlord.active=true |
 | `overlord_tick` | tick_n, verdicts, findings | Increment tick_n, update last_review |
 | `overlord_done` | reason | Set overlord.active=false |
@@ -16,6 +15,10 @@ Event sourcing pattern. `state.events.jsonl` = append-only log. `state.json` = m
 | `meta_execute_start` | plan | Append to meta_execute_runs |
 | `meta_execute_end` | plan, status | Update run status |
 | `sweep_action` | action | Append to sweep_log (cap 100) |
+
+## History-only events (NOT folded)
+
+`stage_transition` rows are appended to `state.events.jsonl` by `stage-emit.sh` as a **timeline/history** record only — the reducer does NOT fold them into `state.json`. Plan stage/status is the plan's YAML frontmatter, read live by the dashboard via `plan-index.py`; it is never derived from the event log. (The old `plan_edit` no-op event and the `plan_stages` fold have been removed for this reason.)
 
 ## Idempotency
 

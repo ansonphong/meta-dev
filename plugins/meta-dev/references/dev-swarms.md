@@ -60,6 +60,6 @@ Delegate to `/meta-execute` (now ported — thin orchestrator + references).
 
 - Delegate to `/meta-eval` (now ported) → evaluation report
 - Delegate to `/meta-audit` → pipeline health check
-- Delegate to `/housekeeping` → archive plan, update STATUS/exec-order, commit
+- Delegate to `/housekeeping` → archive plan, update `plans/meta-runbook.md` (drop from `## Sequence`, add to `## Shipped`), commit
 
-**Exit criteria:** Eval grade ≥ B. Context files updated. Plans archived. Dashboards current.
+**Exit criteria:** Eval grade ≥ B. Context files updated. Plans archived. meta-runbook current. Dashboards current.

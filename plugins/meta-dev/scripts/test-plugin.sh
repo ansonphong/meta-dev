@@ -195,7 +195,7 @@ check_init() {
     cp -r "$FIXTURE" "$TMPDIR/test-project"
     cd "$TMPDIR/test-project"
     if CLAUDE_PLUGIN_ROOT="$PLUGIN_DIR" AUTO=true bash "$PLUGIN_DIR/scripts/init-project.sh" 2>&1; then
-      for f in plans/_dashboard/settings.json plans/_dashboard/state.json plans/STATUS.md plans/exec-order.md; do
+      for f in plans/_dashboard/settings.json plans/_dashboard/state.json plans/meta-runbook.md; do
         if [ -f "$f" ]; then
           PASS=$((PASS+1)); green "  PASS init creates: $f"
         else
