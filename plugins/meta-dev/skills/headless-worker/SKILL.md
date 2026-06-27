@@ -5,6 +5,8 @@ description: Patterns for headless Claude execution via claude -p --output-forma
 
 # Headless Worker
 
+The conceptual `claude -p` patterns documented here are the foundation. The concrete multi-backend implementation — DeepSeek / GLM / Codex routing tables, the distilled-result contract, `--repo` topology resolution — lives in `${CLAUDE_PLUGIN_ROOT}/scripts/claude-headless-exec` (and `codex-headless-exec`), fronted by `/deep-execute`, `/glm-execute`, `/codex-execute`, and orchestrated by `/auto-execute`. This file covers the general headless-model principles only; do not duplicate the backend-specific tables.
+
 Execute structured tasks via `claude -p` in headless mode. Useful for batch processing, CI/CD, and cron-driven automation.
 
 ## Patterns
