@@ -45,6 +45,10 @@ for tmpl in settings.json versioning.json changelog.json state.json inbox.jsonl 
   echo "  CREATED $target"
 done
 
+# Scaffold repo-topology config from template (discrete — not the dashboard loop above)
+mkdir -p .claude
+[ -f .claude/meta-dev-repos.json ] || cp "$TEMPLATES_DIR/repo-topology.json" .claude/meta-dev-repos.json
+
 # Append .gitignore entries
 GITIGNORE_SRC="$TEMPLATES_DIR/gitignore.template"
 if [ -f "$GITIGNORE_SRC" ]; then
