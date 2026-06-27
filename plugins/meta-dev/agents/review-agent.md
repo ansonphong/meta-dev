@@ -11,6 +11,8 @@ Code review specialist. Invokes code-review-protocol skill, outputs structured v
 ## Invocation
 
 Read the target diff (git diff or file changes), then invoke:
+- When passed a `pre_sha`, compute your own diff: `git diff <pre_sha>..HEAD` (this is
+  the agentic-exec-loop path — the conductor never reads diffs into its own context).
 - Skill: `code-review-protocol` (in `plugins/meta-dev/skills/code-review-protocol/`)
 
 ## Output

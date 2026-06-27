@@ -23,8 +23,8 @@
 
 ## Phase gate — the single Opus checkpoint per phase
 3. At phase end dispatch the Reviewer. Verdict JSON (review-agent's real shape):
-   `{ "verdict": "PASS|CONDITIONAL_PASS|FAIL", "confidence": 0-1,
-   "blast_radius": "isolated|file|module|cross-cutting|dependency-graph",
+   `{ "verdict": "PASS | CONDITIONAL_PASS | FAIL", "confidence": 0-1,
+   "blast_radius": "isolated | file | module | cross-cutting | dependency-graph",
    "issues": [ {severity,file,line,title,description,suggested_fix} ],
    "summary": "..." }`.
 4. Branch:
