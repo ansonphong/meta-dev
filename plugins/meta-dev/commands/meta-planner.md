@@ -40,6 +40,10 @@ Define request/response shapes, error codes, endpoints before implementation tas
 
 Each phase file: Codebase Snapshot → tasks with Verify-Before/After hooks. Use semantic anchors (function/class names), never line numbers (see `templates/patterns/planner.md`).
 
+**Phase-size cap — keep phases SMALL (kills slow runs at the source).** No phase file exceeds **~3 tasks or ~8 touched files**. A fat phase (e.g. 6 tasks / 24 readers) makes every test cycle and review heavier and serializes the run — split it into `phase-N-a-<slug>.md` / `phase-N-b-<slug>.md` with a dependency note. Small phases move ~linearly faster and let the conductor fan mechanical leaves to DeepSeek. This is a hard authoring rule, audited at HARDEN.
+
+**Verify hooks MUST be path-scoped — `-k` is BANNED (~18× tax).** Measured: `pytest backend/tests/ -k "headline or refresh"` = 30s (collects all 233 files, then deselects); `pytest backend/tests/test_headline.py` = 1.7s. So every per-task `Verify-After` test command names the **file** (or `…::test_name`), never a bare dir or `-k` expression: write `pytest backend/tests/test_<thisfeature>.py -q`, NOT `pytest backend/tests/ -k "<expr>"`. Add `-m "not slow and not gpu and not integration"` for backends that mark them. **Never put `svelte-check`, `tsc --noEmit`, `npm run build`, or a full-suite run in a per-task Verify-After** — collect ALL of those into one **`## Acceptance Gate (phase end)`** section at the bottom of the phase file (the single place the whole suite + type/build/slow/GPU checks run once). See `references/execute-charter.md` → Fast Test Doctrine.
+
 **Tag every task `test: yes` or `test: no` (default `no`).** Read `meta_dev.execute.test_policy` (`bash scripts/config-get.sh meta_dev.execute.test_policy`, default `critical-only`) and the host `CLAUDE.md` testing policy first:
 
 - **`critical-only` (default)** — tag `test: yes` ONLY for critical-breakage tasks: data-corruption paths, auth/crypto verification, payment/value transfer, DB migration, serialization round-trip, cross-service API contract (refined by any critical surfaces the host CLAUDE.md names). Every other task is `test: no`.

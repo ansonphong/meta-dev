@@ -71,5 +71,31 @@ for f in "$PLAN_DIR"/*phase*.md; do
   fi
 done
 
+# Check 6: Phase-size cap — phases should stay small (~3 tasks) for fast cycles
+for f in "$PLAN_DIR"/*phase*.md; do
+  [ -f "$f" ] || continue
+  tcount=$(grep -cE '^## Task ' "$f" 2>/dev/null || echo 0)
+  if [ "$tcount" -gt 3 ]; then
+    yellow "$(basename "$f"): $tcount tasks (> 3) — oversized phase; split into phase-N-a/phase-N-b for faster cycles (Fast Test Doctrine)"
+  fi
+done
+
+# Check 7: Verify hooks must be path-scoped — flag the slow `-k`/bare-dir/broad-gate antipatterns
+# `pytest -k <expr>` and `pytest <dir>/` collect the WHOLE tree (~18x slower per cycle);
+# svelte-check/tsc/build per task belong only in an end-of-phase Acceptance Gate.
+for f in "$PLAN_DIR"/*phase*.md; do
+  [ -f "$f" ] || continue
+  body=$(sed '/^```/,/^```/d' "$f")
+  if printf '%s' "$body" | grep -qE 'pytest[^`]*-k '; then
+    yellow "$(basename "$f"): a Verify hook uses 'pytest -k' — path-scope instead (name the test file); -k collects all files first (~18x tax)"
+  fi
+  if printf '%s' "$body" | grep -qE 'pytest +[^ ]*/ +-q|pytest +[A-Za-z_./-]*/ *$'; then
+    yellow "$(basename "$f"): a Verify hook runs pytest on a directory — name the test file(s) instead for fast collection"
+  fi
+  if printf '%s' "$body" | grep -qiE 'svelte-check|tsc --noEmit|npm run build'; then
+    yellow "$(basename "$f"): a per-task Verify hook runs svelte-check/tsc/build — move these to a single '## Acceptance Gate (phase end)' section, not per task"
+  fi
+done
+
 echo "=== planner-validate: $ERRORS errors, $WARNINGS warnings ==="
 exit $ERRORS
