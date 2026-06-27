@@ -211,6 +211,75 @@ check_init() {
   fi
 }
 
+check_headless() {
+  echo "=== Headless Runner Smoke ==="
+  local claude_exec="$PLUGIN_DIR/scripts/claude-headless-exec"
+  local codex_exec="$PLUGIN_DIR/scripts/codex-headless-exec"
+  local topo="$PLUGIN_DIR/scripts/lib/repo-topology.py"
+
+  # claude-headless-exec exists, executable, shebang
+  if [ -f "$claude_exec" ]; then
+    PASS=$((PASS+1)); green "  PASS exists: scripts/claude-headless-exec"
+  else
+    FAIL=$((FAIL+1)); red "  FAIL missing: scripts/claude-headless-exec"
+  fi
+  if [ -x "$claude_exec" ]; then
+    PASS=$((PASS+1)); green "  PASS executable: scripts/claude-headless-exec"
+  else
+    FAIL=$((FAIL+1)); red "  FAIL not executable: scripts/claude-headless-exec"
+  fi
+  if head -1 "$claude_exec" | grep -q '^#!/'; then
+    PASS=$((PASS+1)); green "  PASS shebang: scripts/claude-headless-exec"
+  else
+    FAIL=$((FAIL+1)); red "  FAIL missing shebang: scripts/claude-headless-exec"
+  fi
+
+  # codex-headless-exec exists, executable, shebang
+  if [ -f "$codex_exec" ]; then
+    PASS=$((PASS+1)); green "  PASS exists: scripts/codex-headless-exec"
+  else
+    FAIL=$((FAIL+1)); red "  FAIL missing: scripts/codex-headless-exec"
+  fi
+  if [ -x "$codex_exec" ]; then
+    PASS=$((PASS+1)); green "  PASS executable: scripts/codex-headless-exec"
+  else
+    FAIL=$((FAIL+1)); red "  FAIL not executable: scripts/codex-headless-exec"
+  fi
+  if head -1 "$codex_exec" | grep -q '^#!/'; then
+    PASS=$((PASS+1)); green "  PASS shebang: scripts/codex-headless-exec"
+  else
+    FAIL=$((FAIL+1)); red "  FAIL missing shebang: scripts/codex-headless-exec"
+  fi
+
+  # Offline topology resolution (NO real backend call)
+  local TMPDIR
+  TMPDIR=$(mktemp -d)
+  mkdir -p "$TMPDIR/.claude"
+  cat > "$TMPDIR/.claude/meta-dev-repos.json" <<'EOF'
+{
+  "root": "..",
+  "repos": {
+    "test-repo": "test-repo-dir"
+  }
+}
+EOF
+  mkdir -p "$TMPDIR/test-repo-dir"
+  local resolved
+  resolved=$(cd "$TMPDIR" && python3 "$topo" test-repo 2>/dev/null || true)
+  if [ -n "$resolved" ] && [ -d "$resolved" ]; then
+    PASS=$((PASS+1)); green "  PASS repo-topology resolves known name"
+  else
+    FAIL=$((FAIL+1)); red "  FAIL repo-topology resolution (got: '$resolved')"
+  fi
+  resolved=$(cd "$TMPDIR" && python3 "$topo" nope 2>/dev/null || true)
+  if [ -z "$resolved" ]; then
+    PASS=$((PASS+1)); green "  PASS repo-topology empty for unknown name"
+  else
+    FAIL=$((FAIL+1)); red "  FAIL repo-topology should be empty for unknown name (got: '$resolved')"
+  fi
+  rm -rf "$TMPDIR"
+}
+
 # Main
 cd "$PLUGIN_DIR/../.."  # cd to repo root
 
@@ -222,6 +291,7 @@ case "${1:-}" in
   --check-agents) check_agents ;;
   --check-hooks) check_hooks ;;
   --check-init) check_init ;;
+  --check-headless) check_headless ;;
   *)
     check_schemas
     check_templates
@@ -231,6 +301,7 @@ case "${1:-}" in
     check_agents
     check_hooks
     check_init
+    check_headless
     ;;
 esac
 
