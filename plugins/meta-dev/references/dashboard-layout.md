@@ -15,15 +15,16 @@ box-drawing characters, geometric status dots, and the progress-bar blocks.
 `dwidth()` in the renderer computes display width (emoji = 2, combining/ZWJ/VS =
 0, else 1) so all padding stays exact.
 
-## Status Dots (in-box)
+## Status Glyphs (in-box)
+
+Keyed on the plan-index status enum (`dashboard-render.py` `GLYPH`):
 
 | Glyph | Meaning | status key |
 |-------|---------|------------|
-| ● | Done / shipped | `done` |
-| ◐ | In-flight / active | `inflight` |
-| ○ | Pending / queued | `pending` |
-| ◆ | Blocked | `blocked` |
-| ◌ | Paused | `paused` |
+| ✓ | Done / shipped | `done` |
+| → | Active / in-flight | `active` |
+| ! | Blocked | `blocked` |
+| ◦ | Draft / queued | `draft` |
 
 `overlord-render.py` is a separate renderer and keeps its own emoji glyph set
 (✅ 🟡 ⬜ 🔴 ⏸); it is not bound by this in-box rule.
@@ -40,12 +41,32 @@ box-drawing characters, geometric status dots, and the progress-bar blocks.
 
 ## Plan Source
 
-Plans come from `dashboard-data.sh`, which scans active plan units — directories
-containing a master plan, plus loose top-level plan files — under
-`plans/{app,www,gallery,meta}/`, excluding `_archive/_future/_research/_dashboard`.
-Progress is derived from anchored task checkboxes (`^\s*[-*]\s*\[[ xX]\]`, so
-inline prose mentions of `[ ]` are ignored). Sorted in-flight → blocked →
-pending → done, then by task count; capped at 12.
+Plans come from `plan-index.py` (the single source of truth), which the
+`dashboard-data.sh` gatherer invokes and reshapes. The tracked set is the
+ordered `plans/…md` list under the `## Sequence` of `plans/meta-runbook.md`
+(falling back to discovered master/dated plans pre-runbook), excluding
+`_archive/_future/_research/_dashboard` and the sensitive ledger. Progress is
+derived from anchored task checkboxes (`^\s*[-*]\s*\[[ xX]\]`, so inline prose
+mentions of `[ ]` are ignored), counted per tracked file only. Plans render in
+runbook Sequence order (extras appended); no fixed cap.
+
+## Arguments
+
+The command forwards `$ARGUMENTS` to `dashboard-data.sh`; the renderer takes no
+flags. All are optional — bare `/meta-dashboard` renders the full view.
+
+| Arg | Effect |
+|-----|--------|
+| `SCOPE` (positional) | a `plans/` **dir** narrows the Plans panel to that area; a single **`.md` file** switches to a focus view (frontmatter, overall bar, per-`##`/`###` checkbox breakdown) |
+| `--commits[=N]` | focus on commits — `N` rows (default 25), expanded with relative dates |
+| `--only a,b` / `--no a,b` | render only / hide named sections |
+| `--repo R` / `--status S` | filter the plan set |
+| `--all` | include `_archive`/`_future`/`_research` plans |
+| `-h`, `--help` | usage (from `dashboard-data.sh`) |
+
+Sections: `plans focus milestones sessions inbox sweep commits`. `focus` only
+renders under single-file scope; `sweep` only when there is recent activity.
+The sensitive ledger is hard-refused in focus mode **before any file read**.
 
 ## Inline Rendering
 

@@ -7,6 +7,50 @@ set -euo pipefail
 PROJECT=$(basename "$(pwd)")
 GIT_REPO=$(git remote get-url origin 2>/dev/null | sed 's/.*[:/]\(.*\)\.git/\1/' || echo "$PROJECT")
 
+# ── Arguments ────────────────────────────────────────────────────────────────
+# Bare `meta-dashboard` behaves exactly as before; every arg below is optional.
+#   SCOPE (positional): a plans/ DIR (narrow the Plans panel) OR a single .md
+#                       plan FILE (focus view — frontmatter + per-section bars).
+#   --commits[=N]       focus on commits: N (default 25), expanded with dates.
+#   --only a,b / --no a,b   select / hide sections.
+#   --repo / --status   filter the plan set.   --all  include archive/future.
+SCOPE=""; ONLY=""; NO=""; REPO=""; STATUS=""; ALL=0
+COMMITS_FLAG=0; COMMITS_EXPANDED=0; COMMIT_COUNT=10
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --commits)    COMMITS_FLAG=1; COMMITS_EXPANDED=1; COMMIT_COUNT=25 ;;
+        --commits=*)  COMMITS_FLAG=1; COMMITS_EXPANDED=1; COMMIT_COUNT="${1#*=}" ;;
+        --only)       ONLY="${2:-}"; shift ;;
+        --only=*)     ONLY="${1#*=}" ;;
+        --no)         NO="${2:-}"; shift ;;
+        --no=*)       NO="${1#*=}" ;;
+        --repo)       REPO="${2:-}"; shift ;;
+        --repo=*)     REPO="${1#*=}" ;;
+        --status)     STATUS="${2:-}"; shift ;;
+        --status=*)   STATUS="${1#*=}" ;;
+        --all)        ALL=1 ;;
+        -h|--help)
+            cat <<'HELP'
+meta-dashboard [SCOPE] [flags]
+  SCOPE            plans/ directory (narrow Plans) OR a .md plan file (focus view)
+  --commits[=N]    focus on commits — N (default 25), expanded with dates
+  --only a,b,c     render only these sections
+  --no a,b,c       render every section except these
+  --repo NAME      only plans whose repo: matches
+  --status NAME    only plans whose status: matches
+  --all            include _archive/_future/_research plans
+  -h, --help       show this help
+Sections: plans focus milestones sessions inbox sweep commits
+HELP
+            exit 0 ;;
+        --*)          echo "meta-dashboard: unknown flag: $1" >&2; exit 2 ;;
+        *)            SCOPE="$1" ;;
+    esac
+    shift
+done
+# Guard COMMIT_COUNT against non-numeric input (e.g. --commits=abc).
+case "$COMMIT_COUNT" in ''|*[!0-9]*) COMMIT_COUNT=10 ;; esac
+
 # Plans: delegate ALL plan scanning to plan-index.py — the single source of
 # truth. It parses the runbook Sequence (display order), milestones, and each
 # plan's status/stage/progress from frontmatter + checkboxes. This script no
@@ -14,7 +58,12 @@ GIT_REPO=$(git remote get-url origin 2>/dev/null | sed 's/.*[:/]\(.*\)\.git/\1/'
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLAN_INDEX_JSON="{}"
 if [ -f "$SCRIPT_DIR/plan-index.py" ]; then
-    PLAN_INDEX_JSON=$(python3 "$SCRIPT_DIR/plan-index.py" 2>/dev/null || echo "{}")
+    PI_ARGS=()
+    [ -n "$SCOPE" ]   && PI_ARGS+=(--scope "$SCOPE")
+    [ -n "$REPO" ]    && PI_ARGS+=(--repo "$REPO")
+    [ -n "$STATUS" ]  && PI_ARGS+=(--status "$STATUS")
+    [ "$ALL" = 1 ]    && PI_ARGS+=(--all)
+    PLAN_INDEX_JSON=$(python3 "$SCRIPT_DIR/plan-index.py" "${PI_ARGS[@]+"${PI_ARGS[@]}"}" 2>/dev/null || echo "{}")
 fi
 
 # State: read from state.json via state-read.sh
@@ -79,18 +128,20 @@ except: print(0)
 " 2>/dev/null || echo 0)
 fi
 
-# Recent commits
-COMMITS_JSON=$(git log --oneline -10 --format='%h %s' 2>/dev/null | python3 -c "
+# Recent commits — COMMIT_COUNT rows, with relative date for expanded mode.
+# Fields are \x1f-separated so commit subjects can contain anything.
+COMMITS_JSON=$(git log -"$COMMIT_COUNT" --date=relative --format='%h%x1f%ad%x1f%s' 2>/dev/null | python3 -c "
 import json, sys
 commits = []
 for line in sys.stdin:
-    line = line.strip()
+    line = line.rstrip('\n')
     if not line: continue
-    parts = line.split(' ', 1)
+    parts = line.split('\x1f')
     sha = parts[0] if parts else '?'
-    msg = parts[1][:72] if len(parts) > 1 else '?'
-    commits.append({'sha': sha, 'msg': msg, 'ago': '—'})
-print(json.dumps(commits[:8]))
+    ago = parts[1] if len(parts) > 1 else '—'
+    msg = parts[2] if len(parts) > 2 else '?'
+    commits.append({'sha': sha, 'ago': ago, 'msg': msg})
+print(json.dumps(commits))
 " 2>/dev/null || echo "[]")
 
 # Dirty count
@@ -113,7 +164,7 @@ except: print('[]')
 # interpolation) so unicode escapes / quotes in plan titles can't corrupt the
 # generated Python source. Reshape plan-index's plans into the fields the
 # renderer expects, ordered by the runbook Sequence first, extras after.
-export PLAN_INDEX_JSON SESSIONS SWEEP_JSON COMMITS_JSON
+export PLAN_INDEX_JSON SESSIONS SWEEP_JSON COMMITS_JSON ONLY NO COMMITS_FLAG
 python3 -c "
 import json, os, re
 
@@ -146,6 +197,24 @@ for p in raw:
         'malformed': bool(p.get('malformed', False)),
     })
 
+# Which panels render, in order. Focus mode (single-file scope) swaps the Plans
+# panel for the Focus panel; --commits with no explicit selection narrows to it.
+focus = idx.get('focus')
+ALL_SECTIONS = ['plans', 'milestones', 'sessions', 'inbox', 'sweep', 'commits']
+only = (os.environ.get('ONLY') or '').strip()
+no = (os.environ.get('NO') or '').strip()
+commits_flag = os.environ.get('COMMITS_FLAG') == '1'
+base = ['focus', 'commits'] if focus else list(ALL_SECTIONS)
+if only:
+    sections = [s.strip() for s in only.split(',') if s.strip()]
+elif no:
+    drop = {s.strip() for s in no.split(',') if s.strip()}
+    sections = [s for s in base if s not in drop]
+elif commits_flag and not focus:
+    sections = ['commits']
+else:
+    sections = base
+
 data = {
     'project': '$GIT_REPO',
     'plans': plans,
@@ -160,6 +229,11 @@ data = {
     },
     'sweep_log': json.loads(os.environ.get('SWEEP_JSON') or '[]'),
     'recent_commits': json.loads(os.environ.get('COMMITS_JSON') or '[]'),
+    'focus': focus,
+    'scope': idx.get('scope'),
+    'scope_kind': idx.get('scope_kind'),
+    'sections': sections,
+    'commits_expanded': bool($COMMITS_EXPANDED),
     'refresh_rate': 'once',
     'agent_count': 0,
     'dirty_count': $DIRTY,

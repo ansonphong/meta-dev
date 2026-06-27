@@ -18,6 +18,7 @@ Deterministic, no LLM, no third-party deps (hand-rolled frontmatter parser —
 never imports yaml). MUST NEVER crash on bad input: every per-file parse is
 wrapped, and a malformed plan becomes a flagged entry rather than an exception.
 """
+import argparse
 import glob
 import json
 import os
@@ -37,6 +38,9 @@ REQUIRED_KEYS = ("status", "stage", "repo")
 RUNBOOK = "plans/meta-runbook.md"
 
 CHECKBOX = re.compile(r"^\s*[-*]\s*\[([ xX])\]")
+# Markdown ## / ### headings — used for the per-section breakdown in --scope FILE
+# focus mode (group 2 is the heading text, trailing #'s and whitespace stripped).
+HEADING = re.compile(r"^(#{2,3})\s+(.+?)\s*#*\s*$")
 MILESTONE = re.compile(r"^=+\s*MILESTONE:\s*(.+?)\s*=+\s*$")
 DATED = re.compile(r"^\d{4}-\d{2}-\d{2}-.*\.md$")
 # Noise files that are NEVER standalone tracked plans (phase docs, designs,
@@ -147,6 +151,87 @@ def count_checkboxes(text):
     return {"done": done, "total": total, "pct": pct}
 
 
+def section_breakdown(text):
+    """Per-heading checkbox tally for focus mode (--scope FILE).
+
+    Walks the file, attributing each anchored checkbox to the most recent
+    ## / ### heading. Returns only sections that actually contain checkboxes,
+    in document order, each as {title, done, total, pct}.
+    """
+    out = []
+    cur = None
+    for line in text.split("\n"):
+        h = HEADING.match(line)
+        if h:
+            cur = {"title": h.group(2).strip(), "done": 0, "total": 0}
+            out.append(cur)
+            continue
+        m = CHECKBOX.match(line)
+        if m and cur is not None:
+            cur["total"] += 1
+            if m.group(1) in "xX":
+                cur["done"] += 1
+    res = []
+    for s in out:
+        if s["total"]:
+            s["pct"] = round(100 * s["done"] / s["total"])
+            res.append(s)
+    return res
+
+
+def norm_path(p):
+    """Normalize a user-supplied scope path: backslashes -> /, strip trailing /."""
+    if not p:
+        return p
+    p = p.replace("\\", "/").strip()
+    while len(p) > 1 and p.endswith("/"):
+        p = p[:-1]
+    return p
+
+
+def build_focus(scope):
+    """Build the single-plan deep-dive object for --scope FILE.
+
+    Hard-refuses the sensitive/excluded ledgers BEFORE any open() — a restricted
+    path is reported as restricted and never read.
+    """
+    rel = norm_path(scope)
+    if rel == SENSITIVE or rel in EXCLUDE_BY_NAME:
+        return {"path": rel, "restricted": True}
+    if not os.path.isfile(rel):
+        return {"path": rel, "missing": True}
+    try:
+        with open(rel, encoding="utf-8", errors="ignore") as fh:
+            text = fh.read()
+    except Exception:
+        return {"path": rel, "malformed": True}
+    try:
+        fm, _present = parse_frontmatter(text)
+    except Exception:
+        fm = {}
+    stage_raw = fm.get("stage", "")
+    try:
+        stage = int(str(stage_raw).strip())
+    except (ValueError, TypeError):
+        stage = stage_raw or "?"
+    base = rel.rsplit("/", 1)[-1]
+    if "master-plan" in base and "/" in rel:
+        name = rel.rsplit("/", 2)[-2]
+    else:
+        name = re.sub(r"\.md$", "", base)
+        name = re.sub(r"^\d{4}-\d{2}-\d{2}-", "", name)
+    return {
+        "path": rel,
+        "name": name,
+        "status": fm.get("status", "") or "draft",
+        "stage": stage,
+        "repo": fm.get("repo", "") or "",
+        "why": fm.get("why", "") or "",
+        "progress": count_checkboxes(text),
+        "sections": section_breakdown(text),
+    }
+
+
 def as_list(v):
     if v is None:
         return []
@@ -206,15 +291,19 @@ def build_entry(rel, info):
 
 
 # ── discovery walk ────────────────────────────────────────────────────────────
-def walk_candidates():
-    """Walk plans/, return allowlisted candidate paths (excluded dirs pruned)."""
+def walk_candidates(exclude_dirs=EXCLUDE_DIRS):
+    """Walk plans/, return allowlisted candidate paths (excluded dirs pruned).
+
+    The sensitive ledger and EXCLUDE_BY_NAME are pruned UNCONDITIONALLY — even
+    when exclude_dirs is empty (--all), those are never surfaced.
+    """
     out = []
     if not os.path.isdir("plans"):
         return out
     for path in sorted(glob.glob("plans/**/*.md", recursive=True)):
         rel = path.replace("\\", "/")
         parts = rel.split("/")
-        if any(d in EXCLUDE_DIRS for d in parts):
+        if any(d in exclude_dirs for d in parts):
             continue
         if rel == SENSITIVE or rel in EXCLUDE_BY_NAME:
             continue
@@ -303,14 +392,47 @@ def parse_runbook_sequence():
 
 
 # ── main ────────────────────────────────────────────────────────────────────────
-def main():
+def parse_args(argv):
+    ap = argparse.ArgumentParser(
+        prog="plan-index.py",
+        description="Scan plans/ -> consolidated JSON for the dashboard.",
+    )
+    ap.add_argument("--scope", default=None,
+                    help="restrict to a plans/ directory, OR focus a single .md plan file")
+    ap.add_argument("--repo", default=None, help="only plans whose repo: matches")
+    ap.add_argument("--status", default=None, help="only plans whose status: matches")
+    ap.add_argument("--all", action="store_true",
+                    help="include _archive/_future/_research (never the sensitive ledger)")
+    return ap.parse_args(argv)
+
+
+def main(argv=None):
+    args = parse_args(sys.argv[1:] if argv is None else argv)
+    exclude_dirs = set() if args.all else EXCLUDE_DIRS
+    scope = norm_path(args.scope) if args.scope else None
+
+    # --scope resolution. A FILE (or a restricted ledger path, even if absent)
+    # becomes single-plan focus mode; a DIR narrows the plans panel.
+    focus = None
+    scope_kind = None
+    if scope and (scope == SENSITIVE or scope in EXCLUDE_BY_NAME):
+        focus = build_focus(scope)          # refused before any open()
+        scope_kind = "file"
+    elif scope and os.path.isfile(scope):
+        focus = build_focus(scope)
+        scope_kind = "file"
+    elif scope and os.path.isdir(scope):
+        scope_kind = "dir"
+    elif scope:
+        scope_kind = "missing"
+
     runbook_present = os.path.isfile(RUNBOOK)
     order, milestones, trailing_paths = parse_runbook_sequence()
 
     # Discover allowlisted candidates that carry a frontmatter block (or are
     # unreadable). These drive the fallback tracked set + the untracked list.
     discovered = []  # (rel, info)
-    for rel in walk_candidates():
+    for rel in walk_candidates(exclude_dirs):
         info = read_plan_file(rel)
         if not info.get("ok_read"):
             discovered.append((rel, info))
@@ -341,7 +463,39 @@ def main():
     order_set = set(order)
     untracked = [rel for rel, _ in discovered if rel not in order_set]
 
-    # Fill milestone + trailing done counts (done = status == "done").
+    # ── scope DIR: narrow to plans under the dir, appending discovered-but-
+    # untracked plans living there so the area view is complete.
+    if scope_kind == "dir":
+        prefix = scope + "/"
+
+        def under(p):
+            return p == scope or p.startswith(prefix)
+
+        have = set()
+        kept = []
+        for p in plans:
+            if under(p["path"]):
+                kept.append(p)
+                have.add(p["path"])
+        for rel in untracked:
+            if under(rel) and rel not in have:
+                kept.append(build_entry(rel, discovered_map[rel]))
+                have.add(rel)
+        plans = kept
+        untracked = [u for u in untracked if under(u)]
+    elif scope_kind in ("file", "missing"):
+        # Focus / non-existent scope: the plans panel is not the subject.
+        plans = []
+        untracked = []
+
+    # ── repo / status filters (on whatever plan set remains).
+    if args.repo:
+        plans = [p for p in plans if p.get("repo") == args.repo]
+    if args.status:
+        plans = [p for p in plans if p.get("status") == args.status]
+
+    # Fill milestone + trailing done counts (done = status == "done"). Computed
+    # from the GLOBAL status map so milestone progress is scope-independent.
     def done_for(p):
         e = status_by_path.get(p)
         return bool(e) and e.get("status") == "done"
@@ -370,6 +524,9 @@ def main():
         "trailing": trailing,
         "untracked": untracked,
         "counts": counts,
+        "focus": focus,
+        "scope": scope,
+        "scope_kind": scope_kind,
     }
     json.dump(out, sys.stdout, indent=2)
     sys.stdout.write("\n")

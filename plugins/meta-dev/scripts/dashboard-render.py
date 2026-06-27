@@ -168,23 +168,54 @@ def inbox_body(inbox):
     return body
 
 
-def commits_body(commits):
+def commits_body(commits, expanded=False):
     if not commits:
         return ["(no commits)"]
-    return [f"{c.get('sha', '?'):<8} {col(c.get('msg', '?'), FIELD - 9)}" for c in commits]
+    body = []
+    for c in commits:
+        sha = (c.get("sha", "?") or "?")[:8]
+        msg = c.get("msg", "?")
+        body.append(f"{sha:<8} {col(msg, FIELD - 9)}")
+        if expanded:
+            ago = c.get("ago", "")
+            if ago and ago != "—":
+                body.append(f"{'':<8} {col(ago, FIELD - 9)}")
+    return body
+
+
+def focus_body(f):
+    """Single-plan deep-dive panel for --scope FILE."""
+    if f.get("restricted"):
+        return ["(scope restricted — this path is not available)"]
+    if f.get("missing"):
+        return [f"(no such plan file: {f.get('path', '?')})"]
+    if f.get("malformed"):
+        return [f"(could not read: {f.get('path', '?')})"]
+    d = f.get("progress", {}) or {}
+    done, total = d.get("done", 0), d.get("total", 0)
+    body = [
+        col(f.get("name", "?"), FIELD),
+        f"status {f.get('status', '?')}   ·   stage {f.get('stage', '?')}"
+        f"   ·   repo {f.get('repo', '—') or '—'}",
+        f"{bar(done, total)} {done:>3}/{total:<3} {pct(done, total)}",
+    ]
+    why = f.get("why", "")
+    if why:
+        body.append(col("why: " + why, FIELD))
+    secs = f.get("sections", [])
+    if secs:
+        body.append("─" * FIELD)
+        for s in secs:
+            sd, st = s.get("done", 0), s.get("total", 0)
+            body.append(f"{col(s.get('title', '?'), 30)} {bar(sd, st)} {sd:>3}/{st:<3} {pct(sd, st)}")
+    return body
 
 
 # ── render ───────────────────────────────────────────────────────────────────
-def render(data):
-    L = []
-    L.append(f"🎛  Control Plane — {data.get('project', 'meta-dev')}")
-    L.append("")
-    L.append("   " + datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
-    L.append("")
-
+def _plans_panel(data):
     counts = data.get("counts", {}) or {}
     tracked = counts.get("tracked", len(data.get("plans", [])))
-    plans_title = f"Plans · {tracked} tracked"
+    title = f"Plans · {tracked} tracked"
     extra = []
     if counts.get("malformed"):
         extra.append(f"{counts['malformed']} malformed")
@@ -192,21 +223,60 @@ def render(data):
     if untr:
         extra.append(f"{len(untr)} untracked")
     if extra:
-        plans_title += " · " + " · ".join(extra)
-    L += panel(plans_title, plans_body(data.get("plans", [])))
+        title += " · " + " · ".join(extra)
+    return panel(title, plans_body(data.get("plans", [])))
+
+
+def render_section(sec, data):
+    """Render one named section to a list of lines, or None to skip it."""
+    if sec == "plans":
+        return _plans_panel(data)
+    if sec == "focus":
+        f = data.get("focus")
+        if not f:
+            return None
+        return panel("Plan Focus", focus_body(f))
+    if sec == "milestones":
+        return panel("Milestones", milestones_body(data.get("milestones", [])))
+    if sec == "sessions":
+        return panel("Active Sessions", sessions_body(data.get("active_sessions", [])))
+    if sec == "inbox":
+        return panel("Inbox", inbox_body(data.get("inbox", {})))
+    if sec == "sweep":
+        sweep = data.get("sweep_log", [])
+        if not sweep:
+            return None  # conditional — only renders when there is activity
+        return panel("Sweep Log · 24h", [f"✓ {s}" for s in sweep])
+    if sec == "commits":
+        commits = data.get("recent_commits", [])
+        title = "Recent Commits"
+        if data.get("commits_expanded"):
+            title += f" · {len(commits)}"
+        return panel(title, commits_body(commits, data.get("commits_expanded", False)))
+    return None
+
+
+# Default panel order when the data carries no explicit `sections` (e.g. --test).
+DEFAULT_SECTIONS = ["plans", "milestones", "sessions", "inbox", "sweep", "commits"]
+
+
+def render(data):
+    L = []
+    L.append(f"🎛  Control Plane — {data.get('project', 'meta-dev')}")
     L.append("")
-    L += panel("Milestones", milestones_body(data.get("milestones", [])))
+    scope = data.get("scope")
+    if scope:
+        kind = data.get("scope_kind") or "scope"
+        L.append(f"   scope: {scope}  ({kind})")
+    L.append("   " + datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
     L.append("")
-    L += panel("Active Sessions", sessions_body(data.get("active_sessions", [])))
-    L.append("")
-    L += panel("Inbox", inbox_body(data.get("inbox", {})))
-    L.append("")
-    sweep = data.get("sweep_log", [])
-    if sweep:
-        L += panel("Sweep Log · 24h", [f"✓ {s}" for s in sweep])
+
+    for sec in (data.get("sections") or DEFAULT_SECTIONS):
+        block = render_section(sec, data)
+        if block is None:
+            continue
+        L += block
         L.append("")
-    L += panel("Recent Commits", commits_body(data.get("recent_commits", [])))
-    L.append("")
 
     r = data.get("refresh_rate", "once")
     a = data.get("agent_count", 0)
