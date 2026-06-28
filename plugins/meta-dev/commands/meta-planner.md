@@ -26,7 +26,9 @@ Read the input plan. Load host conventions via `references/host-claude-contract.
 
 ### 2. Inventory tasks, map dependencies, identify phases
 
-Extract every unit of work. Group into phases (3-8 tasks each). Apply task granularity rules from `references/host-claude-contract.md`.
+Extract every unit of work. Group into phases (3-8 tasks each).
+
+**Granularity — author for the progress bar (MANDATORY).** Every task carries a `### Task N:` checkbox, and **any task with more than one distinct, independently-verifiable step gets `- [ ]` subtask checkboxes for those steps** (e.g. `- [ ] backend field`, `- [ ] API schema`, `- [ ] frontend type`, `- [ ] UI wiring`). These subtask checkboxes are what `/meta-execute` mirrors into the live task list (1 checkbox ↔ 1 runtime task) and flips one-by-one — so finer checkboxes = a finer progress bar the developer can actually track. Author each checkbox as a single coherent unit of work that completes and verifies on its own. This does NOT inflate the phase-size cap below: granularity lives in **subtask checkboxes within a task**, not in more top-level `### Task` headings (LP-003 cross-layer propagation is the canonical source of these subtasks).
 
 ### 3. Codebase verification (ground truth)
 
@@ -54,7 +56,7 @@ Only `test: yes` tasks get a TDD subtask (test→fail→impl→pass→commit). *
 
 ### 6. Generate master plan with checklist + execution rules
 
-`00-master-plan.md` with: header, file structure, gap fixes, ALL tasks as `### Task N:` checkboxes, integration test task, execution rules.
+`00-master-plan.md` with: header, file structure, gap fixes, ALL tasks as `### Task N:` checkboxes **plus the per-task `- [ ]` subtask checkboxes from step 2** (so the master checklist is the complete, granular set of boxes execution will flip), integration test task, execution rules. Every checkbox here is one runtime task at execution time and gets flipped `- [x]` the instant its work is green — author them at that granularity.
 
 ### 7. Generate `.loop-gap-config.md`
 

@@ -18,8 +18,10 @@
 2. For EACH task in the phase: dispatch a FRESH worker (new headless process,
    clean context) with the task spec INCLUDING its `Verify:` command. The
    worker runs its own verify hook and self-fixes locally before returning.
-   Conductor reads only the one-line `result`, flips the task checkbox, and
-   commits per task (momentum). No Opus review at this granularity.
+   Conductor reads only the one-line `result`, flips that task's plan
+   checkbox(es) — the `### Task N:` box and any `- [ ]` subtask checkboxes its
+   work completed — and commits per task (momentum). No Opus review at this
+   granularity.
 
 ## Phase gate — the single Opus checkpoint per phase
 3. At phase end dispatch the Reviewer. Verdict JSON (review-agent's real shape):

@@ -49,7 +49,7 @@ bash ${CLAUDE_PLUGIN_ROOT}/scripts/stage-emit.sh "<plan-path>" <stage> <status>
 
 ### 3. Nested, not duplicated
 
-Stage 5 delegates to `/meta-execute`, which stands up its OWN per-*task* list (one entry per `### Task N:` in the plan). That is a separate, finer-grained tracker. Mark `Stage 5 — Execute` `in_progress`, let `/meta-execute` drive its task list, then mark `Stage 5` `completed` on return. **Never mirror execute's individual tasks into the stage list** — two lists at two granularities, zero overlap.
+Stage 5 delegates to `/meta-execute`, which stands up its OWN per-*checkbox* list (one entry per checkbox in the plan — every `### Task N:` AND every `- [ ]` subtask checkbox). That is a separate, much finer-grained tracker. Mark `Stage 5 — Execute` `in_progress`, let `/meta-execute` drive its task list, then mark `Stage 5` `completed` on return. **Never mirror execute's individual tasks into the stage list** — two lists at two granularities, zero overlap.
 
 ## Rules
 

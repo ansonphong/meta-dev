@@ -68,7 +68,7 @@ The single biggest execution cost is slow test cycles. Measured on a real run: `
 
 ## CLAIMED → DONE — Full Checkbox Lifecycle (MANDATORY)
 
-The plan file's checkboxes are the user's ONLY visibility into execution progress. Every task MUST pass through ALL three states in the plan file. No exceptions, no batching, no "I'll do it at the end."
+The plan file's checkboxes are the user's ONLY visibility into execution progress. Every checkbox — every `### Task N:` AND every `- [ ]` subtask checkbox — MUST pass through ALL three states in the plan file (a subtask checkbox flips DONE the instant its own step is green, exactly like a top-level task). No exceptions, no batching, no "I'll do it at the end." 1 runtime task ↔ 1 checkbox; completing the task is what checks the box.
 
 ### State 1: CLAIM (before dispatch)
 

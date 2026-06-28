@@ -18,7 +18,7 @@ This command owns the **EXECUTE** waterfall stage (5/6). Keep `/meta-dashboard` 
 
 ## ⛔ Prerequisite — visible main-thread task list (non-negotiable)
 
-**Before starting work on ANY task (whether dispatched to a subagent or run `--inline`), the main thread MUST stand up a visible task list via `TaskCreate` — one entry per `### Task N:` in the plan — and keep it live with `TaskUpdate` for the whole run.** The user runs `/meta-execute` to *watch* progress, so the task list is a primary deliverable, not a side effect. No tracker visible = the run has not started correctly. Updates are mirrored *as each state changes* — never batched at the end.
+**Before starting work on ANY task (whether dispatched to a subagent or run `--inline`), the main thread MUST stand up a visible task list via `TaskCreate` — one entry per CHECKBOX in the plan (every `### Task N:` heading AND every `- [ ]` subtask checkbox nested under it) — and keep it live with `TaskUpdate` for the whole run.** Granularity is the point: the user runs `/meta-execute` to *watch* progress, so a list of fine-grained, checkbox-mapped entries is a primary deliverable — a list of 4 broad items hides progress; the same plan's 14 checkboxes as 14 entries shows it. No tracker visible = the run has not started correctly. Updates are mirrored *as each state changes* — never batched at the end.
 
 Parse plan, dispatch one Sonnet subagent per task, commit + push between. **Optimistic by default:** never block forward progress on tests. After each task, run only the instant inline checks, then launch the task's test/verify suite **async in the background** and advance to the next task immediately — tests run in parallel while the run keeps moving. When an async verify comes back red, spawn a background fixer scoped to it, defer dependents, advance independent work, then solidify the foundation before completion. Only critical-risk tasks (`money-path` / `release-stability` / `schema-drift`) verify synchronously. `--strict` = old serial gate (every test runs inline and blocks).
 
@@ -44,11 +44,11 @@ Bare invocation (no tier flag) keeps the existing Sonnet path + Step 6 unchanged
 
 ### 1. Resolve plan path + parse task inventory
 
-Read the plan. Extract every `### Task N:` heading. Count them. Sub-tasks with `### Task N.M:` are separate. Phase headings are NOT tasks.
+Read the plan. Extract every **checkbox**: every `### Task N:` heading AND every `- [ ]` subtask checkbox nested under a task. Count them all — this checkbox count is the inventory the task list must match. Sub-tasks with `### Task N.M:` are separate. Phase headings are NOT tasks (they have no checkbox).
 
-### 2. Mirror EVERY task into the visible task list (MANDATORY — see Prerequisite)
+### 2. Mirror EVERY checkbox into the visible task list (MANDATORY — see Prerequisite)
 
-Call `TaskCreate` once per task — **descriptive, well-named** content (`<ID> — what it builds/fixes`, not bare IDs) so progress is readable. Set dependencies. The tracker item count MUST equal the step-1 inventory. **Hard gate: do not dispatch before the task list is visible and complete** — if you find yourself dispatching a subagent with no live task list, STOP and create it first. Surface every state through the run via `TaskUpdate`: `in_progress` → `🔧 repairing (async)` / `deferred — waiting on <ID>` / `blocked` → `completed`, plus one entry per background fixer and a final `📋 code review` entry.
+Call `TaskCreate` once per **checkbox** from the step-1 inventory (every task heading AND every subtask checkbox) — **descriptive, well-named** content (`<ID> — what it builds/fixes`, not bare IDs) so progress is readable. Set dependencies. **The tracker item count MUST equal the step-1 checkbox count — 1 runtime task ↔ 1 plan checkbox, always.** **Hard gate: do not dispatch before the task list is visible and complete** — if you find yourself dispatching a subagent with no live task list, STOP and create it first. Surface every state through the run via `TaskUpdate`: `in_progress` → `🔧 repairing (async)` / `deferred — waiting on <ID>` / `blocked` → `completed`, plus one entry per background fixer and a final `📋 code review` entry. **Each runtime task, when completed, flips exactly its own matching plan checkbox (see ⛔ CHECKBOX RULE) — the two never drift apart.**
 
 ### 3. Pre-flight gates
 
@@ -87,6 +87,8 @@ Replace with:         - [x] DONE Task N: <title>
 ```
 
 **After each flip, commit immediately:** `chore(plan): mark <Task ID> DONE`. Then advance to the next task.
+
+**Subtask checkboxes flip the same way.** A `- [ ]` nested under a task is its own runtime task and its own checkbox — flip it `- [x]` the instant that sub-step's work is green, exactly like a top-level task. The whole point of the per-checkbox list (step 2) is that nothing is "done" until its specific box is checked.
 
 **Self-check before the report card (step 8):** `grep -cE '^[[:space:]]*[-*][[:space:]]+\[[[:space:]]\]' <plan-file>`. If the count is not zero for completed tasks, you missed checkboxes — go back and flip them NOW, before rendering the report card.
 
