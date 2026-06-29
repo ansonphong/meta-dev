@@ -4,9 +4,15 @@
 - **Conductor** (main thread, Opus): dispatches, reads ONE verdict line per
   phase + each worker's one-line result. NEVER reads a diff, OUTPUT_FILE.raw,
   or the reviewer transcript.
-- **Worker** (headless process): DeepSeek `--backend deep` (default) or GLM
-  `--backend glm` via ${CLAUDE_PLUGIN_ROOT}/scripts/claude-headless-exec;
-  Codex via ${CLAUDE_PLUGIN_ROOT}/scripts/codex-headless-exec (no --backend).
+- **Worker** (headless process): DeepSeek `--backend deep` (default), GLM
+  `--backend glm`, or Anthropic Sonnet-200K `--backend sonnet` via
+  ${CLAUDE_PLUGIN_ROOT}/scripts/claude-headless-exec; Codex via
+  ${CLAUDE_PLUGIN_ROOT}/scripts/codex-headless-exec (no --backend).
+  `--backend sonnet` is a SEPARATE `claude -p` process pinned to
+  `claude-sonnet-4-6` (no `[1m]`) — ALWAYS use it for Sonnet work, NEVER an
+  Anthropic-model `Agent` subagent: a Sonnet subagent dispatched from an
+  `opus[1m]` conductor inherits the session's 1M beta and is billed at the 1M
+  rate. The headless process carries no such beta → standard 200K tier.
   Output → OUTPUT_FILE; conductor reads only the distilled `result`.
 - **Reviewer**: Agent subagent, agentType `meta-dev:review-agent` (Opus). Given
   {phase_spec, phase_pre_sha, phase_verify_cmds}, it computes its OWN
@@ -31,12 +37,15 @@
    "summary": "..." }`.
 4. Branch:
    - **PASS** → advance to next phase.
-   - **CONDITIONAL_PASS** → apply the `suggested_fix`es via one deep Fixer,
-     then advance (no re-review needed for minor issues).
+   - **CONDITIONAL_PASS** → apply the `suggested_fix`es via one Fixer on the
+     active tier's primary backend (see Tier mapping), then advance (no
+     re-review needed for minor issues).
    - **FAIL** → Fix ladder (step 5).
-5. **Fix ladder** (max 2 worker attempts, then surface):
-   - Attempt 1: Fixer `--backend deep` fed `issues` → re-Review (step 3).
-   - Attempt 2 (still FAIL): Fixer `--backend glm` → re-Review.
+5. **Fix ladder** (max 2 worker attempts, then surface) — backends per the
+   **active tier** (see Tier mapping), never looping the same backend twice on
+   the same failure:
+   - Attempt 1: Fixer on the tier's **primary** backend fed `issues` → re-Review (step 3).
+   - Attempt 2 (still FAIL): Fixer on the tier's **escalation** backend → re-Review.
    - Still FAIL → failure dossier to the inbox (repair-loop convention) +
      surface the one-line `summary`. Leave the phase uncommitted-beyond-tasks. Stop.
 
@@ -101,8 +110,17 @@ given to a headless worker. Cost: each tick ≈ one cached-prefix read (~10%
 input) + tiny output; net win only for large-context + long-idle.
 
 ## Tier mapping
+(Reviewer is ALWAYS the Opus `meta-dev:review-agent` — independent of tier.)
 - `--deep` (default): Worker=deep, Fix ladder deep→glm.
 - `--glm`: Worker=glm, Fix ladder glm→deep.
+- `--sonnet`: Worker=sonnet (Anthropic 200K via `--backend sonnet`), Fix ladder
+  sonnet→glm. EVERY sonnet step — per-task execution AND the attempt-1 fixer —
+  runs through `claude-headless-exec --backend sonnet` (a separate `claude -p`,
+  200K, no `[1m]`); NEVER an Anthropic-model `Agent` subagent (an `opus[1m]`
+  conductor would bill those at the 1M rate). Opus reviews the phase diff;
+  attempt-2 escalation is a headless GLM worker (still no 1M exposure) before
+  surfacing. Reach for `--sonnet` when you want Anthropic-grade Sonnet judgment
+  off the main thread at the 200K price.
 - `--codex`: NOT a per-task execution worker and NOT a fix-ladder tier. Codex is
   the cross-family CODE-REVIEW lens at the phase gate — an alternative/additional
   reviewer (GPT vs Claude) over the phase diff, never a per-task worker. The

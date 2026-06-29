@@ -1,7 +1,7 @@
 ---
 name: meta-execute
 description: Subagent-driven plan execution — optimistic momentum (fix regressions async, keep moving), mandatory post-run code review, verify+commit+push between, auto-archive on completion (never deploys)
-argument-hint: <plan-path> [--inline] [--strict] [--deep] [--glm] [--codex] [--deploy] [--pause-before=<task-id>]
+argument-hint: <plan-path> [--inline] [--strict] [--deep] [--glm] [--sonnet] [--codex] [--deploy] [--pause-before=<task-id>]
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, TaskCreate, TaskUpdate]
 model: opus
 ---
@@ -28,11 +28,11 @@ Read `references/execute-charter.md` before dispatching. Execution posture (opti
 
 ## Flow
 
-### Worker tier (`--deep`/`--glm`/`--codex`)
+### Worker tier (`--deep`/`--glm`/`--sonnet`/`--codex`)
 
 When a tier flag is present, run the **agentic-exec-loop** (skill: agentic-exec-loop, references/loop-protocol.md) instead of the Sonnet-subagent executor:
 
-- Execute each task via a fresh headless worker — `${CLAUDE_PLUGIN_ROOT}/scripts/claude-headless-exec --backend deep|glm --repo <plan-repo> -- <task spec incl. its Verify: command>`, or `${CLAUDE_PLUGIN_ROOT}/scripts/codex-headless-exec` for `--codex` (no `--backend`). The worker self-verifies.
+- Execute each task via a fresh headless worker — `${CLAUDE_PLUGIN_ROOT}/scripts/claude-headless-exec --backend deep|glm|sonnet --repo <plan-repo> -- <task spec incl. its Verify: command>`, or `${CLAUDE_PLUGIN_ROOT}/scripts/codex-headless-exec` for `--codex` (no `--backend`). The worker self-verifies. **`--sonnet` runs each task on a SEPARATE `claude -p` pinned to `claude-sonnet-4-6` (200K, no `[1m]`) via the ambient login — NEVER an Anthropic-model `Agent` subagent, which an `opus[1m]` conductor would bill at the 1M rate.**
 - KEEP the per-task checkbox flip + per-task commit (unchanged).
 - At each `## Phase N` boundary (or once at end for phase-less plans), dispatch `meta-dev:review-agent` over `git diff <phase_pre_sha>..HEAD`; branch on PASS/CONDITIONAL_PASS/FAIL per the protocol; run the deep→glm fix-ladder on FAIL.
 - The conductor holds only the task list + per-phase verdict; it never reads diffs.
@@ -100,7 +100,7 @@ Replace with:         - [x] DONE Task N: <title>
 
 ### 6. Mandatory post-run code review
 
-**Default path:** end-of-run `superpowers:requesting-code-review` over `git diff <start>..HEAD`. **Tier-flag path (`--deep`/`--glm`/`--codex`):** the closing review is satisfied by the per-phase `meta-dev:review-agent` passes — the final phase review IS the closing review (no separate end-of-run review). Either way, a run NEVER ends unreviewed. Route findings:
+**Default path:** end-of-run `superpowers:requesting-code-review` over `git diff <start>..HEAD`. **Tier-flag path (`--deep`/`--glm`/`--sonnet`/`--codex`):** the closing review is satisfied by the per-phase `meta-dev:review-agent` passes (always the **Opus** reviewer, regardless of which backend executed the tasks) — the final phase review IS the closing review (no separate end-of-run review). Either way, a run NEVER ends unreviewed. Route findings:
 
 - **Trivial/mechanical** (lint, format, missing annotation) → fix inline, commit, push
 - **Substantive** (logic, security, contract, scope creep) → surface to user with file:line in the Follow-ups section of the report card, do NOT silently auto-fix
@@ -164,6 +164,7 @@ ALWAYS end with this structured dashboard. Use `references/execute-report-card.m
 | `--strict` | Disable optimistic momentum — every verify/test runs inline and blocks, serial gate, every red is a hard STOP, no background fixers, no async tests |
 | `--deep` | Per-task headless DeepSeek worker + phase-gated review-agent (**default execution tier**; GLM only on fix-escalation) |
 | `--glm` | Per-task headless GLM worker + phase-gated review-agent (stateful/complex/long-horizon) |
+| `--sonnet` | Per-task headless **Anthropic Sonnet-200K** worker (`--backend sonnet`: a separate `claude -p` pinned to `claude-sonnet-4-6`, no `[1m]`, ambient login) → **Opus** `review-agent` at each phase gate → fixes via another headless sonnet worker (ladder sonnet→glm). Use when you want Anthropic-grade Sonnet off the main thread at the **200K** price — NEVER a Sonnet `Agent` subagent, which an `opus[1m]` session bills at the 1M rate |
 | `--codex` | NOT a per-task execution worker. Codex is the cross-family CODE-REVIEW lens — a GPT-class second opinion used at phase gates / Stage 6, not for per-task execution. Execution stays on DeepSeek (default) → GLM (stateful) |
 | `--no-deploy` | Skip deploy prompt after archive |
 | `--pause-before=<id>` | Hard stop before that task |

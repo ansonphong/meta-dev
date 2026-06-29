@@ -1,6 +1,6 @@
 ---
 name: auto-execute
-argument-hint: <any task, prompt, plan, or meta-dev op> [--deep|--glm|--codex] [--repo <name>] [--readonly] [--max-turns <n>]  # --repo names from .claude/meta-dev-repos.json
+argument-hint: <any task, prompt, plan, or meta-dev op> [--deep|--glm|--sonnet|--codex] [--repo <name>] [--readonly] [--max-turns <n>]  # --repo names from .claude/meta-dev-repos.json
 description: Opus-conducted headless work router for ANY task — brainstorm, design, plan, harden, execute, review/audit, or any arbitrary prompt/plan. Decomposes a job into chunks, farms each to DeepSeek (cheapest, default) or GLM (long-horizon), with Codex reserved as the cross-family CODE-REVIEW lens (review only); reviews every round-trip, escalates DeepSeek→GLM on failure.
 ---
 
@@ -125,7 +125,7 @@ PY
 
 The user's input is: `$ARGUMENTS`
 
-- `--deep` / `--glm` / `--codex` — force a backend, skip routing (still chunk + review). `--codex` is the premium / sparing cross-family lens (see Core Bias) — use it deliberately, not for bulk; route its dispatch through `scripts/codex-headless-exec`.
+- `--deep` / `--glm` / `--sonnet` / `--codex` — force a backend, skip routing (still chunk + review). `--sonnet` pins each chunk to a separate headless Anthropic Sonnet-200K worker (`claude-headless-exec --backend sonnet`, `claude-sonnet-4-6`, no `[1m]`) — Anthropic-grade judgment at the 200K price, never a Sonnet `Agent` subagent (an `opus[1m]` session bills those at 1M). `--codex` is the premium / sparing cross-family lens (see Core Bias) — use it deliberately, not for bulk; route its dispatch through `scripts/codex-headless-exec`.
 - `--repo <name>` — target repo (default: auto-detect from cwd; names from .claude/meta-dev-repos.json)
 - `--readonly` — restrict workers to read-only tools (audits/reviews — route freely, either backend)
 - `--max-turns <n>` — cap worker turns
