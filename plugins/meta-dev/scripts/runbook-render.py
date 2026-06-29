@@ -20,19 +20,19 @@ plan_index = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(plan_index)
 
 # ── constants ───────────────────────────────────────────────────────────────
-STATUS_GLYPH = {
-    "done": "✅",
-    "completed": "✅",
-    "in_progress": "🔄",
-    "blocked": "!",
+# The dashboard is driven by each plan's WATERFALL STAGE (frontmatter `stage:` 1..6),
+# NOT its `status:` word. `status: done` at Stage 3 means "planning done", not shipped —
+# a plan only reads as ✅ DONE once it has REACHED Stage 6 (REVIEW) with a done status.
+STAGE_NAME = {
+    0: "not started",
+    1: "BRAINSTORM",
+    2: "DESIGN",
+    3: "PLAN",
+    4: "HARDEN",
+    5: "EXECUTE",
+    6: "REVIEW",
 }
-
-STATUS_WORD = {
-    "done": "✅ DONE",
-    "completed": "✅ DONE",
-    "in_progress": "🔄 EXECUTING",
-    "blocked": "! BLOCKED",
-}
+STAGE_CIRCLED = {0: "○", 1: "①", 2: "②", 3: "③", 4: "④", 5: "⑤", 6: "⑥"}
 
 SENTINEL_START = "<!-- RUNBOOK:PROGRESS:START"
 SENTINEL_END = "<!-- RUNBOOK:PROGRESS:END -->"
@@ -102,7 +102,17 @@ def read_plan(plan_path):
 
 
 def build_member_rows(members, repo_root):
-    """Process each member plan and return a list of row dicts."""
+    """Process each member plan into a dashboard row.
+
+    Two INDEPENDENT signals per plan, shown in two columns:
+      • WATERFALL STAGE — the plan's `stage:` frontmatter (1..6) → the "Stage" column.
+        A plan reads ✅ DONE only once it has REACHED Stage 6 (REVIEW) with a
+        done/completed status. `status: done` at an earlier stage means *that stage's*
+        work is done (e.g. planning), NOT that the plan shipped — so it does NOT read
+        as DONE. This is what keeps a merely-planned/hardened plan from saying DONE.
+      • PHASE PROGRESS — the plan's internal phase-*.md files + checkbox completion →
+        the "Phases" count + the Progress bar (execution progress within the plan).
+    """
     rows = []
     for i, rel in enumerate(members):
         plan_path = os.path.join(repo_root, rel)
@@ -114,103 +124,118 @@ def build_member_rows(members, repo_root):
         if text is None:
             rows.append({
                 "num": i + 1, "id": short_id, "name": display_name,
-                "status": "unknown", "glyph": "⬜",
-                "status_word": "⬜ QUEUED",
-                "phases_done": 0, "phases_total": 1,
-                "bar": "▱▱▱▱", "done": 0, "total": 0, "pct": 0.0,
+                "stage": 0, "stage_name": STAGE_NAME[0], "circled": STAGE_CIRCLED[0],
+                "phases_done": 0, "phases_total": 1, "bar": "▱▱▱▱",
+                "is_done": False, "is_blocked": False, "is_current": False,
             })
             continue
 
-        status = fm.get("status", "draft")
+        status = str(fm.get("status", "draft")).strip().lower()
+        try:
+            stage = int(str(fm.get("stage", "0")).strip() or 0)
+        except ValueError:
+            stage = 0
+        stage = max(0, min(6, stage))
+
+        is_blocked = status == "blocked"
+        is_done = stage >= 6 and status in ("done", "completed")
+
         cb = plan_index.count_checkboxes(text)
-        done = cb["done"]
-        total = cb["total"]
         pct = cb["pct"] / 100.0  # integer percent → fraction
 
-        # phase-*.md files in the member's directory (non-recursive)
+        # phase-*.md files in the member's directory (non-recursive) = the phase count
         phase_files = glob.glob(os.path.join(member_dir, "phase-*.md"))
         phases_total = len(phase_files) if phase_files else 1
-        # A plan marked done reads as fully complete even if its checkboxes are
-        # untracked (e.g. a design-doc member with no `- [ ]` items).
-        if status in ("done", "completed"):
-            phases_done = phases_total
-        else:
-            phases_done = round(pct * phases_total)
+        phases_done = phases_total if is_done else round(pct * phases_total)
 
         bar_width = max(4, phases_total)
         bar = "▰" * phases_done + "▱" * (bar_width - phases_done)
 
-        glyph = STATUS_GLYPH.get(status, "⬜")
-        status_word = STATUS_WORD.get(status, "⬜ QUEUED")
-
         rows.append({
             "num": i + 1, "id": short_id, "name": display_name,
-            "status": status, "glyph": glyph, "status_word": status_word,
-            "phases_done": phases_done, "phases_total": phases_total,
-            "bar": bar, "done": done, "total": total, "pct": pct,
+            "stage": stage, "stage_name": STAGE_NAME.get(stage, "?"),
+            "circled": STAGE_CIRCLED.get(stage, "?"),
+            "phases_done": phases_done, "phases_total": phases_total, "bar": bar,
+            "is_done": is_done, "is_blocked": is_blocked, "is_current": False,
         })
     return rows
 
 
 def compose_block(rows, members, repo_root):
-    """Build the full progress-block string from row data."""
-    # CURRENT = first member whose status is NOT done/completed
+    """Build the progress block: execution-order chain + per-plan table.
+
+    Columns: # · Plan · Stage (waterfall 1..6) · Phases · Progress · Status.
+    """
+    # CURRENT = first member not yet DONE and not BLOCKED (serial execution order)
     current_idx = None
     for idx, row in enumerate(rows):
-        if row["status"] not in ("done", "completed"):
+        if not row["is_done"] and not row["is_blocked"]:
             current_idx = idx
             break
-
-    # Mark the CURRENT row
     if current_idx is not None:
         rows[current_idx]["is_current"] = True
-        rows[current_idx]["status_word"] = "🔄 EXECUTING"
 
-    done_count = sum(1 for r in rows if r["status"] in ("done", "completed"))
+    done_count = sum(1 for r in rows if r["is_done"])
     n = len(rows)
 
-    # header chain
-    chain_parts = [f"**{r['id']}** {r['glyph']}" for r in rows]
-    chain_parts.append("**Stage 6** ⬜")
-    chain = " → ".join(chain_parts)
+    def chain_glyph(r):
+        if r["is_done"]:
+            return "✅"
+        if r["is_blocked"]:
+            return "!"
+        if r["is_current"]:
+            return "🔄"
+        return "⬜"
 
-    # now-executing line
+    chain = " → ".join(f"**{r['id']}** {chain_glyph(r)}" for r in rows)
+    chain += " → **Stage 6** ⬜"
+
+    # now line — name the current plan AND its waterfall stage (no false "executing")
     if current_idx is not None:
         cur = rows[current_idx]
         cur_dir = os.path.basename(
             os.path.dirname(os.path.join(repo_root, members[current_idx]))
         )
-        now_exec = f"{cur_dir} ({cur['done']}/{cur['total']} tasks)"
+        now_line = (f"{cur_dir} — Stage {cur['stage']} {cur['stage_name']} "
+                    f"({cur['phases_done']}/{cur['phases_total']} phases)")
     else:
-        now_exec = "none"
+        now_line = "none — all plans through Stage 6"
 
     lines = []
-    lines.append("")  # blank after sentinel
+    lines.append("")
     lines.append("### Execution order & package progress")
     lines.append("")
     lines.append(f"> {chain}")
     lines.append("")
-    lines.append(f"**Plans done:** {done_count} / {n}  ·  **Now executing:** {now_exec}")
+    lines.append(f"**Plans done:** {done_count} / {n}  ·  **Now:** {now_line}")
     lines.append("")
-    lines.append("| # | Plan | Phases | Progress | Status |")
-    lines.append("|:--:|------|:------:|----------|:------:|")
+    lines.append("| # | Plan | Stage | Phases | Progress | Status |")
+    lines.append("|:--:|------|:------:|:------:|----------|:------:|")
 
     for row in rows:
         name_display = f"**{row['id']}** {row['name']}"
-        if row.get("is_current"):
+        if row["is_current"]:
             name_display += " ◄ NOW"
+        stage_cell = f"{row['circled']} {row['stage_name']}"
         phases = f"{row['phases_done']}/{row['phases_total']}"
+        if row["is_blocked"]:
+            status_word = "! BLOCKED"
+        elif row["is_done"]:
+            status_word = "✅ DONE"
+        elif row["is_current"]:
+            status_word = "🔄 EXECUTING"
+        else:
+            status_word = "⬜ QUEUED"
         lines.append(
-            f"| {row['num']} | {name_display} | {phases} "
-            f"| `{row['bar']}` | {row['status_word']} |"
+            f"| {row['num']} | {name_display} | {stage_cell} | {phases} "
+            f"| `{row['bar']}` | {status_word} |"
         )
 
-    # Stage 6 footer row
     lines.append(
-        "| — | **Stage 6** review · archive · runbook | — "
+        "| — | **Stage 6** review · archive · runbook | — | — "
         "| `▱▱▱▱` | ⬜ QUEUED |"
     )
-    lines.append("")  # blank before sentinel
+    lines.append("")
     return "\n".join(lines)
 
 

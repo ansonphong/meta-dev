@@ -56,23 +56,23 @@ successor: null            # forward-link, set when a successor runbook breaks o
 ## 🎯 LIVE EXECUTION DASHBOARD
 
 > **Updated live as each phase lands.** <execution-mode note — serial/parallel, gating>
-> Glyphs: ✅ done · 🔄 executing now · ⬜ queued · ◄ current.
+> The **Stage** column = the plan's waterfall stage (①BRAINSTORM ②DESIGN ③PLAN ④HARDEN ⑤EXECUTE ⑥REVIEW). **✅ DONE only at Stage 6** — a merely-planned/hardened plan shows its stage, not DONE. Status: ✅ done · 🔄 executing now (◄ NOW) · ⬜ queued · ! blocked.
 
 <!-- RUNBOOK:PROGRESS:START — computed by scripts/runbook-render.py; do not hand-edit between sentinels -->
 ### Execution order & package progress
 
-> **17** ✅ → **16** ✅ → **21** 🔄 → **18** ⬜ → **20** ⬜ → **Stage 6** ⬜
+> **17** ✅ → **16** ✅ → **21** ✅ → **18** 🔄 → **20** ⬜ → **Stage 6** ⬜
 
-**Plans done:** 2 / 5  ·  **Now executing:** 21-UPSCALE-FLOW (phase 1 of 7 landed)
+**Plans done:** 3 / 5  ·  **Now:** 18-LOADABLE-RENDER-CONFIG — Stage 5 EXECUTE (1/6 phases)
 
-| # | Plan | Phases | Progress | Status |
-|:--:|------|:------:|----------|:------:|
-| 1 | **17** REPLAYABLE-PROVENANCE | 6/6 | `▰▰▰▰▰▰▰` | ✅ DONE |
-| 2 | **16** TOOLBAR followup-1 | 3/3 | `▰▰▰▰` | ✅ DONE |
-| 3 | **21** UPSCALE-FLOW ◄ NOW | 1/7 | `▰▱▱▱▱▱▱` | 🔄 EXECUTING |
-| 4 | **18** LOADABLE-RENDER-CONFIG | 0/6 | `▱▱▱▱▱▱` | ⬜ QUEUED |
-| 5 | **20** IMAGE-OFFSET (tail) | 0/8 | `▱▱▱▱▱▱▱▱` | ⬜ QUEUED |
-| — | **Stage 6** review · archive · runbook | — | `▱▱▱▱` | ⬜ QUEUED |
+| # | Plan | Stage | Phases | Progress | Status |
+|:--:|------|:------:|:------:|----------|:------:|
+| 1 | **17** REPLAYABLE-PROVENANCE | ⑥ REVIEW | 6/6 | `▰▰▰▰▰▰▰` | ✅ DONE |
+| 2 | **16** TOOLBAR followup-1 | ⑥ REVIEW | 3/3 | `▰▰▰▰` | ✅ DONE |
+| 3 | **21** UPSCALE-FLOW | ⑥ REVIEW | 7/7 | `▰▰▰▰▰▰▰` | ✅ DONE |
+| 4 | **18** LOADABLE-RENDER-CONFIG ◄ NOW | ⑤ EXECUTE | 1/6 | `▰▱▱▱▱▱` | 🔄 EXECUTING |
+| 5 | **20** IMAGE-OFFSET (tail) | ③ PLAN | 0/8 | `▱▱▱▱▱▱▱▱` | ⬜ QUEUED |
+| — | **Stage 6** review · archive · runbook | — | — | `▱▱▱▱` | ⬜ QUEUED |
 <!-- RUNBOOK:PROGRESS:END -->
 
 ### ◄ CURRENT — `21-UPSCALE-FLOW` phase tracker
@@ -117,25 +117,36 @@ The script owns **only** the text between `<!-- RUNBOOK:PROGRESS:START ... -->` 
 and writes **only** that span — never the narrative, never the CURRENT phase tracker (which carries
 human-authored SHAs and notes).
 
+**Two independent signals per plan — DONE is stage-gated.** Each row shows BOTH:
+- the **waterfall stage** (its own `Stage` column) from the plan's `stage:` frontmatter (1..6),
+  rendered as a circled glyph + name (③ PLAN, ④ HARDEN, ⑥ REVIEW);
+- the **phase progress** (the `Phases` count + `Progress` bar) from the plan's internal
+  `phase-*.md` files + checkbox completion — i.e. how far *execution* has gotten within the plan.
+
+**✅ DONE appears ONLY for members at Stage 6 with a done/completed status.** A `status: done` at
+an earlier stage means *that stage's* work is done (e.g. planning/hardening), NOT that the plan
+shipped — so it reads as its stage (③ PLAN / ④ HARDEN), never DONE. This is the whole point: the
+dashboard never says DONE for a plan that has only been planned or hardened. "Plans done" counts
+only Stage-6-done members.
+
 Per member plan it derives, reusing `plan-index.py` (`read_plan_file`, `parse_frontmatter`,
 `count_checkboxes`):
 
 | Field | Source |
 |-------|--------|
-| **status glyph** | member frontmatter `status`: `done`/`completed`→✅ · `in_progress`→🔄 · `blocked`→`!` · else ⬜ |
-| **progress %** | `count_checkboxes` on the member's master file → done/total |
-| **phases done/total** | count of `phase-*.md` files in the member's dir (total); done = phases whose checkboxes are all checked, else fall back to the checkbox pct rounded to the phase count |
-| **▰▱ bar** | `phases_total` cells; first `phases_done` are `▰`, rest `▱` (min width 4 for visual weight) |
-| **◄ NOW marker** | the first member not `done` is the current plan; its row gets ` ◄ NOW` and 🔄 |
+| **waterfall stage** | member frontmatter `stage:` (1..6) → the `Stage` column + the DONE gate |
+| **Phases / ▰▱ bar** | `phase-*.md` files in the member dir (count) + `count_checkboxes` completion → done/total + the progress bar (a DONE plan fills its bar) |
+| **◄ NOW marker** | the first member not DONE and not BLOCKED is the current focus; its row gets `◄ NOW` + 🔄 EXECUTING |
+| **✅ DONE** | only when `stage >= 6` AND `status` is `done`/`completed` |
 
 The script emits, between the sentinels, exactly: the `### Execution order & package progress`
 heading, then:
 - the **execution-order glyph line** — `> **<id>** <glyph> → …  → **Stage 6** ⬜` in `members` order
-  (the short id is the leading token of the member dir name, e.g. `17`, `16`).
-- `**Plans done:** X / N  ·  **Now executing:** <current label> (phase P of T landed)`.
-- the package table.
+  (✅ done · 🔄 current · ⬜ queued · ! blocked; short id = leading token of the member dir name).
+- `**Plans done:** X / N  ·  **Now:** <current dir> — Stage S NAME (P/T phases)`.
+- the package table (`# · Plan · Stage · Phases · Progress · Status`).
 
 Everything OUTSIDE the sentinels is authored and never touched: the `## 🎯 LIVE EXECUTION DASHBOARD`
-heading, the `> Updated live…` / `> Glyphs: …` legend lines, the `### ◄ CURRENT phase tracker` (with
+heading, the `> Updated live…` / legend lines, the `### ◄ CURRENT phase tracker` (with
 its human SHAs), and the queued summaries. If the script cannot find both sentinels it **exits non-zero
 without writing** (never appends a second block).
