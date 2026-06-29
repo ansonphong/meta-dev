@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # ============================================================================
 # claude-headless-exec — Execute a task via headless Claude Code on a
-#                        specified backend (deepseek or glm).
+#                        specified backend (deepseek, glm, or sonnet).
 #
 # Usage:
-#   claude-headless-exec --backend deep|glm [options] -- <prompt>
+#   claude-headless-exec --backend deep|glm|sonnet [options] -- <prompt>
 #
 # Options:
 #   --backend deep|glm      Required. Backend to use.
@@ -23,12 +23,14 @@
 #   claude-headless-exec --backend deep --model deepseek-v4-flash -- "Rename getCwd to getCurrentWorkingDirectory across my project"
 #
 # Backend defaults:
-#   deep → deepseek-v4-pro (opus/sonnet), deepseek-v4-flash (haiku)
-#   glm  → glm-5.2[1m] (opus/sonnet), glm-4.7-flashx (haiku)
+#   deep   → deepseek-v4-pro (opus/sonnet), deepseek-v4-flash (haiku)
+#   glm    → glm-5.2[1m] (opus/sonnet), glm-4.7-flashx (haiku)
+#   sonnet → claude-sonnet-4-6 (200K — NO [1m]); REAL Anthropic via ambient login
 #
 # Prerequisites:
 #   - DEEPSEEK_API_KEY env var (for --backend deep)
 #   - GLM_API_KEY env var (for --backend glm)
+#   - --backend sonnet needs NO key — it uses your ambient ~/.claude login
 #   - claude CLI on PATH
 # ============================================================================
 
@@ -63,6 +65,19 @@ BACKEND_HAIKU_MODEL[glm]="glm-4.7-flashx"
 BACKEND_SUBAGENT_MODEL[glm]="glm-5.2[1m]"
 BACKEND_LABEL[glm]="GLM"
 
+# sonnet → REAL Anthropic backend via your ambient ~/.claude login (NOT a 3rd
+# party). No base URL, no API key — just pin the 200K Sonnet model. The whole
+# point: a fresh `claude -p` process with --model claude-sonnet-4-6 (NO [1m]
+# suffix) runs at the standard 200K tier, so it is NEVER billed at the 1M rate
+# the way a Sonnet subagent dispatched from an opus[1m] session would be.
+BACKEND_BASE_URL[sonnet]=""                          # ambient — no override
+BACKEND_AUTH_KEY_ENV[sonnet]=""                      # ambient login — no key
+BACKEND_OPUS_MODEL[sonnet]="claude-sonnet-4-6"       # n/a (sonnet backend never runs opus)
+BACKEND_SONNET_MODEL[sonnet]="claude-sonnet-4-6"     # 200K variant — NO [1m] suffix
+BACKEND_HAIKU_MODEL[sonnet]="claude-haiku-4-5-20251001"
+BACKEND_SUBAGENT_MODEL[sonnet]="claude-sonnet-4-6"   # its own subagents stay 200K too
+BACKEND_LABEL[sonnet]="Sonnet-200K"
+
 # ── Defaults ────────────────────────────────────────────────────────────
 BACKEND=""
 REPO=""
@@ -85,10 +100,11 @@ show_help() {
 ╚══════════════════════════════════════════════════════════════════════════╝
 
 Usage:
-  claude-headless-exec --backend deep|glm [options] -- <prompt>
+  claude-headless-exec --backend deep|glm|sonnet [options] -- <prompt>
 
 Required:
-  --backend deep|glm       Backend to execute on
+  --backend deep|glm|sonnet  Backend to execute on
+                             (sonnet = real Anthropic, 200K, ambient login)
 
 Options:
   --repo app|www|gallery    cd to this repo first (auto-detect if omitted)
@@ -103,18 +119,21 @@ Options:
   -h, --help                Show this help
 
 Backend defaults:
-  deep → deepseek-v4-pro            (DeepSeek API)
-  glm  → glm-5.2[1m]                (Z.AI API)
+  deep   → deepseek-v4-pro          (DeepSeek API)
+  glm    → glm-5.2[1m]              (Z.AI API)
+  sonnet → claude-sonnet-4-6        (Anthropic · 200K · ambient login)
 
 Examples:
   claude-headless-exec --backend deep --repo app -- "Fix all TS errors"
   claude-headless-exec --backend glm --repo www --readonly -- "Audit auth"
+  claude-headless-exec --backend sonnet --repo app -- "Review the diff"
   claude-headless-exec --backend deep --model deepseek-v4-flash -- \
     "Rename getCwd across the project"
 
 Prerequisites:
   DEEPSEEK_API_KEY env var (for --backend deep)
   GLM_API_KEY env var (for --backend glm)
+  --backend sonnet needs NO key (uses ambient ~/.claude login)
   claude CLI on PATH
 EOF
 }
@@ -181,13 +200,13 @@ done
 
 # ── Validate ────────────────────────────────────────────────────────────
 if [[ -z "$BACKEND" ]]; then
-    echo "[ERROR] --backend is required. Use 'deep' or 'glm'." >&2
+    echo "[ERROR] --backend is required. Use 'deep', 'glm', or 'sonnet'." >&2
     echo "        Run with --help for usage." >&2
     exit 1
 fi
 
-if [[ "$BACKEND" != "deep" && "$BACKEND" != "glm" ]]; then
-    echo "[ERROR] Unknown backend '$BACKEND'. Use 'deep' or 'glm'." >&2
+if [[ "$BACKEND" != "deep" && "$BACKEND" != "glm" && "$BACKEND" != "sonnet" ]]; then
+    echo "[ERROR] Unknown backend '$BACKEND'. Use 'deep', 'glm', or 'sonnet'." >&2
     exit 1
 fi
 
@@ -218,11 +237,14 @@ if [[ ! -d "$WORK_DIR" ]]; then
 fi
 
 # ── Validate API key ────────────────────────────────────────────────────
+# Backends with an empty key-env (sonnet) authenticate via the ambient
+# ~/.claude login — no API key to validate, so skip this block entirely.
 AUTH_KEY_ENV="${BACKEND_AUTH_KEY_ENV[$BACKEND]}"
-AUTH_KEY="${!AUTH_KEY_ENV:-}"
-
-if [[ -z "$AUTH_KEY" ]]; then
-    cat <<EOF >&2
+AUTH_KEY=""
+if [[ -n "$AUTH_KEY_ENV" ]]; then
+    AUTH_KEY="${!AUTH_KEY_ENV:-}"
+    if [[ -z "$AUTH_KEY" ]]; then
+        cat <<EOF >&2
 [ERROR] $AUTH_KEY_ENV is not set.
 
 The $AUTH_KEY_ENV environment variable is required for --backend $BACKEND.
@@ -235,7 +257,8 @@ Then persist in ~/.bashrc:
   echo 'export $AUTH_KEY_ENV="your-api-key"' >> ~/.bashrc
 
 EOF
-    exit 1
+        exit 1
+    fi
 fi
 
 # ── Validate claude CLI ─────────────────────────────────────────────────
@@ -272,17 +295,31 @@ if [[ -z "$OUTPUT_FILE" ]]; then
 fi
 
 # ── Build env ───────────────────────────────────────────────────────────
-# Start clean: unset any existing backend routing so only our vars apply.
-# (We don't export these unsets — they only affect this process.)
+# These vars are applied to the child process only (via env(1)); the parent
+# shell's environment is never mutated.
 ENV_VARS=(
-    "ANTHROPIC_BASE_URL=${BACKEND_BASE_URL[$BACKEND]}"
-    "ANTHROPIC_AUTH_TOKEN=${AUTH_KEY}"
     "ANTHROPIC_DEFAULT_OPUS_MODEL=${BACKEND_OPUS_MODEL[$BACKEND]}"
     "ANTHROPIC_DEFAULT_SONNET_MODEL=${BACKEND_SONNET_MODEL[$BACKEND]}"
     "ANTHROPIC_DEFAULT_HAIKU_MODEL=${BACKEND_HAIKU_MODEL[$BACKEND]}"
     "CLAUDE_CODE_SUBAGENT_MODEL=${BACKEND_SUBAGENT_MODEL[$BACKEND]}"
     "API_TIMEOUT_MS=${TIMEOUT}"
 )
+ENV_UNSET=()
+
+if [[ "$BACKEND" == "sonnet" ]]; then
+    # Real Anthropic via the ambient ~/.claude login — do NOT set a base URL or
+    # auth token. Scrub any inherited 3rd-party routing (e.g. if this runs from
+    # a shell that was pointed at deep/glm) so Sonnet can't be proxied off to
+    # the wrong backend. With --model claude-sonnet-4-6 (no [1m]) this is the
+    # standard 200K tier — never billed at the 1M rate.
+    ENV_UNSET=(-u ANTHROPIC_BASE_URL -u ANTHROPIC_AUTH_TOKEN -u ANTHROPIC_API_KEY)
+else
+    # deep / glm route through a 3rd-party Anthropic-compatible endpoint.
+    ENV_VARS+=(
+        "ANTHROPIC_BASE_URL=${BACKEND_BASE_URL[$BACKEND]}"
+        "ANTHROPIC_AUTH_TOKEN=${AUTH_KEY}"
+    )
+fi
 
 # GLM-specific extras
 if [[ "$BACKEND" == "glm" ]]; then
@@ -292,7 +329,11 @@ if [[ "$BACKEND" == "glm" ]]; then
 fi
 
 # ── Dashboard ───────────────────────────────────────────────────────────
-MASKED_KEY="${AUTH_KEY:0:5}...${AUTH_KEY: -4}"
+if [[ -n "$AUTH_KEY" ]]; then
+    MASKED_KEY="${AUTH_KEY:0:5}...${AUTH_KEY: -4}"
+else
+    MASKED_KEY="(ambient ~/.claude login)"
+fi
 BACKEND_LABEL="${BACKEND_LABEL[$BACKEND]}"
 
 cat <<EOF
@@ -338,7 +379,7 @@ START_TIME=$(date +%s)
 cd "$WORK_DIR"
 
 EXIT_CODE=0
-env "${ENV_VARS[@]}" \
+env "${ENV_UNSET[@]+"${ENV_UNSET[@]}"}" "${ENV_VARS[@]}" \
     claude -p "$PROMPT" \
         --output-format "$OUTPUT_FORMAT" \
         --model "$MODEL" \
