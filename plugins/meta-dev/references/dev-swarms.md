@@ -46,6 +46,27 @@ Delegate to `/loop-gap` with the loop-gap config from Stage 3.
 
 **Exit criteria:** Loop-gap reports "NO GAPS REMAINING."
 
+## Stage 4.5: Codex Gap-Scan Pass (`--codex` only — OFF by default)
+
+**Conditional stage — runs ONLY when the user passed `--codex`.** Mirrors the Stage 2.5 design-eval gate: a quality gate slotted in at a decimal stage. Without `--codex`, the waterfall goes straight from Stage 4 → Stage 5 exactly as before.
+
+**Goal:** an independent **cross-family** read on the hardened plan, right before code gets written. Stage 4 hardening (`/loop-gap`, driven DeepSeek→GLM) is same-family — Claude-lineage models gap-checking Claude-lineage plans. Codex (GPT) catches the blind spots that same-family review shares. This is the canonical, highest-leverage use of Codex's review-only lens: review the *plan that is about to drive execution*.
+
+**Precondition:** Stage 4 has already reported "NO GAPS REMAINING" — i.e. the **final DeepSeek/GLM hardening pass is done**. Codex scans the *already-hardened* plan; it is not a substitute for `/loop-gap`, it is the cross-family confirmation on top of it.
+
+**The pass (the conductor — Opus — runs this; do NOT hand Codex a `/command`, it can't run our harness):**
+
+1. **Codex gap scan (read-only).** Dispatch **one** Codex worker via `/codex-execute --readonly` (→ `scripts/codex-headless-exec`), pointed at the plan dir (master + phase files). Direct task, e.g.:
+   > *"Audit these plan files for gaps: missing coverage, internal contradictions, unhardened edge cases, ordering/dependency errors, unstated assumptions, and integration seams between phases. Produce a structured gap report grouped by severity. Read-only — do not edit any file."*
+   Write the report to `<plan-dir>/gap-report-codex-YYYY-MM-DD.md` (the existing `gap-report-*.md` convention).
+2. **Triage (Opus).** Read Codex's report; sort findings into **actionable gaps** vs. noise / false-positives / out-of-scope. Opus judgment, one read — do not blindly pipe every Codex line into a fix.
+3. **Integrate-back (GLM preferred · DeepSeek for mechanical).** Feed the actionable gaps to **GLM** (plan-writing is GLM's lane) — or **DeepSeek** for mechanical/bounded fixes — to integrate into the plan markdown. This is plan-editing, **pre-execution, no source code** — squarely inside the Stage-4 safety boundary.
+4. **Bounded re-scan (quota-conscious).** If the integrate pass was substantial, optionally run **one** confirming Codex re-scan. **Hard cap: 2 Codex calls total** (1 scan + 1 confirm). Codex runs on a limited Codex Plus quota — never loop it. After the cap, proceed regardless; log any remaining low-severity findings in the report.
+
+**Exit criteria:** Codex reports no material (high/medium) gaps, OR the 2-call cap is hit with remaining findings triaged and logged. Plan markdown reflects the integrated fixes.
+
+**Safety:** this entire stage is **pre-execution** — Codex is read-only, the integrate-back edits only plan docs. It never writes source code and never crosses the Stage-5 execution boundary. Stage 5 remains gated on explicit user permission exactly as without `--codex`.
+
 ## Stage 5: Execute
 
 **Goal:** Run the plan task-by-task.

@@ -9,6 +9,8 @@ At startup, `/meta-dev` detects the mode:
 - **Interactive:** Default. Stage-by-stage with user confirmation between stages.
 - **Probe-triggered:** Subject contains probe keywords ("why", "stuck", "loop", "keep failing", "wrong", "investigate", "debug")
 
+**Independent flag — `--codex` (cross-family gap-scan).** Orthogonal to the mode above; combines with any of them. When present, `/meta-dev` inserts **Stage 4.5: Codex Gap-Scan Pass** between HARDEN (Stage 4) and EXECUTE (Stage 5) — a read-only cross-family (GPT) audit of the hardened plan, with findings fed back to GLM/DeepSeek to integrate. Full procedure: `references/dev-swarms.md` → "Stage 4.5". OFF by default; absent the flag the waterfall runs Stage 4 → Stage 5 unchanged. The pass is entirely pre-execution and does not relax the Stage-5 gate.
+
 ## Quick-Fix Waterfall Bypass
 
 **Before mode detection, triage the subject for triviality.** Not every subject deserves the full 6-stage waterfall. Trivial work bypasses Stages 1-4 and goes **straight to Stage 5 (Execute)**.
@@ -49,6 +51,9 @@ for each stage in [brainstorm, design, plan, harden, execute, review]:
   3. Check exit criteria (below)
   4. If criteria met: TaskUpdate stage → completed, commit stage artifacts, advance
   5. If criteria NOT met after max retries: TaskUpdate stage → blocked, halt this subject's pipeline, report
+# IF --codex was passed: after Stage 4 exits green, run Stage 4.5 (Codex gap-scan) before Stage 5.
+#   It is a conditional sub-stage of harden, not a 7th stage — track it as a nested item under Harden
+#   (or its own row) per the exit-criteria table. Procedure: references/dev-swarms.md → "Stage 4.5".
 ```
 
 ### Per-Stage Exit Criteria (must be met before advancing)
@@ -59,6 +64,7 @@ for each stage in [brainstorm, design, plan, harden, execute, review]:
 | 2 Design | Design doc produced + design-quality gate grade ≥ B | 2 |
 | 3 Plan | Master plan + phase files generated + loop-gap config exists | 2 |
 | 4 Harden | Loop-gap reports "NO GAPS REMAINING" | 3 |
+| 4.5 Codex gap-scan (`--codex` only) | Codex reports no material gaps, OR 2-call cap hit with findings triaged + logged; plan reflects integrated fixes | 2 Codex calls (hard cap) |
 | 5 Execute | All tasks DONE, working tree clean | 1 (failures escalate) |
 | 6 Review | Eval grade ≥ B, context synced, plan archived, dashboards updated | 2 |
 

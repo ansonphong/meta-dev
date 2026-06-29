@@ -1,7 +1,7 @@
 ---
 name: meta-dev
 description: Universal development lifecycle orchestrator — pushes any subject through the 6-stage waterfall using agent swarms
-argument-hint: <subject | plan-path | "idea one" "idea two" ...> [--from <stage>] [--to <stage>] [--gate all|exec|none]
+argument-hint: <subject | plan-path | "idea one" "idea two" ...> [--from <stage>] [--to <stage>] [--gate all|exec|none] [--codex]
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, TaskCreate, TaskUpdate]
 model: opus
 ---
@@ -24,6 +24,7 @@ Stage definitions in `references/dev-swarms.md`. Each stage delegates to ported 
 2. **Design** → design doc + design-eval quality gate (Stage 2.5)
 3. **Plan** → `/meta-planner` (generates master + phase files + loop-gap config)
 4. **Harden** → `/loop-gap` (gap-scan to "NO GAPS REMAINING")
+   - **4.5. Codex gap-scan** (ONLY if `--codex`) → read-only cross-family (GPT) audit of the hardened plan via `/codex-execute --readonly`, findings integrated back by GLM/DeepSeek. Hard cap 2 Codex calls; pre-execution only. See `references/dev-swarms.md` → "Stage 4.5".
 5. **Execute** → `/meta-execute` (subagent-driven, verify + commit per task)
 6. **Review** → `/meta-eval` + `/meta-audit` + `/housekeeping` (archive + sync dashboards)
 
