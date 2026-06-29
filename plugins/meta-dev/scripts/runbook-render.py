@@ -210,7 +210,7 @@ def compose_block(rows, members, repo_root):
     lines.append(f"**Plans done:** {done_count} / {n}  ·  **Now:** {now_line}")
     lines.append("")
     lines.append("| # | Plan | Stage | Phases | Progress | Status |")
-    lines.append("|:--:|------|:------:|:------:|----------|:------:|")
+    lines.append("|:--:|------|------|:------:|----------|:------:|")
 
     for row in rows:
         name_display = f"**{row['id']}** {row['name']}"

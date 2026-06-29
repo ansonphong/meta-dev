@@ -66,7 +66,7 @@ successor: null            # forward-link, set when a successor runbook breaks o
 **Plans done:** 3 / 5  ·  **Now:** 18-LOADABLE-RENDER-CONFIG — Stage 5 EXECUTE (1/6 phases)
 
 | # | Plan | Stage | Phases | Progress | Status |
-|:--:|------|:------:|:------:|----------|:------:|
+|:--:|------|------|:------:|----------|:------:|
 | 1 | **17** REPLAYABLE-PROVENANCE | ⑥ REVIEW | 6/6 | `▰▰▰▰▰▰▰` | ✅ DONE |
 | 2 | **16** TOOLBAR followup-1 | ⑥ REVIEW | 3/3 | `▰▰▰▰` | ✅ DONE |
 | 3 | **21** UPSCALE-FLOW | ⑥ REVIEW | 7/7 | `▰▰▰▰▰▰▰` | ✅ DONE |
