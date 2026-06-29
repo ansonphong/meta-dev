@@ -44,9 +44,13 @@ HEADING = re.compile(r"^(#{2,3})\s+(.+?)\s*#*\s*$")
 MILESTONE = re.compile(r"^=+\s*MILESTONE:\s*(.+?)\s*=+\s*$")
 DATED = re.compile(r"^\d{4}-\d{2}-\d{2}-.*\.md$")
 # Noise files that are NEVER standalone tracked plans (phase docs, designs,
-# handoffs, configs). Excluded from the allowlist regardless of frontmatter.
+# handoffs, configs, campaign-runbook manuscripts). Excluded from the allowlist
+# regardless of frontmatter. Campaign runbooks (_runbook-YYYY-MM-DD.md, and the
+# legacy _exec-order-* form) are orchestration manuscripts that sequence member
+# plans and carry their own in-file dashboard — they are not themselves plans.
 NOISE = re.compile(
-    r"^(phase-.*\.md|design\.md|handoff.*|.*-config\.md|\.loop-gap-config\.md)$",
+    r"^(phase-.*\.md|design\.md|handoff.*|.*-config\.md|\.loop-gap-config\.md"
+    r"|_runbook-.*\.md|_exec-order-.*\.md)$",
     re.IGNORECASE,
 )
 
