@@ -103,4 +103,8 @@ input) + tiny output; net win only for large-context + long-idle.
 ## Tier mapping
 - `--deep` (default): Worker=deep, Fix ladder deep→glm.
 - `--glm`: Worker=glm, Fix ladder glm→deep.
-- `--codex` (sparing): Worker=codex (codex-headless-exec); Fix ladder codex→deep.
+- `--codex`: NOT a per-task execution worker and NOT a fix-ladder tier. Codex is
+  the cross-family CODE-REVIEW lens at the phase gate — an alternative/additional
+  reviewer (GPT vs Claude) over the phase diff, never a per-task worker. The
+  per-task worker tiers are `--deep` (default) and `--glm`; the fix ladder is
+  deep→glm only.

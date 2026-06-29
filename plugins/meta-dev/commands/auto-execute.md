@@ -1,7 +1,7 @@
 ---
 name: auto-execute
 argument-hint: <any task, prompt, plan, or meta-dev op> [--deep|--glm|--codex] [--repo <name>] [--readonly] [--max-turns <n>]  # --repo names from .claude/meta-dev-repos.json
-description: Opus-conducted headless work router for ANY task — brainstorm, design, plan, harden, execute, review/audit, or any arbitrary prompt/plan. Decomposes a job into chunks, farms each to DeepSeek (cheapest, default) or GLM (long-horizon), with Codex as a sparing premium / cross-family verification lens; reviews every round-trip, escalates DeepSeek→GLM on failure.
+description: Opus-conducted headless work router for ANY task — brainstorm, design, plan, harden, execute, review/audit, or any arbitrary prompt/plan. Decomposes a job into chunks, farms each to DeepSeek (cheapest, default) or GLM (long-horizon), with Codex reserved as the cross-family CODE-REVIEW lens (review only); reviews every round-trip, escalates DeepSeek→GLM on failure.
 ---
 
 # /auto-execute — Conducted Headless Work (any task)
@@ -37,11 +37,9 @@ ESCALATE → GLM        ONLY when a chunk truly requires it:
 
 *Keep it whole → GLM; break it small → DeepSeek* (full heuristic in CLAUDE.md → Multi-Model Execution). When unsure, **try DeepSeek first** — escalation is cheap, GLM-by-default is not.
 
-**Codex is OFF this cost ladder — a sparing, premium third lens.** It runs on a limited Codex Plus quota, so it is NOT in the default DeepSeek→GLM rotation. Reach for `--codex` **deliberately**, for a *small number* of high-value calls where a different model family earns its keep:
-- **Cross-family hardening / gap-checking** — a GPT-class reasoner reviewing a plan or diff catches what Claude / GLM / DeepSeek share blind spots on.
-- **Independent verification** — Codex reviewing another backend's output (or vice-versa) is the highest-signal check when correctness really matters.
+**Codex is OFF this cost ladder — CODE REVIEW ONLY.** It runs on a limited Codex Plus quota and is NOT a general execution, hardening, or verification worker. Reach for `--codex` **only as the cross-family code-review lens** — a GPT-class second opinion reviewing a diff at a phase gate / Stage 6, where independent-family review catches what Claude / GLM / DeepSeek share blind spots on. Use it deliberately, for a *small number* of high-value review calls when correctness really matters. **Execution, hardening, and gap-fixing work never go to Codex** — those route DeepSeek→GLM; Codex reviews what they produce.
 
-⚠️ **A Codex worker is OpenAI's own agent, NOT Claude Code** — it canNOT run our slash commands internally (`/meta-execute`, `/loop-gap`, etc.) the way GLM/DeepSeek workers can. Hand it a **direct task** ("audit X for gap class Y and report findings"), never a "run `/command`" instruction; the conductor (you) or a claude-harness worker applies whatever needs our harness. Don't fan Codex out for bulk — that's DeepSeek's job.
+⚠️ **A Codex worker is OpenAI's own agent, NOT Claude Code** — it canNOT run our slash commands internally (`/meta-execute`, `/loop-gap`, etc.) the way GLM/DeepSeek workers can. Hand it a **direct review task** ("review this diff for correctness/regressions and report findings"), never a "run `/command`" instruction; the conductor (you) or a claude-harness worker applies whatever needs our harness. Don't fan Codex out for bulk or for execution — that's DeepSeek/GLM's job.
 
 ## The Conductor Loop
 
@@ -168,9 +166,9 @@ This is the intended substrate for the **entire Development Waterfall**, not jus
 - **BRAINSTORM** — farm research/exploration chunks (read-only, either backend) — "survey how X works", "list options for Y with tradeoffs". You synthesize the intent.
 - **DESIGN** — farm design-doc drafting (a section per chunk for a big doc; GLM for a cohesive whole). You own the architecture call; workers draft + you review.
 - **PLAN** (`/meta-planner`) — worker runs `/meta-planner <plan>` to restructure into phase files, or farm bounded research/drafting chunks; you assemble + review.
-- **HARDEN** (`/loop-gap`) — farm per-file / per-gap scans to DeepSeek chunks; escalate a subtle whole-plan consistency pass to GLM. Worker can run `/loop-gap <dir>` directly. For a **cross-family second opinion**, run a read-only `--codex` gap-check on the same plan/code in parallel — a GPT-class lens that triages alongside the DeepSeek/GLM pass. (Codex reports gaps; it can't run `/loop-gap` itself — hand it the target directly.)
+- **HARDEN** (`/loop-gap`) — farm per-file / per-gap scans to DeepSeek chunks; escalate a subtle whole-plan consistency pass to GLM. Worker can run `/loop-gap <dir>` directly. Hardening is mechanical→complex work — it delegates DeepSeek→GLM. **Codex does NOT do hardening** (it's review-only); save the cross-family Codex lens for the REVIEW stage below.
 - **EXECUTE** (`/meta-execute`) — for a **multi-phase meta-planner plan, farm one phase/wave file per round** (see "Multi-phase plans" above): one worker per phase, the worker runs `/meta-execute` on that phase, you code-review, then advance. For a flat single-file plan, farm per-task chunks DeepSeek-first, GLM for the stateful ones. Either way — **only once the plan execution is authorized** (the gate holds).
-- **REVIEW & VALIDATE** (`/meta-eval`, code review) — worker runs `/meta-eval <plan>` or a read-only code review over a diff; route freely (read-only, not gated). Cross-backend verification is a feature: have GLM review what DeepSeek built, or vice versa — and use `--codex` for a **true cross-family review** (a different model family reviewing the diff/plan), the highest-signal verification when correctness really matters.
+- **REVIEW & VALIDATE** (`/meta-eval`, code review) — worker runs `/meta-eval <plan>` or a read-only code review over a diff; route freely (read-only, not gated). Cross-backend verification is a feature: have GLM review what DeepSeek built, or vice versa. **This is Codex's one job:** use `--codex` for a **true cross-family CODE REVIEW** (a different model family — GPT — reviewing the diff), the highest-signal verification when correctness really matters. Codex belongs here and only here.
 
 **Beyond the waterfall:** any standalone op (`/sniff`, `/meta-security`, `/meta-ux`, `/meta-audit`, `/meta-probe`, changelog, version) and any **arbitrary task or bare prompt** routes the same way. If you can describe it as a self-contained chunk with a deliverable, `/auto-execute` can farm it.
 

@@ -1,7 +1,7 @@
 ---
 name: codex-execute
 argument-hint: <task description> [--repo <name>] [--readonly] [--model <model>] [--sandbox <mode>]  # --repo names from .claude/meta-dev-repos.json
-description: Execute a task via headless OpenAI Codex — spawns a separate `codex exec` agent, runs the task, and reports a clean distilled result. Best for hardening, gap-checking, and cross-family verification where GPT shines. Used sparingly (Codex Plus quota).
+description: Run a cross-family CODE REVIEW via headless OpenAI Codex (GPT). Codex is used ONLY for code review — the cross-family review lens at phase gates / Stage 6. Not a general execution, hardening, or verification worker. Used sparingly (Codex Plus quota).
 ---
 
 # /codex-execute — Codex Headless Execution
@@ -16,15 +16,13 @@ This is the one structural difference from `/glm-execute` and `/deep-execute`. T
 
 Consequence: **give Codex a direct task, never a "run `/command`" instruction.** Say *"Audit X for gap class Y and report findings"* or *"Fix the failing test in Z"* — not *"run `/loop-gap` on this plan"* (it can't). The conductor (Opus) or a claude-harness worker applies anything that needs our harness.
 
-## When to Use — sparing, premium, where GPT shines
+## When to Use — CODE REVIEW ONLY (cross-family review lens)
 
-**Cost reality: Codex runs on a $20/mo Plus quota** — far lighter headroom than our GLM / DeepSeek / Claude usage. So Codex is **not a bulk farm.** Reserve it for **a smaller number of high-value calls** where a different, strong model family earns its keep:
+**Codex has exactly one job here: code review.** It is the cross-family (GPT-vs-Claude) second opinion at a **phase gate or Stage 6** — point it (read-only) at a diff, the changed files, or a specific finding and have it review for correctness/bugs/regressions. A GPT-class reasoner reviewing Claude/GLM/DeepSeek output catches what same-family review misses; that independent-family lens is the entire value.
 
-- **Hardening & gap-checking** *(primary use)* — point Codex (read-only) at a plan or a code path and have it hunt for gaps/bugs. A GPT-class reasoner is an excellent **second pair of eyes** that doesn't share Claude/GLM/DeepSeek's blind spots.
-- **Cross-family verification** — have Codex review a diff or a finding that a Claude/GLM/DeepSeek worker produced (or vice-versa). Independent-family review catches what same-family review misses.
-- **Bounded tasks where GPT is strong** — a single well-scoped reasoning/refactor/debug unit you specifically want GPT on.
+**Cost reality: Codex runs on a $20/mo Plus quota** — far lighter headroom than our GLM / DeepSeek / Claude usage. So Codex is **not a farm.** Reserve it for **a smaller number of high-value review calls** where the cross-family lens earns its keep.
 
-**Don't reach for Codex for:** cheap bulk/mechanical fan-out (→ DeepSeek), long-horizon stateful plan execution or frontend consistency (→ GLM), or anything that needs to drive our slash commands internally (→ GLM/DeepSeek, which are Claude Code). When in doubt for routine work, it's NOT Codex — spend the quota deliberately.
+**Do NOT route execution, hardening, or gap-fixing *work* to Codex.** Codex is OFF the execution ladder. Mechanical/bounded work → DeepSeek; complex/stateful/long-horizon work and plan-writing → GLM. Hardening and gap-checking are delegated to DeepSeek→GLM, not Codex. Codex reviews the code those backends produce; it does not produce or harden code itself. When in doubt, it's NOT Codex — spend the quota deliberately on review.
 
 ## Test discipline — keep every test cycle cheap
 
