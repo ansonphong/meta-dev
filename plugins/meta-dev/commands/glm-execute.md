@@ -110,4 +110,4 @@ When execution completes:
 - `--readonly` restricts to Read,Bash,Grep — use for audits/reviews
 - The worker's changes are NOT automatically committed — remind the user to review and commit
 - GLM API key must be set (`GLM_API_KEY` env var) — the script checks this
-- GLM workers automatically get `CLAUDE_CODE_EFFORT_LEVEL=high` and `API_TIMEOUT_MS=3000000`
+- GLM workers automatically get `CLAUDE_CODE_EFFORT_LEVEL=high` and `API_TIMEOUT_MS=7200000` (120 min)

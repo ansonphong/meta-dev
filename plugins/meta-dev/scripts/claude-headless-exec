@@ -10,7 +10,7 @@
 #   --backend deep|glm      Required. Backend to use.
 #   --repo app|www|gallery   cd to this repo first (default: auto-detect from cwd)
 #   --model <model>          Override default model for this backend
-#   --timeout <ms>           Timeout in ms (default: 600000 = 10 min)
+#   --timeout <ms>           Timeout in ms (default: 7200000 = 120 min)
 #   --tools <list>           Comma-separated tool list (default: Read,Write,Edit,Bash,Grep,Glob)
 #   --readonly               Restrict to read-only tools (Read,Bash,Grep)
 #   --output json|text       Output format (default: json)
@@ -82,7 +82,7 @@ BACKEND_LABEL[sonnet]="Sonnet-200K"
 BACKEND=""
 REPO=""
 MODEL=""
-TIMEOUT=""   # resolved per-backend after parse (deep→600000, glm→3000000) unless --timeout given
+TIMEOUT=""   # resolved after parse (all backends → 7200000 = 120 min) unless --timeout given
 TOOLS="Read,Write,Edit,Bash,Grep,Glob"
 OUTPUT_FORMAT="json"
 READONLY=false
@@ -109,7 +109,7 @@ Required:
 Options:
   --repo app|www|gallery    cd to this repo first (auto-detect if omitted)
   --model <model>           Override the default model
-  --timeout <ms>            Timeout in ms via API_TIMEOUT_MS (default: 600000 = 10 min)
+  --timeout <ms>            Timeout in ms via API_TIMEOUT_MS (default: 7200000 = 120 min)
   --tools <list>            Comma-separated tools (default: Read,Write,Edit,Bash,Grep,Glob)
   --readonly                Restrict to Read,Bash,Grep only
   --output json|text        Output format (default: json)
@@ -279,13 +279,11 @@ if [[ -z "$MODEL" ]]; then
 fi
 
 # ── Resolve timeout (per-backend default unless --timeout given) ─────────
-# GLM runs long-horizon agentic work and warrants a longer ceiling than deep.
+# ALL backends run long-horizon agentic work — deep/glm/sonnet alike can run for
+# an hour or more on a real multi-phase task. Never cap a long-horizon worker low;
+# the wall-clock floor is generous and --timeout overrides for the rare short job.
 if [[ -z "$TIMEOUT" ]]; then
-    if [[ "$BACKEND" == "glm" ]]; then
-        TIMEOUT=3000000   # 50 min
-    else
-        TIMEOUT=600000    # 10 min
-    fi
+    TIMEOUT=7200000   # 120 min — long-horizon ceiling for every backend
 fi
 
 # ── Resolve output ──────────────────────────────────────────────────────

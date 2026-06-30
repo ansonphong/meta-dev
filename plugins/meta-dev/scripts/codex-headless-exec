@@ -15,7 +15,7 @@
 # Options:
 #   --repo app|www|gallery   cd to this repo first (default: auto-detect from cwd)
 #   --model <model>          Override codex model (default: codex's configured default)
-#   --timeout <ms>           Wall-clock timeout in ms (default: 600000 = 10 min)
+#   --timeout <ms>           Wall-clock timeout in ms (default: 7200000 = 120 min)
 #   --readonly               Sandbox = read-only (audits / gap-checks / reviews)
 #   --sandbox <mode>         read-only | workspace-write | danger-full-access
 #                            (default: workspace-write; --readonly forces read-only)
@@ -41,7 +41,7 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 # ── Defaults ────────────────────────────────────────────────────────────
 REPO=""
 MODEL=""
-TIMEOUT="600000"          # 10 min — codex Plus is a sparing/premium backend
+TIMEOUT="7200000"         # 120 min — codex runs long-horizon review/gap-scans; never cap a deep audit at 10 min
 SANDBOX="workspace-write"
 READONLY=false
 OUTPUT_FORMAT="json"

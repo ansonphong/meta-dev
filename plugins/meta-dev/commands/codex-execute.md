@@ -37,7 +37,7 @@ Parse these optional flags:
 - `--readonly` — sandbox = `read-only` (audits / gap-checks / reviews — the common case)
 - `--model <model>` — override codex model (default: codex's configured default for the account)
 - `--sandbox <mode>` — `read-only` | `workspace-write` | `danger-full-access` (default `workspace-write`; `--readonly` forces `read-only`)
-- `--timeout <ms>` — wall-clock timeout (default `600000` = 10 min)
+- `--timeout <ms>` — wall-clock timeout (default `7200000` = 120 min)
 
 Everything else is the task description. If none is given, ask what task to run.
 
