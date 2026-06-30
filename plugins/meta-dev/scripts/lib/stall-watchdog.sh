@@ -35,6 +35,15 @@
 # Polls raw_file size while worker_pid is alive. On a stall, writes a one-line
 # reason to marker_file and kills the worker (TERM, then KILL after a grace).
 # Returns 0 always (it is a background helper; liveness is signalled via marker).
+# _fsize <file> — portable byte-size. `stat -c%s` is GNU-only; on macOS BSD stat
+# it errors ("illegal option -- c") and the old `|| echo 0` made the watchdog read
+# EVERY file as 0 bytes → output looked permanently frozen → it killed healthy
+# long-running workers every STALL_SECS (false stall → exit 125). `wc -c` is
+# universal; strip whitespace BSD wc may pad with.
+_fsize() {
+    local s; s=$(wc -c < "$1" 2>/dev/null); s=${s//[^0-9]/}; printf '%s' "${s:-0}"
+}
+
 stall_monitor() {
     local pid="$1" file="$2" stall="$3" poll="${4:-30}" marker="$5"
     [[ "${stall:-0}" -le 0 ]] && return 0          # 0 → watchdog disabled
@@ -42,7 +51,7 @@ stall_monitor() {
     last_change=$(date +%s)
     while kill -0 "$pid" 2>/dev/null; do
         sleep "$poll"
-        size=$(stat -c%s "$file" 2>/dev/null || echo 0)
+        size=$(_fsize "$file")
         now=$(date +%s)
         if [[ "$size" != "$last_size" ]]; then
             last_size="$size"; last_change="$now"
