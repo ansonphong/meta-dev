@@ -49,6 +49,40 @@
    - Still FAIL → failure dossier to the inbox (repair-loop convention) +
      surface the one-line `summary`. Leave the phase uncommitted-beyond-tasks. Stop.
 
+## Runbook dashboard sync — re-render the owning runbook at every phase gate (NON-NEGOTIABLE for runbook members)
+The campaign-runbook `🎯 LIVE EXECUTION DASHBOARD` is a **pull-based** artifact —
+it only reflects reality when `scripts/runbook-render.py` is actually run. On a
+long-horizon execution the conductor advances checkboxes + the plan's `stage:`
+but, unless this step fires, **nothing re-renders the dashboard**, so it freezes
+mid-run and a later handoff silently overclaims. So: at **each phase gate, AFTER
+the verdict resolves and the phase's work is committed** (same seam as the
+context watchdog below), the conductor re-renders the owning runbook if the
+plan-under-execution is a member of one:
+
+```bash
+# PLAN_REL = the executing plan's path relative to repo root (e.g.
+#   plans/app/UNIFIED-EDITING-CANVAS/20-IMAGE-OFFSET/00-master-plan.md)
+RB=$(grep -rlF --include='_runbook-*.md' "$PLAN_REL" plans/ 2>/dev/null | head -1)
+if [ -n "$RB" ]; then
+  python3 ${CLAUDE_PLUGIN_ROOT}/scripts/runbook-render.py "$RB"   # stderr prints ⚠ stage-drift
+  git add "$RB" && git commit -q -m "chore(runbook): refresh dashboard — $(basename "$(dirname "$PLAN_REL")") phase landed"
+fi
+```
+
+- The render is **idempotent** — if nothing changed it rewrites the same block
+  and the commit is empty (skip it: `git diff --cached --quiet || git commit …`).
+- It writes ONLY the sentineled PROGRESS block; the narrative + CURRENT phase
+  tracker (human SHAs) are never touched.
+- Heed its **stderr `⚠ stage-drift`** lines: a plan at ~100% checkboxes still
+  parked below Stage 6 means *advance its `stage:`* (the plan really is done) or
+  leave it (genuinely awaiting review/acceptance) — but NEVER let a handoff call
+  it "done" while the dashboard shows it mid-stage. The render keeps the two honest.
+- **Plan completion:** when the FINAL phase of a member plan passes review, the
+  conductor bumps that plan's `stage:` → 6 (it has reached REVIEW) as part of the
+  same commit, so the dashboard flips it to ✅ DONE truthfully (stage-gated).
+- Single-phase plans (no `## Phase N`) have only the end seam → the render fires
+  once at end-of-plan; still strictly better than never.
+
 ## Context watchdog — pause-and-compact at a seam (conductor-run, NON-NEGOTIABLE on long runs)
 A long playbook (many phases) accretes context in the orchestrating Opus thread
 even though diffs never cross back — task tracker, verdicts, worker result lines,

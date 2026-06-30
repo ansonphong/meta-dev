@@ -101,6 +101,29 @@ def read_plan(plan_path):
     return text, fm
 
 
+def count_dir_checkboxes(member_dir, master_path):
+    """Sum checkbox completion across the WHOLE member dir, not just the master.
+
+    The execution checkboxes for a multi-phase plan live in its ``phase-*.md``
+    files, NOT the ``00-master-plan.md`` index — so counting only the master
+    badly under-reports progress (a plan 85% done through its phases shows 0%).
+    Aggregate ``count_checkboxes`` over every ``*.md`` in the member dir (the
+    master is one of them), and return ``(done, total, frac)``.
+    """
+    md_files = set(glob.glob(os.path.join(member_dir, "*.md")))
+    md_files.add(master_path)
+    done = total = 0
+    for f in sorted(md_files):
+        txt, _ = read_plan(f)
+        if txt is None:
+            continue
+        cb = plan_index.count_checkboxes(txt)
+        done += cb["done"]
+        total += cb["total"]
+    frac = (done / total) if total else 0.0
+    return done, total, frac
+
+
 def build_member_rows(members, repo_root):
     """Process each member plan into a dashboard row.
 
@@ -126,7 +149,9 @@ def build_member_rows(members, repo_root):
                 "num": i + 1, "id": short_id, "name": display_name,
                 "stage": 0, "stage_name": STAGE_NAME[0], "circled": STAGE_CIRCLED[0],
                 "phases_done": 0, "phases_total": 1, "bar": "▱▱▱▱",
+                "cb_done": 0, "cb_total": 0, "frac": 0.0,
                 "is_done": False, "is_blocked": False, "is_current": False,
+                "is_drift": False,
             })
             continue
 
@@ -140,13 +165,19 @@ def build_member_rows(members, repo_root):
         is_blocked = status == "blocked"
         is_done = stage >= 6 and status in ("done", "completed")
 
-        cb = plan_index.count_checkboxes(text)
-        pct = cb["pct"] / 100.0  # integer percent → fraction
+        # checkbox completion across the WHOLE member dir (master + phase-*.md),
+        # not just the master index — see count_dir_checkboxes.
+        _done, _total, frac = count_dir_checkboxes(member_dir, plan_path)
 
         # phase-*.md files in the member's directory (non-recursive) = the phase count
         phase_files = glob.glob(os.path.join(member_dir, "phase-*.md"))
         phases_total = len(phase_files) if phase_files else 1
-        phases_done = phases_total if is_done else round(pct * phases_total)
+        phases_done = phases_total if is_done else round(frac * phases_total)
+
+        # STAGE DRIFT — a plan ~fully checked off but still parked below Stage 6
+        # (the "did the work, forgot to advance" failure that lets a handoff
+        # silently overclaim "done"). Flag at ≥95% boxes AND stage < 6.
+        is_drift = (not is_done) and stage < 6 and _total > 0 and frac >= 0.95
 
         bar_width = max(4, phases_total)
         bar = "▰" * phases_done + "▱" * (bar_width - phases_done)
@@ -156,7 +187,9 @@ def build_member_rows(members, repo_root):
             "stage": stage, "stage_name": STAGE_NAME.get(stage, "?"),
             "circled": STAGE_CIRCLED.get(stage, "?"),
             "phases_done": phases_done, "phases_total": phases_total, "bar": bar,
+            "cb_done": _done, "cb_total": _total, "frac": frac,
             "is_done": is_done, "is_blocked": is_blocked, "is_current": False,
+            "is_drift": is_drift,
         })
     return rows
 
@@ -226,6 +259,8 @@ def compose_block(rows, members, repo_root):
             status_word = "🔄 EXECUTING"
         else:
             status_word = "⬜ QUEUED"
+        if row["is_drift"]:
+            status_word += " ⚠"  # ~done but parked below Stage 6 (see drift note)
         lines.append(
             f"| {row['num']} | {name_display} | {stage_cell} | {phases} "
             f"| `{row['bar']}` | {status_word} |"
@@ -235,6 +270,21 @@ def compose_block(rows, members, repo_root):
         "| — | **Stage 6** review · archive · runbook | — | — "
         "| `▱▱▱▱` | ⬜ QUEUED |"
     )
+
+    # STAGE-DRIFT note — surface "did the work, forgot to advance" so a handoff
+    # can't silently overclaim done. Only emitted when at least one member drifts.
+    drift = [r for r in rows if r["is_drift"]]
+    if drift:
+        lines.append("")
+        detail = ", ".join(
+            f"**{r['id']}** ({r['cb_done']}/{r['cb_total']} boxes, Stage {r['stage']})"
+            for r in drift
+        )
+        lines.append(
+            f"> ⚠ **Stage drift:** {detail} — ~fully checked off but still below "
+            "Stage 6. Advance the plan's `stage:` (and run review) or it under-reports."
+        )
+
     lines.append("")
     return "\n".join(lines)
 
@@ -300,6 +350,15 @@ def main():
     # build rows & compose the progress block
     rows = build_member_rows(members, repo_root)
     block = compose_block(rows, members, repo_root)
+
+    # surface stage drift to stderr (visible to /runbook refresh + CI)
+    for r in rows:
+        if r["is_drift"]:
+            print(
+                f"⚠ stage-drift: {r['id']} is {r['cb_done']}/{r['cb_total']} boxes "
+                f"({round(r['frac'] * 100)}%) but still Stage {r['stage']} — advance it.",
+                file=sys.stderr,
+            )
 
     # inject between sentinels
     new_text = replace_block(runbook_text, block)

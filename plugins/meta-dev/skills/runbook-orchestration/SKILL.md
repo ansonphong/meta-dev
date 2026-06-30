@@ -57,6 +57,11 @@ Walk `members` in order. For each member: if it is not yet planned/hardened, run
 and `/auto-execute` orchestrate **within** a plan (they already walk `00-master-plan + phase-N`). After
 each phase/plan lands, refresh the dashboard and flip the member's status. **Serial by default** — one
 code-writer per repo at a time; only run disjoint-footprint members concurrently.
+> **Dashboard auto-syncs during member execution.** `/meta-execute` + `/auto-execute` re-render THIS
+> runbook at every phase gate (loop-protocol → "Runbook dashboard sync"), so the LIVE EXECUTION
+> DASHBOARD never freezes mid-run. The render's stderr `⚠ stage-drift` flags any member at ~100%
+> checkboxes still parked below Stage 6 — advance its `stage:` (truly done) or leave it (awaiting
+> review), but never let a handoff claim "done" while the dashboard shows it mid-stage.
 > ⛔ EXECUTE STAYS GATED. Every member's code-writing needs Phong's explicit "go" (per CLAUDE.md). A
 > runbook never auto-advances execution. Design/plan/harden waves are non-gated — drive them freely.
 
