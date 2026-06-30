@@ -83,6 +83,18 @@ fi
 - Single-phase plans (no `## Phase N`) have only the end seam → the render fires
   once at end-of-plan; still strictly better than never.
 
+## Stalled worker — a halt is a PAUSE, never a silent pass
+Every headless backend (`claude-headless-exec`, `codex-headless-exec`) runs a
+**liveness watchdog**: if a worker's RAW event-stream goes silent for `STALL_SECS`
+(default 5 min) it is killed and **auto-reset** up to `STALL_MAX_RESETS` (default 3).
+If it stalls through the whole budget the script **HALTS with exit 125** and a
+`[STALLED — … Run PAUSED for review]` result line. The conductor MUST treat that
+as a **pause**, not a task pass and not a fix-ladder FAIL: do NOT advance the phase,
+do NOT re-dispatch on the fix ladder (the worker was wedged, not wrong). Surface
+the one-line STALLED notice + the partial `$RAW_FILE` path and STOP for the user.
+A non-stall FAIL (exit ≠ 125, real verdict) still flows through the normal fix
+ladder below.
+
 ## Context watchdog — pause-and-compact at a seam (conductor-run, NON-NEGOTIABLE on long runs)
 A long playbook (many phases) accretes context in the orchestrating Opus thread
 even though diffs never cross back — task tracker, verdicts, worker result lines,

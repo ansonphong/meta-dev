@@ -16,6 +16,14 @@
 #   --repo app|www|gallery   cd to this repo first (default: auto-detect from cwd)
 #   --model <model>          Override codex model (default: codex's configured default)
 #   --timeout <ms>           Wall-clock timeout in ms (default: 7200000 = 120 min)
+#
+# Liveness watchdog (env knobs — a wedged worker that goes silent is killed and
+# auto-reset, instead of idling out the full 120-min cap):
+#   STALL_SECS=<s>           No RAW-output growth for this long → stuck; kill +
+#                            auto-reset (default 300 = 5 min; 0 disables)
+#   STALL_MAX_RESETS=<n>     Auto-resets before halt-and-pause (default 3); on
+#                            exhaustion the run STOPS with exit 125 for review
+#   STALL_POLL_SECS=<s>      Output-size poll interval (default 30)
 #   --readonly               Sandbox = read-only (audits / gap-checks / reviews)
 #   --sandbox <mode>         read-only | workspace-write | danger-full-access
 #                            (default: workspace-write; --readonly forces read-only)
@@ -149,16 +157,24 @@ echo ""
 # -s MODE    → sandbox policy (read-only for audits, workspace-write for fixes)
 cd "$WORK_DIR"
 
+# Liveness watchdog: kill + auto-reset a wedged codex run instead of waiting out
+# the 120-min cap. See lib/stall-watchdog.sh.
+source "$SCRIPT_DIR/lib/stall-watchdog.sh"
+stall_launch_worker() {
+    printf '%s' "$PROMPT" | timeout "${TIMEOUT_S}s" codex exec \
+        --json \
+        -o "$LASTMSG_FILE" \
+        -s "$SANDBOX" \
+        --skip-git-repo-check \
+        ${MODEL:+-m "$MODEL"} \
+        - \
+        > "$RAW_FILE" 2> "$STDERR_FILE" &
+    WORKER_PID=$!
+}
+
 START_TIME=$(date +%s%3N 2>/dev/null || echo "$(( $(date +%s) * 1000 ))")
-EXIT_CODE=0
-printf '%s' "$PROMPT" | timeout "${TIMEOUT_S}s" codex exec \
-    --json \
-    -o "$LASTMSG_FILE" \
-    -s "$SANDBOX" \
-    --skip-git-repo-check \
-    ${MODEL:+-m "$MODEL"} \
-    - \
-    > "$RAW_FILE" 2> "$STDERR_FILE" || EXIT_CODE=$?
+run_with_stall_watchdog
+EXIT_CODE=$STALL_EXIT
 
 END_TIME=$(date +%s%3N 2>/dev/null || echo "$(( $(date +%s) * 1000 ))")
 ELAPSED_MS=$(( END_TIME - START_TIME ))
@@ -196,6 +212,13 @@ if [[ "$IS_ERROR" == "True" && $EXIT_CODE -eq 0 ]]; then
     EXIT_CODE=4
 fi
 
+# Stall-halt: codex went silent through the whole reset budget — surface loudly
+# (distinct exit 125) so the conductor PAUSES rather than trusting the silence.
+if [[ "${STALL_HALTED:-false}" == "true" ]]; then
+    IS_ERROR="True"
+    RESULT_TEXT="[STALLED — codex produced no output for $(( ${STALL_SECS:-300} / 60 ))m, killed and re-dispatched ${STALL_RESETS}× then HALTED. Run PAUSED for review. Partial trace: $RAW_FILE]"
+fi
+
 # ── Result summary ──────────────────────────────────────────────────────
 echo ""
 echo "────────────────────────────────────────────────────────────────────────"
@@ -205,6 +228,7 @@ echo "  Backend   : Codex (${MODEL:-default})"
 echo "  Exit code : $EXIT_CODE"
 echo "  is_error  : $IS_ERROR"
 echo "  Elapsed   : ${ELAPSED_S}s"
+[[ "${STALL_RESETS:-0}" -gt 0 ]] && echo "  Stalls    : ${STALL_RESETS} auto-reset(s)$([[ "${STALL_HALTED:-false}" == "true" ]] && echo " → HALTED (paused for review)")"
 echo "  Result    : $OUTPUT_FILE   (clean JSON — result/is_error/turns)"
 echo "  Raw trace : $RAW_FILE"
 echo "  Stderr    : $STDERR_FILE"

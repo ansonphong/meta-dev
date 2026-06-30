@@ -110,6 +110,14 @@ Options:
   --repo app|www|gallery    cd to this repo first (auto-detect if omitted)
   --model <model>           Override the default model
   --timeout <ms>            Timeout in ms via API_TIMEOUT_MS (default: 7200000 = 120 min)
+
+Liveness watchdog (env knobs — a wedged worker that goes silent is killed and
+auto-reset, instead of idling out the full 120-min cap):
+  STALL_SECS=<s>            No RAW-output growth this long → stuck; kill +
+                            auto-reset (default 300 = 5 min; 0 disables)
+  STALL_MAX_RESETS=<n>      Auto-resets before halt-and-pause (default 3); on
+                            exhaustion the run STOPS with exit 125 for review
+  STALL_POLL_SECS=<s>       Output-size poll interval (default 30)
   --tools <list>            Comma-separated tools (default: Read,Write,Edit,Bash,Grep,Glob)
   --readonly                Restrict to Read,Bash,Grep only
   --output json|text        Output format (default: json)
@@ -376,17 +384,25 @@ START_TIME=$(date +%s)
 # Keeping the two streams apart is what makes OUTPUT_FILE cleanly parseable.
 cd "$WORK_DIR"
 
-EXIT_CODE=0
-env "${ENV_UNSET[@]+"${ENV_UNSET[@]}"}" "${ENV_VARS[@]}" \
-    claude -p "$PROMPT" \
-        --output-format "$OUTPUT_FORMAT" \
-        --model "$MODEL" \
-        --allowedTools "$TOOLS" \
-        --no-session-persistence \
-        --permission-mode bypassPermissions \
-        ${MAX_TURNS:+--max-turns "$MAX_TURNS"} \
-        ${MAX_BUDGET_USD:+--max-budget-usd "$MAX_BUDGET_USD"} \
-        > "$RAW_FILE" 2> "$STDERR_FILE" || EXIT_CODE=$?
+# Liveness watchdog: if the worker's RAW stream goes silent (hangs) we kill +
+# auto-reset it, rather than wait out the full 120-min cap. See lib/stall-watchdog.sh.
+source "$SCRIPT_DIR/lib/stall-watchdog.sh"
+stall_launch_worker() {
+    env "${ENV_UNSET[@]+"${ENV_UNSET[@]}"}" "${ENV_VARS[@]}" \
+        claude -p "$PROMPT" \
+            --output-format "$OUTPUT_FORMAT" \
+            --model "$MODEL" \
+            --allowedTools "$TOOLS" \
+            --no-session-persistence \
+            --permission-mode bypassPermissions \
+            ${MAX_TURNS:+--max-turns "$MAX_TURNS"} \
+            ${MAX_BUDGET_USD:+--max-budget-usd "$MAX_BUDGET_USD"} \
+            > "$RAW_FILE" 2> "$STDERR_FILE" &
+    WORKER_PID=$!
+}
+
+run_with_stall_watchdog
+EXIT_CODE=$STALL_EXIT
 
 END_TIME=$(date +%s)
 ELAPSED=$((END_TIME - START_TIME))
@@ -421,6 +437,13 @@ if [[ "$IS_ERROR" == "True" && $EXIT_CODE -eq 0 ]]; then
     EXIT_CODE=4
 fi
 
+# Stall-halt: worker went silent through the whole reset budget — surface loudly
+# (distinct exit 125) so the conductor PAUSES rather than trusting the silence.
+if [[ "${STALL_HALTED:-false}" == "true" ]]; then
+    IS_ERROR="True"
+    RESULT_TEXT="[STALLED — worker produced no output for $(( ${STALL_SECS:-300} / 60 ))m, killed and re-dispatched ${STALL_RESETS}× then HALTED. Run PAUSED for review. Partial trace: $RAW_FILE]"
+fi
+
 # ── Result summary ──────────────────────────────────────────────────────
 echo ""
 echo "────────────────────────────────────────────────────────────────────────"
@@ -430,6 +453,7 @@ echo "  Backend   : $BACKEND_LABEL ($MODEL)"
 echo "  Exit code : $EXIT_CODE"
 echo "  is_error  : $IS_ERROR"
 echo "  Elapsed   : ${ELAPSED}s"
+[[ "${STALL_RESETS:-0}" -gt 0 ]] && echo "  Stalls    : ${STALL_RESETS} auto-reset(s)$([[ "${STALL_HALTED:-false}" == "true" ]] && echo " → HALTED (paused for review)")"
 echo "  Result    : $OUTPUT_FILE   (clean JSON — result/is_error/turns)"
 echo "  Raw trace : $RAW_FILE"
 echo "  Stderr    : $STDERR_FILE"
