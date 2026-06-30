@@ -172,11 +172,23 @@ stall_launch_worker() {
     WORKER_PID=$!
 }
 
-START_TIME=$(date +%s%3N 2>/dev/null || echo "$(( $(date +%s) * 1000 ))")
+# Portable ms epoch. BSD `date` lacks %N and mis-succeeds (prints literal "N"),
+# so prefer GNU date (gdate on macOS+coreutils, plain date on Linux), then
+# validate the result is pure digits — any junk falls back to python3.
+_now_ms() {
+  local t
+  if command -v gdate >/dev/null 2>&1; then t=$(gdate +%s%3N 2>/dev/null)
+  else t=$(date +%s%3N 2>/dev/null); fi
+  case "$t" in
+    ''|*[!0-9]*) t=$(python3 -c 'import time;print(int(time.time()*1000))' 2>/dev/null || echo "$(( $(date +%s) * 1000 ))") ;;
+  esac
+  printf '%s' "$t"
+}
+START_TIME=$(_now_ms)
 run_with_stall_watchdog
 EXIT_CODE=$STALL_EXIT
 
-END_TIME=$(date +%s%3N 2>/dev/null || echo "$(( $(date +%s) * 1000 ))")
+END_TIME=$(_now_ms)
 ELAPSED_MS=$(( END_TIME - START_TIME ))
 ELAPSED_S=$(( ELAPSED_MS / 1000 ))
 
