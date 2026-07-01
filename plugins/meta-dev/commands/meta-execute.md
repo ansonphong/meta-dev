@@ -1,7 +1,7 @@
 ---
 name: meta-execute
 description: Subagent-driven plan execution — optimistic momentum (fix regressions async, keep moving), mandatory post-run code review, verify+commit+push between, auto-archive on completion (never deploys)
-argument-hint: <plan-path> [--inline] [--strict] [--deep] [--glm] [--sonnet] [--codex] [--deploy] [--pause-before=<task-id>]
+argument-hint: <plan-path> [--inline] [--strict] [--deep] [--glm] [--sonnet] [--codex] [--effort <level>] [--deploy] [--pause-before=<task-id>]
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, TaskCreate, TaskUpdate]
 model: opus
 ---
@@ -32,7 +32,7 @@ Read `references/execute-charter.md` before dispatching. Execution posture (opti
 
 When a tier flag is present, run the **agentic-exec-loop** (skill: agentic-exec-loop, references/loop-protocol.md) instead of the Sonnet-subagent executor:
 
-- Execute each task via a fresh headless worker — `${CLAUDE_PLUGIN_ROOT}/scripts/claude-headless-exec --backend deep|glm|sonnet --repo <plan-repo> -- <task spec incl. its Verify: command>`, or `${CLAUDE_PLUGIN_ROOT}/scripts/codex-headless-exec` for `--codex` (no `--backend`). The worker self-verifies. **`--sonnet` runs each task on a SEPARATE `claude -p` pinned to `claude-sonnet-4-6` (200K, no `[1m]`) via the ambient login — NEVER an Anthropic-model `Agent` subagent, which an `opus[1m]` conductor would bill at the 1M rate.**
+- Execute each task via a fresh headless worker — `${CLAUDE_PLUGIN_ROOT}/scripts/claude-headless-exec --backend deep|glm|sonnet [--effort <level>] --repo <plan-repo> -- <task spec incl. its Verify: command>`, or `${CLAUDE_PLUGIN_ROOT}/scripts/codex-headless-exec` for `--codex` (no `--backend`). If `--effort <level>` was passed to `/meta-execute`, forward it to every `claude-headless-exec` dispatch (sonnet/glm; no-op for deep); otherwise the script's per-backend default applies (sonnet=high, glm=high). The worker self-verifies. **`--sonnet` runs each task on a SEPARATE `claude -p` pinned to `claude-sonnet-5` (200K, no `[1m]`) via the ambient login — NEVER an Anthropic-model `Agent` subagent, which an `opus[1m]` conductor would bill at the 1M rate.**
 - KEEP the per-task checkbox flip + per-task commit (unchanged).
 - At each `## Phase N` boundary (or once at end for phase-less plans), dispatch `meta-dev:review-agent` over `git diff <phase_pre_sha>..HEAD`; branch on PASS/CONDITIONAL_PASS/FAIL per the protocol; run the deep→glm fix-ladder on FAIL.
 - The conductor holds only the task list + per-phase verdict; it never reads diffs.
@@ -165,8 +165,9 @@ ALWAYS end with this structured dashboard. Use `references/execute-report-card.m
 | `--strict` | Disable optimistic momentum — every verify/test runs inline and blocks, serial gate, every red is a hard STOP, no background fixers, no async tests |
 | `--deep` | Per-task headless DeepSeek worker + phase-gated review-agent (**default execution tier**; GLM only on fix-escalation) |
 | `--glm` | Per-task headless GLM worker + phase-gated review-agent (stateful/complex/long-horizon) |
-| `--sonnet` | Per-task headless **Anthropic Sonnet-200K** worker (`--backend sonnet`: a separate `claude -p` pinned to `claude-sonnet-4-6`, no `[1m]`, ambient login) → **Opus** `review-agent` at each phase gate → fixes via another headless sonnet worker (ladder sonnet→glm). Use when you want Anthropic-grade Sonnet off the main thread at the **200K** price — NEVER a Sonnet `Agent` subagent, which an `opus[1m]` session bills at the 1M rate |
+| `--sonnet` | Per-task headless **Anthropic Sonnet-200K** worker (`--backend sonnet`: a separate `claude -p` pinned to `claude-sonnet-5`, no `[1m]`, ambient login) → **Opus** `review-agent` at each phase gate → fixes via another headless sonnet worker (ladder sonnet→glm). Use when you want Anthropic-grade Sonnet off the main thread at the **200K** price — NEVER a Sonnet `Agent` subagent, which an `opus[1m]` session bills at the 1M rate |
 | `--codex` | NOT a per-task execution worker. Codex is the cross-family CODE-REVIEW lens — a GPT-class second opinion used at phase gates / Stage 6, not for per-task execution. Execution stays on DeepSeek (default) → GLM (stateful) |
+| `--effort <level>` | Thinking/reasoning effort forwarded to the headless worker: `low\|medium\|high\|xhigh\|max`. Applies to `--sonnet` (default `high`) and `--glm` (default `high`); no-op for `--deep`. Drop to `medium`/`low` to conserve the Max Sonnet cap on bulk work; `xhigh` for the hardest tasks. Omit to use the per-backend default |
 | `--no-deploy` | Skip deploy prompt after archive |
 | `--pause-before=<id>` | Hard stop before that task |
 | `--no-pause` | Disable auto-pause on money-path/release-stability |

@@ -20,7 +20,7 @@ claude -p "check test results in /tmp/test-output.log" \
   --allowedTools Bash --output-format json
 
 # Model override for Sonnet
-claude -p "complex architectural review" --model claude-sonnet-4-6
+claude -p "complex architectural review" --model claude-sonnet-5
 ```
 
 ## Tool Allowlist Tiers

@@ -9,7 +9,7 @@
   ${CLAUDE_PLUGIN_ROOT}/scripts/claude-headless-exec; Codex via
   ${CLAUDE_PLUGIN_ROOT}/scripts/codex-headless-exec (no --backend).
   `--backend sonnet` is a SEPARATE `claude -p` process pinned to
-  `claude-sonnet-4-6` (no `[1m]`) — ALWAYS use it for Sonnet work, NEVER an
+  `claude-sonnet-5` (no `[1m]`) — ALWAYS use it for Sonnet work, NEVER an
   Anthropic-model `Agent` subagent: a Sonnet subagent dispatched from an
   `opus[1m]` conductor inherits the session's 1M beta and is billed at the 1M
   rate. The headless process carries no such beta → standard 200K tier.

@@ -1,6 +1,6 @@
 ---
 name: sonnet-execute
-argument-hint: <task description> [--repo <name>] [--readonly] [--model <model>]  # --repo names from .claude/meta-dev-repos.json
+argument-hint: <task description> [--repo <name>] [--readonly] [--model <model>] [--effort <level>]  # --repo names from .claude/meta-dev-repos.json
 description: Execute a task via headless Anthropic Sonnet Claude Code — spawns a SEPARATE Claude Code process pinned to the 200K Sonnet variant (NOT 1M), so it is never billed at the 1M rate the way a Sonnet subagent dispatched from an opus[1m] session would be.
 ---
 
@@ -14,7 +14,7 @@ Uses `scripts/claude-headless-exec --backend sonnet` under the hood.
 
 When the orchestrating session runs `opus[1m]`, the `[1m]` flag turns on the **1M context beta for the whole session**. A Sonnet **subagent** dispatched via the Agent/Task tool runs *inside* that session beta, so it goes out as **Sonnet-1M** and is billed at the premium long-context tier.
 
-`/sonnet-execute` sidesteps that entirely: it launches a **fresh `claude -p` process** with `--model claude-sonnet-4-6` (**no `[1m]` suffix**) and a scrubbed env. No 1M beta is active → standard **200K** Sonnet pricing. Your Opus thread keeps running `opus[1m]` untouched.
+`/sonnet-execute` sidesteps that entirely: it launches a **fresh `claude -p` process** with `--model claude-sonnet-5` (**no `[1m]` suffix**) and a scrubbed env. No 1M beta is active → standard **200K** Sonnet pricing. Your Opus thread keeps running `opus[1m]` untouched.
 
 **It authenticates via your ambient `~/.claude` login** — no API key, no third-party endpoint. Billing is against your normal Claude subscription/login, same as any local run, just at the 200K tier.
 
@@ -39,7 +39,8 @@ The user's input is: `$ARGUMENTS`
 Parse these optional flags:
 - `--repo <name>` — target repo (default: auto-detect from cwd; names from .claude/meta-dev-repos.json)
 - `--readonly` — restrict to read-only tools (review/analysis tasks)
-- `--model <model>` — override default model (default: `claude-sonnet-4-6` — the 200K variant; **do not add `[1m]`**)
+- `--model <model>` — override default model (default: `claude-sonnet-5` — the 200K variant; **do not add `[1m]`**)
+- `--effort <level>` — thinking/reasoning effort: `low|medium|high|xhigh|max` (**default: `high`** — Anthropic's own Sonnet 5 default; drop to `medium`/`low` to conserve the Max Sonnet cap on bulk work)
 - `--max-turns <n>` — cap agent turns (default: unset — worker runs to completion)
 
 Everything else is the task description. If no task description is provided, ask the user what task to execute.
@@ -47,7 +48,8 @@ Everything else is the task description. If no task description is provided, ask
 ## Step 2: Confirm the Plan
 
 Summarize what will be executed:
-- **Backend:** Anthropic Sonnet — `claude-sonnet-4-6` (200K, ambient login)
+- **Backend:** Anthropic Sonnet — `claude-sonnet-5` (200K, ambient login)
+- **Effort:** high (or the `--effort` value)
 - **Repo:** (detected or specified)
 - **Task:** (the task description)
 - **Mode:** read-only or read-write
@@ -63,6 +65,7 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/claude-headless-exec \
   --backend sonnet \
   --repo <repo> \
   ${MODEL:+--model "$MODEL"} \
+  ${EFFORT:+--effort "$EFFORT"} \
   ${READONLY:+--readonly} \
   ${MAX_TURNS:+--max-turns "$MAX_TURNS"} \
   -- <task description>

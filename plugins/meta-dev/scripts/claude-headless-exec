@@ -25,7 +25,7 @@
 # Backend defaults:
 #   deep   → deepseek-v4-pro (opus/sonnet), deepseek-v4-flash (haiku)
 #   glm    → glm-5.2[1m] (opus/sonnet), glm-4.7-flashx (haiku)
-#   sonnet → claude-sonnet-4-6 (200K — NO [1m]); REAL Anthropic via ambient login
+#   sonnet → claude-sonnet-5 (200K — NO [1m]); REAL Anthropic via ambient login
 #
 # Prerequisites:
 #   - DEEPSEEK_API_KEY env var (for --backend deep)
@@ -47,6 +47,7 @@ declare -A BACKEND_OPUS_MODEL
 declare -A BACKEND_SONNET_MODEL
 declare -A BACKEND_HAIKU_MODEL
 declare -A BACKEND_SUBAGENT_MODEL
+declare -A BACKEND_EFFORT
 declare -A BACKEND_LABEL
 
 BACKEND_BASE_URL[deep]="https://api.deepseek.com/anthropic"
@@ -55,6 +56,7 @@ BACKEND_OPUS_MODEL[deep]="deepseek-v4-pro"
 BACKEND_SONNET_MODEL[deep]="deepseek-v4-pro"
 BACKEND_HAIKU_MODEL[deep]="deepseek-v4-flash"
 BACKEND_SUBAGENT_MODEL[deep]="deepseek-v4-pro"
+BACKEND_EFFORT[deep]=""                               # backend has no effort knob
 BACKEND_LABEL[deep]="DeepSeek"
 
 BACKEND_BASE_URL[glm]="https://api.z.ai/api/anthropic"
@@ -63,25 +65,28 @@ BACKEND_OPUS_MODEL[glm]="glm-5.2[1m]"
 BACKEND_SONNET_MODEL[glm]="glm-5.2[1m]"
 BACKEND_HAIKU_MODEL[glm]="glm-4.7-flashx"
 BACKEND_SUBAGENT_MODEL[glm]="glm-5.2[1m]"
+BACKEND_EFFORT[glm]="high"                            # GLM runs at high effort by default
 BACKEND_LABEL[glm]="GLM"
 
 # sonnet → REAL Anthropic backend via your ambient ~/.claude login (NOT a 3rd
 # party). No base URL, no API key — just pin the 200K Sonnet model. The whole
-# point: a fresh `claude -p` process with --model claude-sonnet-4-6 (NO [1m]
+# point: a fresh `claude -p` process with --model claude-sonnet-5 (NO [1m]
 # suffix) runs at the standard 200K tier, so it is NEVER billed at the 1M rate
 # the way a Sonnet subagent dispatched from an opus[1m] session would be.
 BACKEND_BASE_URL[sonnet]=""                          # ambient — no override
 BACKEND_AUTH_KEY_ENV[sonnet]=""                      # ambient login — no key
-BACKEND_OPUS_MODEL[sonnet]="claude-sonnet-4-6"       # n/a (sonnet backend never runs opus)
-BACKEND_SONNET_MODEL[sonnet]="claude-sonnet-4-6"     # 200K variant — NO [1m] suffix
+BACKEND_OPUS_MODEL[sonnet]="claude-sonnet-5"         # n/a (sonnet backend never runs opus)
+BACKEND_SONNET_MODEL[sonnet]="claude-sonnet-5"       # Sonnet 5, 200K variant — NO [1m] suffix
 BACKEND_HAIKU_MODEL[sonnet]="claude-haiku-4-5-20251001"
-BACKEND_SUBAGENT_MODEL[sonnet]="claude-sonnet-4-6"   # its own subagents stay 200K too
+BACKEND_SUBAGENT_MODEL[sonnet]="claude-sonnet-5"     # its own subagents stay 200K too
+BACKEND_EFFORT[sonnet]="high"                        # Sonnet 5 thinks at HIGH (Anthropic's own default) — override --effort medium/low to conserve the Sonnet cap
 BACKEND_LABEL[sonnet]="Sonnet-200K"
 
 # ── Defaults ────────────────────────────────────────────────────────────
 BACKEND=""
 REPO=""
 MODEL=""
+EFFORT=""    # thinking/reasoning effort; resolved from per-backend default unless --effort given
 TIMEOUT=""   # resolved after parse (all backends → 7200000 = 120 min) unless --timeout given
 TOOLS="Read,Write,Edit,Bash,Grep,Glob"
 OUTPUT_FORMAT="json"
@@ -109,6 +114,8 @@ Required:
 Options:
   --repo app|www|gallery    cd to this repo first (auto-detect if omitted)
   --model <model>           Override the default model
+  --effort <level>          Thinking effort: low|medium|high|xhigh|max
+                            (per-backend default: sonnet=high, glm=high, deep=none)
   --timeout <ms>            Timeout in ms via API_TIMEOUT_MS (default: 7200000 = 120 min)
 
 Liveness watchdog (env knobs — a wedged worker that goes silent is killed and
@@ -126,10 +133,10 @@ auto-reset, instead of idling out the full 120-min cap):
   --output-file <path>      Write result to file instead of stdout
   -h, --help                Show this help
 
-Backend defaults:
-  deep   → deepseek-v4-pro          (DeepSeek API)
-  glm    → glm-5.2[1m]              (Z.AI API)
-  sonnet → claude-sonnet-4-6        (Anthropic · 200K · ambient login)
+Backend defaults (model · effort):
+  deep   → deepseek-v4-pro          (DeepSeek API · effort n/a)
+  glm    → glm-5.2[1m]              (Z.AI API · effort high)
+  sonnet → claude-sonnet-5          (Anthropic · 200K · ambient login · effort high)
 
 Examples:
   claude-headless-exec --backend deep --repo app -- "Fix all TS errors"
@@ -159,6 +166,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --model)
             MODEL="$2"
+            shift 2
+            ;;
+        --effort)
+            EFFORT="$2"
             shift 2
             ;;
         --timeout)
@@ -286,6 +297,16 @@ if [[ -z "$MODEL" ]]; then
     MODEL="${BACKEND_SONNET_MODEL[$BACKEND]}"
 fi
 
+# ── Resolve effort (per-backend default unless --effort given) ───────────
+# sonnet → high, glm → high, deep → none. --effort overrides for any backend.
+if [[ -z "$EFFORT" ]]; then
+    EFFORT="${BACKEND_EFFORT[$BACKEND]}"
+fi
+if [[ -n "$EFFORT" && ! "$EFFORT" =~ ^(low|medium|high|xhigh|max)$ ]]; then
+    echo "[ERROR] Invalid --effort '$EFFORT'. Use: low, medium, high, xhigh, max." >&2
+    exit 1
+fi
+
 # ── Resolve timeout (per-backend default unless --timeout given) ─────────
 # ALL backends run long-horizon agentic work — deep/glm/sonnet alike can run for
 # an hour or more on a real multi-phase task. Never cap a long-horizon worker low;
@@ -316,7 +337,7 @@ if [[ "$BACKEND" == "sonnet" ]]; then
     # Real Anthropic via the ambient ~/.claude login — do NOT set a base URL or
     # auth token. Scrub any inherited 3rd-party routing (e.g. if this runs from
     # a shell that was pointed at deep/glm) so Sonnet can't be proxied off to
-    # the wrong backend. With --model claude-sonnet-4-6 (no [1m]) this is the
+    # the wrong backend. With --model claude-sonnet-5 (no [1m]) this is the
     # standard 200K tier — never billed at the 1M rate.
     ENV_UNSET=(-u ANTHROPIC_BASE_URL -u ANTHROPIC_AUTH_TOKEN -u ANTHROPIC_API_KEY)
 else
@@ -327,10 +348,11 @@ else
     )
 fi
 
-# GLM-specific extras
-if [[ "$BACKEND" == "glm" ]]; then
+# Thinking/reasoning effort — resolved per-backend (sonnet=high, glm=high)
+# or overridden with --effort. Empty means "leave the CLI default alone".
+if [[ -n "$EFFORT" ]]; then
     ENV_VARS+=(
-        "CLAUDE_CODE_EFFORT_LEVEL=high"
+        "CLAUDE_CODE_EFFORT_LEVEL=${EFFORT}"
     )
 fi
 
@@ -349,6 +371,7 @@ cat <<EOF
 ╠══════════════════════════════════════════════════════════════════════════╣
 ║  Backend   : ${BACKEND_LABEL}
 ║  Model     : ${MODEL}
+║  Effort    : ${EFFORT:-"(CLI default)"}
 ║  Repo      : ${REPO:-"(auto: $(basename "$WORK_DIR"))"}
 ║  Work Dir  : ${WORK_DIR}
 ║  Tools     : ${TOOLS}
