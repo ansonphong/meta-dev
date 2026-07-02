@@ -1,7 +1,7 @@
 ---
 name: meta-loop-gap
 description: Four-Wave Gap Scanner — scans plans OR source code, finds bugs, fixes them directly
-argument-hint: <plan-dir | feature:name | code-path | project> [--budget auto|low|medium|high] [--iterations N] [--fix-backend deep|glm|opus|sonnet|haiku|fable|inline] [--deep|--glm|--opus|--sonnet|--haiku|--fable]
+argument-hint: <plan-dir | feature:name | code-path | project> [--budget auto|low|medium|high] [--iterations N] [--scan-model haiku|sonnet|opus|fable] [--fix-backend deep|glm|opus|sonnet|haiku|fable|inline] [--deep|--glm|--opus|--sonnet|--haiku|--fable]
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, TaskCreate, TaskUpdate]
 model: opus
 ---
@@ -47,10 +47,22 @@ When scanning a **plan** (the HARDEN stage, 4/6), keep `/meta-dashboard` in sync
 
 - **Wave 0 + Wave 1 always run** on every file (tools are free; Haiku is cheap) — the recall floor.
 - **Wave 2 escalates per-file, not globally.** A file gets a Wave 2 (Sonnet/Opus) per-file agent ONLY if: **(a)** Wave 0/1 reported ≥1 gap in it, **OR (b)** it changed since the last scan (`git diff` vs the prior `loop-gap.md` `git_sha`), **OR (c)** it is opus-tier (200+ lines / cross-module / complex logic — the high-bug-density files). Clean, unchanged, simple files skip Wave 2. The **semantic + role agents still always spawn** (Data Flow, Behavioral Claim, Mental Dry Run, etc.) — they run on the Context Index, not per-file, so they remain the cross-cutting safety net regardless of which files escalated.
-- **Wave 3 runs ONLY if Wave 2 left an unresolved high-severity gap.** A clean Wave 2 means the cheap waves already converged — Opus holistic review would add cost without signal.
+- **Wave 3 runs ONLY if Wave 2 left an unresolved high-severity gap.** A clean Wave 2 means the cheap waves already converged — Opus holistic review would add cost without signal. (Reviews on Opus by default, or the forced `--scan-model` when set.)
 - **First scan vs re-scan:** no prior `loop-gap.md` (virgin plan) → treat ALL files as changed → first pass gets full breadth. On re-scan, only changed + flagged + complex files escalate → re-hardening a green plan costs a fraction of the first pass.
 
 **Iterations** (default `1`): Multi-iteration uses progressive depth — early iterations run Wave 0+1 only, promoting to deeper waves as gap count drops below 10 → below 3 → zero. (Under `auto`, the per-file escalation gating above applies *within* each iteration too.)
+
+**Scan model** (default `auto`): forces which Anthropic model runs the **expensive detection waves** — every Wave 2 agent (per-file AND semantic/role) plus the Wave 3 review. Orthogonal to `--budget` (which controls *whether* and *which* files escalate) and to `--fix-backend` (which controls who *applies* fixes). **Wave 0 (tools) and the Wave 1 Haiku recall floor are never touched** — the cheap floor stays cheap by design.
+
+| `--scan-model` | Wave 2 + Wave 3 run on | Best for |
+|----------------|------------------------|----------|
+| *(unset)* `auto` (default) | per-file calibration — opus for complex/master files, sonnet otherwise; Wave 3 = opus — **today's behavior** | unchanged default |
+| `opus` | Opus everywhere | paranoid deep scan (pair with `--budget high` to also force *which* files escalate = max depth) |
+| `sonnet` | Sonnet everywhere (incl. Wave 3) | thrifty — spend zero Opus quota; good-enough scan |
+| `haiku` | Haiku everywhere | fastest / cheapest semantic pass |
+| `fable` | Fable everywhere | high-level / conceptual detection pass |
+
+`--scan-model` sets the *detection/review* model; `--fix-backend` sets the *fix* model — independent axes that compose (e.g. `--scan-model opus --fix-backend deep` = Opus finds, DeepSeek fixes). `--scan-model` takes the long form only — there is **no bare shorthand**, because `--opus/--sonnet/--haiku/--fable` are already bound to `--fix-backend`.
 
 **Fix backend** (default `inline`): selects **which model APPLIES the fixes** — the detection waves are unaffected and always run on the Anthropic wave tiers, so recall quality never changes. Select via `--fix-backend <value>` or the shorthand flags:
 
@@ -110,7 +122,7 @@ Before scanning, read this command's `## Learned Patterns` section (at the botto
 | Editable | Plan files not master, not research/reference, not scanner metadata |
 | Read-only | `research/` subdirs, `REVIEW-LOG`, `iteration-*-gap`, `original-reference` |
 
-**Model per file:** `00-master-plan.md` → **opus**. Phase files with 5+ tasks or cross-repo → **opus**. Everything else → **sonnet**.
+**Model per file:** `00-master-plan.md` → **opus**. Phase files with 5+ tasks or cross-repo → **opus**. Everything else → **sonnet**. (If `--scan-model` is set, it overrides this selection — every Wave 2 agent runs on the forced model.)
 
 **Code/feature/project buckets:**
 
@@ -121,7 +133,7 @@ Before scanning, read this command's `## Learned Patterns` section (at the botto
 | Test | Test files matching primary files — **editable**, agents can fix broken tests |
 | Types/Config | Shared type definitions, constants, config — **editable if directly related** |
 
-**Model per file:** Files 200+ lines, cross-module, or containing complex logic (loops, state machines, error handling chains) → **opus**. Everything else → **sonnet**. Test files → **sonnet**.
+**Model per file:** Files 200+ lines, cross-module, or containing complex logic (loops, state machines, error handling chains) → **opus**. Everything else → **sonnet**. Test files → **sonnet**. (If `--scan-model` is set, it overrides this selection — every Wave 2 agent runs on the forced model.)
 
 **Agent spawning rule: one agent per *substantive* file; batch the trivial ones.** Each opus-tier file (200+ lines / cross-module / complex logic) gets its OWN Wave 2 agent — never batch these. Small, simple files (short, single-responsibility, no complex logic — e.g. a constants/types/config file) may be **batched 2–4 per agent** when they're related, to cut agent count without losing recall. For large plans this still means many parallel Wave 2 agents — parallel agents are cheap and thorough — but don't burn a full agent on a 20-line constants file. (Under `auto` budget, only files in the escalation set get a Wave 2 agent at all — see the Budget table.)
 
@@ -476,7 +488,7 @@ master:TaskN ↔ phase:TaskN — title:✓ test:✓ files:✓
 
 ### Wave 2 — Deep Analysis (Sonnet/Opus, massively parallel)
 
-**Spawn the wave in a single parallel message.** Every independent analysis axis gets its own agent. Wall-clock time is bounded by the slowest agent, not the count. **Under `auto` budget, per-file agents spawn ONLY for the escalation set** (flagged / changed / complex files — see Budget table); the semantic + role agents below always spawn (they run on the Context Index). Under medium/high, every file gets a per-file agent.
+**Spawn the wave in a single parallel message.** Every independent analysis axis gets its own agent. Wall-clock time is bounded by the slowest agent, not the count. **Under `auto` budget, per-file agents spawn ONLY for the escalation set** (flagged / changed / complex files — see Budget table); the semantic + role agents below always spawn (they run on the Context Index). Under medium/high, every file gets a per-file agent. **Model:** each agent uses its per-file/default model (per the Model-per-file rules and the `(sonnet)`/`(opus)` tags below), UNLESS `--scan-model` is set — then every Wave 2 agent, per-file AND semantic/role, runs on that one forced model.
 
 **Per-file agents (one per file, NEVER batch):**
 Each agent's prompt MUST include:
