@@ -1,7 +1,7 @@
 ---
 name: meta-loop-gap
 description: Four-Wave Gap Scanner — scans plans OR source code, finds bugs, fixes them directly
-argument-hint: <plan-dir | feature:name | code-path | project> [--budget auto|low|medium|high] [--iterations N]
+argument-hint: <plan-dir | feature:name | code-path | project> [--budget auto|low|medium|high] [--iterations N] [--fix-backend deep|glm|opus|sonnet|haiku|fable|inline] [--deep|--glm|--opus|--sonnet|--haiku|--fable]
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, TaskCreate, TaskUpdate]
 model: opus
 ---
@@ -51,6 +51,20 @@ When scanning a **plan** (the HARDEN stage, 4/6), keep `/meta-dashboard` in sync
 - **First scan vs re-scan:** no prior `loop-gap.md` (virgin plan) → treat ALL files as changed → first pass gets full breadth. On re-scan, only changed + flagged + complex files escalate → re-hardening a green plan costs a fraction of the first pass.
 
 **Iterations** (default `1`): Multi-iteration uses progressive depth — early iterations run Wave 0+1 only, promoting to deeper waves as gap count drops below 10 → below 3 → zero. (Under `auto`, the per-file escalation gating above applies *within* each iteration too.)
+
+**Fix backend** (default `inline`): selects **which model APPLIES the fixes** — the detection waves are unaffected and always run on the Anthropic wave tiers, so recall quality never changes. Select via `--fix-backend <value>` or the shorthand flags:
+
+| Shorthand | `--fix-backend` value | Fixes applied by | Best for |
+|-----------|----------------------|------------------|----------|
+| *(none)* | `inline` (default) | Wave 2 per-file agents fix inline on their own wave-assigned model — **today's behavior** | unchanged default |
+| `--deep` | `deep` | headless DeepSeek (`claude-headless-exec --backend deep`) | cheap bulk / mechanical fixes; conserve Anthropic quota |
+| `--glm` | `glm` | headless GLM (`claude-headless-exec --backend glm`) | complex / cross-file / stateful fixes, off-Anthropic |
+| `--opus` | `opus` | Anthropic Opus `Agent` | highest-judgment fixes (subtle logic, architecture) |
+| `--sonnet` | `sonnet` | Anthropic Sonnet `Agent` | balanced Anthropic fixes |
+| `--haiku` | `haiku` | Anthropic Haiku `Agent` | fast, cheap mechanical fixes |
+| `--fable` | `fable` | Anthropic Fable `Agent` | high-level / conceptual fixes |
+
+When a non-`inline` fix backend is selected, the detection waves **report gaps only** (no inline fixing); fixes are then farmed to the chosen backend in the **Fix Dispatch** step (see Collect + Apply). If both a shorthand and `--fix-backend` are given, `--fix-backend` wins. Only ONE fix backend may be active — if multiple conflicting shorthands are passed, error and ask which to use.
 
 ## Step 0.5 — Read Learned Patterns
 
@@ -471,7 +485,7 @@ Each agent's prompt MUST include:
 3. Wave 0 tool results (skip checks tools already covered)
 4. **Only the gap categories that can actually fire on this file.** Start from the mode set (plan mode: cats 1-24 + 34; code/feature mode: cats 15-34 + applicable plan cats if hybrid), then **prune to what the plan/code actually contains**: no endpoints → drop the contract/API-drift cats (7, 7a-e, 30); pure-frontend with no async/shared state → drop concurrency/race (28); no data-model/schema change → drop migration (21); no loops/pipelines/accumulators in the code blocks → drop value-correctness (23); no multi-step smoke tests → drop verification-reachability (24). Carrying dead categories just bloats the prompt — give each agent only the lenses that can fire on its file.
 5. **Semantic verification mandate:** For every behavioral claim ("always/locked/forced/only") → check Reactive State Map mutation paths. For every UI component change → check for dead-end state combos. For every scope limiter → trace all data paths in Context Index. For every implementation mapping → check Architecture Registry. For every function call → check GUARDS in Codebase Signatures. **For every code block with a loop/pipeline** → trace variable values through iterations and verify return/response uses the correct (cumulative vs. last-iteration) value (cat 23). **For every multi-step verification procedure** → simulate state after each step and verify next step is reachable (cat 24).
-6. Instructions: **Plan mode:** fix own file only, report cross-file gaps, preserve checkboxes, no new tasks, no deletions. **Code/feature mode:** fix source code in own file directly (conf ≥ 0.8), report cross-file gaps, never delete public functions without consumer verification, produce at least 1 adversarial scenario. **Stub detection (ALL modes):** Check for category 33 patterns in every file. A route handler that returns hardcoded data when a service function exists for real data is ALWAYS a bug. A component showing "coming soon" or "Phase N" text in production is ALWAYS a bug. Report these at sev:HIGH conf:0.95 regardless of mode.
+6. Instructions: **Fix-backend override (checked FIRST):** if the run's resolved fix backend (Step 0) is NOT `inline`, this agent — in ALL modes — REPORTS gaps in the structured format only and applies NO edits; the Fix Dispatch step applies them via the chosen backend. The mode-specific fixing rules below apply ONLY under the default `inline` backend. **Plan mode:** fix own file only, report cross-file gaps, preserve checkboxes, no new tasks, no deletions. **Code/feature mode:** fix source code in own file directly (conf ≥ 0.8), report cross-file gaps, never delete public functions without consumer verification, produce at least 1 adversarial scenario. **Stub detection (ALL modes):** Check for category 33 patterns in every file. A route handler that returns hardcoded data when a service function exists for real data is ALWAYS a bug. A component showing "coming soon" or "Phase N" text in production is ALWAYS a bug. Report these at sev:HIGH conf:0.95 regardless of mode.
 
 **Role agents (parallel with per-file agents):**
 
@@ -659,7 +673,35 @@ Report only **real** findings — zero is a valid result. Do NOT manufacture fin
 - Compile all gap reports from all waves
 - Deduplicate (same file + line + category = one)
 - Sort by severity (high first), then confidence
-- Fix conf ≥ 0.8, flag 0.5-0.79, report-only < 0.5
+- Confidence filter: conf ≥ 0.8 → **fix**, 0.5-0.79 → flag, < 0.5 → report-only
+
+**Apply the fixes — routed by the resolved fix backend (Step 0):**
+
+- **`inline` (default):** fixes were already applied by the Wave 2 per-file agents (and Wave 2.5 cross-file verifiers) as they ran. Nothing to dispatch — go straight to the tool re-verify below.
+- **`deep` / `glm` / `opus` / `sonnet` / `haiku` / `fable`:** the detection waves reported gaps only and applied no edits. Run the **Fix Dispatch** step now to apply every conf ≥ 0.8 fix via the chosen backend.
+
+#### Fix Dispatch (only when fix backend ≠ `inline`)
+
+The waves produced a deduped, confidence-filtered gap list but made no edits. Farm the fixing out:
+
+1. **Group fixable gaps (conf ≥ 0.8) by file.** Single-file gaps → one worker per file (batch that file's gaps into one task). Cross-file gap clusters (from Wave 2.5) → one worker per cluster, handed all files in the cluster. Flagged (0.5-0.79) and report-only (<0.5) gaps are NOT dispatched — they surface in the report card as before.
+2. **Resolve the target repo** (headless backends only): derive `--repo` from the target path via child-repo detection (same rule as `/deep-execute`); if ambiguous, ask.
+3. **Dispatch one worker per group:**
+   - **`deep` / `glm` (headless, non-Anthropic):**
+     ```bash
+     ${CLAUDE_PLUGIN_ROOT}/scripts/claude-headless-exec \
+       --backend <deep|glm> --repo <repo> \
+       -- "Apply these already-verified gap fixes to <file(s)> — nothing more. \
+           Do NOT re-analyze, re-scan, or widen scope. Apply exactly the listed fixes. \
+           Honor the code-fix safety rails: no public-API signature change without checking \
+           all callers, never delete a function/export without a zero-consumer grep, never \
+           edit test assertions to make tests pass. \
+           GAPS: <the file:line / category / DESC / FIX list for this group>"
+     ```
+     Worker edits are NOT auto-committed — the main thread verifies and commits (below).
+   - **`opus` / `sonnet` / `haiku` / `fable` (Anthropic override):** dispatch one `Agent` per group with `model: <opus|sonnet|haiku|fable>`, given the same fix-only task + safety rails. Stay on Anthropic when you want Anthropic-grade fixes at a chosen cost/quality tier — `haiku` for trivially mechanical fixes, `opus`/`fable` for subtle or conceptual ones.
+4. **Fix workers apply edits ONLY** — they receive a closed gap list and act on exactly it; never re-scan, never expand scope.
+5. **Re-verify:** after all fix workers return, re-run **Wave 0 tools** to confirm no regressions (type / lint / build / test), exactly as the code-fix safety rails require. Then commit.
 
 ### Loop Decision
 
@@ -679,7 +721,7 @@ Report only **real** findings — zero is a valid result. Do NOT manufacture fin
 - Prefer phase doc's version when fixing mismatches.
 
 ### Code/feature mode rules
-- **Agents CAN and SHOULD fix source code directly** for gaps at conf ≥ 0.8. This is the whole point of code mode — find bugs and fix them.
+- **Agents CAN and SHOULD fix source code directly** for gaps at conf ≥ 0.8 **under the default `inline` fix backend**. This is the whole point of code mode — find bugs and fix them. (When a `--deep`/`--glm`/`--opus`/`--sonnet`/`--haiku`/`--fable` fix backend is selected, agents report gaps only and the **Fix Dispatch** step applies them — the safety rails below still bind the fix workers.)
 - **Safety rails for code fixes:**
   - NEVER delete a function/class/export without first verifying zero consumers via grep. Dead code removal requires exhaustive consumer search.
   - NEVER change a public API signature (function params, return type, endpoint shape) without checking all callers. Prefer adding overloads or optional params over breaking changes.
@@ -712,7 +754,7 @@ After generating/updating loop-gap.md:
    - **low:** single consolidated Sonnet.
 6. After Wave 2: if cross-file gaps found, spawn Wave 2.5 verification agents (parallel)
 7. Run Wave 3 when: budget=high | budget=medium (final pass, prior gaps < 3) | **budget=auto AND Wave 2 left an unresolved high-sev gap**. Skip otherwise.
-8. Compile, dedup, apply fixes, commit, update metadata → **render report card (Step 7)**
+8. Compile, dedup, apply fixes (**inline** by default, or via the **Fix Dispatch** step when `--fix-backend`/`--deep`/`--glm`/`--opus`/`--sonnet`/`--haiku`/`--fable` is set), re-verify Wave 0, commit, update metadata → **render report card (Step 7)**
 
 **Multi-iteration:**
 ```
@@ -760,7 +802,7 @@ ALWAYS end the run with this structured dashboard — the loop-gap analogue of t
   Duration:     <iterations · agents · tokens>
 
   ── Scan ──
-  <N> files · <budget> budget · waves W0+W1+W2+W3 · <I> iteration(s)
+  <N> files · <budget> budget · fixes:<inline|deep|glm|opus|sonnet|haiku|fable> · waves W0+W1+W2+W3 · <I> iteration(s)
 
   ── Gaps ──
   ✅ <fixed>/<found> fixed   <flagged> flagged   <remaining> remaining
