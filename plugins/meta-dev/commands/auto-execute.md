@@ -115,7 +115,7 @@ with open("plans/_dashboard/state.events.jsonl","a") as f:
 PY
 ```
 
-`<stage>` ∈ `plan|harden|execute|review` (what the worker is doing). Idempotent with the start-hook and the command's own emit — the reducer keeps the latest, so double-emits are harmless. For a **multi-phase plan**, emit `execute in_progress` when the phase loop begins and `execute completed` once all phases land green. (Run from the project root so `plans/_dashboard/` resolves; `/meta-dashboard` reduces the log on render.)
+`<stage>` ∈ `plan|harden|execute|review` (what the worker is doing). Idempotent with the start-hook and the command's own emit — the reducer keeps the latest, so double-emits are harmless. For a **multi-phase plan**, emit `execute in_progress` when the phase loop begins and `execute completed` once all phases land green. (Run from the project root so `plans/_dashboard/` resolves; `/meta-dashboard` reduces the log on render.) The stage 5→6 (DONE) advance is then enforced by `on-run-complete.sh` — it stamps DONE once all execution checkboxes are flipped and a `review_verdict(pass)` is on record, or FAILS LOUD to the inbox otherwise.
 
 ## Gating — code-writing executes stay gated
 

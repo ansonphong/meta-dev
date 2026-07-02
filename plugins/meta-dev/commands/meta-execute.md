@@ -16,6 +16,8 @@ This command owns the **EXECUTE** waterfall stage (5/6). Keep `/meta-dashboard` 
 
 `<plan-path>` is the plan you were invoked on. This lights up the plan at Stage 5 (and the Active Sessions STAGE column) automatically.
 
+**Stage 5 → 6 (DONE) is enforced by the `on-run-complete.sh` Stop hook, not by you.** When execution is complete (all execution checkboxes flipped) AND a review PASS is on record (see step 6), the gate stamps `review completed` (stage 6) and re-renders the dashboard itself. You still flip checkboxes per-task and run the review — the gate is the deterministic backstop that makes silent half-completion impossible.
+
 ## ⛔ Prerequisite — visible main-thread task list (non-negotiable)
 
 **Before starting work on ANY task (whether dispatched to a subagent or run `--inline`), the main thread MUST stand up a visible task list via `TaskCreate` — one entry per CHECKBOX in the plan (every `### Task N:` heading AND every `- [ ]` subtask checkbox nested under it) — and keep it live with `TaskUpdate` for the whole run.** Granularity is the point: the user runs `/meta-execute` to *watch* progress, so a list of fine-grained, checkbox-mapped entries is a primary deliverable — a list of 4 broad items hides progress; the same plan's 14 checkboxes as 14 entries shows it. No tracker visible = the run has not started correctly. Updates are mirrored *as each state changes* — never batched at the end.
@@ -105,6 +107,15 @@ Replace with:         - [x] DONE Task N: <title>
 - **Substantive** (logic, security, contract, scope creep) → surface to user with file:line in the Follow-ups section of the report card, do NOT silently auto-fix
 
 Record verdict in the report card. If the review returns substantive findings, fix them before proceeding to housekeeping.
+
+**Persist the review verdict — the end-of-run DONE-gate reads it (MANDATORY).** The `on-run-complete.sh` Stop hook stamps this plan DONE (stage 6) automatically once execution is complete AND a `review_verdict(pass)` is on record; without that event the gate leaves the plan at stage 5 and flags "review missing." Once the run's review resolves to a pass (default path: no substantive findings left; tier path: the final phase PASS), emit it:
+
+```bash
+NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+bash ${CLAUDE_PLUGIN_ROOT}/scripts/state-append.sh "{\"event\":\"review_verdict\",\"plan\":\"<plan-path>\",\"verdict\":\"pass\",\"time\":\"$NOW\"}"
+```
+
+On a substantive FAIL that halts the run, emit `\"verdict\":\"fail\"` (or omit). Either way the run NEVER silently ends half-stamped: the gate either advances it to DONE or surfaces what's outstanding to the inbox.
 
 ### 7. Housekeeping
 

@@ -36,7 +36,10 @@
    "issues": [ {severity,file,line,title,description,suggested_fix} ],
    "summary": "..." }`.
 4. Branch:
-   - **PASS** → advance to next phase.
+   - **PASS** → advance to next phase. Persist the verdict for the end-of-run
+     DONE-gate — the `on-run-complete.sh` Stop hook stamps the plan DONE only
+     when a pass is on record, so emit one per phase PASS:
+     `NOW=$(date -u +%FT%TZ); bash ${CLAUDE_PLUGIN_ROOT}/scripts/state-append.sh "{\"event\":\"review_verdict\",\"plan\":\"$PLAN_REL\",\"verdict\":\"pass\",\"time\":\"$NOW\"}"`.
    - **CONDITIONAL_PASS** → apply the `suggested_fix`es via one Fixer on the
      active tier's primary backend (see Tier mapping), then advance (no
      re-review needed for minor issues).
@@ -77,9 +80,12 @@ fi
   parked below Stage 6 means *advance its `stage:`* (the plan really is done) or
   leave it (genuinely awaiting review/acceptance) — but NEVER let a handoff call
   it "done" while the dashboard shows it mid-stage. The render keeps the two honest.
-- **Plan completion:** when the FINAL phase of a member plan passes review, the
-  conductor bumps that plan's `stage:` → 6 (it has reached REVIEW) as part of the
-  same commit, so the dashboard flips it to ✅ DONE truthfully (stage-gated).
+- **Plan completion:** the `on-run-complete.sh` Stop hook stamps the member plan
+  `stage:`→6 / status done and re-renders the runbook once execution is complete
+  (all execution checkboxes flipped) AND a `review_verdict(pass)` is on record
+  (emitted at each phase PASS above). The conductor no longer hand-bumps stage→6
+  — the gate owns it deterministically (idempotent: re-stamping a done plan is a
+  no-op).
 - Single-phase plans (no `## Phase N`) have only the end seam → the render fires
   once at end-of-plan; still strictly better than never.
 

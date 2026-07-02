@@ -98,6 +98,16 @@ grep -cE '^[[:space:]]*[-*][[:space:]]+\[[[:space:]]\]' <plan-file>
 ```
 If the count is non-zero for tasks you believe are done, STOP — go back and flip those checkboxes NOW. Never render the report card with unchecked completed tasks.
 
+### The deterministic backstop — `on-run-complete.sh`
+
+The checkbox discipline above is **guidance**; the **guarantee** is the `on-run-complete.sh` Stop hook. On any stop, for a plan at stage 5 it checks that all EXECUTION checkboxes are flipped (human-verify gates — `by eye` / `by hand` / `GPU` / `manual` — are excluded; those are the user's smoke test) AND a `review_verdict(pass)` is on record:
+
+- both met → it stamps DONE (stage 6) and re-renders the dashboard itself;
+- run claimed `execute completed` with execution boxes still open → it **FAILS LOUD** to the inbox (never silently half-stamps);
+- clean execution but no review pass on record → it flags "review missing" and leaves the plan at stage 5.
+
+You still flip checkboxes per-task and run the review — the gate is the deterministic backstop that makes silent half-completion structurally impossible.
+
 ### Stale CLAIMED check
 
 If a task has been CLAIMED for >2 hours with no DONE, prompt the user before re-claiming.
