@@ -40,7 +40,7 @@ When `/auto-execute` (or the user) hands you **one phase/wave file** from a mult
 
 ## Test discipline — keep every test cycle cheap
 
-When the task runs tests, **path-scope, always.** Run only the named test file — `pytest path/to/test_x.py -q` (add `-m "not slow and not gpu and not integration"` if the suite marks them) — and NEVER bare `pytest`, `pytest <dir>/`, or `pytest … -k <expr>`: those collect the whole test tree first (~30s vs ~1.7s for a named file — **~18× slower every cycle**). NEVER run `svelte-check`, `tsc --noEmit`, `npm run build`, or the full suite in an inner cycle — those run once at the end, not per change. Confirm green once; don't re-run a passing test. (Canonical: meta-dev `references/execute-charter.md` → Fast Test Doctrine.)
+When the task runs tests, **path-scope, always.** Run only the named test file — `pytest path/to/test_x.py -q` (add `-m "not slow and not gpu and not integration"` if the suite marks them). NEVER bare `pytest`, `pytest <dir>/`, or `pytest … -k <expr>` (they collect the whole tree first). NEVER `svelte-check`, `tsc --noEmit`, `npm run build`, or the full suite in an inner cycle — those run once at the end. Confirm green once; don't re-run a passing test. (Canonical: meta-dev `references/execute-charter.md` → Fast Test Doctrine.)
 
 ## Step 1: Parse Arguments
 
@@ -86,8 +86,7 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/claude-headless-exec \
 - Otherwise, check `pwd` — if we're inside a child repo, use that repo
 - If ambiguous (in parent repo), ask which repo to target
 
-**Background execution for long tasks:**
-If the task sounds like it will take more than ~30 seconds, use the Bash tool with `run_in_background: true`. When the background task completes, read the output file and report.
+**Background execution:** when a backgrounded task completes, read the output file and report.
 
 ## Step 4: Report Results
 

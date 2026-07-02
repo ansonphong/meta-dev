@@ -121,7 +121,7 @@ Per round:
 
 ## Wave 3 — Experiment & ground-truth (conditional — T6)
 
-Run only when analysis cannot separate surviving hypotheses, or budget is high/insane and an experiment would raise confidence. Pure analysis stays the default — experiment only when necessary.
+Run only when analysis cannot separate surviving hypotheses, or budget is high/insane and an experiment would raise confidence. Pure analysis is the default.
 
 - Design the **single most decisive experiment** per unresolved fork: reproduce the behavior, instrument it, run a targeted test, measure the metric.
 - **Read-only on the real tree.** Any scratch code, fixtures, or temp instrumentation goes in a temp dir or a throwaway scratch path — never edit tracked source, never commit. Clean up after.
@@ -139,43 +139,41 @@ Collapse all surviving evidence into ONE report via **adversarial synthesis** (e
 
 ## Long-Horizon Discipline (high / insane — multi-hour runs)
 
-A probe that runs for hours fails not from lack of effort but from **context rot, coordination drift, and wheel-spinning**. These rules make a long run *productive* — reaching real conclusions — instead of a slow, confident drift into nonsense. They are mandatory at `high` and `insane`; cheap to apply at `low`/`medium` too.
+A multi-hour probe fails from **context rot, coordination drift, and wheel-spinning**, not lack of effort. These rules keep a long run *productive* — reaching real conclusions, not a confident drift into nonsense. Mandatory at `high`/`insane`; cheap to apply at `low`/`medium`.
 
-**LH1 — Context isolation (the load-bearing rule).** The orchestrator NEVER holds raw agent transcripts. Every dispatched agent returns a **distilled artifact only** (≤ ~200 words: claim · evidence cites · confidence · one counterexample). Verbose exploration, file dumps, and reasoning chains die inside the subagent's own context. This is what lets the run survive hours without the orchestrator filling up and losing the plot.
+**LH1 — Context isolation (load-bearing).** The orchestrator NEVER holds raw agent transcripts. Every dispatched agent returns a **distilled artifact only** (≤ ~200 words: claim · evidence cites · confidence · one counterexample). Verbose exploration, file dumps, and reasoning chains die inside the subagent's context — this is what lets the run survive hours without the orchestrator filling up and losing the plot.
 
-**LH2 — Externalized state ledger.** Maintain `plans/meta/probe-{slug}-state.md`, updated after **every wave and every round**. It is the durable memory — the run reads from it, not from accumulated chat. Contents:
+**LH2 — Externalized state ledger.** Maintain `plans/meta/probe-{slug}-state.md`, updated after **every wave and every round** — the durable memory the run reads from, not accumulated chat. Contents:
 - **Hypotheses** — each with status (alive / demoted / refuted / confirmed) and current confidence.
-- **Evidence ledger** — every load-bearing fact, **provenance-tagged** to its source (`file:line`, command + output, doc). This is ground truth.
+- **Evidence ledger** — every load-bearing fact, **provenance-tagged** to its source (`file:line`, command + output, doc). Ground truth.
 - **Forbidden ruts** — carried and extended.
-- **Frontier (LH5)** — the live list of unexplored avenues, each with its value-of-information note. The probe runs until this is dry. Items are added when an angle opens a new question and struck when pursued or judged zero-VOI.
-- **Round log** — round N: what changed (eliminated / new evidence / forks opened-or-closed) + the progress score (LH5) + frontier size.
+- **Frontier (LH5)** — live list of unexplored avenues, each with its value-of-information note; the probe runs until dry. Add when an angle opens a new question, strike when pursued or judged zero-VOI.
+- **Round log** — round N: what changed (eliminated / new evidence / forks opened-or-closed) + progress score (LH5) + frontier size.
 - **Current best verdict** — always present, even mid-run.
 
-The final report is generated FROM this ledger. The ledger is the resume point for `--background` runs and the source of truth after any compaction.
+The final report is generated FROM this ledger; the ledger is the resume point for `--background` runs and the source of truth after any compaction.
 
-**LH3 — Compaction checkpoints.** After each round (or sooner if context is heavy), **compact**: discard raw debate, re-initialize the working context from the state ledger + the neutral statement. Never carry chatter across a round boundary — carry the ledger.
+**LH3 — Compaction checkpoints.** After each round (sooner if context is heavy), discard raw debate and re-initialize the working context from the ledger + neutral statement. Carry the ledger, never chatter.
 
-**LH4 — Provenance + re-anchoring (anti coordination-drift).** A claim advancing between rounds must be **re-verified against its ORIGINAL evidence** (the `file:line`/command in the ledger), never against a prior agent's summary. Summaries route attention; only source evidence decides. This stops one agent's early error from becoming the whole tree's "fact."
+**LH4 — Provenance + re-anchoring (anti coordination-drift).** A claim advancing between rounds is **re-verified against its ORIGINAL evidence** (the `file:line`/command in the ledger), never a prior agent's summary. Summaries route attention; only source evidence decides. Stops one agent's early error from becoming the whole tree's "fact."
 
-**LH5 — Exploration frontier (the productivity guardrail).** Compute is only justified while there is an **unexplored avenue that could plausibly change the verdict**. Maintain an explicit **frontier** in the ledger: a list of not-yet-pursued avenues (an untried angle, an unread file/region, an unrun experiment, an unresolved fork, a hypothesis with no decisive evidence either way). Each frontier item carries a one-line **value-of-information** note: *what could this change, and how likely?*
+**LH5 — Exploration frontier (productivity guardrail).** Compute is justified only while an **unexplored avenue could plausibly change the verdict**. Keep an explicit **frontier** in the ledger: not-yet-pursued avenues (untried angle, unread file/region, unrun experiment, unresolved fork, hypothesis with no decisive evidence either way), each with a one-line **value-of-information** note: *what could this change, and how likely?* Each round's continue/stop decision:
+- **Continue** iff ≥1 frontier item has non-trivial VOI — could move the verdict, flip a hypothesis, or close a fork. Pursue highest-VOI first.
+- **Stop (exhaustion)** when the frontier is empty, OR every remaining item is unable to change the conclusion (low/zero VOI: cosmetic, redundant, already-decided). Then **conclude** — don't spin a round to look busy.
 
-The continue/stop decision each round is exactly:
-- **Continue** iff the frontier contains ≥1 item whose value-of-information is non-trivial — i.e. it could move the verdict, flip a hypothesis, or close an open fork. Pursue the highest-VOI item first.
-- **Stop (exhaustion)** when the frontier is empty, OR every remaining item is judged unable to change the conclusion (low/zero VOI: cosmetic, redundant, or already-decided). Then **come to conclusions** — do not spin another round to look busy.
+Compute a **progress score** per round = (hypotheses eliminated-with-evidence) + (net-new provenance-tagged evidence) + (forks resolved); log it. Two consecutive ≈0-progress rounds strongly signals a dry frontier — verify it's genuinely exhausted, then conclude. Long is fine when avenues remain; **flat with a dry frontier means stop**. Never burn a round, agent, or recursion with no plausible payoff.
 
-Also compute a **progress score** per round = (hypotheses eliminated-with-evidence) + (net-new provenance-tagged evidence) + (forks resolved); log it. Two consecutive ≈0-progress rounds is a strong signal the frontier is effectively dry — verify the frontier is genuinely exhausted, then conclude. Long is fine when avenues remain; **flat with a dry frontier means stop**. Never burn a round, an agent, or a recursion with no plausible payoff.
+**End-of-round contemplation (mandatory gate).** At every round's close, before continue/stop, write into the ledger:
+1. *Any other avenue to look down?* — actively generate new frontier items: an untried angle, an unread file/region, an un-inverted assumption, an unrun experiment, an undrawn analogy, an untaken perspective. Accept "none" only after a genuine search.
+2. *Have we been exhaustive?* — is every surviving hypothesis decided by evidence or blocked only by a named decisive experiment? Is the frontier truly dry, or merely *tiring*?
 
-**End-of-round contemplation (mandatory ritual).** At the close of EVERY round, before deciding to continue or stop, explicitly write into the ledger the answers to two questions:
-1. *Is there any other avenue we could look down?* — Actively try to generate new frontier items here: an angle not yet tried, a file/region not yet read, an assumption not yet inverted, an experiment not yet run, an analogy not yet drawn, a stakeholder/perspective not yet taken. Push for at least one candidate; only accept "none" after a genuine search.
-2. *Have we been exhaustive?* — Honestly: is every surviving hypothesis either decided by evidence or blocked only by a named decisive experiment? Is the frontier truly dry, or merely *tiring*?
+Continue iff Q1 surfaces a non-trivial avenue; conclude iff Q1 yields nothing AND Q2 is yes. This is the gate — progress score and stall counter only inform it.
 
-Continue iff Q1 surfaces a non-trivial avenue. Conclude iff Q1 genuinely yields nothing AND Q2 is yes. This contemplation is the gate — the progress score and stall counter only inform it.
+**LH6 — Hard ceilings (even on insane).** "Unbounded" = not artificially short, not literally forever. Default ceilings (configurable via `--rounds` / settings): ≤ 12 debate rounds, ≤ 3 recursion depth, ≤ 80 total agents. Any ceiling is a **graceful terminal**: write the best-supported verdict + remaining forks and each decisive experiment. Never crash-stop; land the plane.
 
-**LH6 — Hard ceilings (even on insane).** "Unbounded" means *not artificially short* — not literally forever. Default ceilings (configurable via `--rounds` / settings): ≤ 12 debate rounds, ≤ 3 recursion depth, ≤ 80 total agents. Hitting any ceiling is a **graceful terminal**: write the best-supported verdict + the remaining forks and the decisive experiment for each. Never crash-stop; always land the plane.
+**LH7 — Incremental report (checkpoint value).** Update the report file after every wave so an interrupted or ceiling-stopped run still yields the full value gathered. Never defer output to a final one-shot write.
 
-**LH7 — Incremental report (checkpoint value).** Update the report file after every wave so an interrupted or ceiling-stopped run still yields the full value gathered so far. Never defer all output to a final one-shot write.
-
-**LH8 — Trajectory review / course-correction.** Every 3 rounds (and before any recursion), a **fresh-context lead-reviewer agent** reads ONLY the state ledger and answers: (a) are we still answering the *original* question, or have we drifted? (b) are we in a rut the forbidden-list should already have caught? (c) is marginal value still positive, or should we terminate? Its verdict can re-plan, prune branches, or stop the probe. (Reflexion + "are you really still on track" — external, not self-judged.)
+**LH8 — Trajectory review / course-correction.** Every 3 rounds (and before any recursion), a **fresh-context lead-reviewer agent** reads ONLY the ledger and answers: (a) still answering the *original* question, or drifted? (b) in a rut the forbidden-list should have caught? (c) marginal value still positive, or terminate? Its verdict can re-plan, prune branches, or stop the probe. External, not self-judged.
 
 ---
 
@@ -237,15 +235,15 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/inbox-add.sh" \
 
 ## Rules
 
-- **Never edit tracked source. Never commit.** Only writable artifact is the report under `plans/meta/`. Experiments are scratch-only and cleaned up.
-- **Diversity is mandatory (T2).** Reject any plan that spawns two same-strategy agents. If two angles would produce the same reasoning, drop one and add a distinct one.
-- **Evidence or it didn't happen (T6).** Every load-bearing claim cites `file:line`, command output, or a doc. Eloquent unsupported reasoning is rejected.
-- **No self-critique as the primary check (T4).** Hypotheses are attacked by other agents.
-- **Majority vote is banned (T7).** Survival is adversarial, not popular.
-- **Honor forbidden ruts (T8).** Re-proposing a known rut requires new evidence overturning the prior failure — otherwise it's rejected.
-- **Stable uncertainty is a valid result.** Do not manufacture false confidence to "finish." Name the decisive experiment instead.
-- **Long-horizon discipline is mandatory at high/insane (LH1–LH8).** Orchestrator holds distilled artifacts only, state lives in the ledger, every round scores progress, ceilings are graceful. A long run must be *productive* — flat rounds end it.
-- Respect budget and `--rounds` / `--no-converge`. Insane enforces min 3 rounds and no early exit on convergence, but stall (LH5) and ceilings (LH6) always apply.
+- **Never edit tracked source; never commit.** Only writable artifact is the report under `plans/meta/`; experiments are scratch-only, cleaned up.
+- **Diversity mandatory (T2)** — never two same-strategy agents; drop duplicate angles for distinct ones.
+- **Evidence or it didn't happen (T6)** — every load-bearing claim cites `file:line`, command output, or doc; unsupported reasoning rejected.
+- **No self-critique as primary check (T4)** — other agents attack each hypothesis.
+- **Majority vote banned (T7)** — survival is adversarial, not popular.
+- **Honor forbidden ruts (T8)** — re-proposing a rut requires new evidence overturning the prior failure.
+- **Stable uncertainty is valid** — don't manufacture confidence to "finish"; name the decisive experiment.
+- **Long-horizon discipline mandatory at high/insane (LH1–LH8)** — distilled artifacts only, state in the ledger, every round scores progress, ceilings graceful; flat rounds end it.
+- Respect budget and `--rounds` / `--no-converge`. Insane: min 3 rounds, no early convergence exit; stall (LH5) and ceilings (LH6) always apply.
 
 ---
 

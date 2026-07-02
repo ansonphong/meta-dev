@@ -261,7 +261,7 @@ FIX  | {one-line}
 - Adds a reactive effect/subscription that fires on every keystroke or frame? Could cause excessive re-renders.
 - Adds a new API call on a path that already has API calls? Could cause waterfall loading.
 
-**23. Algorithmic Value Correctness** (`value_correctness`) — **CRITICAL: This category exists because a multi-pass loop returned the last pass's value instead of the cumulative target, which would have corrupted downstream state.** For every variable assigned inside a loop, conditional chain, multi-pass pipeline, or accumulator pattern:
+**23. Algorithmic Value Correctness** (`value_correctness`) — **CRITICAL (a multi-pass loop returning the last pass's value instead of the cumulative target silently corrupts downstream state).** For every variable assigned inside a loop, conditional chain, multi-pass pipeline, or accumulator pattern:
 - **Loop output values:** After a for/while loop completes, what value does each variable hold? Is that the value consumers expect, or is it the value from the LAST ITERATION only? Trace the variable from loop exit to return/response/store-write.
 - **Accumulator vs. last-write:** Distinguish between variables that ACCUMULATE across iterations (running total, concatenation, product) and variables that get OVERWRITTEN each iteration. If a consumer expects the accumulated value but the code only stores the last write, that's a high-severity gap.
 - **Conditional assignment completeness:** If a variable is set in branch A of an if/else/match and used after the conditional, verify it's also set in ALL other branches. Unset-on-some-paths = gap.
@@ -270,7 +270,7 @@ FIX  | {one-line}
 - **Return value in nested scopes:** When a return statement is inside a loop or try/catch, verify it returns the correct scope's variable.
 - Always severity HIGH. A wrong return value silently corrupts all downstream consumers.
 
-**24. Sequential Verification Reachability** (`verification_reachability`) — **CRITICAL: This category exists because a smoke test kept steps on the same entity, not realizing that a prior step made a later step physically impossible because the UI disables elements based on state.** For ANY multi-step verification procedure (manual smoke tests, QA checklists, integration test sequences, migration runbooks):
+**24. Sequential Verification Reachability** (`verification_reachability`) — **CRITICAL (a smoke test kept steps on the same entity, not realizing a prior step made a later step physically impossible because the UI disables elements based on state).** For ANY multi-step verification procedure (manual smoke tests, QA checklists, integration test sequences, migration runbooks):
 - **State machine simulation:** Model the system state (UI state, database state, file system state) as a state machine. BEFORE each step, record the current state. AFTER each step, compute the new state based on the step's side effects. Then verify: is the NEXT step still reachable from this new state?
 - **UI state gating:** When a step triggers a UI action (click button, toggle, navigate), check if the target element is ENABLED/VISIBLE/CLICKABLE given the current UI state. Buttons can be disabled by: threshold rules, feature flags, permission gates, loading states, validation errors. A step that targets a disabled element is an IMPOSSIBLE step.
 - **Entity identity across steps:** When sequential steps operate on "the same" entity, verify that prior steps haven't CHANGED that entity's state in a way that blocks subsequent steps. The fix is usually: use a DIFFERENT entity for the later step.
@@ -299,7 +299,7 @@ These categories apply when scanning actual source code (code mode, feature mode
 
 **32. Test Coverage Gaps** (`test_coverage`) — Public functions with no corresponding test. Error/exception paths not tested (only happy path). Edge cases not covered (empty input, null, max values, boundary conditions). Mocked dependencies that hide real integration failures. Tests that assert nothing meaningful (just `assert True` or `expect(result).toBeDefined()`). Tests with no negative cases (only test that valid input works, never that invalid input fails). Flaky tests that pass intermittently.
 
-**33. Stub & Placeholder Detection** (`stub_placeholder`) — **CRITICAL CATEGORY.** During the initial Dreamfields build, agents marked tasks complete while leaving stubs throughout. A CODEX audit found: placeholder text on shipped pages, route handlers returning hardcoded `[]`, services implemented but bypassed by stub route handlers, "coming soon" text in production UI, and `return []` in federation code claimed as "verified."
+**33. Stub & Placeholder Detection** (`stub_placeholder`) — **CRITICAL CATEGORY.** Agents mark tasks complete while leaving stubs throughout: placeholder text on shipped pages, route handlers returning hardcoded `[]`, services implemented but bypassed by stub route handlers, "coming soon" text in production UI, `return []` claimed as "verified."
 
 Patterns to detect:
 - **Backend:** `return []`, `return {}`, `return None` (in route handlers — not in helper functions where these may be valid), `pass` as function body (non-abstract), `raise NotImplementedError` in concrete classes, `# TODO`, `# FIXME`, `hardcoded`, `stub`, `placeholder`, `not yet implemented`
@@ -367,7 +367,7 @@ Only run tools that are installed (`command -v`). Skip gracefully if missing.
 
 **Be extremely liberal spawning Haiku agents. They're cheap. One per file, one per concern.** Spawn ALL agents in a single parallel message.
 
-**Scaling rule:** Agent count scales with plan complexity. Small plan (3 phases, 5 codebase files) → ~15 agents. Large plan (10 phases, 25 codebase files) → ~40 agents. Massive plan (15+ phases, 40+ codebase files) → 50+ agents. This is intentional — Haiku agents are fast and cheap, and parallel execution means wall-clock time barely increases.
+**Scaling rule:** Agent count scales with plan complexity. Small plan (3 phases, 5 codebase files) → ~15 agents. Large plan (10 phases, 25 codebase files) → ~40 agents. Massive plan (15+ phases, 40+ codebase files) → 50+ agents — Haiku agents are cheap and parallel, so wall-clock time barely increases.
 
 #### Fixed agents (always spawn these 7):
 
@@ -397,7 +397,7 @@ Only run tools that are installed (`command -v`). Skip gracefully if missing.
 
 **API Surface Mapper** (haiku) — **MANDATORY in code/feature/project mode.** Find ALL API endpoints and ALL API callers. Build a comprehensive contract map.
 
-**Why this is mandatory:** During the initial Dreamfields build, frontend and backend were built in separate phases. Each side was built against the *plan's* API contract, not against each other. Result: 5+ endpoints returning 404 at runtime despite all tests passing. This agent prevents that class of failure.
+**Why mandatory:** when frontend and backend are built in separate phases each against the *plan's* contract (not each other), endpoints 404 at runtime despite all tests passing. This agent prevents that class of failure.
 
 Steps:
 1. Find ALL API call sites in frontend: grep for `api.get`, `api.post`, `api.put`, `api.delete`, `fetch(`, `$fetch(`. Extract: HTTP method, URL path, TypeScript type parameter (expected response shape), file:line.

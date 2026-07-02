@@ -30,7 +30,7 @@ For cheap bulk/mechanical work, still prefer `/deep-execute` (DeepSeek); for lon
 
 ## Test discipline — keep every test cycle cheap
 
-When the task runs tests, **path-scope, always.** Run only the named test file — `pytest path/to/test_x.py -q` — never bare `pytest`, `pytest <dir>/`, or `-k <expr>` (those collect the whole tree first, ~18× slower per cycle). NEVER run `svelte-check`, `tsc --noEmit`, `npm run build`, or the full suite in an inner cycle. Confirm green once; don't re-run a passing test.
+When the task runs tests, **path-scope, always.** Run only the named test file — `pytest path/to/test_x.py -q` — never bare `pytest`, `pytest <dir>/`, or `-k <expr>` (they collect the whole tree first). NEVER `svelte-check`, `tsc --noEmit`, `npm run build`, or the full suite in an inner cycle. Confirm green once; don't re-run a passing test.
 
 ## Step 1: Parse Arguments
 
@@ -73,7 +73,7 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/claude-headless-exec \
 
 **Repo detection:** if `--repo` is given, use it; otherwise check `pwd` — if inside a child repo, use that; if ambiguous (in parent), ask which repo to target.
 
-**Background execution for long tasks:** if the task sounds like >~30s, use the Bash tool with `run_in_background: true`, then read the output file and report when it completes.
+**Background execution:** when a backgrounded task completes, read the output file and report.
 
 ## Step 4: Report Results
 

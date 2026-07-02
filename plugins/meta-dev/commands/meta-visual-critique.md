@@ -14,8 +14,8 @@ Look at the image(s) the user attached. Produce sharp, opinionated visual critiq
 
 User text: `$ARGUMENTS`
 
-- **Image(s) attached:** required input. If no image attached, stop and tell user to attach one.
-- **Context text:** optional. Use it to scope critique.
+- **Image(s) attached:** required — if none, stop and ask user to attach one.
+- **Context text:** optional; use it to scope critique.
 - **No context supplied:** assume target is a **GUI / web UI / app screen**. Default lens = frontend interface design.
 
 Examples:
@@ -25,19 +25,19 @@ Examples:
 
 ## Step 1: Load Design Vocabulary (Daisy-Chain)
 
-Invoke the frontend-design skill to load creative-direction vocabulary, anti-AI-slop heuristics, and craft standards:
+Invoke the frontend-design skill for creative-direction vocabulary, anti-AI-slop heuristics, and craft standards:
 
 ```
 Skill: frontend-design:frontend-design
 ```
 
-Use the loaded principles as the rubric backbone. Do NOT generate code — this command outputs critique only.
+Use the loaded principles as the rubric backbone. Do NOT generate code — critique only.
 
-If a project-specific design file exists at `.claude/skills/*-frontend-design.md` or `plans/_build/specs/ui-design-language.md`, optionally read it for additional context. Skip if not present.
+Optionally read a project-specific design file if present at `.claude/skills/*-frontend-design.md` or `plans/_build/specs/ui-design-language.md`; skip if not.
 
 ## Step 2: Observe Before Judging
 
-For each image, write 2-4 lines of pure observation first. What is literally on screen:
+For each image, write 2-4 lines of pure observation first — what is literally on screen:
 - Layout structure (grid, stack, asymmetric, centered, etc.)
 - Color palette (count distinct hues, note temperature, saturation)
 - Typography (sans/serif, weight contrast, hierarchy levels visible)
@@ -80,7 +80,7 @@ Call out each slop pattern observed with its location in the image.
 
 ## Step 5: Top 3 Strengths, Top 5 Problems
 
-**Strengths** (what to keep / amplify): max 3 bullets, specific. "Hero typography pairing" not "looks nice."
+**Strengths** (keep / amplify): max 3 bullets, specific. "Hero typography pairing" not "looks nice."
 
 **Problems** (ranked by severity): max 5 bullets, each with:
 - **What** — concrete element
@@ -89,11 +89,11 @@ Call out each slop pattern observed with its location in the image.
 
 ## Step 6: Anti-Sycophancy Check
 
-Before returning, re-read your critique:
-- Did you hedge ("could maybe consider possibly")? Rewrite direct.
-- Did you give an A to something average? Re-grade honest.
-- Did you list 10 strengths and 1 problem? Rebalance — most UIs have more problems than strengths.
-- Did you avoid taking a position? Take one.
+Re-read your critique before returning:
+- Hedged ("could maybe consider possibly")? Rewrite direct.
+- Gave an A to something average? Re-grade honest.
+- 10 strengths and 1 problem? Rebalance — most UIs have more problems than strengths.
+- Avoided taking a position? Take one.
 
 If asked "is this good?" — answer yes or no, then justify.
 
@@ -138,7 +138,7 @@ One paragraph (3-5 sentences) overall position. Format:
 
 ## Notes
 
-- Image-only input is valid. Context is optional.
-- If user attaches multiple images, critique each separately, then add a cross-image consistency note.
-- Never invent UI details not in the image. Observation step keeps you honest.
-- Project-specific design files only load when relevant. Otherwise stay general — this command works on any GUI image.
+- Image-only input is valid; context is optional.
+- Multiple images: critique each separately, then add a cross-image consistency note.
+- Never invent UI details not in the image — the observation step keeps you honest.
+- Load project-specific design files only when relevant; otherwise stay general — works on any GUI image.

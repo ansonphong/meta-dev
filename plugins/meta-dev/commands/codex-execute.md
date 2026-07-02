@@ -26,7 +26,7 @@ Consequence: **give Codex a direct task, never a "run `/command`" instruction.**
 
 ## Test discipline — keep every test cycle cheap
 
-When the task runs tests, **path-scope, always.** Run only the named test file — `pytest path/to/test_x.py -q` (add `-m "not slow and not gpu and not integration"` if the suite marks them) — and NEVER bare `pytest`, `pytest <dir>/`, or `pytest … -k <expr>`: those collect the whole test tree first (~30s vs ~1.7s for a named file — **~18× slower every cycle**). NEVER run `svelte-check`, `tsc --noEmit`, `npm run build`, or the full suite in an inner cycle. Confirm green once; don't re-run a passing test. (Codex is its own harness, so it can't read the meta-dev charter internally — this clause IS the rule for codex runs.)
+When the task runs tests, **path-scope, always.** Run only the named test file — `pytest path/to/test_x.py -q` (add `-m "not slow and not gpu and not integration"` if the suite marks them). NEVER bare `pytest`, `pytest <dir>/`, or `pytest … -k <expr>` (they collect the whole tree first). NEVER `svelte-check`, `tsc --noEmit`, `npm run build`, or the full suite in an inner cycle. Confirm green once; don't re-run a passing test. (Codex is its own harness, so it can't read the meta-dev charter internally — this clause IS the rule for codex runs.)
 
 ## Step 1: Parse Arguments
 

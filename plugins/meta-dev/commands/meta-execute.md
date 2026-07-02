@@ -49,7 +49,7 @@ Read the plan. Extract every **checkbox**: every `### Task N:` heading AND every
 
 ### 2. Mirror EVERY checkbox into the visible task list (MANDATORY — see Prerequisite)
 
-Call `TaskCreate` once per **checkbox** from the step-1 inventory (every task heading AND every subtask checkbox) — **descriptive, well-named** content (`<ID> — what it builds/fixes`, not bare IDs) so progress is readable. **Each entry carries a `[Backend]` tag** — `[DeepSeek]` (default/mechanical), `[GLM]` (stateful/complex), or `[Codex]` (cross-family code review only, not execution) — so the delegation ladder is visible right in the list. Example: `◻ 17·P2b — multipass-promote (persist effective_config.json) [DeepSeek]`. Every checkbox, including sub-checkboxes, gets its own tagged line. Set dependencies. **The tracker item count MUST equal the step-1 checkbox count — 1 runtime task ↔ 1 plan checkbox, always.** **Hard gate: do not dispatch before the task list is visible and complete** — if you find yourself dispatching a subagent with no live task list, STOP and create it first. Surface every state through the run via `TaskUpdate`: `in_progress` → `🔧 repairing (async)` / `deferred — waiting on <ID>` / `blocked` → `completed`, plus one entry per background fixer and a final `📋 code review` entry. **Each runtime task, when completed, flips exactly its own matching plan checkbox (see ⛔ CHECKBOX RULE) — the two never drift apart.**
+Call `TaskCreate` once per **checkbox** from the step-1 inventory (every task heading AND every subtask checkbox), **descriptive, well-named** (`<ID> — what it builds/fixes`, not bare IDs). **Each entry carries a `[Backend]` tag** — `[DeepSeek]` (default/mechanical), `[GLM]` (stateful/complex), or `[Codex]` (cross-family code review only, not execution) — so the delegation ladder is visible in the list. Example: `◻ 17·P2b — multipass-promote (persist effective_config.json) [DeepSeek]`. Set dependencies. **The tracker item count MUST equal the step-1 checkbox count — 1 runtime task ↔ 1 plan checkbox, always; do not dispatch before the list is visible and complete.** Surface every state through the run via `TaskUpdate`: `in_progress` → `🔧 repairing (async)` / `deferred — waiting on <ID>` / `blocked` → `completed`, plus one entry per background fixer and a final `📋 code review` entry. **Each completed runtime task flips exactly its own matching plan checkbox (see ⛔ CHECKBOX RULE) — the two never drift apart.**
 
 ### 3. Pre-flight gates
 
@@ -72,7 +72,7 @@ For EACH task-list item:
 
 ### ⛔ MANDATORY CHECKBOX RULE — NEVER SKIP, NEVER DEFER
 
-**Every time a task completes (green verify), you MUST edit the plan file and flip its checkbox BEFORE dispatching the next task or doing anything else.** This is the user's primary visibility into progress — unchecked boxes read as "nothing happened." Do NOT batch them, do NOT "do it at the end," do NOT assume the user won't notice. The checkbox is the single source of truth.
+**Every time a task completes (green verify), edit the plan file and flip its checkbox BEFORE dispatching the next task — never batch, never defer to the end.** Unchecked boxes read as "nothing happened"; the checkbox is the user's primary visibility into progress and the single source of truth.
 
 **The exact Edit operation (do this for EVERY completed task):**
 
@@ -89,11 +89,9 @@ Replace with:         - [x] DONE Task N: <title>
 
 **After each flip, commit immediately:** `chore(plan): mark <Task ID> DONE`. Then advance to the next task.
 
-**Subtask checkboxes flip the same way.** A `- [ ]` nested under a task is its own runtime task and its own checkbox — flip it `- [x]` the instant that sub-step's work is green, exactly like a top-level task. The whole point of the per-checkbox list (step 2) is that nothing is "done" until its specific box is checked.
+**Subtask checkboxes flip the same way.** A `- [ ]` nested under a task is its own checkbox — flip it `- [x]` the instant that sub-step is green, exactly like a top-level task. Nothing is "done" until its specific box is checked.
 
 **Self-check before the report card (step 8):** `grep -cE '^[[:space:]]*[-*][[:space:]]+\[[[:space:]]\]' <plan-file>`. If the count is not zero for completed tasks, you missed checkboxes — go back and flip them NOW, before rendering the report card.
-
-### 5. Solidify foundation
 
 ### 5. Solidify foundation
 
