@@ -89,7 +89,10 @@ MODEL=""
 EFFORT=""    # thinking/reasoning effort; resolved from per-backend default unless --effort given
 TIMEOUT=""   # resolved after parse (all backends → 7200000 = 120 min) unless --timeout given
 TOOLS="Read,Write,Edit,Bash,Grep,Glob"
-OUTPUT_FORMAT="json"
+OUTPUT_FORMAT="stream-json"   # streams events → RAW file GROWS incrementally so the
+                              # stall-watchdog can tell a hang from a healthy long run.
+                              # (buffered `json` writes nothing until the end → any run
+                              #  longer than STALL_SECS false-stalls. See liveness block.)
 READONLY=false
 MAX_BUDGET_USD=""
 MAX_TURNS=""
@@ -434,6 +437,22 @@ START_TIME=$(date +%s)
 # Keeping the two streams apart is what makes OUTPUT_FILE cleanly parseable.
 cd "$WORK_DIR"
 
+# ── Output-format-aware liveness config ──────────────────────────────────
+# The stall-watchdog spots a hung worker by watching the RAW file stop GROWING.
+# That signal is only meaningful when the worker STREAMS events (stream-json): a
+# buffered `--output-format json` run writes NOTHING until the final flush, so a
+# healthy run longer than STALL_SECS sits frozen at 0B and gets false-killed
+# (exit 125 after the reset budget). So:
+#   • stream-json  → arm `--verbose` (the CLI requires it) and keep the watchdog.
+#   • any other fmt (buffered json / text) → disable the growth-watchdog unless the
+#     caller explicitly set STALL_SECS; the 120-min timeout(1) cap still backstops.
+STREAM_FLAGS=()
+if [[ "$OUTPUT_FORMAT" == "stream-json" ]]; then
+    STREAM_FLAGS+=(--verbose)
+else
+    STALL_SECS="${STALL_SECS:-0}"
+fi
+
 # Liveness watchdog: if the worker's RAW stream goes silent (hangs) we kill +
 # auto-reset it, rather than wait out the full 120-min cap. See lib/stall-watchdog.sh.
 source "$SCRIPT_DIR/lib/stall-watchdog.sh"
@@ -441,6 +460,7 @@ stall_launch_worker() {
     env "${ENV_UNSET[@]+"${ENV_UNSET[@]}"}" "${ENV_VARS[@]}" \
         claude -p "$PROMPT" \
             --output-format "$OUTPUT_FORMAT" \
+            "${STREAM_FLAGS[@]+"${STREAM_FLAGS[@]}"}" \
             --model "$MODEL" \
             --allowedTools "$TOOLS" \
             --no-session-persistence \
@@ -465,7 +485,7 @@ ELAPSED=$((END_TIME - START_TIME))
 RESULT_TEXT=""
 IS_ERROR="unknown"
 PARSE_OK=false
-if [[ "$OUTPUT_FORMAT" == "json" ]]; then
+if [[ "$OUTPUT_FORMAT" == "json" || "$OUTPUT_FORMAT" == "stream-json" ]]; then
     if RESULT_TEXT=$(python3 "$SCRIPT_DIR/lib/distill-headless-result.py" "$RAW_FILE" "$OUTPUT_FILE" 2>>"$STDERR_FILE"); then
         PARSE_OK=true
         IS_ERROR=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1])).get('is_error'))" "$OUTPUT_FILE" 2>/dev/null || echo unknown)
@@ -474,7 +494,7 @@ fi
 if [[ "$PARSE_OK" != "true" ]]; then
     # Text output mode, or JSON distill failed — fall back to raw verbatim.
     cp "$RAW_FILE" "$OUTPUT_FILE"
-    if [[ "$OUTPUT_FORMAT" == "json" ]]; then
+    if [[ "$OUTPUT_FORMAT" == "json" || "$OUTPUT_FORMAT" == "stream-json" ]]; then
         RESULT_TEXT="[distill failed — inspect raw payload: $RAW_FILE / stderr: $STDERR_FILE]"
         [[ $EXIT_CODE -eq 0 ]] && EXIT_CODE=3
     else

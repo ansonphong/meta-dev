@@ -2,9 +2,10 @@
 """Distill a headless `claude -p --output-format json` payload into a clean result.
 
 claude's JSON output is inconsistent across versions/backends: it may be a single
-`{type:"result",...}` object, or a JSON array of every stream event, and the file
-can carry a leading non-JSON warning line (e.g. the claude.ai-connectors notice on
-stderr-less captures). This script normalizes all of that:
+`{type:"result",...}` object, a JSON array of every stream event, or — under
+`--output-format stream-json --verbose` — NEWLINE-DELIMITED JSON events (JSONL, one
+object per line). The file can also carry a leading non-JSON warning line (e.g. the
+claude.ai-connectors notice on stderr-less captures). This script normalizes all of that:
 
   argv[1] = raw payload file (claude stdout)
   argv[2] = output file to write the clean result object to
@@ -51,6 +52,17 @@ def main():
         idx = next((i for i, ch in enumerate(data) if ch in "[{"), None)
         if idx is not None:
             payload = try_parse(data[idx:])
+    # stream-json (`-p --output-format stream-json --verbose`) emits NEWLINE-DELIMITED
+    # JSON events (JSONL), not one array/object — a whole-file parse fails on it.
+    # Fall back to line-by-line and collect every valid event.
+    if payload is None:
+        evts = []
+        for line in data.splitlines():
+            obj = try_parse(line)
+            if obj is not None:
+                evts.append(obj)
+        if evts:
+            payload = evts
     if payload is None:
         sys.stderr.write("distill: no parseable JSON payload found\n")
         return 1
