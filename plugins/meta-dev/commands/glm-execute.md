@@ -49,7 +49,7 @@ The user's input is: `$ARGUMENTS`
 Parse these optional flags:
 - `--repo <name>` — target repo (default: auto-detect from cwd; names from .claude/meta-dev-repos.json)
 - `--readonly` — restrict to read-only tools (review/analysis tasks)
-- `--model <model>` — override default model (default: `glm-5.2[1m]`; fast option: `glm-4.7-flashx`)
+- `--model <model>` — override default model (default: `glm-5.2`; haiku-tier: `glm-4.5`)
 - `--max-turns <n>` — cap agent turns (default: unset — worker runs to completion)
 
 Everything else is the task description.
@@ -59,7 +59,7 @@ If no task description is provided, ask the user what task to execute.
 ## Step 2: Confirm the Plan
 
 Summarize what will be executed:
-- **Backend:** GLM (`glm-5.2[1m]` or as specified)
+- **Backend:** GLM (`glm-5.2` or as specified)
 - **Repo:** (detected or specified)
 - **Task:** (the task description)
 - **Mode:** read-only or read-write

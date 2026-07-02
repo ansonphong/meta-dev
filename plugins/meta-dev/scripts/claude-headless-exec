@@ -24,7 +24,7 @@
 #
 # Backend defaults:
 #   deep   → deepseek-v4-pro (opus/sonnet), deepseek-v4-flash (haiku)
-#   glm    → glm-5.2[1m] (opus/sonnet), glm-4.7-flashx (haiku)
+#   glm    → glm-5.2 (opus/sonnet/subagent), glm-4.5 (haiku) — routed via local beta-strip proxy
 #   sonnet → claude-sonnet-5 (200K — NO [1m]); REAL Anthropic via ambient login
 #
 # Prerequisites:
@@ -59,12 +59,12 @@ BACKEND_SUBAGENT_MODEL[deep]="deepseek-v4-pro"
 BACKEND_EFFORT[deep]=""                               # backend has no effort knob
 BACKEND_LABEL[deep]="DeepSeek"
 
-BACKEND_BASE_URL[glm]="https://api.z.ai/api/anthropic"
+BACKEND_BASE_URL[glm]="https://api.z.ai/api/anthropic"   # real upstream; worker talks to the local beta-strip proxy (see GLM_PROXY block below)
 BACKEND_AUTH_KEY_ENV[glm]="GLM_API_KEY"
-BACKEND_OPUS_MODEL[glm]="glm-5.2[1m]"
-BACKEND_SONNET_MODEL[glm]="glm-5.2[1m]"
-BACKEND_HAIKU_MODEL[glm]="glm-4.7-flashx"
-BACKEND_SUBAGENT_MODEL[glm]="glm-5.2[1m]"
+BACKEND_OPUS_MODEL[glm]="glm-5.2"        # NO [1m]: Z.AI returns [1211] Unknown Model for "glm-5.2[1m]"; glm-5.2 is the funded standard tier (HTTP 200)
+BACKEND_SONNET_MODEL[glm]="glm-5.2"
+BACKEND_HAIKU_MODEL[glm]="glm-4.5"       # glm-4.7-flashx needs a prepaid pkg (empty -> [1113]); glm-4.5 is the funded fallback. Revert to flashx after recharging Z.AI.
+BACKEND_SUBAGENT_MODEL[glm]="glm-5.2"
 BACKEND_EFFORT[glm]="high"                            # GLM runs at high effort by default
 BACKEND_LABEL[glm]="GLM"
 
@@ -135,7 +135,7 @@ auto-reset, instead of idling out the full 120-min cap):
 
 Backend defaults (model · effort):
   deep   → deepseek-v4-pro          (DeepSeek API · effort n/a)
-  glm    → glm-5.2[1m]              (Z.AI API · effort high)
+  glm    → glm-5.2                    (Z.AI API · effort high · via local beta-strip proxy)
   sonnet → claude-sonnet-5          (Anthropic · 200K · ambient login · effort high)
 
 Examples:
@@ -320,6 +320,33 @@ if [[ -z "$OUTPUT_FILE" ]]; then
     TIMESTAMP=$(date +%Y%m%d-%H%M%S)
     OUTPUT_FILE="/tmp/claude-headless-${BACKEND}-${TIMESTAMP}-$$.json"
 fi
+
+# ── GLM beta-strip proxy ────────────────────────────────────────────────
+# Z.AI's /api/anthropic rejects ANY request carrying an `anthropic-beta`
+# header with [1302] "Rate limit reached". Claude Code always sends a
+# non-empty anthropic-beta (4+ core betas are NOT suppressible via env
+# vars), so a headless `claude -p` GLM worker deterministically fails —
+# [1302] retried 10x (~210s) then surfaced as a 529. For the GLM backend we
+# stand up a local proxy (scripts/glm-beta-strip-proxy.py) that deletes
+# `anthropic-beta` + the `?beta=true` query param before forwarding to Z.AI.
+# DeepSeek and Sonnet are unaffected (their endpoints tolerate the header).
+GLM_PROXY_PID=""
+if [[ "$BACKEND" == "glm" ]]; then
+    GLM_PROXY_PORT="$(python3 -c 'import socket;s=socket.socket();s.bind(("127.0.0.1",0));print(s.getsockname()[1]);s.close()' 2>/dev/null)"
+    if [[ -n "$GLM_PROXY_PORT" ]]; then
+        python3 "$SCRIPT_DIR/glm-beta-strip-proxy.py" "$GLM_PROXY_PORT" >/dev/null 2>&1 &
+        GLM_PROXY_PID=$!
+        for _ in $(seq 1 20); do                      # wait for the port to accept (~5s)
+            (exec 3<>/dev/tcp/127.0.0.1/"$GLM_PROXY_PORT") 2>/dev/null && break
+            sleep 0.25
+        done
+        BACKEND_BASE_URL[glm]="http://127.0.0.1:$GLM_PROXY_PORT"
+    else
+        echo "[claude-headless-exec] WARN: could not allocate a proxy port; routing GLM direct to Z.AI (workers will likely 529)." >&2
+    fi
+fi
+cleanup_glm_proxy() { [[ -n "$GLM_PROXY_PID" ]] && kill "$GLM_PROXY_PID" 2>/dev/null; }
+trap cleanup_glm_proxy EXIT
 
 # ── Build env ───────────────────────────────────────────────────────────
 # These vars are applied to the child process only (via env(1)); the parent
