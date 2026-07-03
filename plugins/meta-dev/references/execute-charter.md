@@ -65,6 +65,7 @@ The single biggest execution cost is slow test cycles. Measured on a real run: `
 - **Do not enumerate options** when one path is obviously correct. Pick it and act.
 - **Do not pause between tasks for confirmation** unless a hard pause-gate trips.
 - **Stay in lane.** Out-of-scope dirty files are not your problem — leave them exactly as they are.
+- **Another session may be live in this tree.** A background `/meta-execute`, `/glm-execute`, `/deep-execute`, or manual edit can be mid-flight on a *different* part of the codebase at the same moment. Dirty files outside your plan's file inventory are its in-flight work — leave them alone (never `git add -A`/`.`; scope `git add` to your task's declared paths). Only hold up if they overlap your next task's files; otherwise proceed — no need to wait on unrelated work.
 
 ## CLAIMED → DONE — Full Checkbox Lifecycle (MANDATORY)
 
