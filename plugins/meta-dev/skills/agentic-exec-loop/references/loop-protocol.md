@@ -165,6 +165,7 @@ input) + tiny output; net win only for large-context + long-idle.
 (Reviewer is ALWAYS the Opus `meta-dev:review-agent` — independent of tier.)
 - `--deep` (default): Worker=deep, Fix ladder deep→glm.
 - `--glm`: Worker=glm, Fix ladder glm→deep.
+- **GLM concurrency cap (critical):** the Z.AI account allows only ~3 concurrent `glm-5.2` requests total, shared across every live GLM session (interactive + worker). The conductor MUST **serialize `--glm` workers — never dispatch two in parallel**; parallel GLM fan-out deterministically oversubscribes the ceiling and both workers 529-loop. Before each GLM dispatch, count active Z.AI-pointed procs (the pre-flight in `commands/glm-execute.md`); if the ceiling is saturated, queue rather than spawn. The beta-strip proxy retries `[1305]` for ~2 min, so a single serialized worker survives bursty contention — but serialization is what prevents the self-inflicted steady-state saturation that retry alone cannot out-wait.
 - `--sonnet`: Worker=sonnet (Anthropic 200K via `--backend sonnet`), Fix ladder
   sonnet→glm. EVERY sonnet step — per-task execution AND the attempt-1 fixer —
   runs through `claude-headless-exec --backend sonnet` (a separate `claude -p`,

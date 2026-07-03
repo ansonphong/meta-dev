@@ -70,6 +70,18 @@ If the task is destructive (deletes files, drops data, modifies prod), confirm w
 
 Run the headless worker. For tasks expected to take >30 seconds, use `run_in_background: true` so the session stays responsive.
 
+**GLM concurrency pre-flight — the ~3-slot ceiling.** Z.AI's `glm-5.2` allows only **~3 concurrent requests for the whole account**, shared with ALL your live GLM sessions (interactive Claude Code + headless workers). Before launching, count active GLM sessions:
+
+```bash
+# each live claude proc pointed at Z.AI eats one of the ~3 slots
+active=$(for p in $(pgrep -x claude); do
+  tr '\0' '\n' < /proc/$p/environ 2>/dev/null | grep -q '^ANTHROPIC_BASE_URL=https://api.z.ai' && echo x
+done | wc -l)
+echo "active GLM sessions: $active (ceiling ~3)"
+```
+
+If `$active` is already **3**, do NOT launch yet — the worker will oversubscribe and risk a slow 529 timeout. Wait for a slot to free (close/idle another GLM session) or queue the task. At 0–2 active, launch freely: the beta-strip proxy now retries `[1305]` for ~2 min, so a worker usually survives bursty contention by catching gaps between your sessions' requests. **Never fan out multiple GLM workers in parallel — serialize them** (see agentic-exec-loop protocol).
+
 ```bash
 # Build the command
 ${CLAUDE_PLUGIN_ROOT}/scripts/claude-headless-exec \
