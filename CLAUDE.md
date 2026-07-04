@@ -11,7 +11,7 @@
 2. Stage the bump with the rest of the change.
 3. Commit + push.
 
-After pushing, the user reloads with `/plugin marketplace update meta-dev-marketplace` + `/plugin install meta-dev@meta-dev-marketplace` + restart — the new version cache rebuilds and changes appear.
+After pushing, the user reloads with `/plugin marketplace update meta-dev` + `/plugin install meta-dev@meta-dev` + restart — the new version cache rebuilds and changes appear.
 
 ## Structure
 

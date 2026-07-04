@@ -18,7 +18,7 @@ pip install jsonschema
 
 ```bash
 /plugin marketplace add ansonphong/meta-dev
-/plugin install meta-dev@meta-dev-marketplace
+/plugin install meta-dev@meta-dev
 ```
 
 Verify:

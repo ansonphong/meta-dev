@@ -1,6 +1,6 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
-  "name": "meta-dev-marketplace",
+  "name": "meta-dev",
   "description": "Meta-Dev autonomous development harness",
   "owner": { "name": "Phong", "url": "https://github.com/ansonphong" },
   "plugins": [{
