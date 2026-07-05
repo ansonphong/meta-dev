@@ -536,6 +536,15 @@
                   ],
                   "default": "block"
                 },
+                "git_add_sweep": {
+                  "type": "string",
+                  "enum": [
+                    "block",
+                    "warn",
+                    "allow"
+                  ],
+                  "default": "block"
+                },
                 "git_push_force_main": {
                   "type": "string",
                   "enum": [

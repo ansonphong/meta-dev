@@ -98,6 +98,10 @@ MAX_BUDGET_USD=""
 MAX_TURNS=""
 PROMPT=""
 OUTPUT_FILE=""
+CLAIM_SCOPE=""   # --claim <dir>: claim this plan-dir scope in the cross-session
+                 # registry before dispatching; auto-released on exit (concurrency safety)
+CLAIM_WARN=false # --claim-warn: on an overlapping live claim, WARN and proceed
+                 # instead of the default ABORT (do-not-dispatch)
 
 # ── Help ────────────────────────────────────────────────────────────────
 show_help() {
@@ -130,6 +134,12 @@ auto-reset, instead of idling out the full 120-min cap):
   STALL_POLL_SECS=<s>       Output-size poll interval (default 30)
   --tools <list>            Comma-separated tools (default: Read,Write,Edit,Bash,Grep,Glob)
   --readonly                Restrict to Read,Bash,Grep only
+  --claim <dir>             Claim this plan-dir scope in the cross-session
+                            registry before dispatch; auto-released on exit.
+                            ABORTS (no dispatch) if another live session holds
+                            an overlapping scope — the concurrency-safety gate.
+  --claim-warn              On an overlapping live claim, warn + proceed
+                            instead of aborting.
   --output json|text        Output format (default: json)
   --max-budget-usd <n>      Max API spend in USD (default: unlimited)
   --max-turns <n>           Max agent turns for the headless worker (default: unset)
@@ -201,6 +211,14 @@ while [[ $# -gt 0 ]]; do
             ;;
         --readonly)
             READONLY=true
+            shift
+            ;;
+        --claim)
+            CLAIM_SCOPE="$2"
+            shift 2
+            ;;
+        --claim-warn)
+            CLAIM_WARN=true
             shift
             ;;
         -h|--help)
@@ -324,6 +342,36 @@ if [[ -z "$OUTPUT_FILE" ]]; then
     OUTPUT_FILE="/tmp/claude-headless-${BACKEND}-${TIMESTAMP}-$$.json"
 fi
 
+# ── Worker guard + manifest hooks (concurrency safety) ───────────────────
+# The headless worker is a SEPARATE `claude -p` process — it does NOT inherit
+# this project's plugin hooks. Inject two hooks via --settings so worker
+# behaviour is mechanically constrained no matter the --permission-mode:
+#   • PreToolUse Bash  → worker-git-guard.sh — workers are COMMIT-FREE (blocks
+#     mutating git; read-only git stays available). A PreToolUse deny fires
+#     even under bypassPermissions (hooks are a separate layer from the
+#     permission engine), which --disallowedTools is not guaranteed to be.
+#   • PostToolUse Edit|Write|MultiEdit → worker-manifest-record.sh — appends
+#     each touched path to MANIFEST_FILE so the CONDUCTOR stages EXACTLY those
+#     files instead of a tree-wide `git add` that would sweep a concurrent
+#     session's edits (commit-sweep, incident 2026-07-05).
+# Both hooks self-gate on META_WORKER_MANIFEST, so they're no-ops anywhere else.
+MANIFEST_FILE="${OUTPUT_FILE}.manifest.jsonl"
+WORKER_SETTINGS_FILE="${OUTPUT_FILE}.worker-settings.json"
+HOOKS_DIR="$PROJECT_ROOT/hooks/scripts"
+: > "$MANIFEST_FILE"   # start empty so the conductor always finds the file
+python3 - "$WORKER_SETTINGS_FILE" "$HOOKS_DIR" <<'PYEOF'
+import json, sys
+settings_file, hooks_dir = sys.argv[1], sys.argv[2]
+def cmd(name):
+    return {"type": "command", "command": f'bash "{hooks_dir}/{name}"', "timeout": 10}
+json.dump({
+    "hooks": {
+        "PreToolUse":  [{"matcher": "Bash",              "hooks": [cmd("worker-git-guard.sh")]}],
+        "PostToolUse": [{"matcher": "Edit|Write|MultiEdit", "hooks": [cmd("worker-manifest-record.sh")]}],
+    }
+}, open(settings_file, "w"))
+PYEOF
+
 # ── GLM beta-strip proxy ────────────────────────────────────────────────
 # Z.AI's /api/anthropic rejects ANY request carrying an `anthropic-beta`
 # header with [1302] "Rate limit reached". Claude Code always sends a
@@ -348,8 +396,40 @@ if [[ "$BACKEND" == "glm" ]]; then
         echo "[claude-headless-exec] WARN: could not allocate a proxy port; routing GLM direct to Z.AI (workers will likely 529)." >&2
     fi
 fi
-cleanup_glm_proxy() { [[ -n "$GLM_PROXY_PID" ]] && kill "$GLM_PROXY_PID" 2>/dev/null; }
-trap cleanup_glm_proxy EXIT
+cleanup_glm_proxy() { [[ -n "$GLM_PROXY_PID" ]] && kill "$GLM_PROXY_PID" 2>/dev/null; return 0; }
+
+# ── Scope claim + unified EXIT cleanup (cross-session concurrency safety) ─
+# When --claim <scope> is given, claim that plan-directory in the shared
+# registry BEFORE dispatching, so two sessions can't race the same files
+# (incident 2026-07-05). The claim is stamped with THIS wrapper's pid ($$),
+# which lives exactly as long as the worker — so it auto-expires the instant
+# this process dies, and is explicitly released on EXIT. If the scope is held
+# by another LIVE session we ABORT (do not dispatch) unless --claim-warn.
+WORKER_CLAIM_SH="$SCRIPT_DIR/worker-claim.sh"
+CLAIM_HELD=false
+cleanup_all() {
+    [[ "${CLAIM_HELD:-false}" == "true" ]] && bash "$WORKER_CLAIM_SH" release "$CLAIM_SCOPE" >/dev/null 2>&1 || true
+    cleanup_glm_proxy
+    # NEVER let the EXIT trap's last status override the script's real exit code:
+    # under `set -e`, a trap that ends nonzero forces exit 1. The old
+    # `trap cleanup_glm_proxy EXIT` did exactly that on deep/sonnet (empty
+    # GLM_PROXY_PID → `[[ -n "" ]]` returns 1), so those backends exited 1 on
+    # SUCCESS — the dominant source of the spurious exit-1, and it would mask
+    # the is_error→exit-0 reconcile above. Anchoring the trap at 0 fixes both.
+    return 0
+}
+trap cleanup_all EXIT
+if [[ -n "$CLAIM_SCOPE" ]]; then
+    if bash "$WORKER_CLAIM_SH" claim "$CLAIM_SCOPE" --pid "$$" --session "${CLAUDE_SESSION_ID:-$$}"; then
+        CLAIM_HELD=true
+    elif [[ "$CLAIM_WARN" == "true" ]]; then
+        echo "[claude-headless-exec] WARN: scope '$CLAIM_SCOPE' is held by another live session — proceeding anyway (--claim-warn)." >&2
+    else
+        echo "[claude-headless-exec] ABORT: scope '$CLAIM_SCOPE' is held by another live session; not dispatching." >&2
+        echo "        Partition by directory, wait for release, or pass --claim-warn to override." >&2
+        exit 3
+    fi
+fi
 
 # ── Build env ───────────────────────────────────────────────────────────
 # These vars are applied to the child process only (via env(1)); the parent
@@ -360,6 +440,7 @@ ENV_VARS=(
     "ANTHROPIC_DEFAULT_HAIKU_MODEL=${BACKEND_HAIKU_MODEL[$BACKEND]}"
     "CLAUDE_CODE_SUBAGENT_MODEL=${BACKEND_SUBAGENT_MODEL[$BACKEND]}"
     "API_TIMEOUT_MS=${TIMEOUT}"
+    "META_WORKER_MANIFEST=${MANIFEST_FILE}"   # arms worker-git-guard + worker-manifest-record hooks
 )
 ENV_UNSET=()
 
@@ -463,6 +544,7 @@ stall_launch_worker() {
             "${STREAM_FLAGS[@]+"${STREAM_FLAGS[@]}"}" \
             --model "$MODEL" \
             --allowedTools "$TOOLS" \
+            --settings "$WORKER_SETTINGS_FILE" \
             --no-session-persistence \
             --permission-mode bypassPermissions \
             ${MAX_TURNS:+--max-turns "$MAX_TURNS"} \
@@ -514,6 +596,22 @@ if [[ "${STALL_HALTED:-false}" == "true" ]]; then
     RESULT_TEXT="[STALLED — worker produced no output for $(( ${STALL_SECS:-300} / 60 ))m, killed and re-dispatched ${STALL_RESETS}× then HALTED. Run PAUSED for review. Partial trace: $RAW_FILE]"
 fi
 
+# ── Honest exit code ─────────────────────────────────────────────────────
+# A cleanly-distilled result that reports is_error:false IS a success — even
+# when the worker *process* returned a nonzero raw code. `claude -p` has a
+# long-standing quirk where the model finishes fine (is_error:false) yet the
+# process still exits nonzero, so conductors couldn't trust the exit code to
+# tell success from failure. Reconcile DOWN to 0 here so they can.
+#
+# Guarded so a REAL failure is never masked: a distill miss (PARSE_OK=false,
+# already → EXIT_CODE=3), a model-reported error (IS_ERROR=True → 4), or a
+# stall-halt (IS_ERROR forced True → 125) each keep their nonzero code because
+# this branch requires PARSE_OK=true AND IS_ERROR=False AND not stall-halted.
+if [[ "$PARSE_OK" == "true" && "$IS_ERROR" == "False" && "${STALL_HALTED:-false}" != "true" && $EXIT_CODE -ne 0 ]]; then
+    echo "[claude-headless-exec] worker process exited $EXIT_CODE but result is_error:false — reconciling exit code to 0 (success)."
+    EXIT_CODE=0
+fi
+
 # ── Result summary ──────────────────────────────────────────────────────
 echo ""
 echo "────────────────────────────────────────────────────────────────────────"
@@ -525,6 +623,8 @@ echo "  is_error  : $IS_ERROR"
 echo "  Elapsed   : ${ELAPSED}s"
 [[ "${STALL_RESETS:-0}" -gt 0 ]] && echo "  Stalls    : ${STALL_RESETS} auto-reset(s)$([[ "${STALL_HALTED:-false}" == "true" ]] && echo " → HALTED (paused for review)")"
 echo "  Result    : $OUTPUT_FILE   (clean JSON — result/is_error/turns)"
+MANIFEST_COUNT=$([ -s "$MANIFEST_FILE" ] && wc -l < "$MANIFEST_FILE" | tr -d ' ' || echo 0)
+echo "  Manifest  : $MANIFEST_FILE   (${MANIFEST_COUNT} touched-file record(s) — conductor stages EXACTLY these)"
 echo "  Raw trace : $RAW_FILE"
 echo "  Stderr    : $STDERR_FILE"
 echo "────────────────────────────────────────────────────────────────────────"
@@ -541,6 +641,7 @@ echo "════════════════════════ R
 printf '%s\n' "$RESULT_TEXT"
 echo "═════════════════════════════════════════════════════════════════════════"
 # Machine-parseable trailer (last line stays OUTPUT_FILE for back-compat).
+echo "MANIFEST_FILE=$MANIFEST_FILE"
 echo "OUTPUT_FILE=$OUTPUT_FILE"
 
 exit $EXIT_CODE

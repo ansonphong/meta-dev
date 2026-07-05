@@ -26,7 +26,7 @@ Steps:
 3. Implement.
 4. Run task's Verify command exactly: <VERIFY_CMD>. Paste output.
 5. Run stub grep on touched files. Paste output. Must be empty.
-6. git add <files> && git commit -m "<conventional commit>" && git push origin master. Paste commit SHA.
+6. git add <ONLY the explicit files from step 1> && git commit -m "<conventional commit>" && git push origin master. Paste commit SHA. NEVER `git add -A`/`.`/`<dir>` — the tree is SHARED across concurrent sessions and a broad add sweeps another session's in-flight edits (the guard hook now blocks it).
 7. Report: SHA, files changed, verify output tail, anything surprising.
 
 Do NOT: modify the plan checkbox (orchestrator owns that), touch files outside scope, run /deploy, archive plans. Do NOT write a test the task did not ask for — if `<TEST_DIRECTIVE>` says no test, adding one is scope creep.

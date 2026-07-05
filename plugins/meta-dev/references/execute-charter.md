@@ -67,6 +67,15 @@ The single biggest execution cost is slow test cycles. Measured on a real run: `
 - **Stay in lane.** Out-of-scope dirty files are not your problem — leave them exactly as they are.
 - **Another session may be live in this tree.** A background `/meta-execute`, `/glm-execute`, `/deep-execute`, or manual edit can be mid-flight on a *different* part of the codebase at the same moment. Dirty files outside your plan's file inventory are its in-flight work — leave them alone (never `git add -A`/`.`; scope `git add` to your task's declared paths). Only hold up if they overlap your next task's files; otherwise proceed — no need to wait on unrelated work.
 
+## Concurrency Safety (Shared Tree) — MANDATORY
+
+The meta working tree is SHARED across concurrent sessions. Coordination is now **mechanically enforced** (not just advisory) so two sessions can't tangle each other's edits or sweep them into the wrong commit (incident 2026-07-05):
+
+- **Claim the scope before dispatch.** Dispatch plan-editing headless workers with `claude-headless-exec --claim <plan-dir>`. The wrapper claims that directory in the cross-session registry (`plans/_dashboard/worker-claims.jsonl`, mkdir-atomic) and **ABORTS the dispatch** if another live session holds an overlapping scope — so partition by directory. The claim is stamped with the wrapper's own pid and auto-released on exit; a crashed session's claim auto-expires (dead pid / 30-min TTL). `--claim-warn` downgrades the abort to a warning.
+- **Stage EXACTLY the worker's files — never a tree-wide add.** Each worker writes a touched-file manifest (`<output>.manifest.jsonl`, surfaced as `MANIFEST_FILE=` in the wrapper trailer). The conductor stages precisely those paths — `git add -- $(jq -r .path <manifest> | sort -u)` — NOT a `git diff`/`git status` scan (which picks up a concurrent session's edits in a shared tree). `git add -A` / `.` / `<dir/>` is **BLOCKED by the host guard hook** (it sweeps foreign edits). Sanctioned single-session dir-adds (plan archival) prefix `META_ALLOW_DIR_ADD=1`.
+- **Workers are commit-free, mechanically.** The injected worker git-guard hook DENIES `git add/commit/stash/checkout/reset/rebase/merge/push` in worker context (read-only git stays available). The conductor owns git — always.
+- **The exit code is honest.** A worker that reports `is_error:false` exits 0 (the wrapper reconciles the raw process code and no longer lets the EXIT trap force a 1). Trust the exit code together with the `is_error` field.
+
 ## CLAIMED → DONE — Full Checkbox Lifecycle (MANDATORY)
 
 The plan file's checkboxes are the user's ONLY visibility into execution progress. Every checkbox — every `### Task N:` AND every `- [ ]` subtask checkbox — MUST pass through ALL three states in the plan file (a subtask checkbox flips DONE the instant its own step is green, exactly like a top-level task). No exceptions, no batching, no "I'll do it at the end." 1 runtime task ↔ 1 checkbox; completing the task is what checks the box.

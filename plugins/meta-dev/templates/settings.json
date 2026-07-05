@@ -106,6 +106,7 @@
         "rm_git_index": "block",
         "git_reset_hard": "block",
         "git_checkout_dot": "block",
+        "git_add_sweep": "block",
         "git_push_force_main": "block",
         "no_verify_flag": "warn",
         "drop_table": "block"

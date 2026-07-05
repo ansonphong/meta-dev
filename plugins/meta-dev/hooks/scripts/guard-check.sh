@@ -118,6 +118,29 @@ if [ "$TOOL_NAME" = "Bash" ]; then
     apply_action "$(cfg git_checkout_dot block)" "git clean -f permanently deletes untracked files."
   fi
 
+  # git add -A/-u/./<dir/> — the COMMIT-SWEEP guard (incident 2026-07-05).
+  # The meta repo working tree is SHARED across concurrent sessions. A broad
+  # `git add` stages EVERY dirty file under a path — including another live
+  # session's in-flight worker edits — sweeping foreign work into this commit.
+  # Charter rule: the conductor stages EXACTLY its task's declared files.
+  # Escape hatch: sanctioned single-session dir-adds (e.g. plan archival) run
+  # `META_ALLOW_DIR_ADD=1 git add <dir>` — the inline prefix opts out. Mirrors
+  # the HEXTILE_ALLOW_REBASE emergency-override convention.
+  # Known gap (accepted, grug-minimal): a bareword dir with no trailing slash
+  # (`git add plans`) is NOT caught — staging by explicit file path + the
+  # worker manifest are the positive mechanism; this is the regex backstop for
+  # the forms the charter names and the incident used.
+  if printf '%s' "$COMMAND" | grep -qiE '\bgit\s+add\b' \
+     && ! printf '%s' "$COMMAND" | grep -qiE 'META_ALLOW_DIR_ADD=(1|true)'; then
+    SWEEP=""
+    printf '%s' "$COMMAND" | grep -qiE '\bgit\s+add\s+([^&|;]*[[:space:]])?(-A|--all|-u|--update)([[:space:]]|$)' && SWEEP="the -A/-u/--all/--update flag"
+    printf '%s' "$COMMAND" | grep -qiE '\bgit\s+add\s+([^&|;]*[[:space:]])?\.([[:space:]/]|$)'                    && SWEEP="a bare '.'"
+    printf '%s' "$COMMAND" | grep -qiE '\bgit\s+add\s+([^&|;]*[[:space:]])?[^[:space:]&|;]+/([[:space:]]|$)'       && SWEEP="a directory path (trailing '/')"
+    if [ -n "$SWEEP" ]; then
+      apply_action "$(cfg git_add_sweep block)" "git add with $SWEEP stages EVERY dirty file under that path — in a SHARED tree that sweeps another concurrent session's in-flight worker edits into your commit (commit-sweep, incident 2026-07-05). Stage explicit file paths only: 'git add <file1> <file2>'. Sanctioned single-session dir-adds (plan archival) prefix 'META_ALLOW_DIR_ADD=1'."
+    fi
+  fi
+
   # git push --force on main/master — overwrites remote history.
   if printf '%s' "$COMMAND" | grep -qiE 'git\s+push\s+.*(--force([^-]|$)|-f([[:space:]]|$))'; then
     if printf '%s' "$COMMAND" | grep -qiE '(main|master)'; then

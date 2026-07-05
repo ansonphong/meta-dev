@@ -54,6 +54,7 @@ The user's input is: `$ARGUMENTS`
 Parse these optional flags:
 - `--repo <name>` — target repo (default: auto-detect from cwd; names from .claude/meta-dev-repos.json)
 - `--readonly` — restrict to read-only tools (review/analysis tasks)
+- `--claim <plan-dir>` — **concurrency safety (shared tree):** claim this plan directory before dispatch. The wrapper ABORTS if another live session holds an overlapping scope, and auto-releases on exit. Use whenever the worker edits `plans/**`. (`--claim-warn` warns instead of aborting.) See `references/execute-charter.md` → Concurrency Safety.
 - `--model <model>` — override default model (default: `deepseek-v4-pro`; fast option: `deepseek-v4-flash`)
 - `--max-turns <n>` — cap agent turns (default: unset — worker runs to completion)
 
