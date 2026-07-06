@@ -111,7 +111,7 @@ Per member plan the script derives, reusing `plan-index.py` (`read_plan_file`, `
 | Field | Source |
 |-------|--------|
 | **waterfall stage** | member frontmatter `stage:` (1..6) → the `Stage` column + the DONE gate |
-| **Progress bar + %** | `phase-*.md` files in the member dir + `count_checkboxes` completion → bar + `round(frac * 100)%` |
+| **Progress bar + %** | counts the member's linked master plan file only (not the directory); '—' if that file has no checkboxes |
 | **Status** | computed from the same classification as the glyph chain: ✅ DONE (stage≥6+done) · 🔄 EXECUTING (current "Now" member) · ⬜ QUEUED · ⛔ BLOCKED |
 | **→** | relative link to the member's `00-master-plan.md` |
 | **Ships list** | compact reference below the table — each member's `why:` or H1, truncated to ~60 chars, one line per member |

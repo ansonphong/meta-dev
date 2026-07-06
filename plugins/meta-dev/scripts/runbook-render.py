@@ -101,25 +101,19 @@ def read_plan(plan_path):
     return text, fm
 
 
-def count_dir_checkboxes(member_dir, master_path):
-    """Sum checkbox completion across the WHOLE member dir, not just the master.
+def count_file_checkboxes(plan_path):
+    """Count checkboxes in ONLY the single linked plan file.
 
-    The execution checkboxes for a multi-phase plan live in its ``phase-*.md``
-    files, NOT the ``00-master-plan.md`` index — so counting only the master
-    badly under-reports progress (a plan 85% done through its phases shows 0%).
-    Aggregate ``count_checkboxes`` over every ``*.md`` in the member dir (the
-    master is one of them), and return ``(done, total, frac)``.
+    The Progress bar for a member counts checkboxes from its linked master
+    plan file only — never the whole directory (which would pick up unrelated
+    neighbor plans).  Returns ``(done, total, frac)``.  When the file has 0
+    checkboxes the caller renders "—" for the Progress cell.
     """
-    md_files = set(glob.glob(os.path.join(member_dir, "*.md")))
-    md_files.add(master_path)
-    done = total = 0
-    for f in sorted(md_files):
-        txt, _ = read_plan(f)
-        if txt is None:
-            continue
-        cb = plan_index.count_checkboxes(txt)
-        done += cb["done"]
-        total += cb["total"]
+    txt, _ = read_plan(plan_path)
+    if txt is None:
+        return 0, 0, 0.0
+    cb = plan_index.count_checkboxes(txt)
+    done, total = cb["done"], cb["total"]
     frac = (done / total) if total else 0.0
     return done, total, frac
 
@@ -178,9 +172,9 @@ def build_member_rows(members, repo_root):
         # relative link for → column
         rel_link = f"{dir_base}/{os.path.basename(plan_path)}"
 
-        # checkbox completion across the WHOLE member dir (master + phase-*.md),
-        # not just the master index — see count_dir_checkboxes.
-        _done, _total, frac = count_dir_checkboxes(member_dir, plan_path)
+        # checkbox completion from the member's linked plan file only —
+        # see count_file_checkboxes.
+        _done, _total, frac = count_file_checkboxes(plan_path)
 
         # phase-*.md files in the member's directory (non-recursive) = the phase count
         phase_files = glob.glob(os.path.join(member_dir, "phase-*.md"))
@@ -268,7 +262,10 @@ def compose_block(rows, members, repo_root):
             stage_cell += " ⚠"
         if row["is_blocked"]:
             stage_cell += " ⛔ BLOCKED"
-        progress_cell = f"`{row['bar']}` {round(row['frac'] * 100)}%"
+        if row['cb_total'] == 0:
+            progress_cell = "—"
+        else:
+            progress_cell = f"`{row['bar']}` {round(row['frac'] * 100)}%"
         # Status cell — mirrors the glyph chain classification EXACTLY
         if row["is_done"]:
             status_cell = "✅ DONE"
