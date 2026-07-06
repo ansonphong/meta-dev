@@ -90,6 +90,60 @@ def parse_id_name(dir_basename):
     return dir_basename, dir_basename
 
 
+_DATE_RE = re.compile(r"\d{4}-\d{2}-\d{2}")
+_SUBTITLE_RE = re.compile(r"\s+[—–-]\s+")   # " — " / " – " / " - " subtitle separator
+
+
+def _strip_date(s):
+    """Drop an ISO date and any orphaned surrounding dashes/spaces."""
+    return _DATE_RE.sub("", s).replace("--", "-").strip(" -")
+
+
+def _first_h1(text):
+    """First real H1 (`# …`, not `##`) of a plan, or ''."""
+    if not text:
+        return ""
+    for line in text.split("\n"):
+        if line.startswith("# ") and not line.startswith("## "):
+            return line[2:].strip().rstrip("#").strip()
+    return ""
+
+
+def derive_label(plan_path, dir_base, text, fm):
+    """Return (short_id, display_name) for the Plan column — robust to BOTH shapes:
+
+      • FOLDER-anchored — the linked file is 00-*.md (00-master-plan.md /
+        00-design.md): the FOLDER names the plan → split its basename (trailing
+        ISO date stripped) into id + NAME the way it always has
+        (28 · INPUT-CREATE, GRID · TILE-MISMATCH, structural · refactor).
+      • FILE-anchored — the linked .md itself names the plan (a loose dated plan,
+        or NN-topic.md inside a shared folder): use the plan's OWN title
+        (frontmatter `title:`, else its H1, else the filename stem) so we never
+        echo a generic folder key back as "app app" / "PROJECTS PROJECTS".
+
+    A single-token identity renders as just the bold handle (the de-dup guard
+    kills the doubled "app app"); a " — subtitle" tail and anything past ~42
+    chars are trimmed so the cell stays readable.
+    """
+    fname = os.path.basename(plan_path)
+    if fname.startswith("00-"):
+        sid, name = parse_id_name(_strip_date(dir_base))
+    else:
+        title = str(fm.get("title", "")).strip() or _first_h1(text)
+        if not title:
+            title = _strip_date(os.path.splitext(fname)[0]).replace("-", " ")
+        title = _SUBTITLE_RE.split(title, 1)[0].strip()   # drop "— Implementation Plan" tail
+        parts = title.split(None, 1)                       # first word = bold handle, rest = name
+        sid = parts[0] if parts else _strip_date(os.path.splitext(fname)[0])
+        name = parts[1].lstrip("·—–-:•* ").strip() if len(parts) > 1 else ""
+    name = _SUBTITLE_RE.split(name, 1)[0].strip()          # trim any residual subtitle
+    if name.strip().lower() == sid.strip().lower():        # de-dup single-token identity
+        name = ""
+    if len(name) > 42:
+        name = name[:42].rstrip() + "…"
+    return sid, name
+
+
 def read_plan(plan_path):
     """Read a plan file; return (text, fm_dict).  Missing file → (None, {})."""
     try:
@@ -118,7 +172,7 @@ def count_file_checkboxes(plan_path):
     return done, total, frac
 
 
-def build_member_rows(members, repo_root):
+def build_member_rows(members, repo_root, runbook_dir):
     """Process each member plan into a dashboard row.
 
     Two INDEPENDENT signals per plan, shown in two columns:
@@ -135,9 +189,10 @@ def build_member_rows(members, repo_root):
         plan_path = os.path.join(repo_root, rel)
         member_dir = os.path.dirname(plan_path)
         dir_base = os.path.basename(member_dir)
-        short_id, display_name = parse_id_name(dir_base)
 
         text, fm = read_plan(plan_path)
+        short_id, display_name = derive_label(plan_path, dir_base, text, fm)
+
         if text is None:
             rows.append({
                 "num": i + 1, "id": short_id, "name": display_name,
@@ -169,8 +224,9 @@ def build_member_rows(members, repo_root):
                     break
         what_display = (what_raw[:50] + "…") if len(what_raw) > 50 else what_raw
 
-        # relative link for → column
-        rel_link = f"{dir_base}/{os.path.basename(plan_path)}"
+        # relative link for → column — resolved from the runbook's OWN directory
+        # so members outside it (../GRID-TILE-MISMATCH, loose plans/app/*.md) link too
+        rel_link = os.path.relpath(os.path.abspath(plan_path), runbook_dir)
 
         # checkbox completion from the member's linked plan file only —
         # see count_file_checkboxes.
@@ -238,10 +294,8 @@ def compose_block(rows, members, repo_root):
     # now line — name the current plan AND its waterfall stage (no false "executing")
     if current_idx is not None:
         cur = rows[current_idx]
-        cur_dir = os.path.basename(
-            os.path.dirname(os.path.join(repo_root, members[current_idx]))
-        )
-        now_line = (f"{cur_dir} — Stage {cur['stage']} {cur['stage_name']} "
+        cur_label = f"{cur['id']} {cur['name']}".strip()
+        now_line = (f"{cur_label} — Stage {cur['stage']} {cur['stage_name']} "
                     f"({cur['phases_done']}/{cur['phases_total']} phases)")
     else:
         now_line = "none — all plans through Stage 6"
@@ -258,7 +312,7 @@ def compose_block(rows, members, repo_root):
     lines.append("|---|------|-------|----------|--------|---|")
 
     for row in rows:
-        name_display = f"**{row['id']}** {row['name']}"
+        name_display = f"**{row['id']}** {row['name']}".rstrip()
         if row["is_current"]:
             name_display += " ◄ NOW"
         stage_cell = f"{row['circled']} {row['stage_name']}"
@@ -311,7 +365,8 @@ def compose_block(rows, members, repo_root):
         for row in rows:
             what = row.get("what", "")
             if what:
-                lines.append(f"- **{row['id']}** {row['name']} — {what}")
+                label = f"**{row['id']}** {row['name']}".rstrip()
+                lines.append(f"- {label} — {what}")
 
     lines.append("")
     return "\n".join(lines)
@@ -376,7 +431,9 @@ def main():
     runbook_fm, _ = plan_index.parse_frontmatter(runbook_text)
 
     # build rows & compose the progress block
-    rows = build_member_rows(members, repo_root)
+    rows = build_member_rows(
+        members, repo_root, os.path.dirname(os.path.abspath(runbook_path))
+    )
     block = compose_block(rows, members, repo_root)
 
     # surface stage drift to stderr (visible to /runbook refresh + CI)

@@ -111,19 +111,20 @@ Per member plan the script derives, reusing `plan-index.py` (`read_plan_file`, `
 | Field | Source |
 |-------|--------|
 | **waterfall stage** | member frontmatter `stage:` (1..6) → the `Stage` column + the DONE gate |
+| **Plan** (name) | FOLDER-anchored member (linked file `00-*.md`) → folder basename split into **id** + NAME, trailing ISO date stripped (`28 · INPUT-CREATE`, `structural · refactor`); FILE-anchored member (any other `.md`) → the plan's own `title:`/H1/filename-stem (`Depinch · Render-Node Lineage…`), so a loose plan never renders as a doubled folder key ("app app") |
 | **Progress bar + %** | counts the member's linked master plan file only (not the directory); '—' if that file has no checkboxes |
 | **Status** | computed from the same classification as the glyph chain: ✅ DONE (stage≥6+done) · 🔄 EXECUTING (current "Now" member) · ⬜ QUEUED · ⛔ BLOCKED |
-| **→** | relative link to the member's `00-master-plan.md` |
+| **→** | relative link resolved from the runbook's OWN directory to the member's linked plan file — resolves for members outside the runbook folder (`../…`) too |
 | **Ships list** | compact reference below the table — each member's `why:` or H1, truncated to ~60 chars, one line per member |
-| **→** | relative link to the member's `00-master-plan.md` |
 | **◄ NOW marker** | the first member not DONE and not BLOCKED is the current focus |
 | **✅ DONE** | only when `stage >= 6` AND `status` is `done`/`completed` |
 
 The script emits, between the sentinels, exactly: the `### Execution order & package progress`
 heading, then:
 - the **execution-order glyph line** — `> **<id>** <glyph> → …  → **Stage 6** ⬜` in `members` order
-  (✅ done · 🔄 current · ⬜ queued · ! blocked; short id = leading token of the member dir name).
-- `**Plans done:** X / N  ·  **Now:** <current dir> — Stage S NAME (P/T phases)`.
+  (✅ done · 🔄 current · ⬜ queued · ! blocked; short id = leading token of the member folder
+  name, or of the plan title for a loose file).
+- `**Plans done:** X / N  ·  **Now:** <current plan> — Stage S NAME (P/T phases)`.
 - the **member table** (`# · Plan · Stage · Progress · Status · →`) + the computed **Ships list** below it.
 
 Everything OUTSIDE the sentinels is authored: the `## 🎯 DASHBOARD` heading and the
