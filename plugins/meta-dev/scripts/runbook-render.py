@@ -186,8 +186,12 @@ def build_member_rows(members, repo_root):
         # silently overclaim "done"). Flag at ≥95% boxes AND stage < 6.
         is_drift = (not is_done) and stage < 6 and _total > 0 and frac >= 0.95
 
+        # bar fill mirrors the checkbox % (frac) shown beside it, so the glyph and
+        # the number never disagree — a fully-done plan shows a full bar regardless
+        # of how few phase files it has. phases_done/_total still drive the phase count.
         bar_width = max(4, phases_total)
-        bar = "▰" * phases_done + "▱" * (bar_width - phases_done)
+        bar_filled = min(bar_width, round(frac * bar_width))
+        bar = "▰" * bar_filled + "▱" * (bar_width - bar_filled)
 
         rows.append({
             "num": i + 1, "id": short_id, "name": display_name,
