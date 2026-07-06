@@ -65,7 +65,7 @@ that duplicate what's already in the member plans.>
 ## 🎯 DASHBOARD
 <!-- RUNBOOK:PROGRESS:START (computed by scripts/runbook-render.py — never hand-edit) -->
 ... execution-order glyph chain + "Plans done: X/N · Now: <plan> Stage S" ...
-... member table (# · Plan · Stage · Progress · What · →) ...
+... member table (# · Plan · Stage · Progress · Status · →) + Ships list ...
 <!-- RUNBOOK:PROGRESS:END -->
 
 ## DEPENDENCY ORDER
@@ -112,7 +112,9 @@ Per member plan the script derives, reusing `plan-index.py` (`read_plan_file`, `
 |-------|--------|
 | **waterfall stage** | member frontmatter `stage:` (1..6) → the `Stage` column + the DONE gate |
 | **Progress bar + %** | `phase-*.md` files in the member dir + `count_checkboxes` completion → bar + `round(frac * 100)%` |
-| **What** | member frontmatter `why:` (fallback: plan's H1 title), truncated to ~50 chars |
+| **Status** | computed from the same classification as the glyph chain: ✅ DONE (stage≥6+done) · 🔄 EXECUTING (current "Now" member) · ⬜ QUEUED · ⛔ BLOCKED |
+| **→** | relative link to the member's `00-master-plan.md` |
+| **Ships list** | compact reference below the table — each member's `why:` or H1, truncated to ~60 chars, one line per member |
 | **→** | relative link to the member's `00-master-plan.md` |
 | **◄ NOW marker** | the first member not DONE and not BLOCKED is the current focus |
 | **✅ DONE** | only when `stage >= 6` AND `status` is `done`/`completed` |
@@ -122,7 +124,7 @@ heading, then:
 - the **execution-order glyph line** — `> **<id>** <glyph> → …  → **Stage 6** ⬜` in `members` order
   (✅ done · 🔄 current · ⬜ queued · ! blocked; short id = leading token of the member dir name).
 - `**Plans done:** X / N  ·  **Now:** <current dir> — Stage S NAME (P/T phases)`.
-- the **member table** (`# · Plan · Stage · Progress · What · →`).
+- the **member table** (`# · Plan · Stage · Progress · Status · →`) + the computed **Ships list** below it.
 
 Everything OUTSIDE the sentinels is authored: the `## 🎯 DASHBOARD` heading and the
 `## DEPENDENCY ORDER` + `## GATES & INVARIANTS` contract. If the script cannot find both

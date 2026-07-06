@@ -209,9 +209,9 @@ def build_member_rows(members, repo_root):
 
 
 def compose_block(rows, members, repo_root):
-    """Build the progress block: execution-order chain + per-plan table.
+    """Build the progress block: execution-order chain + per-plan table + Ships list.
 
-    Columns: # · Plan · Stage (waterfall 1..6) · Progress (bar + %) · What (why:/H1) · → (link).
+    Columns: # · Plan · Stage (waterfall 1..6) · Progress (bar + %) · Status (glyph+word) · → (link).
     """
     # CURRENT = first member not yet DONE and not BLOCKED (serial execution order)
     current_idx = None
@@ -256,8 +256,8 @@ def compose_block(rows, members, repo_root):
     lines.append("")
     lines.append(f"**Plans done:** {done_count} / {n}  ·  **Now:** {now_line}")
     lines.append("")
-    lines.append("| # | Plan | Stage | Progress | What | → |")
-    lines.append("|---|------|-------|----------|------|---|")
+    lines.append("| # | Plan | Stage | Progress | Status | → |")
+    lines.append("|---|------|-------|----------|--------|---|")
 
     for row in rows:
         name_display = f"**{row['id']}** {row['name']}"
@@ -269,16 +269,24 @@ def compose_block(rows, members, repo_root):
         if row["is_blocked"]:
             stage_cell += " ⛔ BLOCKED"
         progress_cell = f"`{row['bar']}` {round(row['frac'] * 100)}%"
-        what_cell = row.get("what", "")
+        # Status cell — mirrors the glyph chain classification EXACTLY
+        if row["is_done"]:
+            status_cell = "✅ DONE"
+        elif row["is_blocked"]:
+            status_cell = "⛔ BLOCKED"
+        elif row["is_current"]:
+            status_cell = "🔄 EXECUTING"
+        else:
+            status_cell = "⬜ QUEUED"
         link_cell = f"[plan]({row.get('rel_link', '')})" if row.get("rel_link") else ""
         lines.append(
             f"| {row['num']} | {name_display} | {stage_cell} | {progress_cell} "
-            f"| {what_cell} | {link_cell} |"
+            f"| {status_cell} | {link_cell} |"
         )
 
     lines.append(
         "| — | **Stage 6** review · archive · runbook | — "
-        "| `▱▱▱▱` | | |"
+        "| `▱▱▱▱` | ⬜ QUEUED | |"
     )
 
     # STAGE-DRIFT note — surface "did the work, forgot to advance" so a handoff
@@ -294,6 +302,15 @@ def compose_block(rows, members, repo_root):
             f"> ⚠ **Stage drift:** {detail} — ~fully checked off but still below "
             "Stage 6. Advance the plan's `stage:` (and run review) or it under-reports."
         )
+
+    # Ships — compact reference list below the table (inside sentinels, computed)
+    if any(r.get("what") for r in rows):
+        lines.append("")
+        lines.append("**Ships**")
+        for row in rows:
+            what = row.get("what", "")
+            if what:
+                lines.append(f"- **{row['id']}** {row['name']} — {what}")
 
     lines.append("")
     return "\n".join(lines)
