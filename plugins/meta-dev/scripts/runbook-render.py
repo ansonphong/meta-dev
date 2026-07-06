@@ -152,6 +152,7 @@ def build_member_rows(members, repo_root):
                 "cb_done": 0, "cb_total": 0, "frac": 0.0,
                 "is_done": False, "is_blocked": False, "is_current": False,
                 "is_drift": False,
+                "what": "", "rel_link": "",
             })
             continue
 
@@ -164,6 +165,18 @@ def build_member_rows(members, repo_root):
 
         is_blocked = status == "blocked"
         is_done = stage >= 6 and status in ("done", "completed")
+
+        # "What" column — frontmatter why: (fallback: H1 title), truncated ~50 chars
+        what_raw = fm.get("why", "")
+        if not what_raw and text:
+            for line in text.split("\n"):
+                if line.startswith("# ") and not line.startswith("## "):
+                    what_raw = line[2:].strip().rstrip("#").strip()
+                    break
+        what_display = (what_raw[:50] + "…") if len(what_raw) > 50 else what_raw
+
+        # relative link for → column
+        rel_link = f"{dir_base}/{os.path.basename(plan_path)}"
 
         # checkbox completion across the WHOLE member dir (master + phase-*.md),
         # not just the master index — see count_dir_checkboxes.
@@ -190,6 +203,7 @@ def build_member_rows(members, repo_root):
             "cb_done": _done, "cb_total": _total, "frac": frac,
             "is_done": is_done, "is_blocked": is_blocked, "is_current": False,
             "is_drift": is_drift,
+            "what": what_display, "rel_link": rel_link,
         })
     return rows
 
@@ -197,7 +211,7 @@ def build_member_rows(members, repo_root):
 def compose_block(rows, members, repo_root):
     """Build the progress block: execution-order chain + per-plan table.
 
-    Columns: # · Plan · Stage (waterfall 1..6) · Phases · Progress · Status.
+    Columns: # · Plan · Stage (waterfall 1..6) · Progress (bar + %) · What (why:/H1) · → (link).
     """
     # CURRENT = first member not yet DONE and not BLOCKED (serial execution order)
     current_idx = None
@@ -242,33 +256,29 @@ def compose_block(rows, members, repo_root):
     lines.append("")
     lines.append(f"**Plans done:** {done_count} / {n}  ·  **Now:** {now_line}")
     lines.append("")
-    lines.append("| # | Plan | Stage | Phases | Progress | Status |")
-    lines.append("|:--:|------|------|:------:|----------|------|")
+    lines.append("| # | Plan | Stage | Progress | What | → |")
+    lines.append("|---|------|-------|----------|------|---|")
 
     for row in rows:
         name_display = f"**{row['id']}** {row['name']}"
         if row["is_current"]:
             name_display += " ◄ NOW"
         stage_cell = f"{row['circled']} {row['stage_name']}"
-        phases = f"{row['phases_done']}/{row['phases_total']}"
-        if row["is_blocked"]:
-            status_word = "! BLOCKED"
-        elif row["is_done"]:
-            status_word = "✅ DONE"
-        elif row["is_current"]:
-            status_word = "🔄 EXECUTING"
-        else:
-            status_word = "⬜ QUEUED"
         if row["is_drift"]:
-            status_word += " ⚠"  # ~done but parked below Stage 6 (see drift note)
+            stage_cell += " ⚠"
+        if row["is_blocked"]:
+            stage_cell += " ⛔ BLOCKED"
+        progress_cell = f"`{row['bar']}` {round(row['frac'] * 100)}%"
+        what_cell = row.get("what", "")
+        link_cell = f"[plan]({row.get('rel_link', '')})" if row.get("rel_link") else ""
         lines.append(
-            f"| {row['num']} | {name_display} | {stage_cell} | {phases} "
-            f"| `{row['bar']}` | {status_word} |"
+            f"| {row['num']} | {name_display} | {stage_cell} | {progress_cell} "
+            f"| {what_cell} | {link_cell} |"
         )
 
     lines.append(
-        "| — | **Stage 6** review · archive · runbook | — | — "
-        "| `▱▱▱▱` | ⬜ QUEUED |"
+        "| — | **Stage 6** review · archive · runbook | — "
+        "| `▱▱▱▱` | | |"
     )
 
     # STAGE-DRIFT note — surface "did the work, forgot to advance" so a handoff

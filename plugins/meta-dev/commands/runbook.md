@@ -53,5 +53,6 @@ side of the launch milestone) per the skill; "manage the runbook according to wh
   writes code → needs Phong's explicit "go" per member; never auto-advance.
 - **Delegate.** Authoring the manuscript + topo-sort + wave strategy = Opus. Driving members through
   HARDEN/EXECUTE = DeepSeek→GLM; gate reviews = Codex (review-only). The runbook is the score.
-- **The PROGRESS block is computed** — never hand-edit between the `<!-- RUNBOOK:PROGRESS … -->`
-  sentinels; author the narrative + CURRENT phase tracker around it.
+- **The dashboard is fully computed** — never hand-edit between the `<!-- RUNBOOK:PROGRESS … -->`
+  sentinels. Outside it, author ONLY the ≤3-sentence purpose, `## DEPENDENCY ORDER`, and
+  `## GATES & INVARIANTS`. Closeouts go in the member's master plan (`## Closeout`), never the runbook.
