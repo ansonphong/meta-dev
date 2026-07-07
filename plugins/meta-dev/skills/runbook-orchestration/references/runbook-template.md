@@ -78,8 +78,9 @@ rationale that cannot be derived from any single member plan.>
 
 ## GATES & INVARIANTS
 
-<Binding campaign-wide rules as bullets. The one-writer/serial doctrine, the
-"green before advance" gates, any cross-member invariants.>
+<Binding campaign-wide rules as bullets. The file-level concurrency rule (parallel members
+welcome; never write a file already dirty on the working tree), the "green before advance"
+gates, any cross-member invariants.>
 
 - …
 ```

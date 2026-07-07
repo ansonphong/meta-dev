@@ -34,7 +34,7 @@ side of the launch milestone) per the skill; "manage the runbook according to wh
 |------|--------------|:------:|
 | `new <feature-dir \| plan-paths…>` | Resolve members → topo-sort from their `depends`/`blocks` → scaffold `_runbook-<today>.md` from the template → render dashboard → register marker in `plans/meta-runbook.md`. | no |
 | `refresh` / *(bare)* | Re-run `runbook-render.py` to recompute the PROGRESS block from members' live frontmatter + checkboxes. | no |
-| `execute` / `go` | Walk `members` in order; per member run `/meta-dev` (unplanned) or `/meta-execute`/`/auto-execute` (execute-ready); refresh after each phase/plan. Serial per repo. | **YES** — per-member "go" |
+| `execute` / `go` | Walk `members` in order; per member run `/meta-dev` (unplanned) or `/meta-execute`/`/auto-execute` (execute-ready); refresh after each phase/plan. File-disjoint members may run in parallel; the only lock is the file — never write one already dirty on the tree. | **YES** — per-member "go" |
 | `chain <label>` | Create a successor runbook (`predecessor:` = current), mark current `status: done` + set `successor:`. Daisy-chain or break-off. | no |
 | `add <plan>` | Insert a plan into `members` at the dependency-correct slot; re-render. | no |
 | `done <plan>` | Mark a member `done` (frontmatter is truth); re-render. | no |

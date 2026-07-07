@@ -58,8 +58,12 @@ Walk `members` in order. For each member: if it is not yet planned/hardened, run
 and `/auto-execute` orchestrate **within** a plan (they already walk `00-master-plan + phase-N`). After
 each phase/plan lands: **re-run `runbook-render.py`** to refresh the dashboard, **write the
 closeout into the member's `00-master-plan.md` `## Closeout` section** (never append to the
-runbook), and flip the member's status. **Serial by default** — one
-code-writer per repo at a time; only run disjoint-footprint members concurrently.
+runbook), and flip the member's status. **Parallel is fine — the only lock is the file.**
+Members honor dependency order (a member consuming another's output waits), but any members whose
+write-sets don't overlap may execute concurrently. The single hard rule: **never write a file that
+is already dirty on the working tree** — each worker picks up only files that are CLEAN at dispatch
+(`git status`), so two can never double-write the same file. (Does not relax the GLM ~3-request API
+cap — a separate rate limit, not file safety.)
 > **Dashboard auto-syncs during member execution.** `/meta-execute` + `/auto-execute` re-render THIS
 > runbook at every phase gate (loop-protocol → "Runbook dashboard sync"), so the LIVE EXECUTION
 > DASHBOARD never freezes mid-run. The render's stderr `⚠ stage-drift` flags any member at ~100%
@@ -116,8 +120,12 @@ plans/app/UNIFIED-EDITING-CANVAS/16-TOOLBAR/followup-1/00-design.md
    "go". `chain`/`new`/`refresh`/`add`/`done` are non-gated authoring/bookkeeping.
 3. **The PROGRESS block is computed, not hand-edited.** Author everything else; let
    `runbook-render.py` own the sentineled span. Status truth lives in member frontmatter + checkboxes.
-4. **Serial code-writes per repo.** Never two concurrent `/meta-execute` workers writing the same repo
-   file. Parallelize only proven file-disjoint members.
+4. **File-level exclusion, not session-level.** Multiple workers MAY execute this runbook concurrently —
+   parallelism is encouraged. The one hard rule: never write a file that is already **dirty** on the
+   working tree (that's a peer's in-flight edit). Each worker picks up only files that are CLEAN at
+   dispatch, so no two ever collide on the same file — disjoint-footprint members thus run freely in
+   parallel. Never a tree-wide `git add` (it sweeps a peer's dirty files); stage explicit paths only.
+   (The GLM ~3-request cap is a separate API limit, not this rule.)
 5. **Daisy chain is immutable backward.** A completed runbook is never rewritten; a successor links to
    it via `predecessor`. The chain is the campaign's history.
 6. **Self-maintaining rule.** A runbook has exactly 3 sections: the header (frontmatter + ≤3-sentence
