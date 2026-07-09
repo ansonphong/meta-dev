@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # ============================================================================
 # claude-headless-exec — Execute a task via headless Claude Code on a
-#                        specified backend (deepseek, glm, or sonnet).
+#                        specified backend (deepseek, glm, sonnet, opus, fable).
 #
 # Usage:
-#   claude-headless-exec --backend deep|glm|sonnet [options] -- <prompt>
+#   claude-headless-exec --backend deep|glm|sonnet|opus|fable [options] -- <prompt>
 #
 # Options:
 #   --backend deep|glm      Required. Backend to use.
@@ -26,11 +26,13 @@
 #   deep   → deepseek-v4-pro (opus/sonnet), deepseek-v4-flash (haiku)
 #   glm    → glm-5.2 (opus/sonnet/subagent), glm-4.5 (haiku) — routed via local beta-strip proxy
 #   sonnet → claude-sonnet-5 (200K — NO [1m]); REAL Anthropic via ambient login
+#   opus   → claude-opus-4-8 (200K — NO [1m]); REAL Anthropic via ambient login
+#   fable  → claude-fable-5  (NO [1m]); REAL Anthropic via ambient login — top-tier reasoning
 #
 # Prerequisites:
 #   - DEEPSEEK_API_KEY env var (for --backend deep)
 #   - GLM_API_KEY env var (for --backend glm)
-#   - --backend sonnet needs NO key — it uses your ambient ~/.claude login
+#   - --backend sonnet|opus|fable needs NO key — it uses your ambient ~/.claude login
 #   - claude CLI on PATH
 # ============================================================================
 
@@ -82,6 +84,35 @@ BACKEND_SUBAGENT_MODEL[sonnet]="claude-sonnet-5"     # its own subagents stay 20
 BACKEND_EFFORT[sonnet]="high"                        # Sonnet 5 thinks at HIGH (Anthropic's own default) — override --effort medium/low to conserve the Sonnet cap
 BACKEND_LABEL[sonnet]="Sonnet-200K"
 
+# opus → REAL Anthropic backend via the ambient ~/.claude login (same shape as
+# sonnet, one tier up). Pin claude-opus-4-8 with NO [1m] suffix: a fresh
+# `claude -p` process runs at the standard 200K Opus tier, so it is NEVER billed
+# at the 1M rate the way an Opus subagent dispatched from an opus[1m] session
+# would be. Reach for it when a task needs top-tier Anthropic reasoning off the
+# main thread (keeps the conductor's context lean) without paying the 1M premium.
+BACKEND_BASE_URL[opus]=""                            # ambient — no override
+BACKEND_AUTH_KEY_ENV[opus]=""                        # ambient login — no key
+BACKEND_OPUS_MODEL[opus]="claude-opus-4-8"           # Opus 4.8, 200K variant — NO [1m] suffix
+BACKEND_SONNET_MODEL[opus]="claude-opus-4-8"         # primary/default slot (read at model resolution)
+BACKEND_HAIKU_MODEL[opus]="claude-haiku-4-5-20251001"
+BACKEND_SUBAGENT_MODEL[opus]="claude-opus-4-8"       # its own subagents stay 200K Opus too
+BACKEND_EFFORT[opus]="high"                          # Opus thinks at HIGH by default; drop --effort medium/low to conserve the Opus cap
+BACKEND_LABEL[opus]="Opus-200K"
+
+# fable → REAL Anthropic backend via the ambient ~/.claude login. Pin
+# claude-fable-5 (NO [1m]); a fresh scrubbed `claude -p` process → standard tier,
+# never the inherited 1M beta. Fable 5 is the top of the ambient ladder — reach
+# for it on the HARDEST, most-complex tasks that demand extreme reasoning and
+# long-horizon coherence, off the main thread.
+BACKEND_BASE_URL[fable]=""                           # ambient — no override
+BACKEND_AUTH_KEY_ENV[fable]=""                       # ambient login — no key
+BACKEND_OPUS_MODEL[fable]="claude-fable-5"           # n/a slot — Fable everywhere
+BACKEND_SONNET_MODEL[fable]="claude-fable-5"         # primary/default slot (read at model resolution)
+BACKEND_HAIKU_MODEL[fable]="claude-haiku-4-5-20251001"
+BACKEND_SUBAGENT_MODEL[fable]="claude-fable-5"       # its own subagents stay Fable too
+BACKEND_EFFORT[fable]="high"                          # hardest-task tier → HIGH effort by default
+BACKEND_LABEL[fable]="Fable-5"
+
 # ── Defaults ────────────────────────────────────────────────────────────
 BACKEND=""
 REPO=""
@@ -112,17 +143,18 @@ show_help() {
 ╚══════════════════════════════════════════════════════════════════════════╝
 
 Usage:
-  claude-headless-exec --backend deep|glm|sonnet [options] -- <prompt>
+  claude-headless-exec --backend deep|glm|sonnet|opus|fable [options] -- <prompt>
 
 Required:
-  --backend deep|glm|sonnet  Backend to execute on
-                             (sonnet = real Anthropic, 200K, ambient login)
+  --backend <name>           Backend to execute on:
+                             deep | glm | sonnet | opus | fable
+                             (sonnet/opus/fable = real Anthropic, ambient login)
 
 Options:
   --repo app|www|gallery    cd to this repo first (auto-detect if omitted)
   --model <model>           Override the default model
   --effort <level>          Thinking effort: low|medium|high|xhigh|max
-                            (per-backend default: sonnet=high, glm=high, deep=none)
+                            (per-backend default: sonnet/opus/fable=high, glm=high, deep=none)
   --timeout <ms>            Timeout in ms via API_TIMEOUT_MS (default: 7200000 = 120 min)
 
 Liveness watchdog (env knobs — a wedged worker that goes silent is killed and
@@ -150,18 +182,22 @@ Backend defaults (model · effort):
   deep   → deepseek-v4-pro          (DeepSeek API · effort n/a)
   glm    → glm-5.2                    (Z.AI API · effort high · via local beta-strip proxy)
   sonnet → claude-sonnet-5          (Anthropic · 200K · ambient login · effort high)
+  opus   → claude-opus-4-8          (Anthropic · 200K · ambient login · effort high)
+  fable  → claude-fable-5           (Anthropic · ambient login · effort high · hardest tasks)
 
 Examples:
   claude-headless-exec --backend deep --repo app -- "Fix all TS errors"
   claude-headless-exec --backend glm --repo www --readonly -- "Audit auth"
   claude-headless-exec --backend sonnet --repo app -- "Review the diff"
+  claude-headless-exec --backend opus --repo app -- "Redesign the render-node lineage"
+  claude-headless-exec --backend fable --repo app -- "Untangle the hardest coherence bug"
   claude-headless-exec --backend deep --model deepseek-v4-flash -- \
     "Rename getCwd across the project"
 
 Prerequisites:
   DEEPSEEK_API_KEY env var (for --backend deep)
   GLM_API_KEY env var (for --backend glm)
-  --backend sonnet needs NO key (uses ambient ~/.claude login)
+  --backend sonnet|opus|fable needs NO key (uses ambient ~/.claude login)
   claude CLI on PATH
 EOF
 }
@@ -245,8 +281,9 @@ if [[ -z "$BACKEND" ]]; then
     exit 1
 fi
 
-if [[ "$BACKEND" != "deep" && "$BACKEND" != "glm" && "$BACKEND" != "sonnet" ]]; then
-    echo "[ERROR] Unknown backend '$BACKEND'. Use 'deep', 'glm', or 'sonnet'." >&2
+if [[ "$BACKEND" != "deep" && "$BACKEND" != "glm" && "$BACKEND" != "sonnet" \
+      && "$BACKEND" != "opus" && "$BACKEND" != "fable" ]]; then
+    echo "[ERROR] Unknown backend '$BACKEND'. Use 'deep', 'glm', 'sonnet', 'opus', or 'fable'." >&2
     exit 1
 fi
 
@@ -444,12 +481,13 @@ ENV_VARS=(
 )
 ENV_UNSET=()
 
-if [[ "$BACKEND" == "sonnet" ]]; then
-    # Real Anthropic via the ambient ~/.claude login — do NOT set a base URL or
-    # auth token. Scrub any inherited 3rd-party routing (e.g. if this runs from
-    # a shell that was pointed at deep/glm) so Sonnet can't be proxied off to
-    # the wrong backend. With --model claude-sonnet-5 (no [1m]) this is the
-    # standard 200K tier — never billed at the 1M rate.
+if [[ -z "${BACKEND_BASE_URL[$BACKEND]}" ]]; then
+    # Ambient Anthropic backends (sonnet / opus / fable) — REAL Anthropic via the
+    # ~/.claude login. An empty base URL is the marker: do NOT set a base URL or
+    # auth token. Scrub any inherited 3rd-party routing (e.g. if this runs from a
+    # shell that was pointed at deep/glm) so the model can't be proxied off to the
+    # wrong backend. With the pinned model (no [1m]) this is the standard 200K
+    # tier — never billed at the 1M rate a subagent would inherit.
     ENV_UNSET=(-u ANTHROPIC_BASE_URL -u ANTHROPIC_AUTH_TOKEN -u ANTHROPIC_API_KEY)
 else
     # deep / glm route through a 3rd-party Anthropic-compatible endpoint.
