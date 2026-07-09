@@ -9,7 +9,9 @@ How `/meta-planner` generates `.loop-gap-config.md` for a plan directory. This i
 mode: plan
 target: <plan-directory>
 plan_date: <YYYY-MM-DD>
-git_baseline: <SHA>
+git_baseline: <SHA>   # VERIFY at generation: run `git -C <repo> rev-parse HEAD` and paste the REAL current SHA.
+                      # A stale/fabricated SHA silently breaks staleness detection (loop-gap diffs against it).
+                      # The Phase 0 re-anchor re-checks at execute time, but the authored baseline must be current.
 ```
 
 ### Codebase Verification Targets

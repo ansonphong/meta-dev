@@ -40,7 +40,7 @@ Define request/response shapes, error codes, endpoints before implementation tas
 
 ### 5. Generate phase files with Verify hooks (tests only where they earn their keep)
 
-Each phase file: Codebase Snapshot → tasks with Verify-Before/After hooks. Use semantic anchors (function/class names), never line numbers (see `templates/patterns/planner.md`).
+Each phase file: Codebase Snapshot → tasks with Verify-Before/After hooks. Use semantic anchors (function/class names), never line numbers (see `templates/patterns/planner.md`). **For zero-behavior move/refactor tasks** (git-mv + import-rewrite, no behavior change — the `renders-routes-split` / colocation doctrine), any code block representing MOVED code must reference the **source symbol** to lift VERBATIM (e.g. "lift the returned body of `makeXDescriptor(target)` from `toolbarTools.ts`, adjust import paths only") — **never invent the body**. The plan can't know exact content at authoring time (the tree drifts; Phase 0 re-anchors onto live HEAD), and an invented body plants fabricated APIs (icon imports, activate logic, slot maps, default-vs-named exports) that look authoritative but are wrong. "Lift VERBATIM from `<symbol>`" is the unit; the body is filled at execution (LP-006).
 
 **Phase-size cap — keep phases SMALL (kills slow runs at the source).** No phase file exceeds **~3 tasks or ~8 touched files**. A fat phase (e.g. 6 tasks / 24 readers) makes every test cycle and review heavier and serializes the run — split it into `phase-N-a-<slug>.md` / `phase-N-b-<slug>.md` with a dependency note. Small phases move ~linearly faster and let the conductor fan mechanical leaves to DeepSeek. This is a hard authoring rule, audited at HARDEN.
 
