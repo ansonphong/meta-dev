@@ -1,0 +1,282 @@
+#!/usr/bin/env bash
+# ============================================================================
+# grok-headless-exec — Execute a task via headless xAI Grok CLI
+#                       (`grok --prompt-file … --output-format json`), emitting
+#                       the SAME clean result contract as claude-headless-exec
+#                       and codex-headless-exec so /auto-execute can consume
+#                       grok workers identically to deep/glm/codex.
+#
+# Grok is its OWN agent harness (xAI "Grok Build" TUI/CLI — NOT Claude Code on
+# an Anthropic endpoint), so — like codex-headless-exec — this is a separate
+# runner. The OUTPUT_FILE contract is identical:
+#   {is_error, subtype, num_turns, duration_ms, session_id, result, usage,
+#    backend, stop_reason}
+#
+# Unlike codex (review-only by doctrine), grok can READ and WRITE, so it is a
+# full general-purpose execution worker AND a cross-family (xAI) review lens.
+#
+# Usage:
+#   grok-headless-exec [options] -- <prompt>
+#
+# Options:
+#   --repo app|www|gallery   cd to this repo first (default: auto-detect from cwd)
+#   --model <model>          Override grok model (default: grok-4.5, pinned)
+#   --effort <level>         Reasoning effort for the model (grok --reasoning-effort)
+#   --max-turns <n>          Cap agent turns (default: uncapped; bounded by --timeout)
+#   --timeout <ms>           Wall-clock timeout in ms (default: 7200000 = 120 min)
+#   --readonly               Deny Write/Edit — enforced read-only (audits/reviews)
+#   --output json|text       Output format (default: json)
+#   --output-file <path>     Write distilled JSON here (default: /tmp/...grok-…json)
+#   -h, --help               Show this help
+#
+# Examples:
+#   grok-headless-exec --repo app --readonly -- "Audit src/lib/license.ts for Ed25519 verify bugs"
+#   grok-headless-exec --repo www -- "Fix the failing pytest in tests/test_billing.py"
+#
+# Prerequisites:
+#   - grok CLI on PATH, already authenticated (~/.grok/auth.json via `grok login`).
+#     No env key is injected here; grok uses its own stored OAuth credentials.
+#
+# NOTE — no stall-watchdog: grok's `--output-format json` writes the ENTIRE
+# result object at completion (it does not stream), so a growth-based watchdog
+# would false-fire on a legitimate long think. The wall-clock --timeout is the
+# only safety net, which is correct for a single-burst worker.
+# ============================================================================
+
+set -euo pipefail
+
+# ── Resolve project root ────────────────────────────────────────────────
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# ── Defaults ────────────────────────────────────────────────────────────
+REPO=""
+MODEL="grok-4.5"          # pinned default — guarantees grok-4.5 regardless of account-level default
+EFFORT=""
+MAX_TURNS=""
+TIMEOUT="7200000"         # 120 min — grok can run long-horizon work; never cap deep at 10 min
+READONLY=false
+OUTPUT_FORMAT="json"
+PROMPT=""
+OUTPUT_FILE=""
+
+# ── Help ────────────────────────────────────────────────────────────────
+show_help() {
+    cat <<'EOF'
+grok-headless-exec — Execute a task via headless xAI Grok (own harness)
+
+Usage:
+  grok-headless-exec [options] -- <prompt>
+
+Options:
+  --repo app|www|gallery   cd to this repo first (default: auto-detect from cwd)
+  --model <model>          Override grok model (default: grok-4.5, pinned)
+  --effort <level>         Reasoning effort for the model
+  --max-turns <n>          Cap agent turns (default: uncapped; bounded by --timeout)
+  --timeout <ms>           Wall-clock timeout in ms (default: 7200000 = 120 min)
+  --readonly               Deny Write/Edit — enforced read-only (audits/reviews)
+  --output json|text       Output format (default: json)
+  --output-file <path>     Write distilled JSON here (default: /tmp/...grok-…json)
+  -h, --help               Show this help
+
+Emits the shared result contract {is_error, subtype, num_turns, duration_ms,
+session_id, result, usage, backend, stop_reason} so /auto-execute consumes
+grok workers identically to deep/glm/codex.
+
+Prerequisites: grok CLI on PATH + ~/.grok/auth.json (run `grok login`).
+EOF
+    exit 0
+}
+
+# ── Parse args ──────────────────────────────────────────────────────────
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --repo)        REPO="$2"; shift 2 ;;
+        --model)       MODEL="$2"; shift 2 ;;
+        --effort)      EFFORT="$2"; shift 2 ;;
+        --max-turns)   MAX_TURNS="$2"; shift 2 ;;
+        --timeout)     TIMEOUT="$2"; shift 2 ;;
+        --readonly)    READONLY=true; shift ;;
+        --output)      OUTPUT_FORMAT="$2"; shift 2 ;;
+        --output-file) OUTPUT_FILE="$2"; shift 2 ;;
+        -h|--help)     show_help ;;
+        --)            shift; PROMPT="$*"; break ;;
+        *)             PROMPT="$*"; break ;;
+    esac
+done
+
+if [[ -z "$PROMPT" ]]; then
+    echo "[ERROR] No prompt provided. Usage: grok-headless-exec [options] -- <prompt>" >&2
+    exit 1
+fi
+
+# ── Validate grok CLI + auth ────────────────────────────────────────────
+if ! command -v grok &>/dev/null; then
+    echo "[ERROR] 'grok' CLI not found on PATH." >&2
+    echo "        Install the xAI Grok Build CLI, then run: grok login" >&2
+    exit 1
+fi
+[ -f "$HOME/.grok/auth.json" ] || { echo "[grok] ~/.grok/auth.json missing — run \`grok login\`" >&2; exit 2; }
+
+# ── Repo resolution (shared topology helper, same as codex/claude runners) ─
+WORK_DIR="$(pwd)"
+if [[ -n "${REPO:-}" ]]; then
+    RESOLVED="$(python3 "$SCRIPT_DIR/lib/repo-topology.py" "$REPO" 2>/dev/null || true)"
+    if [[ -n "$RESOLVED" && -d "$RESOLVED" ]]; then
+        WORK_DIR="$RESOLVED"
+    else
+        echo "[headless] --repo '$REPO' not in topology config; using cwd $WORK_DIR" >&2
+    fi
+else
+    REPO="$(basename "$WORK_DIR")"   # banner label only
+fi
+
+# ── Resolve output files ────────────────────────────────────────────────
+if [[ -z "$OUTPUT_FILE" ]]; then
+    TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+    OUTPUT_FILE="/tmp/claude-headless-grok-${TIMESTAMP}-$$.json"
+fi
+RAW_FILE="${OUTPUT_FILE}.raw"
+STDERR_FILE="${OUTPUT_FILE}.stderr"
+PROMPT_FILE="${OUTPUT_FILE}.prompt"
+
+# Convert ms → whole seconds for the `timeout` coreutil (min 1s).
+TIMEOUT_S=$(( TIMEOUT / 1000 ))
+[[ "$TIMEOUT_S" -lt 1 ]] && TIMEOUT_S=1
+
+# ── Dashboard ───────────────────────────────────────────────────────────
+MODE_DESC="execute (bypassPermissions)"
+[[ "$READONLY" == "true" ]] && MODE_DESC="read-only (deny Write/Edit)"
+cat <<EOF
+
+╔══════════════════════════════════════════════════════════════════════════╗
+║  HEADLESS EXECUTION — Grok (xAI)
+╠══════════════════════════════════════════════════════════════════════════╣
+║  Backend   : Grok
+║  Model     : ${MODEL:-grok-4.5}
+║  Repo      : ${REPO:-"(auto: $(basename "$WORK_DIR"))"}
+║  Work Dir  : ${WORK_DIR}
+║  Mode      : ${MODE_DESC}
+║  Timeout   : ${TIMEOUT}ms (${TIMEOUT_S}s)
+║  Output    : ${OUTPUT_FILE}
+╠══════════════════════════════════════════════════════════════════════════╣
+║  Task:
+║    ${PROMPT:0:70}...
+╚══════════════════════════════════════════════════════════════════════════╝
+
+EOF
+
+echo "[grok-headless-exec] Starting headless Grok..."
+echo "[grok-headless-exec] Working directory: $WORK_DIR"
+echo "[grok-headless-exec] Output file: $OUTPUT_FILE"
+echo ""
+
+# ── Execute ─────────────────────────────────────────────────────────────
+# Prompt goes via --prompt-file — robust against any content/length, no shell
+# escaping. --output-format json emits ONE object at completion (not streamed).
+cd "$WORK_DIR"
+printf '%s' "$PROMPT" > "$PROMPT_FILE"
+
+# Mode-specific permission flags.
+if [[ "$READONLY" == "true" ]]; then
+    # Enforced read-only: deny rules block every write path (write tool, shell
+    # redirection, search_replace) — verified empirically. Do NOT pair with
+    # bypassPermissions; that would defeat the deny rules.
+    PERM_FLAGS=(--deny Write --deny Edit)
+else
+    # Full autonomy — auto-approve every tool execution (matches claude-headless).
+    PERM_FLAGS=(--permission-mode bypassPermissions --always-approve)
+fi
+
+# Portable ms epoch. BSD `date` lacks %N and mis-succeeds (prints literal "N"),
+# so prefer GNU date (gdate on macOS+coreutils, plain date on Linux), then
+# validate pure digits — any junk falls back to python3.
+_now_ms() {
+    local t
+    if command -v gdate >/dev/null 2>&1; then t=$(gdate +%s%3N 2>/dev/null)
+    else t=$(date +%s%3N 2>/dev/null); fi
+    case "$t" in
+        ''|*[!0-9]*) t=$(python3 -c 'import time;print(int(time.time()*1000))' 2>/dev/null || echo "$(( $(date +%s) * 1000 ))") ;;
+    esac
+    printf '%s' "$t"
+}
+
+START_TIME=$(_now_ms)
+# grok is single-burst in json mode (writes whole object at end), so there is
+# no live stdout progress — this run will appear silent until grok returns.
+# `set +e` so a non-zero grok exit is captured rather than aborting the script.
+set +e
+timeout "${TIMEOUT_S}s" grok \
+    --prompt-file "$PROMPT_FILE" \
+    --output-format json \
+    "${PERM_FLAGS[@]}" \
+    ${MAX_TURNS:+--max-turns "$MAX_TURNS"} \
+    ${MODEL:+-m "$MODEL"} \
+    ${EFFORT:+--effort "$EFFORT"} \
+    > "$RAW_FILE" 2> "$STDERR_FILE"
+EXIT_CODE=$?
+set -e
+END_TIME=$(_now_ms)
+ELAPSED_MS=$(( END_TIME - START_TIME ))
+ELAPSED_S=$(( ELAPSED_MS / 1000 ))
+
+# timeout(1) exits 124 when it kills the child — surface as an error.
+if [[ $EXIT_CODE -eq 124 ]]; then
+    echo "[WARN] grok timed out after ${TIMEOUT_S}s." >> "$STDERR_FILE"
+fi
+
+# ── Distill RAW → clean result ──────────────────────────────────────────
+RESULT_TEXT=""
+IS_ERROR="unknown"
+PARSE_OK=false
+if [[ "$OUTPUT_FORMAT" == "json" ]]; then
+    if RESULT_TEXT=$(python3 "$SCRIPT_DIR/lib/distill-grok-result.py" \
+            "$RAW_FILE" "$OUTPUT_FILE" "$EXIT_CODE" "$ELAPSED_MS" \
+            2>>"$STDERR_FILE"); then
+        PARSE_OK=true
+        IS_ERROR=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1])).get('is_error'))" "$OUTPUT_FILE" 2>/dev/null || echo unknown)
+    fi
+fi
+if [[ "$PARSE_OK" != "true" ]]; then
+    cp "$RAW_FILE" "$OUTPUT_FILE"
+    if [[ "$OUTPUT_FORMAT" == "json" ]]; then
+        RESULT_TEXT="[distill failed — inspect raw payload: $RAW_FILE / stderr: $STDERR_FILE]"
+        [[ $EXIT_CODE -eq 0 ]] && EXIT_CODE=3
+    else
+        RESULT_TEXT="$(cat "$RAW_FILE" 2>/dev/null || true)"
+    fi
+fi
+
+# A run that reported is_error:true should not look like success.
+if [[ "$IS_ERROR" == "True" && $EXIT_CODE -eq 0 ]]; then
+    EXIT_CODE=4
+fi
+
+# ── Result summary ──────────────────────────────────────────────────────
+echo ""
+echo "────────────────────────────────────────────────────────────────────────"
+echo "  HEADLESS EXECUTION COMPLETE"
+echo "────────────────────────────────────────────────────────────────────────"
+echo "  Backend   : Grok (${MODEL:-default})"
+echo "  Exit code : $EXIT_CODE"
+echo "  is_error  : $IS_ERROR"
+echo "  Elapsed   : ${ELAPSED_S}s"
+echo "  Result    : $OUTPUT_FILE   (clean JSON — result/is_error/session_id/stop_reason)"
+echo "  Raw trace : $RAW_FILE"
+echo "  Stderr    : $STDERR_FILE"
+echo "────────────────────────────────────────────────────────────────────────"
+
+if [[ $EXIT_CODE -ne 0 ]]; then
+    echo ""
+    echo "[WARN] Headless execution exit code $EXIT_CODE (is_error=$IS_ERROR)."
+    echo "       Inspect: $STDERR_FILE"
+fi
+
+# ── Surface the distilled result text for the orchestrator ──────────────
+echo ""
+echo "════════════════════════ RESULT ════════════════════════════════════════"
+printf '%s\n' "$RESULT_TEXT"
+echo "═════════════════════════════════════════════════════════════════════════"
+echo "OUTPUT_FILE=$OUTPUT_FILE"
+
+exit $EXIT_CODE
