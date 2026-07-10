@@ -366,6 +366,95 @@ EOF
   rm -rf "$GHOME"
 }
 
+check_runbook_gate() {
+  echo "=== Runbook DONE-gate reconcile (on-run-complete Stop hook) ==="
+  local hook="$PLUGIN_DIR/hooks/scripts/on-run-complete.sh"
+  local render="$PLUGIN_DIR/scripts/runbook-render.py"
+
+  if [ -f "$hook" ]; then
+    PASS=$((PASS+1)); green "  PASS exists: hooks/scripts/on-run-complete.sh"
+  else
+    FAIL=$((FAIL+1)); red "  FAIL missing: hooks/scripts/on-run-complete.sh"; return
+  fi
+
+  # Hermetic project fixture. The member is ALREADY at stage 6 / done — the state
+  # a conductor's closeout hand-flip leaves it in — while the campaign runbook
+  # still shows the STALE stage-5 EXECUTING snapshot. This is the exact
+  # frozen-dashboard bug: the plan left stage 5 before the hook could stamp+
+  # render, and the OLD hook (re-render welded INSIDE the stage-5 branch) never
+  # revisited it. Only the UNCONDITIONAL reconcile pass can refresh it.
+  local RG; RG=$(mktemp -d)
+  ( cd "$RG" && git init -q && git config user.email t@t.t && git config user.name t ) 2>/dev/null || true
+  mkdir -p "$RG/plans/CAMPAIGN/50-FOO" "$RG/plans/_dashboard"
+  cat > "$RG/plans/CAMPAIGN/50-FOO/00-master-plan.md" <<'EOF'
+---
+status: done
+stage: 6
+repo: app
+why: congruent editor
+updated: 2026-07-10
+---
+# 50-FOO — Master Plan
+- [x] DONE Task 1
+- [x] DONE Task 2
+EOF
+  cat > "$RG/plans/CAMPAIGN/_runbook-test.md" <<'EOF'
+---
+name: test-campaign
+members:
+  - plans/CAMPAIGN/50-FOO/00-master-plan.md
+predecessor: null
+---
+# Test Campaign
+<!-- RUNBOOK:PROGRESS:START (computed) -->
+STALE frozen snapshot: 50 FOO stage 5 EXECUTING 95%
+<!-- RUNBOOK:PROGRESS:END -->
+EOF
+  local RB="$RG/plans/CAMPAIGN/_runbook-test.md"
+
+  # Fire the Stop hook. MAP is empty (no stage-5 plan under plans/), so ONLY the
+  # unconditional reconcile can refresh — precisely the path the old hook lacked.
+  echo '{}' | env CLAUDE_PROJECT_DIR="$RG" CLAUDE_PLUGIN_ROOT="$PLUGIN_DIR" bash "$hook" >/dev/null 2>&1 || true
+  if grep -q 'DONE' "$RB" && ! grep -q 'EXECUTING' "$RB"; then
+    PASS=$((PASS+1)); green "  PASS reconciles a hand-flipped stage-6 member to DONE (no stamp branch)"
+  else
+    FAIL=$((FAIL+1)); red "  FAIL runbook not reconciled (still EXECUTING / no DONE)"
+  fi
+
+  # cwd-INDEPENDENCE: re-stale the block, fire the hook from a FOREIGN cwd (a
+  # leaked child-repo shell). It must still refresh, because it anchors on
+  # CLAUDE_PROJECT_DIR — not on wherever the session's shell happens to sit.
+  python3 - "$RB" <<'PYEOF'
+import sys, re
+p = sys.argv[1]
+t = open(p, encoding='utf-8').read()
+t = re.sub(r'(RUNBOOK:PROGRESS:START.*?-->).*?(<!-- RUNBOOK:PROGRESS:END)',
+           r'\1\nSTALE again EXECUTING\n\2', t, flags=re.S)
+open(p, 'w', encoding='utf-8').write(t)
+PYEOF
+  echo '{}' | ( cd / && env CLAUDE_PROJECT_DIR="$RG" CLAUDE_PLUGIN_ROOT="$PLUGIN_DIR" bash "$hook" >/dev/null 2>&1 ) || true
+  if grep -q 'DONE' "$RB" && ! grep -q 'EXECUTING' "$RB"; then
+    PASS=$((PASS+1)); green "  PASS reconciles from a foreign cwd (anchors on CLAUDE_PROJECT_DIR)"
+  else
+    FAIL=$((FAIL+1)); red "  FAIL foreign-cwd reconcile failed"
+  fi
+
+  # IDEMPOTENT render: a second render of an already-fresh runbook is a true
+  # no-op on disk (content stable) — so the per-Stop reconcile never churns
+  # mtimes (which would dirty the tree + defeat the dirty-file idle gate).
+  local sha1 sha2
+  sha1=$(md5sum "$RB" | cut -d' ' -f1)
+  python3 "$render" "$RB" >/dev/null 2>&1 || true
+  sha2=$(md5sum "$RB" | cut -d' ' -f1)
+  if [ "$sha1" = "$sha2" ]; then
+    PASS=$((PASS+1)); green "  PASS runbook-render.py idempotent (no-op on unchanged runbook)"
+  else
+    FAIL=$((FAIL+1)); red "  FAIL runbook-render.py rewrote an unchanged runbook"
+  fi
+
+  rm -rf "$RG"
+}
+
 # Main
 cd "$PLUGIN_DIR/../.."  # cd to repo root
 
@@ -378,6 +467,7 @@ case "${1:-}" in
   --check-hooks) check_hooks ;;
   --check-init) check_init ;;
   --check-headless) check_headless ;;
+  --check-runbook-gate) check_runbook_gate ;;
   *)
     check_schemas
     check_templates
@@ -388,6 +478,7 @@ case "${1:-}" in
     check_hooks
     check_init
     check_headless
+    check_runbook_gate
     ;;
 esac
 

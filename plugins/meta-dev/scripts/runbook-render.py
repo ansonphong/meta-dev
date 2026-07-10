@@ -459,9 +459,15 @@ def main():
     ).stdout.strip()
     new_text = update_frontmatter_date(new_text, runbook_fm, today)
 
-    # write back
-    with open(runbook_path, "w", encoding="utf-8") as f:
-        f.write(new_text)
+    # write back — IDEMPOTENT: skip the write entirely when nothing changed.
+    # The done-gate Stop hook reconciles EVERY runbook on EVERY stop, so an
+    # unconditional write here would churn the mtime of unchanged runbooks on
+    # each turn — which both dirties the tree spuriously and defeats the
+    # dirty-file idle gate (a peer would read the bumped mtime as "in-flight").
+    # Comparing content makes a no-op render a true no-op on disk.
+    if new_text != runbook_text:
+        with open(runbook_path, "w", encoding="utf-8") as f:
+            f.write(new_text)
 
 
 if __name__ == "__main__":

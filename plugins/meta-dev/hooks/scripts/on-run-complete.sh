@@ -36,6 +36,18 @@
 # NEVER auto-archives. Fail-loud = loud stderr banner + durable inbox item +
 # state event. Exit 0 always: a dashboard gate must never disrupt the user.
 #
+# TWO PASSES on every stop (see bottom of file):
+#   (a) DONE-stamp — the stage-5 decision matrix above (stamp / fail-loud / wait).
+#   (b) RUNBOOK RECONCILE — re-render EVERY campaign runbook UNCONDITIONALLY, so
+#       the dashboard tracks member frontmatter no matter HOW a member reached
+#       its stage (hook stamp, conductor hand-flip at closeout, direct
+#       stage-emit, manual edit). Pass (b) exists because welding the re-render
+#       into pass (a)'s stamp branch froze any runbook whose member advanced by
+#       a non-hook path — the plan leaves stage 5, so pass (a) never revisits it.
+#
+# CWD-INDEPENDENT: resolves the project root from CLAUDE_PROJECT_DIR (fallback:
+# walk up) and cd's there, so a leaked child-repo cwd can't misfire the gate.
+#
 # Reuses existing primitives — does NOT rebuild logic:
 #   box-clean check   → the grep already in archive-guard.sh:54 (here per-line,
 #                       human-verify-aware, across the plan dir)
@@ -56,12 +68,27 @@ if printf '%s' "$PAYLOAD" | python3 -c 'import json,sys; sys.exit(0 if json.load
   exit 0
 fi
 
-# --- Resolve the plans/ root relative to the session cwd. --------------------
-PLANS_DIR=""
-for cand in "plans" "./plans"; do
-  if [ -d "$cand" ]; then PLANS_DIR="$cand"; break; fi
-done
-[ -z "$PLANS_DIR" ] && exit 0
+# --- Resolve the project root cwd-INDEPENDENTLY, then anchor there. -----------
+# Prefer the harness-provided project dir: a leaked child-repo cwd (the #1
+# recurring bug — an earlier `cd 360-HEXTILE-APP` persists across Bash calls)
+# must NEVER point the gate at a forked child plans/ tree, or at nothing.
+# CLAUDE_PROJECT_DIR is the reliable anchor Claude Code sets for hooks; only
+# walk up from cwd if it is unset. Once resolved, `cd` there so every relative
+# `plans/…` path below (and every child script that inherits this cwd) is right.
+PROJECT_ROOT=""
+if [ -n "${CLAUDE_PROJECT_DIR:-}" ] && [ -d "${CLAUDE_PROJECT_DIR}/plans" ]; then
+  PROJECT_ROOT="$CLAUDE_PROJECT_DIR"
+else
+  _d="$(pwd)"
+  while [ -n "$_d" ] && [ "$_d" != "/" ]; do
+    if [ -d "$_d/plans" ]; then PROJECT_ROOT="$_d"; break; fi
+    _d="$(dirname "$_d")"
+  done
+fi
+[ -z "$PROJECT_ROOT" ] && exit 0
+cd "$PROJECT_ROOT" || exit 0
+PLANS_DIR="plans"
+[ -d "$PLANS_DIR" ] || exit 0
 
 emit_event() {
   # emit_event <event> <plan-rel> <result> <iso-time>
@@ -280,10 +307,30 @@ print('\n'.join(out))
 PYEOF
 )" || MAP=""
 
-[ -z "$MAP" ] && exit 0
+# --- (a) DONE-stamp pass: advance clean+reviewed stage-5 plans to stage 6. ----
+# Only stage-5 plans appear in MAP; a plan already past stage 5 is intentionally
+# not re-stamped here — its dashboard freshness is guaranteed by pass (b) below.
+if [ -n "$MAP" ]; then
+  while IFS=$'\t' read -r PLAN SCOPE STATUS REL; do
+    [ -n "$PLAN" ] && run_gate "$PLAN" "$SCOPE" "$STATUS" "$REL"
+  done <<< "$MAP"
+fi
 
-while IFS=$'\t' read -r PLAN SCOPE STATUS REL; do
-  [ -n "$PLAN" ] && run_gate "$PLAN" "$SCOPE" "$STATUS" "$REL"
-done <<< "$MAP"
+# --- (b) Runbook reconcile pass: UNCONDITIONAL, every runbook, every stop. ----
+# THE fix for the frozen-dashboard bug. The re-render used to live ONLY inside
+# the stage-5→6 stamp branch (run_gate case 1), so the instant a member reached
+# stage 6 by ANY other path — a conductor hand-flipping frontmatter at closeout,
+# a direct stage-emit, a manual YAML edit — it dropped off the stage-5 radar and
+# its runbook froze forever (it is never stage 5 again, so the branch never runs
+# again). Re-rendering every campaign runbook on every stop makes the dashboard
+# a pure projection of live member frontmatter, refreshed no matter how a member
+# advanced. runbook-render.py is idempotent on disk (writes only when content
+# changed), so unchanged runbooks are not touched — no mtime churn, no spurious
+# dirty files. Runs even when MAP is empty (a stop with zero stage-5 plans is
+# exactly when a just-closed-out member needs its dashboard caught up).
+while IFS= read -r RB; do
+  [ -n "$RB" ] || continue
+  python3 "$PLUGIN_ROOT/scripts/runbook-render.py" "$RB" >/dev/null 2>&1 || true
+done < <(find "$PLANS_DIR" -type f -name '_runbook-*.md' 2>/dev/null)
 
 exit 0
