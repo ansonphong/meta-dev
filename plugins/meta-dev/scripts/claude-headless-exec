@@ -8,7 +8,8 @@
 #
 # Options:
 #   --backend deep|glm      Required. Backend to use.
-#   --repo app|www|gallery   cd to this repo first (default: auto-detect from cwd)
+#   --repo <name>            Resolve via topology config; unresolvable => abort.
+#                            Omit to run at the PROJECT ROOT (never the caller's cwd).
 #   --model <model>          Override default model for this backend
 #   --timeout <ms>           Timeout in ms (default: 7200000 = 120 min)
 #   --tools <list>           Comma-separated tool list (default: Read,Write,Edit,Bash,Grep,Glob)
@@ -151,7 +152,8 @@ Required:
                              (sonnet/opus/fable = real Anthropic, ambient login)
 
 Options:
-  --repo app|www|gallery    cd to this repo first (auto-detect if omitted)
+  --repo <name>             Resolve via .claude/meta-dev-repos.json; an
+                            unknown name ABORTS. Omit => project root (not cwd).
   --model <model>           Override the default model
   --effort <level>          Thinking effort: low|medium|high|xhigh|max
                             (per-backend default: sonnet/opus/fable=high, glm=high, deep=none)
@@ -293,20 +295,13 @@ if [[ -z "$PROMPT" ]]; then
     exit 1
 fi
 
-# --- repo resolution (was: inline REPO_PATHS map + cwd auto-detect) ---
+# --- repo resolution (shared, cwd-independent — see lib/resolve-workdir.sh) ---
+# A stray `cd child-repo/` in the conductor's shell must NOT re-point workers:
+# --repo is strict (unresolvable => abort), and bare dispatch anchors to the
+# project root rather than inheriting $(pwd).
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-WORK_DIR="$(pwd)"
-if [[ -n "${REPO:-}" ]]; then
-  RESOLVED="$(python3 "$SCRIPT_DIR/lib/repo-topology.py" "$REPO" 2>/dev/null || true)"
-  if [[ -n "$RESOLVED" && -d "$RESOLVED" ]]; then
-    WORK_DIR="$RESOLVED"
-  else
-    echo "[headless] --repo '$REPO' not in topology config; using cwd $WORK_DIR" >&2
-  fi
-else
-  REPO="$(basename "$WORK_DIR")"   # banner label only
-fi
-# downstream banner refs + `cd "$WORK_DIR"` stay unchanged
+source "$SCRIPT_DIR/lib/resolve-workdir.sh"
+resolve_workdir
 
 if [[ ! -d "$WORK_DIR" ]]; then
     echo "[ERROR] Working directory not found: $WORK_DIR" >&2
@@ -521,8 +516,9 @@ cat <<EOF
 ║  Backend   : ${BACKEND_LABEL}
 ║  Model     : ${MODEL}
 ║  Effort    : ${EFFORT:-"(CLI default)"}
-║  Repo      : ${REPO:-"(auto: $(basename "$WORK_DIR"))"}
+║  Repo      : ${REPO}
 ║  Work Dir  : ${WORK_DIR}
+║  Resolved  : ${WORKDIR_ORIGIN}
 ║  Tools     : ${TOOLS}
 ║  Timeout   : ${TIMEOUT}ms
 ║  Budget    : ${MAX_BUDGET_USD:-\$unlimited}

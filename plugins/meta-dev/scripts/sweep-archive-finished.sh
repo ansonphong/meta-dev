@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Anchor cwd to the project root: every plans/... path below is root-relative.
+# shellcheck source=lib/anchor-root.sh
+source "$SCRIPT_DIR/lib/anchor-root.sh"
 # sweep-archive-finished.sh — archive ONLY finished plans. Never by age.
 #
 # Age is NEVER a reason to archive. A plan that is old but unfinished STAYS.
@@ -10,7 +14,6 @@ set -euo pipefail
 #
 # Never delete — move only.
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 GUARD="$SCRIPT_DIR/archive-guard.sh"
 PLANS_DIR="plans"
 

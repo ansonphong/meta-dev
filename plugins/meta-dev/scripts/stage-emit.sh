@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Anchor cwd to the project root: every plans/... path below is root-relative.
+# shellcheck source=lib/anchor-root.sh
+source "$SCRIPT_DIR/lib/anchor-root.sh"
 # stage-emit.sh — Patch a plan's YAML frontmatter (the SINGLE source of truth
 # for its waterfall stage) AND emit a slim stage_transition event to the
 # dashboard state log (history/timeline).
@@ -49,7 +53,6 @@ esac
 
 TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 TODAY="$(date +%F)"
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Whether a status was explicitly passed (arg 3 present).
 STATUS_GIVEN=0

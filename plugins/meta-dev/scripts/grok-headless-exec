@@ -19,7 +19,8 @@
 #   grok-headless-exec [options] -- <prompt>
 #
 # Options:
-#   --repo app|www|gallery   cd to this repo first (default: auto-detect from cwd)
+#   --repo <name>            Resolve via topology config; unresolvable => abort.
+#                            Omit to run at the PROJECT ROOT (never the caller's cwd).
 #   --model <model>          Override grok model (default: grok-4.5, pinned)
 #   --effort <level>         Reasoning effort for the model (grok --reasoning-effort)
 #   --max-turns <n>          Cap agent turns (default: uncapped; bounded by --timeout)
@@ -69,7 +70,8 @@ Usage:
   grok-headless-exec [options] -- <prompt>
 
 Options:
-  --repo app|www|gallery   cd to this repo first (default: auto-detect from cwd)
+  --repo <name>            Resolve via .claude/meta-dev-repos.json; an
+                           unknown name ABORTS. Omit => project root (not cwd).
   --model <model>          Override grok model (default: grok-4.5, pinned)
   --effort <level>         Reasoning effort for the model
   --max-turns <n>          Cap agent turns (default: uncapped; bounded by --timeout)
@@ -119,17 +121,10 @@ fi
 [ -f "$HOME/.grok/auth.json" ] || { echo "[grok] ~/.grok/auth.json missing — run \`grok login\`" >&2; exit 2; }
 
 # ── Repo resolution (shared topology helper, same as codex/claude runners) ─
-WORK_DIR="$(pwd)"
-if [[ -n "${REPO:-}" ]]; then
-    RESOLVED="$(python3 "$SCRIPT_DIR/lib/repo-topology.py" "$REPO" 2>/dev/null || true)"
-    if [[ -n "$RESOLVED" && -d "$RESOLVED" ]]; then
-        WORK_DIR="$RESOLVED"
-    else
-        echo "[headless] --repo '$REPO' not in topology config; using cwd $WORK_DIR" >&2
-    fi
-else
-    REPO="$(basename "$WORK_DIR")"   # banner label only
-fi
+# --repo is strict (unresolvable => abort); bare dispatch anchors to the project
+# root instead of inheriting a conductor's stray `cd`.
+source "$SCRIPT_DIR/lib/resolve-workdir.sh"
+resolve_workdir
 
 # ── Resolve output files ────────────────────────────────────────────────
 if [[ -z "$OUTPUT_FILE" ]]; then
@@ -154,7 +149,8 @@ cat <<EOF
 ╠══════════════════════════════════════════════════════════════════════════╣
 ║  Backend   : Grok
 ║  Model     : ${MODEL:-grok-4.5}
-║  Repo      : ${REPO:-"(auto: $(basename "$WORK_DIR"))"}
+║  Repo      : ${REPO}
+║  Resolved  : ${WORKDIR_ORIGIN}
 ║  Work Dir  : ${WORK_DIR}
 ║  Mode      : ${MODE_DESC}
 ║  Timeout   : ${TIMEOUT}ms (${TIMEOUT_S}s)

@@ -13,7 +13,8 @@
 #   codex-headless-exec [options] -- <prompt>
 #
 # Options:
-#   --repo app|www|gallery   cd to this repo first (default: auto-detect from cwd)
+#   --repo <name>            Resolve via topology config; unresolvable => abort.
+#                            Omit to run at the PROJECT ROOT (never the caller's cwd).
 #   --tier <tier>            GPT-5.6 routing tier: luna | terra | sol
 #                            (default: terra)
 #   --effort <level>         Reasoning: none | low | medium | high | xhigh | max
@@ -128,20 +129,11 @@ if ! command -v codex &>/dev/null; then
 fi
 [ -f "$HOME/.codex/auth.json" ] || { echo "[codex] ~/.codex/auth.json missing — run codex login or set OPENAI_API_KEY" >&2; exit 2; }
 
-# --- repo resolution (was: inline REPO_PATHS map + cwd auto-detect) ---
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-WORK_DIR="$(pwd)"
-if [[ -n "${REPO:-}" ]]; then
-  RESOLVED="$(python3 "$SCRIPT_DIR/lib/repo-topology.py" "$REPO" 2>/dev/null || true)"
-  if [[ -n "$RESOLVED" && -d "$RESOLVED" ]]; then
-    WORK_DIR="$RESOLVED"
-  else
-    echo "[headless] --repo '$REPO' not in topology config; using cwd $WORK_DIR" >&2
-  fi
-else
-  REPO="$(basename "$WORK_DIR")"   # banner label only
-fi
-# downstream banner refs + `cd "$WORK_DIR"` stay unchanged
+# --- repo resolution (shared, cwd-independent — see lib/resolve-workdir.sh) ---
+# --repo is strict (unresolvable => abort); bare dispatch anchors to the project
+# root instead of inheriting a conductor's stray `cd`.
+source "$SCRIPT_DIR/lib/resolve-workdir.sh"
+resolve_workdir
 
 # ── Readonly override ───────────────────────────────────────────────────
 if [[ "$READONLY" == "true" ]]; then
@@ -171,7 +163,8 @@ cat <<EOF
 ║  Model     : ${MODEL}
 ║  Tier      : ${TIER}
 ║  Effort    : ${EFFORT}
-║  Repo      : ${REPO:-"(auto: $(basename "$WORK_DIR"))"}
+║  Repo      : ${REPO}
+║  Resolved  : ${WORKDIR_ORIGIN}
 ║  Work Dir  : ${WORK_DIR}
 ║  Sandbox   : ${SANDBOX}
 ║  Timeout   : ${TIMEOUT}ms (${TIMEOUT_S}s)

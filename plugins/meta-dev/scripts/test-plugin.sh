@@ -251,10 +251,22 @@ check_headless() {
     FAIL=$((FAIL+1)); red "  FAIL missing shebang: scripts/codex-headless-exec"
   fi
 
-  # Offline topology resolution (NO real backend call)
+  # ── Offline topology resolution (NO real backend call) ──────────────────
+  # These are cwd-INDEPENDENCE regressions. A conductor's shell keeps its cwd
+  # between Bash calls, so a stray `cd child-repo/` used to (a) make every name
+  # unresolvable, and (b) make the runners silently fall back to that cwd — so
+  # `--repo www` ran a worker in the app repo, and plans/state forked into it.
+  # `env -u` keeps a developer's real environment from leaking into the fixture.
+  local anchor="$PLUGIN_DIR/scripts/lib/anchor-root.sh"
+  # Array, not a string: keeps `env -u` from word-splitting at each call site.
+  local -a HERM=(env -u META_DEV_REPOS_FILE -u CLAUDE_PROJECT_DIR)
+  # NOTE: `local TMPDIR` shadows mktemp's own base-dir variable, so NOCFG must be
+  # created BEFORE TMPDIR is assigned — otherwise it lands *inside* the fixture
+  # and inherits its config, silently voiding the no-config assertions below.
+  local NOCFG; NOCFG=$(mktemp -d)
   local TMPDIR
   TMPDIR=$(mktemp -d)
-  mkdir -p "$TMPDIR/.claude"
+  mkdir -p "$TMPDIR/.claude" "$TMPDIR/test-repo-dir/deep/nested"
   cat > "$TMPDIR/.claude/meta-dev-repos.json" <<'EOF'
 {
   "root": "..",
@@ -263,21 +275,70 @@ check_headless() {
   }
 }
 EOF
-  mkdir -p "$TMPDIR/test-repo-dir"
-  local resolved
-  resolved=$(cd "$TMPDIR" && python3 "$topo" test-repo 2>/dev/null || true)
-  if [ -n "$resolved" ] && [ -d "$resolved" ]; then
+  local NESTED="$TMPDIR/test-repo-dir/deep/nested"
+  local resolved rc
+
+  resolved=$(cd "$TMPDIR" && "${HERM[@]}" python3 "$topo" test-repo 2>/dev/null || true)
+  if [ "$resolved" = "$TMPDIR/test-repo-dir" ]; then
     PASS=$((PASS+1)); green "  PASS repo-topology resolves known name"
   else
     FAIL=$((FAIL+1)); red "  FAIL repo-topology resolution (got: '$resolved')"
   fi
-  resolved=$(cd "$TMPDIR" && python3 "$topo" nope 2>/dev/null || true)
-  if [ -z "$resolved" ]; then
-    PASS=$((PASS+1)); green "  PASS repo-topology empty for unknown name"
+
+  # THE regression: resolve correctly from a cwd deep inside a child repo.
+  resolved=$(cd "$NESTED" && "${HERM[@]}" python3 "$topo" test-repo 2>/dev/null || true)
+  if [ "$resolved" = "$TMPDIR/test-repo-dir" ]; then
+    PASS=$((PASS+1)); green "  PASS repo-topology resolves from nested child cwd (walks up)"
   else
-    FAIL=$((FAIL+1)); red "  FAIL repo-topology should be empty for unknown name (got: '$resolved')"
+    FAIL=$((FAIL+1)); red "  FAIL repo-topology from nested cwd (got: '$resolved')"
   fi
-  rm -rf "$TMPDIR"
+
+  # Unknown name must be FATAL (exit 1) — never a silent cwd fallback.
+  rc=0
+  resolved=$(cd "$NESTED" && "${HERM[@]}" python3 "$topo" nope 2>/dev/null) || rc=$?
+  if [ "$rc" -ne 0 ] && [ -z "$resolved" ]; then
+    PASS=$((PASS+1)); green "  PASS repo-topology exits nonzero for unknown name"
+  else
+    FAIL=$((FAIL+1)); red "  FAIL unknown name must exit nonzero + empty (rc=$rc out='$resolved')"
+  fi
+
+  # --root and the built-in meta alias, both from the nested cwd.
+  resolved=$(cd "$NESTED" && "${HERM[@]}" python3 "$topo" --root 2>/dev/null || true)
+  if [ "$resolved" = "$TMPDIR" ]; then
+    PASS=$((PASS+1)); green "  PASS repo-topology --root from nested cwd"
+  else
+    FAIL=$((FAIL+1)); red "  FAIL repo-topology --root (got: '$resolved')"
+  fi
+  resolved=$(cd "$NESTED" && "${HERM[@]}" python3 "$topo" meta 2>/dev/null || true)
+  if [ "$resolved" = "$TMPDIR" ]; then
+    PASS=$((PASS+1)); green "  PASS repo-topology built-in 'meta' alias -> project root"
+  else
+    FAIL=$((FAIL+1)); red "  FAIL 'meta' alias (got: '$resolved')"
+  fi
+
+  # anchor-root.sh must cd a script back to the project root from a nested cwd.
+  resolved=$(cd "$NESTED" && "${HERM[@]}" bash -c "source '$anchor' && pwd" 2>/dev/null || true)
+  if [ "$resolved" = "$TMPDIR" ]; then
+    PASS=$((PASS+1)); green "  PASS anchor-root.sh cds to project root from nested cwd"
+  else
+    FAIL=$((FAIL+1)); red "  FAIL anchor-root.sh (got: '$resolved')"
+  fi
+
+  # No config anywhere: --root must fail, and the anchor must leave cwd alone.
+  rc=0
+  (cd "$NOCFG" && "${HERM[@]}" python3 "$topo" --root >/dev/null 2>&1) || rc=$?
+  if [ "$rc" -ne 0 ]; then
+    PASS=$((PASS+1)); green "  PASS repo-topology --root exits nonzero with no config"
+  else
+    FAIL=$((FAIL+1)); red "  FAIL --root should fail when no config exists"
+  fi
+  resolved=$(cd "$NOCFG" && "${HERM[@]}" bash -c "source '$anchor' && pwd" 2>/dev/null || true)
+  if [ "$resolved" = "$NOCFG" ]; then
+    PASS=$((PASS+1)); green "  PASS anchor-root.sh leaves cwd alone with no config"
+  else
+    FAIL=$((FAIL+1)); red "  FAIL anchor-root.sh should not move cwd (got: '$resolved')"
+  fi
+  rm -rf "$TMPDIR" "$NOCFG"
 
   # ── context-gauge: exists + threshold logic (hermetic via HOME override) ──
   local gauge="$PLUGIN_DIR/scripts/context-gauge.py"

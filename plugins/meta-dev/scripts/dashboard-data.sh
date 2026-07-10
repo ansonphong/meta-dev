@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Anchor cwd to the project root: every plans/... path below is root-relative.
+# shellcheck source=lib/anchor-root.sh
+source "$SCRIPT_DIR/lib/anchor-root.sh"
 # Dashboard data gatherer — deterministic, no LLM. Outputs JSON to stdout.
-# Run from project root. Reads plans (via plan-index.py), git, state, inbox.
+# Anchors itself to the project root. Reads plans (via plan-index.py), git, state, inbox.
 
 # Project name from directory or git
 PROJECT=$(basename "$(pwd)")
@@ -55,7 +59,6 @@ case "$COMMIT_COUNT" in ''|*[!0-9]*) COMMIT_COUNT=10 ;; esac
 # truth. It parses the runbook Sequence (display order), milestones, and each
 # plan's status/stage/progress from frontmatter + checkboxes. This script no
 # longer reads plans/ directly, nor STATUS.md / exec-order.md (both retired).
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLAN_INDEX_JSON="{}"
 if [ -f "$SCRIPT_DIR/plan-index.py" ]; then
     PI_ARGS=()

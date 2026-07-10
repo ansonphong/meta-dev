@@ -32,7 +32,9 @@ set -euo pipefail
 #
 # Exit codes:  claim → 0 granted / 3 blocked / 2 usage / 1 lock-timeout
 #              check → 0 free    / 3 blocked
-# Run from the project root (or set WORKER_CLAIM_DIR to the _dashboard path).
+# Registry is anchored to the project root (repo-topology.py --root), so it is
+# the SAME registry no matter which directory you invoke this from. Override the
+# location with WORKER_CLAIM_DIR.
 # ============================================================================
 
 VERB="${1:-}"; shift 2>/dev/null || true
@@ -46,7 +48,20 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-DASH="${WORKER_CLAIM_DIR:-plans/_dashboard}"
+# Registry location must be ABSOLUTE and cwd-independent. A relative
+# "plans/_dashboard" silently forks the registry per-cwd: a conductor that had
+# `cd`'d into a child repo would claim scopes in <child>/plans/_dashboard/,
+# never colliding with the real registry at the project root — so the
+# cross-session gate would report "free" for a scope another session held, which
+# is exactly the race it exists to prevent.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -n "${WORKER_CLAIM_DIR:-}" ]; then
+  DASH="$WORKER_CLAIM_DIR"
+else
+  ROOT="$(python3 "$SCRIPT_DIR/lib/repo-topology.py" --root 2>/dev/null || true)"
+  [ -n "$ROOT" ] || ROOT="$(pwd)"   # standalone: no topology config anywhere
+  DASH="$ROOT/plans/_dashboard"
+fi
 LOCKS="$DASH/.worker-locks"
 LOG="$DASH/worker-claims.jsonl"
 GLOCK="$LOCKS/.registry.lock"

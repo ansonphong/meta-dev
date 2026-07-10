@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# Anchor cwd to the project root: every plans/... path below is root-relative.
+# shellcheck source=lib/anchor-root.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/anchor-root.sh"
 INBOX_DIR="plans/_dashboard/inbox"
 INBOX_FILE="$INBOX_DIR/inbox.jsonl"
 RESOLVED_DIR="$INBOX_DIR/resolved"

@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2034
 set -euo pipefail
+# Anchor cwd to the project root: every plans/... path below is root-relative.
+# shellcheck source=lib/anchor-root.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/anchor-root.sh"
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-.}"
 
 TAG=""; TITLE=""; BODY=""; SHA="${GIT_SHA:-}"
