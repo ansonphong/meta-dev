@@ -1,91 +1,72 @@
 ---
 name: codex-execute
-argument-hint: <task description> [--repo <name>] [--readonly] [--model <model>] [--sandbox <mode>]  # --repo names from .claude/meta-dev-repos.json
-description: Run a cross-family CODE REVIEW via headless OpenAI Codex (GPT). Codex is used ONLY for code review — the cross-family review lens at phase gates / Stage 6. Not a general execution, hardening, or verification worker. Used sparingly (Codex Plus quota).
+argument-hint: <task description> [--repo <name>] [--readonly] [--tier <luna|terra|sol>] [--effort <none|low|medium|high|xhigh|max>] [--model <model>] [--sandbox <mode>]
+description: Run a bounded task with headless OpenAI Codex using task-aware GPT-5.6 model and reasoning-effort routing.
 ---
 
-# /codex-execute — Codex Headless Execution
+# /codex-execute - GPT-5.6 Task Runner
 
-Spawn a headless **OpenAI Codex** worker (`codex exec`) to run a task, then report the result back. You stay on your current backend (Opus) for orchestration while Codex does a bounded, focused job.
+Run a direct, bounded task through `codex exec`. Codex is its own agent harness: give it the task and success criteria directly. Do not ask it to invoke a meta-dev slash command.
 
-Uses `scripts/codex-headless-exec` under the hood, which emits the **same clean result contract** as `claude-headless-exec` (`OUTPUT_FILE` = `{is_error, subtype, num_turns, duration_ms, session_id, result, usage}`), so it plugs into `/auto-execute` exactly like `/glm-execute` and `/deep-execute`.
-
-## ⚠️ Codex is a DIFFERENT harness — not Claude Code
-
-This is the one structural difference from `/glm-execute` and `/deep-execute`. Those spawn a full **Claude Code** instance on another model's Anthropic endpoint, so the worker has our whole harness and can **run our slash commands internally** (`/meta-execute`, `/loop-gap`, etc.). **Codex does NOT.** A codex worker is OpenAI's own agent — it has no `/meta-execute`, no `/loop-gap`, no project skills.
-
-Consequence: **give Codex a direct task, never a "run `/command`" instruction.** Say *"Audit X for gap class Y and report findings"* or *"Fix the failing test in Z"* — not *"run `/loop-gap` on this plan"* (it can't). The conductor (Opus) or a claude-harness worker applies anything that needs our harness.
-
-## When to Use — CODE REVIEW ONLY (cross-family review lens)
-
-**Codex has exactly one job here: code review.** It is the cross-family (GPT-vs-Claude) second opinion at a **phase gate or Stage 6** — point it (read-only) at a diff, the changed files, or a specific finding and have it review for correctness/bugs/regressions. A GPT-class reasoner reviewing Claude/GLM/DeepSeek output catches what same-family review misses; that independent-family lens is the entire value.
-
-**Cost reality: Codex runs on a $20/mo Plus quota** — far lighter headroom than our GLM / DeepSeek / Claude usage. So Codex is **not a farm.** Reserve it for **a smaller number of high-value review calls** where the cross-family lens earns its keep.
-
-**Do NOT route execution, hardening, or gap-fixing *work* to Codex.** Codex is OFF the execution ladder. Mechanical/bounded work → DeepSeek; complex/stateful/long-horizon work and plan-writing → GLM. Hardening and gap-checking are delegated to DeepSeek→GLM, not Codex. Codex reviews the code those backends produce; it does not produce or harden code itself. When in doubt, it's NOT Codex — spend the quota deliberately on review.
-
-## Test discipline — keep every test cycle cheap
-
-When the task runs tests, **path-scope, always.** Run only the named test file — `pytest path/to/test_x.py -q` (add `-m "not slow and not gpu and not integration"` if the suite marks them). NEVER bare `pytest`, `pytest <dir>/`, or `pytest … -k <expr>` (they collect the whole tree first). NEVER `svelte-check`, `tsc --noEmit`, `npm run build`, or the full suite in an inner cycle. Confirm green once; don't re-run a passing test. (Codex is its own harness, so it can't read the meta-dev charter internally — this clause IS the rule for codex runs.)
+The default is `gpt-5.6-terra` with `medium` reasoning. Route based on the work, then state the selected tier and effort before dispatching. An explicit `--tier`, `--effort`, or `--model` from the user always wins.
 
 ## Step 1: Parse Arguments
 
-The user's input is: `$ARGUMENTS`
+The user's input is `$ARGUMENTS`.
 
-Parse these optional flags:
-- `--repo <name>` — target repo (default: auto-detect from cwd; names from .claude/meta-dev-repos.json)
-- `--readonly` — sandbox = `read-only` (audits / gap-checks / reviews — the common case)
-- `--model <model>` — override codex model (default: codex's configured default for the account)
-- `--sandbox <mode>` — `read-only` | `workspace-write` | `danger-full-access` (default `workspace-write`; `--readonly` forces `read-only`)
-- `--timeout <ms>` — wall-clock timeout (default `7200000` = 120 min)
+Parse these flags:
+- `--repo <name>`: target repo; otherwise detect from `pwd`.
+- `--readonly`: force the `read-only` sandbox.
+- `--tier <luna|terra|sol>`: GPT-5.6 model family selection.
+- `--effort <none|low|medium|high|xhigh|max>`: override the tier's reasoning effort.
+- `--model <model>`: exact Codex model ID; it overrides tier selection but not a supplied effort.
+- `--sandbox <mode>`: `read-only`, `workspace-write`, or `danger-full-access`.
+- `--timeout <ms>`: wall-clock limit; default is `7200000`.
 
-Everything else is the task description. If none is given, ask what task to run.
+Everything else is the task. Ask for a task if none is provided.
 
-## Step 2: Confirm the Plan
+## Step 2: Select Model and Effort
 
-Summarize before running:
-- **Backend:** Codex (`codex exec`)
-- **Repo / Work dir:** (detected or specified)
-- **Task:** (the task description)
-- **Mode:** read-only (audit) or workspace-write (fixes)
+Classify the task by scope, ambiguity, reversibility, and quality sensitivity. Pick the smallest tier and effort that can meet the acceptance criteria. Do not select a higher tier merely because the task has many words.
 
-If the task is destructive or writes outside the repo, confirm with the user first. For gap-checking/hardening, **default to `--readonly`** — Codex reports, you decide.
+| Task shape | Tier and effort | Default sandbox |
+| --- | --- | --- |
+| Read-only lookup, formatting, one-file mechanical edit, focused test diagnosis | `luna` / `low` | `read-only` for analysis; `workspace-write` only for an authorized edit |
+| Normal bug fix, known-scope feature, focused refactor, standard diff review | `terra` / `medium` | `workspace-write` for requested changes; otherwise `read-only` |
+| Cross-module behavior, ambiguous root cause, security/reliability review, migration, architecture work | `sol` / `high` | `read-only` until implementation is explicitly authorized |
+| High-impact or difficult task with measurable quality criteria and evidence that `high` is insufficient | `sol` / `xhigh` | match the requested action |
+| Only the hardest quality-first work, after `xhigh` is demonstrably insufficient | `sol` / `max` | match the requested action |
 
-## Step 3: Execute
+`gpt-5.6-sol` is the flagship model, `gpt-5.6-terra` is the balanced model, and `gpt-5.6-luna` is optimized for efficient high-volume work. `high`, `xhigh`, and especially `max` increase latency and usage; use them only when the task's risk or evaluation criteria justify it. Never infer that `danger-full-access` is needed from tier or effort.
 
-Run the headless worker. For tasks expected to take >30s, use `run_in_background: true` so the session stays responsive.
+For a review, explanation, diagnosis, or plan, make no changes and select `--readonly` unless the user explicitly asks for implementation. For a change, build, or fix request, make only the in-scope local changes and run relevant non-destructive, path-scoped validation. Require confirmation for external writes, destructive operations, purchases, or a material scope expansion.
+
+## Step 3: Confirm and Execute
+
+Before running, summarize:
+- **Model:** resolved model ID, tier, and reasoning effort.
+- **Repo / work dir:** detected or supplied repo.
+- **Task:** direct bounded instruction with success criteria and relevant paths.
+- **Sandbox:** read-only or workspace-write, with the reason.
+
+If the task writes, confirm the requested scope is authorized. If it is destructive or writes outside the repo, obtain explicit confirmation.
 
 ```bash
 ${CLAUDE_PLUGIN_ROOT}/scripts/codex-headless-exec \
   ${REPO:+--repo "$REPO"} \
+  --tier "$TIER" \
+  --effort "$EFFORT" \
   ${MODEL:+--model "$MODEL"} \
   ${READONLY:+--readonly} \
   ${SANDBOX:+--sandbox "$SANDBOX"} \
   ${TIMEOUT:+--timeout "$TIMEOUT"} \
-  -- <task description>
+  -- <direct task with acceptance criteria>
 ```
 
-**Repo detection:** `--repo` wins; else infer from `pwd`; if ambiguous (in parent repo), ask which repo to target.
+The runner maps tiers to `gpt-5.6-luna`, `gpt-5.6-terra`, and `gpt-5.6-sol`, and sends the selected effort through Codex configuration. It validates tier and effort values before starting. For tasks expected to take more than 30 seconds, run in the background.
 
 ## Step 4: Report Results
 
-The script distills the worker's output — three files per run:
-- **`OUTPUT_FILE`** (printed as `OUTPUT_FILE=<path>`) — clean JSON: `{is_error, subtype, num_turns, duration_ms, session_id, result, usage, backend}`. `result` is Codex's final message. `json.load()` it directly.
-- **`<OUTPUT_FILE>.raw`** — the full `codex exec --json` JSONL event stream (deep debugging).
-- **`<OUTPUT_FILE>.stderr`** — the worker's stderr.
+Read `OUTPUT_FILE`, which is clean JSON containing `is_error`, `result`, `num_turns`, `duration_ms`, `session_id`, `usage`, and `backend`. Inspect `.raw` for the complete event stream and `.stderr` for runner errors.
 
-The script also prints the distilled `result` between `RESULT` rules, so for a foreground run you can read it straight from the command output.
-
-When execution completes:
-1. **Read `OUTPUT_FILE`** (or the printed `RESULT` block) — already clean JSON.
-2. **Check `is_error`** and the `Exit code` line — exit `3` = distill failed (inspect `.raw`), exit `4` = worker reported error, exit `124` = timed out.
-3. **Summarize** — what Codex found/did, files touched (if workspace-write), any issues.
-4. **Apply / next steps** — for gap-checks, the value is the findings: triage them and apply fixes yourself or via a claude-harness worker. Remind the user Codex's changes (if any) are **not** auto-committed.
-
-## Safety Notes
-
-- Codex must be authenticated (`~/.codex/auth.json` — Codex Plus/Pro login or `OPENAI_API_KEY`). The script warns if auth is missing.
-- `--readonly` runs Codex in its `read-only` sandbox — it can read + run read-only commands but cannot edit files. Use it for all audits/reviews.
-- `workspace-write` lets Codex edit files in the work dir but not commit — review and commit yourself.
-- Codex's changes are NOT automatically committed.
-- **Mind the quota** — Codex Plus is a limited monthly budget. Prefer one well-scoped call over many; don't fan Codex out the way you'd fan out DeepSeek.
+Report the selected model and effort, work completed, files changed, validation performed, and remaining risks. Exit `3` means result distillation failed, `4` means the worker reported an error, `124` means timeout, and `125` means the liveness watchdog halted the run. Codex changes are never automatically committed.

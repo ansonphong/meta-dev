@@ -14,7 +14,11 @@
 #
 # Options:
 #   --repo app|www|gallery   cd to this repo first (default: auto-detect from cwd)
-#   --model <model>          Override codex model (default: codex's configured default)
+#   --tier <tier>            GPT-5.6 routing tier: luna | terra | sol
+#                            (default: terra)
+#   --effort <level>         Reasoning: none | low | medium | high | xhigh | max
+#                            (default follows tier; terra = medium)
+#   --model <model>          Explicit model override; wins over --tier
 #   --timeout <ms>           Wall-clock timeout in ms (default: 7200000 = 120 min)
 #
 # Liveness watchdog (env knobs — a wedged worker that goes silent is killed and
@@ -31,8 +35,8 @@
 #   -h, --help               Show this help
 #
 # Examples:
-#   codex-headless-exec --repo app --readonly -- "Audit src/lib/license.ts for Ed25519 verify bugs"
-#   codex-headless-exec --repo www -- "Fix the failing pytest in tests/test_billing.py"
+#   codex-headless-exec --repo app --tier luna --readonly -- "Audit src/lib/license.ts for Ed25519 verify bugs"
+#   codex-headless-exec --repo www --tier sol --effort xhigh -- "Fix the intermittent billing race"
 #
 # Prerequisites:
 #   - codex CLI on PATH, already authenticated (~/.codex/auth.json) — Codex
@@ -48,7 +52,11 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # ── Defaults ────────────────────────────────────────────────────────────
 REPO=""
-MODEL=""
+MODEL="gpt-5.6-terra"
+MODEL_EXPLICIT=false
+TIER="terra"
+EFFORT="medium"
+EFFORT_EXPLICIT=false
 TIMEOUT="7200000"         # 120 min — codex runs long-horizon review/gap-scans; never cap a deep audit at 10 min
 SANDBOX="workspace-write"
 READONLY=false
@@ -66,7 +74,9 @@ show_help() {
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --repo)     REPO="$2"; shift 2 ;;
-        --model)    MODEL="$2"; shift 2 ;;
+        --model)    MODEL="$2"; MODEL_EXPLICIT=true; shift 2 ;;
+        --tier)     TIER="$2"; shift 2 ;;
+        --effort)   EFFORT="$2"; EFFORT_EXPLICIT=true; shift 2 ;;
         --timeout)  TIMEOUT="$2"; shift 2 ;;
         --sandbox)  SANDBOX="$2"; shift 2 ;;
         --readonly) READONLY=true; shift ;;
@@ -82,6 +92,33 @@ if [[ -z "$PROMPT" ]]; then
     echo "[ERROR] No prompt provided. Usage: codex-headless-exec [options] -- <prompt>" >&2
     exit 1
 fi
+
+# ── GPT-5.6 routing ────────────────────────────────────────────────────
+# Tiers select real GPT-5.6 model IDs. An explicit --model remains available
+# for account-specific snapshots or a future model-family migration.
+case "$TIER" in
+    luna)  TIER_MODEL="gpt-5.6-luna";  TIER_EFFORT="low" ;;
+    terra) TIER_MODEL="gpt-5.6-terra"; TIER_EFFORT="medium" ;;
+    sol)   TIER_MODEL="gpt-5.6-sol";   TIER_EFFORT="high" ;;
+    *)
+        echo "[ERROR] Invalid --tier '$TIER'. Use luna, terra, or sol." >&2
+        exit 1
+        ;;
+esac
+
+if [[ "$MODEL_EXPLICIT" != "true" ]]; then
+    MODEL="$TIER_MODEL"
+fi
+if [[ "$EFFORT_EXPLICIT" != "true" ]]; then
+    EFFORT="$TIER_EFFORT"
+fi
+case "$EFFORT" in
+    none|low|medium|high|xhigh|max) ;;
+    *)
+        echo "[ERROR] Invalid --effort '$EFFORT'. Use none, low, medium, high, xhigh, or max." >&2
+        exit 1
+        ;;
+esac
 
 # ── Validate codex CLI ──────────────────────────────────────────────────
 if ! command -v codex &>/dev/null; then
@@ -131,7 +168,9 @@ cat <<EOF
 ║  HEADLESS EXECUTION — Codex (OpenAI)
 ╠══════════════════════════════════════════════════════════════════════════╣
 ║  Backend   : Codex
-║  Model     : ${MODEL:-"(codex default)"}
+║  Model     : ${MODEL}
+║  Tier      : ${TIER}
+║  Effort    : ${EFFORT}
 ║  Repo      : ${REPO:-"(auto: $(basename "$WORK_DIR"))"}
 ║  Work Dir  : ${WORK_DIR}
 ║  Sandbox   : ${SANDBOX}
@@ -166,7 +205,8 @@ stall_launch_worker() {
         -o "$LASTMSG_FILE" \
         -s "$SANDBOX" \
         --skip-git-repo-check \
-        ${MODEL:+-m "$MODEL"} \
+        -m "$MODEL" \
+        -c "model_reasoning_effort=\"$EFFORT\"" \
         - \
         > "$RAW_FILE" 2> "$STDERR_FILE" &
     WORKER_PID=$!
@@ -236,7 +276,7 @@ echo ""
 echo "────────────────────────────────────────────────────────────────────────"
 echo "  HEADLESS EXECUTION COMPLETE"
 echo "────────────────────────────────────────────────────────────────────────"
-echo "  Backend   : Codex (${MODEL:-default})"
+echo "  Backend   : Codex ($MODEL, $TIER, effort=$EFFORT)"
 echo "  Exit code : $EXIT_CODE"
 echo "  is_error  : $IS_ERROR"
 echo "  Elapsed   : ${ELAPSED_S}s"
