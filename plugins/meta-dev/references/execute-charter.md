@@ -69,10 +69,27 @@ The single biggest execution cost is slow test cycles. Measured on a real run: `
 
 ## Concurrency Safety (Shared Tree) — MANDATORY
 
-The meta working tree is SHARED across concurrent sessions, and that is FINE — **multiple sessions/workers may run in parallel.** The unit of exclusion is the **file**, not the session or the repo; coordination is **mechanically enforced** (not just advisory) so two sessions can't tangle each other's edits or sweep them into the wrong commit (incident 2026-07-05). Exactly one rule matters, and everything below just enforces it:
+> **⛔ PRIME DIRECTIVE: NOTHING IN THIS SECTION IS EVER A REASON TO STOP WORKING.** The tree is SHARED and **4–20 concurrent agents is the normal, expected steady state.** Parallel is FINE. A dirty file is NOT an emergency, NOT a taboo, and NOT a blocker. **You are a battering ram: if you were given a task, you DELIVER it.** Refusing, stalling, polling mtimes, or escalating tree state to the user is a **FAILURE**, not caution.
 
-- **Never write a file that is already dirty on the working tree.** A dirty file outside your own task is a peer's in-flight edit — touching it double-writes and tangles the diff. Before picking up a unit, confirm its target files are CLEAN (`git status`); write only clean files, then commit them. If every worker starts only on clean files, two can never collide on the same file — so any number run concurrently, safely. (Dependency order still applies where one unit consumes another's output; the GLM ~3-request cap is a separate API rate limit — neither is this file rule.)
-- **Claim is an optional coarse guard, not the law.** For a worker that will churn many files across one directory, `claude-headless-exec --claim <plan-dir>` reserves that dir in the cross-session registry (`plans/_dashboard/worker-claims.jsonl`, mkdir-atomic); by default it **ABORTS** the dispatch on an overlapping claim, is stamped with the wrapper's pid, auto-releases on exit, and auto-expires a crashed session's claim (dead pid / 30-min TTL). Directory-claim is coarser than the file rule above — for file-disjoint members sharing a directory, prefer `--claim-warn` (warn, don't abort) and lean on clean-before-write so a legitimate parallel wave isn't needlessly blocked.
+### 🚫 FORBIDDEN — these are failures, however well-formatted
+
+- ❌ "A file is dirty, so I stopped and I'm asking what to do."
+- ❌ "A peer touched this N minutes ago, so I can't write it."
+- ❌ "Another session may be active, so I did nothing."
+- ❌ Emitting a report of blockers **instead of** the thing you were asked to do.
+- ❌ Waiting / polling / re-checking / escalating instead of **just doing the work**.
+
+### ✅ THE RULE: prefer clean, but NEVER stop for dirty
+
+- **Prefer to start on CLEAN files** — it keeps diffs tidy and attribution honest. That is a *preference*, not a gate.
+- **Need a file that's already dirty? TAKE IT AND KEEP MOVING.**
+  - **Conductor** (owns git): read the diff, **commit the peer's coherent state as its own discrete commit** (`git add <path> && git commit`, message labels it worktree-clean of idle peer state), then make your edit. **Committing is always safe** — additive, recoverable, preserves their work in history forever.
+  - **Worker** (commit-free by design): **just write the file and carry on.** Worst case the conductor's manifest-scoped commit also carries a peer's in-flight lines — a cosmetic attribution smudge, **not data loss**. That is strictly better than stopping.
+  - Prefer targeted `Edit` over whole-file `Write` on a file you didn't create (replace merges; overwrite clobbers).
+- **🚫🚫 `git stash` / `stash pop` / `stash drop` — ABSOLUTELY BANNED, NO EXCEPTIONS.** Stash is worktree-**GLOBAL**: on a tree with 20 live agents it rips out *every peer's* in-flight work at once, and `pop` can conflict and silently lose it. It is an invisible side-channel with no history. **COMMIT INSTEAD. ALWAYS.** There is no situation where stash is the answer. (Workers are mechanically denied it anyway.)
+- **Never `discard` / `git checkout <file>` / `git restore <file>`** a peer's uncommitted work. Commit preserves it; these destroy it.
+- **Escalate to the user ONLY for genuine ambiguity in WHAT they want — never for tree state.** Tree state is YOUR problem, and the answer is always the same: **commit it and charge on.**
+- **Claim is an optional advisory hint, NEVER a gate.** `claude-headless-exec --claim <plan-dir>` records a coarse directory reservation in `plans/_dashboard/worker-claims.jsonl`. It must **never abort or block a dispatch** — prefer `--claim-warn` (warn, proceed). An unclaimed tree, or an overlapping claim, is **not** a reason to refuse work. If the registry is going unused, it is dead weight, not a safety mechanism.
 - **Stage EXACTLY the worker's files — never a tree-wide add.** Each worker writes a touched-file manifest (`<output>.manifest.jsonl`, surfaced as `MANIFEST_FILE=` in the wrapper trailer). The conductor stages precisely those paths — `git add -- $(jq -r .path <manifest> | sort -u)` — NOT a `git diff`/`git status` scan (which picks up a concurrent session's edits in a shared tree). `git add -A` / `.` / `<dir/>` is **BLOCKED by the host guard hook** (it sweeps foreign edits). Sanctioned single-session dir-adds (plan archival) prefix `META_ALLOW_DIR_ADD=1`.
 - **Workers are commit-free, mechanically.** The injected worker git-guard hook DENIES `git add/commit/stash/checkout/reset/rebase/merge/push` in worker context (read-only git stays available). The conductor owns git — always.
 - **The exit code is honest.** A worker that reports `is_error:false` exits 0 (the wrapper reconciles the raw process code and no longer lets the EXIT trap force a 1). Trust the exit code together with the `is_error` field.
