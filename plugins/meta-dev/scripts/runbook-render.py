@@ -466,8 +466,25 @@ def main():
     # dirty-file idle gate (a peer would read the bumped mtime as "in-flight").
     # Comparing content makes a no-op render a true no-op on disk.
     if new_text != runbook_text:
-        with open(runbook_path, "w", encoding="utf-8") as f:
-            f.write(new_text)
+        # Atomic write: temp in same dir + os.replace (avoids torn writes when
+        # ~20 sessions re-render every runbook on every Stop).
+        import tempfile as _tempfile
+        d = os.path.dirname(runbook_path) or "."
+        fd, tmp = _tempfile.mkstemp(
+            prefix=f".{os.path.basename(runbook_path)}.",
+            suffix=".tmp",
+            dir=d,
+        )
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                f.write(new_text)
+            os.replace(tmp, runbook_path)
+        except Exception:
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+            raise
 
 
 if __name__ == "__main__":

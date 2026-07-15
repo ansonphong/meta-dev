@@ -14,7 +14,10 @@ printf '%s\n' "$EVENT_JSON" | python3 -c "import json,sys; json.loads(sys.stdin.
   echo "state-append.sh: invalid JSON" >&2; exit 2
 }
 
-STATE_DIR="plans/_dashboard"
+# Hermetic override for tests: META_DEV_STATE_DIR points events at a fixture dir
+# so suite runs never touch the live plans/_dashboard/state.events.jsonl.
+# CLAUDE_PROJECT_DIR alone is NOT enough — anchor-root re-cds to the real root.
+STATE_DIR="${META_DEV_STATE_DIR:-plans/_dashboard}"
 mkdir -p "$STATE_DIR"
 
 EVENTS_FILE="$STATE_DIR/state.events.jsonl"

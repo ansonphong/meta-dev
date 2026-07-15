@@ -24,9 +24,11 @@
 2. For EACH task in the phase: dispatch a FRESH worker (new headless process,
    clean context) with the task spec INCLUDING its `Verify:` command. The
    worker runs its own verify hook and self-fixes locally before returning.
-   Conductor reads only the one-line `result`, flips that task's plan
-   checkbox(es) — the `### Task N:` box and any `- [ ]` subtask checkboxes its
-   work completed — and commits per task (momentum). No Opus review at this
+   Conductor reads only the one-line `result`, then flips that task via
+   `bash ${CLAUDE_PLUGIN_ROOT}/scripts/task-done.sh <plan> <handle>` using the
+   handle the conductor **already bound on the runtime task entry at dispatch**
+   (not parsed from the worker). Worker never Edits a checkbox. Conductor
+   commits the flipped plan file per task (momentum). No Opus review at this
    granularity.
 
 ## Phase gate — the single Opus checkpoint per phase

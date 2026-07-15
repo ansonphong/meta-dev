@@ -455,6 +455,320 @@ PYEOF
   rm -rf "$RG"
 }
 
+# ── Deterministic task tracking (task-stamp / task-done / task-undone) ───────
+
+check_task_stamp() {
+  echo "=== Task Stamp ==="
+  local S="$PLUGIN_DIR/scripts/task-stamp.py"
+  local FIX
+  FIX=$(mktemp -d)
+  cat > "$FIX/master.md" <<'EOF'
+# Fixture
+
+### Phase 1 — Alpha
+- [ ] First box
+- [ ] Second box
+
+**Phase 2 — Bold style**
+- [ ] Bold phase box
+
+### Phase 4a — Alphanumeric
+- [ ] Alpha a box
+- [x] Already done
+
+### Phase 4b
+- [ ] Beta box
+EOF
+
+  # T1.5 three heading styles
+  python3 "$S" --check "$FIX/master.md" >"$FIX/check.out" 2>"$FIX/check.err" || true
+  if grep -q 'T1\.1' "$FIX/check.out" \
+     && grep -q 'T2\.1' "$FIX/check.out" \
+     && grep -q 'T4a\.1' "$FIX/check.out" \
+     && grep -q 'T4b\.1' "$FIX/check.out"; then
+    PASS=$((PASS+1)); green "  PASS three heading styles (### / bold / 4a+4b)"
+  else
+    FAIL=$((FAIL+1)); red "  FAIL three heading styles"; cat "$FIX/check.out"
+  fi
+
+  python3 "$S" "$FIX/master.md" >/dev/null
+  cp "$FIX/master.md" "$FIX/after1.md"
+  python3 "$S" "$FIX/master.md" >/dev/null
+  # T1.6 idempotent
+  if cmp -s "$FIX/after1.md" "$FIX/master.md"; then
+    PASS=$((PASS+1)); green "  PASS stamper idempotent (second run byte-identical)"
+  else
+    FAIL=$((FAIL+1)); red "  FAIL stamper not idempotent"
+  fi
+
+  # T1.14 regexes still count stamped lines
+  local open_n
+  open_n=$(grep -cE '^[[:space:]]*[-*][[:space:]]+\[[[:space:]]\]' "$FIX/master.md" || true)
+  if [ "${open_n:-0}" -ge 1 ] && grep -qE '^\s*[-*]\s*\[[ xX]\]\s*`T' "$FIX/master.md"; then
+    # plan-index CHECKBOX pattern
+    if python3 -c "
+import re,sys
+CHECKBOX=re.compile(r'^\s*[-*]\s*\[([ xX])\]')
+n=sum(1 for ln in open('$FIX/master.md',encoding='utf-8') if CHECKBOX.match(ln))
+sys.exit(0 if n>=5 else 1)
+"; then
+      PASS=$((PASS+1)); green "  PASS stamped lines still match plan-index/archive-guard regexes"
+    else
+      FAIL=$((FAIL+1)); red "  FAIL plan-index regex miss on stamped lines"
+    fi
+  else
+    FAIL=$((FAIL+1)); red "  FAIL stamped open boxes not greppable"
+  fi
+
+  rm -rf "$FIX"
+}
+
+check_task_done() {
+  echo "=== Task Done / Undone ==="
+  local DONE="$PLUGIN_DIR/scripts/task-done.sh"
+  local UNDONE="$PLUGIN_DIR/scripts/task-undone.sh"
+  local STAMP="$PLUGIN_DIR/scripts/task-stamp.py"
+  # Live-project event log (if present). Concurrent sessions may append to it;
+  # hermetic proof is: our fixture plan path must NEVER appear in the live log.
+  local LIVE_EVENTS=""
+  if [ -f "$PLUGIN_DIR/../../../plans/_dashboard/state.events.jsonl" ]; then
+    LIVE_EVENTS="$(cd "$PLUGIN_DIR/../../.." 2>/dev/null && pwd)/plans/_dashboard/state.events.jsonl"
+  elif [ -f "${CLAUDE_PROJECT_DIR:-}/plans/_dashboard/state.events.jsonl" ]; then
+    LIVE_EVENTS="$CLAUDE_PROJECT_DIR/plans/_dashboard/state.events.jsonl"
+  fi
+
+  local FIX
+  FIX=$(mktemp -d)
+  export META_DEV_STATE_DIR="$FIX/state"
+  mkdir -p "$META_DEV_STATE_DIR"
+  # Unique marker so we can prove live log never received our events
+  local HERMETIC_MARK="hermetic-task-done-$RANDOM$RANDOM"
+
+  cat > "$FIX/master.md" <<EOF
+### Phase 1
+- [ ] Alpha $HERMETIC_MARK
+- [ ] Beta
+- [x] Already
+### Acceptance
+- [ ] by eye smoke
+- [ ] Untagged under acceptance heading
+EOF
+  python3 "$STAMP" "$FIX/master.md" >/dev/null
+
+  # T1.7 flip only target
+  cp "$FIX/master.md" "$FIX/before.md"
+  bash "$DONE" "$FIX/master.md" T1.1 >/dev/null
+  if grep -qE '\[x\].*`T1\.1`' "$FIX/master.md" \
+     && grep -qE '\[ \].*`T1\.2`' "$FIX/master.md"; then
+    # other non-target open boxes unchanged besides T1.1
+    # strip T1.1 line and compare
+    if python3 -c "
+b=open('$FIX/before.md').read().splitlines()
+a=open('$FIX/master.md').read().splitlines()
+assert len(a)==len(b)
+changed=0
+for i,(x,y) in enumerate(zip(a,b)):
+    if x!=y:
+        changed+=1
+        assert 'T1.1' in x and '[x]' in x
+assert changed==1
+"; then
+      PASS=$((PASS+1)); green "  PASS task-done flips only targeted box"
+    else
+      FAIL=$((FAIL+1)); red "  FAIL task-done changed more than target"
+    fi
+  else
+    FAIL=$((FAIL+1)); red "  FAIL task-done did not flip T1.1 only"
+  fi
+
+  # T1.8 already [x] no-op exit 0
+  cp "$FIX/master.md" "$FIX/before2.md"
+  if bash "$DONE" "$FIX/master.md" T1.3 >/dev/null 2>&1; then
+    if cmp -s "$FIX/before2.md" "$FIX/master.md"; then
+      PASS=$((PASS+1)); green "  PASS already-[x] is no-op exit 0"
+    else
+      FAIL=$((FAIL+1)); red "  FAIL already-[x] mutated file"
+    fi
+  else
+    FAIL=$((FAIL+1)); red "  FAIL already-[x] non-zero exit"
+  fi
+
+  # T1.9 unknown + remaining still processed
+  cp "$FIX/master.md" "$FIX/before3.md"
+  set +e
+  bash "$DONE" "$FIX/master.md" T_BAD T1.2 >/dev/null 2>"$FIX/err9"
+  local rc9=$?
+  set -e
+  if [ "$rc9" -ne 0 ] && grep -qE '\[x\].*`T1\.2`' "$FIX/master.md"; then
+    PASS=$((PASS+1)); green "  PASS unknown handle non-zero + remaining handles processed"
+  else
+    FAIL=$((FAIL+1)); red "  FAIL unknown-handle continue (rc=$rc9)"
+  fi
+
+  # T1.10 human-gate both forms
+  set +e
+  bash "$DONE" "$FIX/master.md" T1.4 >/dev/null 2>"$FIX/err10a"
+  local rc10a=$?
+  bash "$DONE" "$FIX/master.md" T1.5 >/dev/null 2>"$FIX/err10b"
+  local rc10b=$?
+  set -e
+  if [ "$rc10a" -ne 0 ] && [ "$rc10b" -ne 0 ] \
+     && grep -qE '\[ \].*`T1\.4`' "$FIX/master.md" \
+     && grep -qE '\[ \].*`T1\.5`' "$FIX/master.md"; then
+    bash "$DONE" --human "$FIX/master.md" T1.4 T1.5 >/dev/null
+    if grep -qE '\[x\].*`T1\.4`' "$FIX/master.md" \
+       && grep -qE '\[x\].*`T1\.5`' "$FIX/master.md"; then
+      PASS=$((PASS+1)); green "  PASS human-gate refuse (inline+section) + --human flips"
+    else
+      FAIL=$((FAIL+1)); red "  FAIL --human did not flip both forms"
+    fi
+  else
+    FAIL=$((FAIL+1)); red "  FAIL human-gate did not refuse (rc a=$rc10a b=$rc10b)"
+  fi
+
+  # T1.11 ambiguous bare plan number
+  mkdir -p "$FIX/plans/50-FOO" "$FIX/plans/50-BAR"
+  echo '- [ ] `T1.1` x' > "$FIX/plans/50-FOO/00-master-plan.md"
+  echo '- [ ] `T1.1` y' > "$FIX/plans/50-BAR/00-master-plan.md"
+  set +e
+  ( cd "$FIX" && bash "$DONE" 50 T1.1 >/dev/null 2>"$FIX/err11" )
+  local rc11=$?
+  set -e
+  if [ "$rc11" -ne 0 ] \
+     && grep -qE '\[ \]' "$FIX/plans/50-FOO/00-master-plan.md" \
+     && grep -qE '\[ \]' "$FIX/plans/50-BAR/00-master-plan.md" \
+     && grep -qiE 'match|candidate' "$FIX/err11"; then
+    PASS=$((PASS+1)); green "  PASS ambiguous bare plan fails loud, touches nothing"
+  else
+    FAIL=$((FAIL+1)); red "  FAIL ambiguous bare plan (rc=$rc11)"; cat "$FIX/err11" || true
+  fi
+
+  # T1.12 concurrent flip (forced contention loop)
+  cat > "$FIX/race.md" <<'EOF'
+### Phase 1
+- [ ] `T1.1` A
+- [ ] `T1.2` B
+EOF
+  local race_ok=1
+  local i
+  for i in $(seq 1 20); do
+    cat > "$FIX/race.md" <<'EOF'
+### Phase 1
+- [ ] `T1.1` A
+- [ ] `T1.2` B
+EOF
+    bash "$DONE" "$FIX/race.md" T1.1 >/dev/null 2>&1 &
+    bash "$DONE" "$FIX/race.md" T1.2 >/dev/null 2>&1 &
+    wait
+    if ! grep -qE '\[x\].*`T1\.1`' "$FIX/race.md" \
+       || ! grep -qE '\[x\].*`T1\.2`' "$FIX/race.md"; then
+      race_ok=0
+      break
+    fi
+  done
+  if [ "$race_ok" -eq 1 ] && [ -f "$FIX/race.md.task-lock" ]; then
+    PASS=$((PASS+1)); green "  PASS concurrent flip both land (sidecar lock, 20× race)"
+  else
+    FAIL=$((FAIL+1)); red "  FAIL concurrent flip lost update or missing sidecar"
+  fi
+
+  # T1.13 event only after success + hermetic sink
+  if grep -q '"event":"task_done"' "$META_DEV_STATE_DIR/state.events.jsonl" 2>/dev/null \
+     && grep -q '"handle":"T1.1"' "$META_DEV_STATE_DIR/state.events.jsonl"; then
+    PASS=$((PASS+1)); green "  PASS task_done event appended under META_DEV_STATE_DIR"
+  else
+    FAIL=$((FAIL+1)); red "  FAIL task_done event missing in fixture state dir"
+  fi
+  # refuse → no extra event for unknown
+  local ev_before
+  ev_before=$(wc -l < "$META_DEV_STATE_DIR/state.events.jsonl" || echo 0)
+  set +e
+  bash "$DONE" "$FIX/master.md" T_NOPE >/dev/null 2>&1
+  set -e
+  local ev_after
+  ev_after=$(wc -l < "$META_DEV_STATE_DIR/state.events.jsonl" || echo 0)
+  if [ "$ev_after" -eq "$ev_before" ]; then
+    PASS=$((PASS+1)); green "  PASS no event when flip refused/failed"
+  else
+    FAIL=$((FAIL+1)); red "  FAIL event appended on failed flip"
+  fi
+
+  # undone round-trip
+  bash "$UNDONE" "$FIX/master.md" T1.1 >/dev/null 2>&1 || true
+  if grep -qE '\[ \].*`T1\.1`' "$FIX/master.md" \
+     && grep -q '"event":"task_undone"' "$META_DEV_STATE_DIR/state.events.jsonl"; then
+    PASS=$((PASS+1)); green "  PASS task-undone reopens + appends task_undone"
+  else
+    FAIL=$((FAIL+1)); red "  FAIL task-undone"
+  fi
+
+  # T1.15 hermetic: fixture events landed; live log must not contain our marker path
+  if [ -n "$LIVE_EVENTS" ] && [ -f "$LIVE_EVENTS" ]; then
+    if grep -qF "$FIX/master.md" "$LIVE_EVENTS" 2>/dev/null \
+       || grep -qF "$HERMETIC_MARK" "$LIVE_EVENTS" 2>/dev/null; then
+      FAIL=$((FAIL+1)); red "  FAIL live state.events.jsonl received hermetic fixture events"
+    else
+      PASS=$((PASS+1)); green "  PASS live state.events.jsonl free of fixture events (META_DEV_STATE_DIR hermetic)"
+    fi
+  else
+    PASS=$((PASS+1)); green "  PASS (skip live-events check — no live log in this tree)"
+  fi
+
+  # META_DEV_STATE_DIR present in state-append.sh
+  if grep -q 'META_DEV_STATE_DIR' "$PLUGIN_DIR/scripts/state-append.sh"; then
+    PASS=$((PASS+1)); green "  PASS state-append.sh honors META_DEV_STATE_DIR"
+  else
+    FAIL=$((FAIL+1)); red "  FAIL META_DEV_STATE_DIR missing from state-append.sh"
+  fi
+
+  unset META_DEV_STATE_DIR
+  rm -rf "$FIX"
+}
+
+check_docs_gate() {
+  echo "=== Docs / Context Gate ==="
+  # T3.4 — plan-validate warns on missing context/docs at stage>=3; never blocks.
+  # Hook only validates paths under plans/, so fixture lives there.
+  local VAL="$PLUGIN_DIR/hooks/scripts/plan-validate.sh"
+  local FIX
+  FIX=$(mktemp -d)
+  mkdir -p "$FIX/plans/meta"
+  cat > "$FIX/plans/meta/plan.md" <<'EOF'
+---
+status: active
+stage: 3
+repo: meta
+---
+# X
+EOF
+  local WARN
+  WARN=$(printf '%s' "{\"tool_input\":{\"file_path\":\"$FIX/plans/meta/plan.md\"}}" | bash "$VAL" 2>&1 || true)
+  if echo "$WARN" | grep -qiE 'context|docs'; then
+    PASS=$((PASS+1)); green "  PASS plan-validate warns on missing context/docs (stage>=3)"
+  else
+    FAIL=$((FAIL+1)); red "  FAIL plan-validate missing context/docs warning: $WARN"
+  fi
+
+  cat > "$FIX/plans/meta/plan-ok.md" <<'EOF'
+---
+status: active
+stage: 3
+repo: meta
+context: none
+docs: none
+---
+# X
+EOF
+  WARN=$(printf '%s' "{\"tool_input\":{\"file_path\":\"$FIX/plans/meta/plan-ok.md\"}}" | bash "$VAL" 2>&1 || true)
+  if [ -z "$WARN" ] || ! echo "$WARN" | grep -qiE 'context|docs'; then
+    PASS=$((PASS+1)); green "  PASS plan-validate silent when context/docs: none"
+  else
+    FAIL=$((FAIL+1)); red "  FAIL plan-validate warned on explicit none: $WARN"
+  fi
+
+  rm -rf "$FIX"
+}
+
 # Main
 cd "$PLUGIN_DIR/../.."  # cd to repo root
 
@@ -468,6 +782,9 @@ case "${1:-}" in
   --check-init) check_init ;;
   --check-headless) check_headless ;;
   --check-runbook-gate) check_runbook_gate ;;
+  --check-task-stamp) check_task_stamp ;;
+  --check-task-done) check_task_done ;;
+  --check-docs-gate) check_docs_gate ;;
   *)
     check_schemas
     check_templates
@@ -479,6 +796,9 @@ case "${1:-}" in
     check_init
     check_headless
     check_runbook_gate
+    check_task_stamp
+    check_task_done
+    check_docs_gate
     ;;
 esac
 

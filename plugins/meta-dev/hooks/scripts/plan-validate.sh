@@ -77,13 +77,23 @@ for key in ("status", "stage", "repo"):
 if "status" in data and data["status"] not in ("draft", "active", "blocked", "done"):
     problems.append(f"status='{data['status']}' (must be draft|active|blocked|done)")
 
+stage_n = None
 if "stage" in data:
     try:
-        n = int(str(data["stage"]).strip())
-        if not (1 <= n <= 6):
+        stage_n = int(str(data["stage"]).strip())
+        if not (1 <= stage_n <= 6):
             problems.append(f"stage={data['stage']} (must be 1-6)")
     except (ValueError, TypeError):
         problems.append(f"stage='{data['stage']}' (must be an int 1-6)")
+
+# Stage ≥ 3: warn if context:/docs: missing (value must be a path list or literal none).
+# Warn-only — never blocks (this hook always exits 0).
+if stage_n is not None and stage_n >= 3:
+    for key in ("context", "docs"):
+        if key not in data:
+            problems.append(
+                f"missing '{key}:' (stage>={stage_n}: declare path list or literal 'none')"
+            )
 
 if problems:
     print("; ".join(problems))

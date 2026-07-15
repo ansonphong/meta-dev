@@ -63,8 +63,10 @@ Inserted into hard rule #9 per the risk tag detected:
 
 ## Post-task verification gates (run by orchestrator, not subagent)
 
-**⛔ FIRST — flip the plan checkbox (BEFORE any other post-task action):**
-Once a task's verify returns green, the orchestrator MUST immediately edit the plan file and flip `- [ ] CLAIMED` → `- [x] DONE`, then commit `chore(plan): mark <Task ID> DONE`. This is step zero — do it before the inline checks below, before advancing, before anything else. The checkbox is the user's visibility; unchecked = "nothing happened."
+**⛔ FIRST — flip the plan checkbox via `task-done` (BEFORE any other post-task action):**
+Once a task's verify returns green, the orchestrator (conductor) MUST immediately run
+`bash ${CLAUDE_PLUGIN_ROOT}/scripts/task-done.sh <plan> <handle-from-runtime-entry>`
+then commit the flipped plan: `chore(plan): mark <handle> DONE`. This is step zero — do it before the inline checks below, before advancing, before anything else. Never hand-Edit `[ ]`→`[x]`. Worker never edits checkboxes. The checkbox is the user's visibility; unchecked = "nothing happened."
 
 **Instant inline (gate the commit — milliseconds):**
 1. `git show --stat <sha>` — diff scope matches declared files?

@@ -210,9 +210,189 @@ PYEOF
   # Not a real execution plan (no checkboxes at all) → leave it alone.
   [ "${TOTAL:-0}" -eq 0 ] && return 0
 
+  # --- Docs/context evidence gate (before stamping stage 6) ------------------
+  # For each path in frontmatter context:/docs: (skip literal none): require a
+  # git commit since stage-5 transition in the path's OWNING repo. Soft-warn
+  # (never hard-block) when stage_5 ts or owning repo can't be resolved.
+  docs_gate_block() {
+    # prints BLOCK reasons to stdout; empty = ok to stamp
+    python3 - "$PLAN" "$REL" <<'PYEOF'
+import json, os, re, subprocess, sys
+from pathlib import Path
+
+plan_path = Path(sys.argv[1])
+plan_rel = sys.argv[2].replace(os.sep, "/")
+if plan_rel.startswith("./"):
+    plan_rel = plan_rel[2:]
+
+def read_fm(path: Path):
+    try:
+        text = path.read_text(encoding="utf-8", errors="ignore")
+    except Exception:
+        return {}
+    if not text.startswith("---"):
+        return {}
+    end = text.find("\n---", 3)
+    if end < 0:
+        return {}
+    data = {}
+    for line in text[3:end].splitlines():
+        s = line.strip()
+        if not s or s.startswith("#") or ":" not in s:
+            continue
+        k, _, v = s.partition(":")
+        data[k.strip()] = v.split(" #")[0].strip()
+    return data
+
+def parse_list(val: str):
+    if not val:
+        return []
+    v = val.strip()
+    if v.lower() == "none":
+        return []
+    # YAML list: [a, b] or plain path
+    if v.startswith("[") and v.endswith("]"):
+        inner = v[1:-1].strip()
+        if not inner:
+            return []
+        return [p.strip().strip("\"'") for p in inner.split(",") if p.strip()]
+    return [v.strip().strip("\"'")]
+
+fm = read_fm(plan_path)
+declared = parse_list(fm.get("context", "none" if "context" not in fm else fm.get("context", "")))
+# Missing key does not block (validate already warned). Only declared paths gate.
+if "context" in fm:
+    declared = parse_list(fm["context"])
+else:
+    declared = []
+if "docs" in fm:
+    declared = declared + parse_list(fm["docs"])
+
+if not declared:
+    sys.exit(0)
+
+# Resolve stage_5_transition_ts
+state_dir = os.environ.get("META_DEV_STATE_DIR", "plans/_dashboard")
+events = Path(state_dir) / "state.events.jsonl"
+stage5_ts = None
+if events.is_file():
+    latest = None
+    try:
+        for line in events.read_text(encoding="utf-8", errors="ignore").splitlines():
+            line = line.strip()
+            if not line or "stage_transition" not in line:
+                continue
+            try:
+                ev = json.loads(line)
+            except Exception:
+                continue
+            if ev.get("event") != "stage_transition":
+                continue
+            p = str(ev.get("plan", "")).replace(os.sep, "/")
+            if p.startswith("./"):
+                p = p[2:]
+            # match plan path or any file under same plan dir
+            plan_dir = plan_rel.rsplit("/", 1)[0] if "/" in plan_rel else plan_rel
+            if p == plan_rel or p.startswith(plan_dir + "/") or plan_rel.startswith(p.rstrip("/") + "/"):
+                sn = ev.get("stage_num") or ev.get("stage")
+                try:
+                    sn_i = int(sn)
+                except (TypeError, ValueError):
+                    sn_i = 5 if str(sn).lower() in ("5", "execute") else -1
+                if sn_i == 5 or str(sn).lower() == "execute":
+                    latest = ev.get("time") or latest
+    except Exception:
+        pass
+    stage5_ts = latest
+
+if not stage5_ts:
+    # Fallback: git pickaxe in meta for stage: 5 introduction
+    try:
+        r = subprocess.run(
+            ["git", "log", "-1", "--format=%cI", "-S", "stage: 5", "--", str(plan_path)],
+            capture_output=True, text=True, timeout=15,
+        )
+        if r.returncode == 0 and r.stdout.strip():
+            stage5_ts = r.stdout.strip()
+    except Exception:
+        pass
+
+if not stage5_ts:
+    print(
+        "WARN docs-gate: no stage_5 transition ts on record "
+        "(event log + pickaxe miss) — soft-pass, not hard-blocking",
+        file=sys.stderr,
+    )
+    sys.exit(0)
+
+def owning_repo(path: Path):
+    cur = path if path.is_dir() else path.parent
+    cur = cur.resolve()
+    for _ in range(40):
+        if (cur / ".git").exists():
+            return cur
+        if cur.parent == cur:
+            break
+        cur = cur.parent
+    return None
+
+blocks = []
+for rel in declared:
+    # path may be repo-relative from meta root
+    abs_p = Path(rel)
+    if not abs_p.is_absolute():
+        abs_p = Path.cwd() / rel
+    repo = owning_repo(abs_p if abs_p.exists() else Path.cwd() / rel)
+    if repo is None:
+        print(f"WARN docs-gate: unresolvable repo for {rel!r} — advisory, not blocking", file=sys.stderr)
+        continue
+    try:
+        rel_in_repo = str(abs_p.resolve().relative_to(repo.resolve()))
+    except Exception:
+        # untracked / outside
+        print(f"WARN docs-gate: path not under repo for {rel!r} — advisory, not blocking", file=sys.stderr)
+        continue
+    try:
+        r = subprocess.run(
+            ["git", "-C", str(repo), "log", "--since", stage5_ts, "--oneline", "--", rel_in_repo],
+            capture_output=True, text=True, timeout=20,
+        )
+        if r.returncode != 0 or not r.stdout.strip():
+            # also accept dirty (uncommitted) modification as evidence of write-in-progress?
+            # Design: require modified since stage 5 via git log — unmodified blocks.
+            blocks.append(f"declared path unmodified since stage 5 ({stage5_ts}): {rel}")
+    except Exception as e:
+        print(f"WARN docs-gate: git log failed for {rel!r}: {e}", file=sys.stderr)
+
+if blocks:
+    for b in blocks:
+        print(b)
+    sys.exit(1)
+sys.exit(0)
+PYEOF
+  }
+
   # --- Decision matrix -------------------------------------------------------
   # (1) clean + reviewed → STAMP DONE (covers both in_progress & completed lag).
   if [ "${OPEN_EXEC:-0}" -eq 0 ] && [ "$REVIEW_PASS" = "1" ]; then
+    # Docs/context evidence (if declared) must land before stage 6.
+    local DOCS_OUT=""
+    set +e
+    DOCS_OUT="$(docs_gate_block 2>&1)"
+    local DOCS_RC=$?
+    set -e
+    if [ "$DOCS_RC" -ne 0 ]; then
+      emit_event "done_gate" "$REL" "docs_missing" "$NOW"
+      inbox_fail "$REL" "medium" \
+        "Execution + review pass but declared context:/docs: paths lack git evidence since stage 5 — NOT stamped DONE. ${DOCS_OUT}" \
+        "$NOW"
+      printf '[done-gate] %s — docs/context gate blocked stamp:\n%s\n' "$REL" "$DOCS_OUT" >&2
+      return 0
+    fi
+    # surface soft warnings from docs_gate_block
+    if [ -n "$DOCS_OUT" ]; then
+      printf '%s\n' "$DOCS_OUT" >&2
+    fi
     bash "$PLUGIN_ROOT/scripts/stage-emit.sh" "$PLAN" review completed >/dev/null 2>&1 || true
     # Render the owning runbook if this plan is a campaign member (standalone
     # plans need no render — /meta-dashboard reads the freshly-stamped YAML).
@@ -291,18 +471,45 @@ for root, dirs, files in os.walk(plans_dir):
         st, stat = frontmatter(p)
         if st != '5':
             continue
-        # Plan scope: the dedicated plan dir if it has a 00-*.md master, else
-        # the single file (avoids counting unrelated plans in a category dir).
+        # Plan scope:
+        # - has_master is EXACT '00-master-plan.md' (never bare 00-* — dirs carry
+        #   00-design.md / 00-master-design.md / 00-overview.md false masters).
+        # - Self-gating: when the dir has 00-master-plan.md AND every non-master
+        #   *.md already carries zero checkboxes (initiative demoted), scope =
+        #   master file only. Otherwise scan the whole dir so phase-as-ledger
+        #   plans cannot blind the DONE gate mid-migration.
         d = os.path.dirname(p)
-        has_master = any(ff.startswith('00-') and ff.endswith('.md') for ff in files)
-        scope = d if has_master else p
+        master_name = '00-master-plan.md'
+        has_master = master_name in files
+        box_re = re.compile(r'^\s*[-*]\s*\[[ xX]\]')
+        if has_master:
+            master_path = os.path.join(d, master_name)
+            phase_has_boxes = False
+            for ff in files:
+                if ff == master_name or not ff.endswith('.md'):
+                    continue
+                try:
+                    with open(os.path.join(d, ff), encoding='utf-8') as fh:
+                        for ln in fh:
+                            if box_re.match(ln):
+                                phase_has_boxes = True
+                                break
+                except Exception:
+                    pass
+                if phase_has_boxes:
+                    break
+            scope = master_path if not phase_has_boxes else d
+        else:
+            scope = p
         if scope in seen:
             continue
         seen.add(scope)
         rel = p.replace(os.sep, '/')
         if rel.startswith('./'):
             rel = rel[2:]
-        out.append('\t'.join([p, scope, stat or '', rel]))
+        # Prefer the master path as PLAN when has_master
+        plan_out = os.path.join(d, master_name) if has_master else p
+        out.append('\t'.join([plan_out, scope, stat or '', rel if not has_master else plan_out.replace(os.sep, '/')]))
 print('\n'.join(out))
 PYEOF
 )" || MAP=""

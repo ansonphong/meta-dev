@@ -96,27 +96,34 @@ The single biggest execution cost is slow test cycles. Measured on a real run: `
 
 ## CLAIMED → DONE — Full Checkbox Lifecycle (MANDATORY)
 
-The plan file's checkboxes are the user's ONLY visibility into execution progress. Every checkbox — every `### Task N:` AND every `- [ ]` subtask checkbox — MUST pass through ALL three states in the plan file (a subtask checkbox flips DONE the instant its own step is green, exactly like a top-level task). No exceptions, no batching, no "I'll do it at the end." 1 runtime task ↔ 1 checkbox; completing the task is what checks the box.
+The plan file's checkboxes are the user's ONLY visibility into execution progress. Every checkbox — every `### Task N:` AND every `- [ ]` subtask checkbox — MUST pass through the lifecycle below. 1 runtime task ↔ 1 checkbox ↔ 1 handle (`` `T<phase>.<seq>` ``). Completing the task is what checks the box.
+
+**Handles and CLAIMED are orthogonal.** The handle identifies the line (stamped by `task-stamp.py`). `CLAIMED` marks in-flight. The flip itself is **never an `Edit` of `[ ]`→`[x]`** — the conductor runs `task-done`.
 
 ### State 1: CLAIM (before dispatch)
 
 Before dispatching a subagent for a task:
-1. Edit the plan file: change `- [ ] Task N: <title>` to `` - [ ] CLAIMED `Task N: <title>` ``
-2. Commit + push the claim immediately: `chore(plan): claim <Task ID>`
-3. This prevents parallel sessions from picking up the same task.
+1. Bind the handle: when the runtime task list is built from stamped master checkboxes, **each TaskCreate entry already stores its `` `T…` `` handle**. That handle is what you will flip later — do **not** parse free-text handle lists from the worker.
+2. Optionally mark in-flight: Edit the plan line to insert `CLAIMED` prose (this is **not** the flip). Example: `` - [ ] `T4.2` CLAIMED Add Tile wiring ``.
+3. Commit the claim: `chore(plan): claim <handle>` (or Task ID if unstamped legacy).
 
-### State 2: DONE (immediately after green verify)
+### State 2: DONE (immediately after green verify) — `task-done`, never Edit
 
-**The instant a task's verify returns green** (async or sync), you MUST flip its checkbox before doing anything else:
-1. Edit the plan file: change `` - [ ] CLAIMED `Task N: <title>` `` to `` - [x] DONE `Task N: <title>` ``
-2. Commit + push immediately: `chore(plan): mark <Task ID> DONE`
-3. Only THEN advance to the next task or do any other work.
+**The instant a task's verify returns green** (async or sync), the **conductor** flips the box before anything else:
 
-**This is the step that keeps getting missed.** The checkbox flip + commit takes 5 seconds. Do it after EVERY single task — never batch, never defer. Unchecked boxes read as "nothing happened" to the user watching the plan file.
+```bash
+bash ${CLAUDE_PLUGIN_ROOT}/scripts/task-done.sh <plan-path> <handle-from-runtime-entry>
+# then commit the flipped plan file (task-done is scope-locked — no git):
+git add -- <plan-path> && git commit -m "chore(plan): mark <handle> DONE"
+```
 
-**If the task was never CLAIMED** (resume, --inline, or direct execution):
-- Find: `- [ ] Task N: <title>`
-- Replace with: `- [x] DONE Task N: <title>`
+- **Conductor owns the handle at dispatch** (bound on the runtime entry). Worker may echo the handle for audit; a missing echo must **never** skip the flip. Worker never `Edit`s a checkbox.
+- `task-done` matches on the handle and only rewrites the mark `[ ]`→`[x]` — indifferent to CLAIMED/DONE prose on the line.
+- Already `[x]` → no-op exit 0. Unknown handle → non-zero (named error) but remaining handles in a batch still process; treat unknown as a conductor bug, re-bind and retry.
+- Human-tagged boxes (`by eye` / `by hand` / `gpu` / `manual`, or under an Acceptance/Human-verify heading) refuse without `--human`.
+- **Never** hand-edit `[ ]`→`[x]`. That is the hole this primitive closes.
+
+Only THEN advance to the next task.
 
 ### State 3: Verify (before report card)
 
@@ -124,7 +131,7 @@ Before rendering the execution report card (step 8), run:
 ```bash
 grep -cE '^[[:space:]]*[-*][[:space:]]+\[[[:space:]]\]' <plan-file>
 ```
-If the count is non-zero for tasks you believe are done, STOP — go back and flip those checkboxes NOW. Never render the report card with unchecked completed tasks.
+If the count is non-zero for tasks you believe are done, STOP — run `task-done` for the missing handles NOW. Never render the report card with unchecked completed tasks.
 
 ### The deterministic backstop — `on-run-complete.sh`
 
@@ -134,7 +141,7 @@ The checkbox discipline above is **guidance**; the **guarantee** is the `on-run-
 - run claimed `execute completed` with execution boxes still open → it **FAILS LOUD** to the inbox (never silently half-stamps);
 - clean execution but no review pass on record → it flags "review missing" and leaves the plan at stage 5.
 
-You still flip checkboxes per-task and run the review — the gate is the deterministic backstop that makes silent half-completion structurally impossible.
+You still flip via `task-done` per-task and run the review — the gate is the deterministic backstop that makes silent half-completion structurally impossible.
 
 ### Stale CLAIMED check
 
@@ -143,7 +150,7 @@ If a task has been CLAIMED for >2 hours with no DONE, prompt the user before re-
 ## Resume Logic
 
 If invoked on a plan with mixed DONE/OPEN tasks, resume from the first OPEN task:
-- Skip DONE tasks
+- Skip DONE tasks (`[x]` on the stamped line)
 - Skip CLAIMED tasks (assume another session owns them, unless stale >2h)
 - Pick up first OPEN task
 - State tracked in plan checkbox state (committed) — no sidecar file needed

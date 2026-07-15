@@ -53,7 +53,7 @@ Read the plan. Extract every **checkbox**: every `### Task N:` heading AND every
 
 ### 2. Mirror EVERY checkbox into the visible task list (MANDATORY — see Prerequisite)
 
-Call `TaskCreate` once per **checkbox** from the step-1 inventory (every task heading AND every subtask checkbox), **descriptive, well-named** (`<ID> — what it builds/fixes`, not bare IDs). **Each entry carries a `[Backend]` tag** — `[DeepSeek]` (default/mechanical), `[GLM]` (stateful/complex), or `[Codex]` (cross-family code review only, not execution) — so the delegation ladder is visible in the list. Example: `◻ 17·P2b — multipass-promote (persist effective_config.json) [DeepSeek]`. Set dependencies. **The tracker item count MUST equal the step-1 checkbox count — 1 runtime task ↔ 1 plan checkbox, always; do not dispatch before the list is visible and complete.** Surface every state through the run via `TaskUpdate`: `in_progress` → `🔧 repairing (async)` / `deferred — waiting on <ID>` / `blocked` → `completed`, plus one entry per background fixer and a final `📋 code review` entry. **Each completed runtime task flips exactly its own matching plan checkbox (see ⛔ CHECKBOX RULE) — the two never drift apart.**
+Call `TaskCreate` once per **checkbox** from the step-1 inventory (every task heading AND every subtask checkbox), **descriptive, well-named** (`<ID> — what it builds/fixes`, not bare IDs). **Each entry carries a `[Backend]` tag** — `[DeepSeek]` (default/mechanical), `[GLM]` (stateful/complex), or `[Codex]` (cross-family code review only, not execution) — so the delegation ladder is visible in the list. Example: `◻ 17·P2b — multipass-promote (persist effective_config.json) [DeepSeek]`. **When the master is stamped**, each entry **also stores its `` `T…` `` handle** (from the checkbox line) — that handle is what the conductor passes to `task-done` after green verify. Set dependencies. **The tracker item count MUST equal the step-1 checkbox count — 1 runtime task ↔ 1 plan checkbox ↔ 1 handle, always; do not dispatch before the list is visible and complete.** Surface every state through the run via `TaskUpdate`: `in_progress` → `🔧 repairing (async)` / `deferred — waiting on <ID>` / `blocked` → `completed`, plus one entry per background fixer and a final `📋 code review` entry. **Each completed runtime task flips exactly its own matching plan checkbox via `task-done` (see ⛔ CHECKBOX RULE) — the two never drift apart.**
 
 ### 3. Pre-flight gates
 
@@ -72,30 +72,25 @@ For EACH task-list item:
 2. Run `echo "<task body>" | bash scripts/risk-tag.sh` → get risk tags
 3. Dispatch a **headless DeepSeek worker** (`${CLAUDE_PLUGIN_ROOT}/scripts/claude-headless-exec --backend deep`) with the task spec from `references/execute-dispatch.md` + risk-tag clauses — DeepSeek is the default per-task executor, not a Sonnet subagent. Escalate the task to a GLM worker (`--backend glm`) when it is stateful/complex/long-horizon; reserve an Anthropic-model subagent (Sonnet/Opus via `Agent`) only for tasks that genuinely need Anthropic judgment (subtle frontend consistency, cross-file stateful reasoning). Default: dispatch the next dep-satisfied, non-deferred task without waiting on in-flight fixers or in-flight tests (momentum). `--strict`: wait for the prior task to go green first.
 4. Subagent returns → **instant inline checks only** (stub grep on the diff + declared-file existence — milliseconds). Commit + push. Then **launch the task's `Verify:`/test suite async in the background** (`Bash run_in_background`, tracked as its own tracker entry `🧪 testing <ID> (async)`) and DO NOT block on it. **Exception — critical gate:** if the task is risk-tagged `money-path`, `release-stability`, or `schema-drift`, run its verify synchronously and require green before advancing. **Never run the full baseline suite per task** — that's the slow part; it runs once at solidify (step 5). **The async test MUST be path-scoped** — run the task's named test file (`pytest path/test_x.py -q`, `-m "not slow and not gpu"`), NEVER `pytest <dir>/` or `pytest … -k <expr>` (both collect the whole tree = ~18× slower every cycle), and NEVER `svelte-check`/`tsc`/`build` per task. Full doctrine: `references/execute-charter.md` → Fast Test Doctrine.
-5. **Advance immediately** to the next dep-satisfied task while tests run. Mark the task `✅ code done, tests pending`. When its async verify returns: **green** → mark `completed`, **IMMEDIATELY flip the plan checkbox to `[x] DONE`** (see ⛔ CHECKBOX RULE below). **Recoverable red** → spawn background fixer (execute-dispatch.md), mark task `blocked`, defer dependents, keep dispatching independents. **TRUE BLOCKER** → STOP, surface (see charter momentum gate).
+5. **Advance immediately** to the next dep-satisfied task while tests run. Mark the task `✅ code done, tests pending`. When its async verify returns: **green** → mark `completed`, **IMMEDIATELY run `task-done` for that entry's handle** (see ⛔ CHECKBOX RULE below). **Recoverable red** → spawn background fixer (execute-dispatch.md), mark task `blocked`, defer dependents, keep dispatching independents. **TRUE BLOCKER** → STOP, surface (see charter momentum gate).
 
 ### ⛔ MANDATORY CHECKBOX RULE — NEVER SKIP, NEVER DEFER
 
-**Every time a task completes (green verify), edit the plan file and flip its checkbox BEFORE dispatching the next task — never batch, never defer to the end.** Unchecked boxes read as "nothing happened"; the checkbox is the user's primary visibility into progress and the single source of truth.
+**Every time a task completes (green verify), the conductor flips its checkbox via `task-done` BEFORE dispatching the next task — never batch, never defer to the end, never hand-`Edit` the mark.** Unchecked boxes read as "nothing happened"; the checkbox is the user's primary visibility into progress and the single source of truth.
 
-**The exact Edit operation (do this for EVERY completed task):**
+**Conductor-owned handle (Invariant 2):** when the runtime task list was built from stamped master checkboxes, **each TaskCreate entry already stores its `` `T…` `` handle**. After green Verify-After the conductor runs:
 
-```
-Find in plan file:    - [ ] CLAIMED `Task N: <title>`
-Replace with:         - [x] DONE `Task N: <title>`
-```
-
-If the task was never CLAIMED (resume or --inline):
-```
-Find in plan file:    - [ ] Task N: <title>
-Replace with:         - [x] DONE Task N: <title>
+```bash
+bash ${CLAUDE_PLUGIN_ROOT}/scripts/task-done.sh <plan-path> <handle-from-the-runtime-entry>
+git add -- <plan-path> && git commit -m "chore(plan): mark <handle> DONE"
 ```
 
-**After each flip, commit immediately:** `chore(plan): mark <Task ID> DONE`. Then advance to the next task.
+- **Not** "parse handles from the worker result." Worker never `Edit`s a checkbox; worker may echo the handle for audit only.
+- A bold task unit `- **Task N.M**` with several sub-step boxes becomes several runtime tasks — each flips the instant its own step is green via its own handle.
+- `task-done` is scope-locked (no git). The **conductor commits** the flipped plan file after a successful flip.
+- Unstamped legacy plans: run `task-stamp.py` on the master first, or fall back to binding handles from the freshly stamped lines before any flip.
 
-**Subtask checkboxes flip the same way.** A `- [ ]` nested under a task is its own checkbox — flip it `- [x]` the instant that sub-step is green, exactly like a top-level task. Nothing is "done" until its specific box is checked.
-
-**Self-check before the report card (step 8):** `grep -cE '^[[:space:]]*[-*][[:space:]]+\[[[:space:]]\]' <plan-file>`. If the count is not zero for completed tasks, you missed checkboxes — go back and flip them NOW, before rendering the report card.
+**Self-check before the report card (step 8):** `grep -cE '^[[:space:]]*[-*][[:space:]]+\[[[:space:]]\]' <plan-file>`. If the count is not zero for completed tasks, you missed `task-done` calls — go back and flip them NOW, before rendering the report card.
 
 ### 5. Solidify foundation
 
