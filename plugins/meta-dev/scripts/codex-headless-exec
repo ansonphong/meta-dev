@@ -33,6 +33,8 @@
 #   --sandbox <mode>         read-only | workspace-write | danger-full-access
 #                            (default: workspace-write; --readonly forces read-only)
 #   --output json|text       Output format (default: json)
+#   --prompt-file <path>     Read the prompt from a file (AUTHORITATIVE — overrides
+#                            the positional prompt). Non-empty file required.
 #   -h, --help               Show this help
 #
 # Examples:
@@ -63,6 +65,7 @@ SANDBOX="workspace-write"
 READONLY=false
 OUTPUT_FORMAT="json"
 PROMPT=""
+PROMPT_INPUT_FILE=""
 OUTPUT_FILE=""
 
 # ── Help ────────────────────────────────────────────────────────────────
@@ -83,16 +86,16 @@ while [[ $# -gt 0 ]]; do
         --readonly) READONLY=true; shift ;;
         --output)   OUTPUT_FORMAT="$2"; shift 2 ;;
         --output-file) OUTPUT_FILE="$2"; shift 2 ;;
+        --prompt-file) PROMPT_INPUT_FILE="$2"; shift 2 ;;
         -h|--help)  show_help ;;
         --)         shift; PROMPT="$*"; break ;;
         *)          PROMPT="$*"; break ;;
     esac
 done
 
-if [[ -z "$PROMPT" ]]; then
-    echo "[ERROR] No prompt provided. Usage: codex-headless-exec [options] -- <prompt>" >&2
-    exit 1
-fi
+# Prompt resolution + fail-loud validation (positional OR --prompt-file).
+source "$SCRIPT_DIR/lib/read-prompt.sh"
+resolve_prompt "$PROMPT_INPUT_FILE" "codex-headless-exec"
 
 # ── GPT-5.6 routing ────────────────────────────────────────────────────
 # Tiers select real GPT-5.6 model IDs. An explicit --model remains available
