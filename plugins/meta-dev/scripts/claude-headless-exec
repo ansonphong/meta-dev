@@ -129,6 +129,7 @@ READONLY=false
 MAX_BUDGET_USD=""
 MAX_TURNS=""
 PROMPT=""
+PROMPT_INPUT_FILE=""
 OUTPUT_FILE=""
 CLAIM_SCOPE=""   # --claim <dir>: claim this plan-dir scope in the cross-session
                  # registry before dispatching; auto-released on exit (concurrency safety)
@@ -263,6 +264,7 @@ while [[ $# -gt 0 ]]; do
             show_help
             exit 0
             ;;
+        --prompt-file) PROMPT_INPUT_FILE="$2"; shift 2 ;;
         --)
             shift
             PROMPT="$*"
@@ -289,11 +291,9 @@ if [[ "$BACKEND" != "deep" && "$BACKEND" != "glm" && "$BACKEND" != "sonnet" \
     exit 1
 fi
 
-if [[ -z "$PROMPT" ]]; then
-    echo "[ERROR] No prompt provided." >&2
-    echo "        Usage: claude-headless-exec --backend deep -- <prompt>" >&2
-    exit 1
-fi
+# Prompt resolution + fail-loud validation (positional OR --prompt-file).
+source "$SCRIPT_DIR/lib/read-prompt.sh"
+resolve_prompt "$PROMPT_INPUT_FILE" "claude-headless-exec"
 
 # --- repo resolution (shared, cwd-independent — see lib/resolve-workdir.sh) ---
 # A stray `cd child-repo/` in the conductor's shell must NOT re-point workers:
