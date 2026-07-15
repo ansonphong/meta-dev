@@ -28,6 +28,8 @@
 #   --readonly               Deny Write/Edit — enforced read-only (audits/reviews)
 #   --output json|text       Output format (default: json)
 #   --output-file <path>     Write distilled JSON here (default: /tmp/...grok-…json)
+#   --prompt-file <path>     Read the prompt from a file (AUTHORITATIVE — overrides
+#                            the positional prompt). Non-empty file required.
 #   -h, --help               Show this help
 #
 # Examples:
@@ -59,6 +61,7 @@ TIMEOUT="7200000"         # 120 min — grok can run long-horizon work; never ca
 READONLY=false
 OUTPUT_FORMAT="json"
 PROMPT=""
+PROMPT_INPUT_FILE=""
 OUTPUT_FILE=""
 
 # ── Help ────────────────────────────────────────────────────────────────
@@ -79,6 +82,8 @@ Options:
   --readonly               Deny Write/Edit — enforced read-only (audits/reviews)
   --output json|text       Output format (default: json)
   --output-file <path>     Write distilled JSON here (default: /tmp/...grok-…json)
+  --prompt-file <path>     Read the prompt from a file (AUTHORITATIVE — overrides
+                           the positional prompt). Non-empty file required.
   -h, --help               Show this help
 
 Emits the shared result contract {is_error, subtype, num_turns, duration_ms,
@@ -101,16 +106,16 @@ while [[ $# -gt 0 ]]; do
         --readonly)    READONLY=true; shift ;;
         --output)      OUTPUT_FORMAT="$2"; shift 2 ;;
         --output-file) OUTPUT_FILE="$2"; shift 2 ;;
+        --prompt-file) PROMPT_INPUT_FILE="$2"; shift 2 ;;
         -h|--help)     show_help ;;
         --)            shift; PROMPT="$*"; break ;;
         *)             PROMPT="$*"; break ;;
     esac
 done
 
-if [[ -z "$PROMPT" ]]; then
-    echo "[ERROR] No prompt provided. Usage: grok-headless-exec [options] -- <prompt>" >&2
-    exit 1
-fi
+# Prompt resolution + fail-loud validation (positional OR --prompt-file).
+source "$SCRIPT_DIR/lib/read-prompt.sh"
+resolve_prompt "$PROMPT_INPUT_FILE" "grok-headless-exec"
 
 # ── Validate grok CLI + auth ────────────────────────────────────────────
 if ! command -v grok &>/dev/null; then
