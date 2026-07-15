@@ -23,6 +23,16 @@ claude -p "check test results in /tmp/test-output.log" \
 claude -p "complex architectural review" --model claude-sonnet-5
 ```
 
+## Prompt staging (avoid scratchpad collisions)
+
+Stage prompts to UNIQUE per-run paths and pass them by file, not by reusing a
+bare scratchpad name. All three runners (`codex`/`grok`/`claude`-`headless-exec`)
+accept `--prompt-file <path>` (AUTHORITATIVE over any positional prompt) and now
+hard-fail on a missing/empty file rather than silently skipping the work. Full
+conductor-side rules — unique dir, atomic `.tmp`→`mv`, `[ -s ]` verify, absolute
+paths — are in `agentic-exec-loop/references/loop-protocol.md` → "Scratchpad
+staging".
+
 ## Tool Allowlist Tiers
 
 See `references/tool-allowlists.md` for tier definitions.

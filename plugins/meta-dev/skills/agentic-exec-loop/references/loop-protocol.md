@@ -151,6 +151,28 @@ Per phase, the only things crossing back to main: N one-line worker `result`s
 read OUTPUT_FILE.raw, or read the reviewer transcript. The task tracker
 (tasks + per-phase verdict) stays in main for user followability.
 
+## Scratchpad staging — unique paths, atomic writes, fail-loud (NON-NEGOTIABLE)
+When the conductor stages an intermediate artifact for a worker (a review
+prompt, a distilled diff, a phase log), it MUST NOT reuse a bare fixed name
+(`review-prompt.txt`, `p3.log`) in the session scratchpad. Parallel lenses
+(codex + grok + tests dispatched together) then race on that one name, a reader
+sees a truncated/empty file, the wrapper reports the empty prompt, and the lens
+is silently skipped. Rules:
+
+1. **Unique per-run dir.** `RUN="$SCRATCH/run-$(date +%s)-$$"; mkdir -p "$RUN"`.
+   Every staged file lives under `$RUN` with a role+lens-qualified name
+   (`$RUN/codex-review.prompt`, `$RUN/grok-review.prompt`) — never a bare name.
+2. **Atomic write.** Build to `.tmp`, then `mv`, so a concurrent reader never
+   observes a half-written file: `build > "$f.tmp" && mv "$f.tmp" "$f"`.
+3. **Verify before dispatch.** `[ -s "$f" ] || { echo "prompt build empty" >&2; exit 1; }`
+   — never feed a file to a worker without proving it is non-empty first.
+4. **Pass the prompt BY FILE, absolutely.** Prefer
+   `codex-headless-exec --prompt-file "$f"` (codex/grok/claude runners accept it)
+   over `-- "$(cat "$f")"`, and pass an ABSOLUTE path — a headless worker resolves
+   "the scratchpad" to its OWN session dir, not the conductor's. The runners now
+   hard-fail on an empty `--prompt-file`, so a mis-staged file surfaces LOUDLY
+   instead of degrading to a silent usage error.
+
 ## Conductor cache-keepalive during long idle (SESSION practice, not command automation)
 The Anthropic prompt cache has a ~300s sliding TTL. When the orchestrating
 Opus SESSION dispatches a background worker and then idles, it MAY keep its
