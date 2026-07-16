@@ -98,3 +98,22 @@ FIX | left as intentional fragments; full objects where validation matters
 
 ## Status
 HARDENED — NO GAPS REMAINING (high/med fixed; low illustrative JSON fragments report-only)
+
+---
+
+## Pass 2 — Codex Sol cross-family (gpt-5.6-sol / high / readonly)
+
+```
+timestamp: 2026-07-16T00:53:44Z
+prior_git_sha: 71040d35d3de674a7083e77c44e11b808605086d
+model: gpt-5.6-sol
+tier: sol
+effort: high
+sandbox: read-only
+gaps_found: 17
+gaps_fixed: 17
+verdict_after_fix: HARDENED
+OUTPUT_FILE: /tmp/claude-headless-codex-20260715-174431-439142.json
+```
+
+All 6 high + 11 med Codex findings integrated into the plan (see Self-review Hardened pass 2).

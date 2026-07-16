@@ -155,13 +155,15 @@ Farm ladders include a **capability-preserving fallback** after `deep` so a miss
 
 ### Auth probes (no network, filesystem/env only)
 
+Must match what the **actual headless wrappers** require before launch (not a looser ideal):
+
 | Backend | Available when |
 |---------|----------------|
-| `deep` | `os.environ.get("DEEPSEEK_API_KEY")` non-empty |
-| `glm` | `os.environ.get("GLM_API_KEY")` non-empty |
-| `sonnet` / `opus` / `fable` | always `true` if `shutil.which("claude")` else `false` (ambient login assumed when CLI present) |
+| `deep` | `which("claude")` **and** `DEEPSEEK_API_KEY` non-empty (`claude-headless-exec` always invokes `claude`) |
+| `glm` | `which("claude")` **and** `GLM_API_KEY` non-empty |
+| `sonnet` / `opus` / `fable` | `which("claude")` (ambient `~/.claude` login; no API key env) |
 | `grok` | `which("grok")` and `Path.home() / ".grok/auth.json"` exists |
-| `codex` | `which("codex")` and (`Path.home() / ".codex/auth.json"` exists OR `OPENAI_API_KEY` non-empty) |
+| `codex` | `which("codex")` and `Path.home() / ".codex/auth.json"` exists (**required** — current `codex-headless-exec` exits 2 if auth.json missing; do **not** treat `OPENAI_API_KEY` alone as available) |
 
 Credits are **not** auto-read from vendors. When a user is out of GLM credits they set:
 
@@ -188,9 +190,9 @@ worker-resolve.py route --role farm|stateful|escalation|plan_write|review_lens
                          [--plugin-root DIR]    # default: CLAUDE_PLUGIN_ROOT
 ```
 
-**Stdout always one JSON object** (no chatter). Exit 0 on success; exit 2 on no eligible backend; exit 1 on usage/config error.
+**Stdout always one JSON object** (no chatter) — including usage/argparse errors. Exit 0 on success; exit **2** only for `NoBackendError` (no eligible backend); exit **1** for usage/config/schema/argparse errors. Override `argparse` so invalid flags/roles never print bare stderr text without JSON.
 
-**`route` success shape:**
+**`route` success shape** (first eligible; no fictional skips):
 
 ```json
 {
@@ -198,18 +200,21 @@ worker-resolve.py route --role farm|stateful|escalation|plan_write|review_lens
   "family": "own",
   "script": "grok-headless-exec",
   "dispatch": [],
-  "readonly_flag": "--readonly",
+  "readonly_flag": "",
   "role": "stateful",
   "profile": "grok-first",
-  "reason": "first eligible on stateful ladder",
+  "reason": "first eligible on ladder",
   "ladder": ["grok", "glm"],
-  "skipped": [{"backend": "glm", "reason": "disabled"}],
-  "available": {"deep": true, "glm": false, "grok": true, "codex": true, "sonnet": true},
+  "skipped": [],
+  "available": {"deep": true, "glm": true, "grok": true, "codex": true, "sonnet": true, "opus": true, "fable": true},
   "fanout": "low",
   "slash": false,
-  "write": true
+  "write": true,
+  "concurrency_cap": null
 }
 ```
+
+**Conflicting flags:** `needs_write=true` together with `readonly=true` is a **usage error** (exit 1 JSON) — never select a writer then attach `--readonly`.
 
 Conductor builds the bash line (use a bash array for `dispatch` — it may be empty for grok/codex):
 
@@ -267,23 +272,12 @@ Inside `meta_dev.properties`, after the existing `"execute"` property block, add
         "type": "object",
         "properties": {
           "enabled": { "type": "boolean" },
-          "family": { "type": "string", "enum": ["claude-code", "own"] },
-          "write": { "type": "boolean" },
-          "slash": { "type": "boolean" },
           "fanout": { "type": "string", "enum": ["high", "mid", "low"] },
           "cost": { "type": "string", "enum": ["low", "mid", "high"] },
-          "script": { "type": "string" },
-          "dispatch": {
-            "type": "array",
-            "items": { "type": "string" }
-          },
-          "concurrency_cap": { "type": "integer", "minimum": 1 },
-          "roles_only": {
-            "type": "array",
-            "items": { "type": "string" }
-          }
+          "concurrency_cap": { "type": "integer", "minimum": 1 }
         },
-        "additionalProperties": false
+        "additionalProperties": false,
+        "description": "Policy overrides only. family/write/slash/script/dispatch/roles_only are immutable builtins — never overridable via settings (prevents defeating slash/review-only invariants)."
       }
     },
     "profiles": {
@@ -430,8 +424,8 @@ def _load():
 
 @pytest.fixture
 def wr():
-    if not SCRIPT.is_file():
-        pytest.skip("worker-resolve.py not written yet")
+    # TDD red phase: missing script must FAIL the suite, not skip-all (exit 0).
+    assert SCRIPT.is_file(), f"missing implementation: {SCRIPT}"
     return _load()
 
 
@@ -498,22 +492,21 @@ def test_escalation_skips_failed_backend_when_on_ladder(wr):
     assert r["backend"] == "glm"
 
 
-def test_disabled_glm_profile(wr):
+def test_disabled_glm_on_ladder_that_contains_glm(wr):
+    """Disable glm on default profile where stateful ladder is glm→grok."""
     avail = {b: True for b in wr.BUILTIN_BACKENDS}
     r = wr.resolve_route(
-        settings=_settings("no-glm"),
+        settings=_settings("default", disabled=["glm"]),
         role="stateful",
         needs_write=True,
         available=avail,
     )
     assert r["backend"] == "grok"
-    assert any(s["backend"] == "glm" for s in r["skipped"]) or "glm" in (
-        wr.BUILTIN_PROFILES["no-glm"]["disabled"]
-    )
+    assert any(s["backend"] == "glm" and "disabled" in s["reason"] for s in r["skipped"])
 
 
 def test_probe_auth_filters_missing_key(wr):
-    """When farm's primary is unavailable, fall through or raise if ladder exhausted."""
+    """When farm's primary is unavailable, fall through to next ladder entry."""
     avail = {b: True for b in wr.BUILTIN_BACKENDS}
     avail["deep"] = False
     # default farm is ["deep", "glm"] → glm wins when deep auth fails
@@ -536,7 +529,10 @@ def test_probe_auth_exhausted_raises(wr):
             needs_write=True,
             available=avail,
         )
-    assert ei.value.payload["skipped"]
+    p = ei.value.payload
+    assert p["skipped"]
+    assert "available" in p
+    assert "ladder" in p
 
 
 def test_force_grok_review_readonly(wr):
@@ -553,41 +549,74 @@ def test_force_grok_review_readonly(wr):
     assert r["slash"] is False
 
 
-def test_codex_not_eligible_for_farm_write(wr):
+def test_codex_write_false_on_review_lens(wr):
+    """Exercise write=false (not just roles_only) under review_lens."""
     avail = {b: True for b in wr.BUILTIN_BACKENDS}
-    with pytest.raises(wr.NoBackendError):
+    with pytest.raises(wr.NoBackendError) as ei:
         wr.resolve_route(
-            settings=_settings(disabled=["deep", "glm", "grok", "sonnet", "opus", "fable"]),
-            role="farm",
+            settings=_settings(),
+            role="review_lens",
             needs_write=True,
             force="codex",
             available=avail,
         )
+    assert "write" in ei.value.payload.get("reason", "") or any(
+        "write" in s.get("reason", "") for s in ei.value.payload.get("skipped", [])
+    ) or "write" in str(ei.value.payload)
 
 
-def test_probe_deep_key(wr, monkeypatch):
+def test_needs_write_plus_readonly_is_usage_error(wr):
+    with pytest.raises(ValueError, match="needs_write.*readonly|readonly.*needs_write"):
+        wr.resolve_route(
+            settings=_settings(),
+            role="farm",
+            needs_write=True,
+            readonly=True,
+            available={b: True for b in wr.BUILTIN_BACKENDS},
+        )
+
+
+def test_builtin_profiles_match_template(wr):
+    """Dual-source lock: templates/settings.json profiles == BUILTIN_PROFILES."""
+    import json
+    from pathlib import Path
+    tmpl = Path(__file__).resolve().parents[1] / "templates" / "settings.json"
+    data = json.loads(tmpl.read_text(encoding="utf-8"))
+    assert data["meta_dev"]["workers"]["profiles"] == wr.BUILTIN_PROFILES
+
+
+def test_probe_deep_requires_claude_and_key(wr, monkeypatch):
     monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-test")
     monkeypatch.delenv("GLM_API_KEY", raising=False)
+    # key present but no claude CLI → deep unavailable
     avail = wr.probe_availability(
+        env=os.environ,
+        home=Path("/tmp/no-such-home-worker-resolve"),
+        which=lambda n: None,
+    )
+    assert avail["deep"] is False
+    assert avail["sonnet"] is False
+    avail2 = wr.probe_availability(
         env=os.environ,
         home=Path("/tmp/no-such-home-worker-resolve"),
         which=lambda n: "/usr/bin/claude" if n == "claude" else None,
     )
-    assert avail["deep"] is True
-    assert avail["glm"] is False
-    assert avail["grok"] is False
+    assert avail2["deep"] is True
+    assert avail2["glm"] is False
+    assert avail2["grok"] is False
 ```
 
 **Contract:** `resolve_route` **raises** `NoBackendError` (subclass of Exception) with a `.payload` dict containing `skipped` when nothing matches. Do not return an error dict.
 
-- [ ] **Step 2: Run tests — expect fail / skip**
+- [ ] **Step 2: Run tests — expect fail (not skip)**
 
 ```bash
 cd /mnt/d/Projects/360-HEXTILE/meta-dev
 python3 -m pytest plugins/meta-dev/tests/test_worker_resolve.py -q
+echo EXIT:$?
 ```
 
-Expected: FAIL (import/file missing) or skip, not silent pass.
+Expected: non-zero exit (assert missing `worker-resolve.py` or import failure). **All-skipped exit 0 is a plan bug — must not happen.**
 
 - [ ] **Step 3: Implement `worker-resolve.py`**
 
@@ -746,7 +775,7 @@ def load_merged_settings(project_root: str | Path, plugin_root: str | Path) -> d
                 "active_profile": "default",
                 "probe_auth": True,
                 "backends": {},
-                "profiles": BUILTIN_PROFILES,
+                "profiles": {k: dict(v) for k, v in BUILTIN_PROFILES.items()},
             }
         }
     }
@@ -760,8 +789,22 @@ def load_merged_settings(project_root: str | Path, plugin_root: str | Path) -> d
     profiles = workers.setdefault("profiles", {})
     for name, prof in BUILTIN_PROFILES.items():
         if name not in profiles:
-            profiles[name] = prof
+            profiles[name] = dict(prof)
+    # Validate like config-merge.py — malformed cascade must not silently route
+    schema_path = plugin_root / "schemas" / "settings.schema.json"
+    if schema_path.is_file():
+        try:
+            import jsonschema  # optional dependency, same as config-merge.py
+        except ImportError:
+            pass
+        else:
+            with open(schema_path, encoding="utf-8") as f:
+                schema = json.load(f)
+            jsonschema.validate(merged, schema)
     return merged
+
+
+POLICY_OVERRIDE_KEYS = frozenset({"enabled", "fanout", "cost", "concurrency_cap"})
 
 
 def probe_availability(
@@ -775,13 +818,11 @@ def probe_availability(
 
     claude_ok = which("claude") is not None
     grok_ok = which("grok") is not None and (home / ".grok" / "auth.json").is_file()
-    codex_ok = which("codex") is not None and (
-        (home / ".codex" / "auth.json").is_file()
-        or bool(env.get("OPENAI_API_KEY"))
-    )
+    # Match codex-headless-exec: auth.json is mandatory (wrapper exits 2 without it).
+    codex_ok = which("codex") is not None and (home / ".codex" / "auth.json").is_file()
     return {
-        "deep": bool(env.get("DEEPSEEK_API_KEY")),
-        "glm": bool(env.get("GLM_API_KEY")),
+        "deep": claude_ok and bool(env.get("DEEPSEEK_API_KEY")),
+        "glm": claude_ok and bool(env.get("GLM_API_KEY")),
         "sonnet": claude_ok,
         "opus": claude_ok,
         "fable": claude_ok,
@@ -791,15 +832,25 @@ def probe_availability(
 
 
 def _merged_backends(settings: dict) -> dict[str, dict[str, Any]]:
+    """Builtins are the only backends. Settings may override policy keys only."""
     out = {k: dict(v) for k, v in BUILTIN_BACKENDS.items()}
     overrides = (
         settings.get("meta_dev", {}).get("workers", {}).get("backends") or {}
     )
     for name, ov in overrides.items():
-        if name in out:
-            out[name] = deep_merge(out[name], ov)
-        else:
-            out[name] = dict(ov)
+        if name not in out:
+            raise ValueError(
+                f"unknown backend override {name!r}; only builtins allowed"
+            )
+        if not isinstance(ov, dict):
+            raise ValueError(f"backend override {name!r} must be an object")
+        bad = set(ov) - POLICY_OVERRIDE_KEYS
+        if bad:
+            raise ValueError(
+                f"backend {name!r} immutable fields cannot be overridden: {sorted(bad)}"
+            )
+        for k, v in ov.items():
+            out[name][k] = v
     return out
 
 
@@ -810,6 +861,29 @@ def _active_profile(settings: dict) -> tuple[str, dict[str, Any]]:
     if name not in profiles:
         raise ValueError(f"unknown workers.active_profile: {name!r}")
     return name, profiles[name]
+
+
+def _no_backend(
+    *,
+    error: str,
+    profile_name: str,
+    role: str,
+    ladder: list[str],
+    skipped: list[dict[str, str]],
+    avail: dict[str, bool],
+    reason: str | None = None,
+) -> NoBackendError:
+    payload: dict[str, Any] = {
+        "error": error,
+        "profile": profile_name,
+        "role": role,
+        "ladder": ladder,
+        "skipped": skipped,
+        "available": avail,
+    }
+    if reason is not None:
+        payload["reason"] = reason
+    return NoBackendError(payload)
 
 
 def resolve_route(
@@ -826,6 +900,8 @@ def resolve_route(
 ) -> dict[str, Any]:
     if role not in ROLES:
         raise ValueError(f"invalid role {role!r}; expected one of {ROLES}")
+    if needs_write and readonly:
+        raise ValueError("needs_write and readonly are mutually exclusive")
 
     workers = settings.get("meta_dev", {}).get("workers", {})
     if profile_override:
@@ -873,14 +949,14 @@ def resolve_route(
     if force:
         ok, reason = eligible(force, role)
         if not ok:
-            raise NoBackendError(
-                {
-                    "error": f"forced backend {force!r} not eligible",
-                    "reason": reason,
-                    "skipped": [{"backend": force, "reason": reason}],
-                    "profile": profile_name,
-                    "role": role,
-                }
+            raise _no_backend(
+                error=f"forced backend {force!r} not eligible",
+                profile_name=profile_name,
+                role=role,
+                ladder=[force],
+                skipped=[{"backend": force, "reason": reason}],
+                avail=avail,
+                reason=reason,
             )
         b = backends[force]
         return _result(
@@ -889,19 +965,26 @@ def resolve_route(
 
     ladder = list(profile.get(role) or [])
     if not ladder:
-        raise NoBackendError(
-            {
-                "error": f"profile {profile_name!r} has empty ladder for role {role!r}",
-                "skipped": [],
-                "profile": profile_name,
-                "role": role,
-            }
+        raise _no_backend(
+            error=f"profile {profile_name!r} has empty ladder for role {role!r}",
+            profile_name=profile_name,
+            role=role,
+            ladder=[],
+            skipped=[{"backend": "*", "reason": "empty ladder"}],
+            avail=avail,
         )
 
     # Escalation: if failed_backend is on the ladder, start after it
     start = 0
     if failed_backend and role == "escalation" and failed_backend in ladder:
         start = ladder.index(failed_backend) + 1
+        if start >= len(ladder):
+            skipped.append(
+                {
+                    "backend": failed_backend,
+                    "reason": "escalation exhausted after this backend",
+                }
+            )
 
     for name in ladder[start:]:
         ok, reason = eligible(name, role)
@@ -921,15 +1004,14 @@ def resolve_route(
             "first eligible on ladder",
         )
 
-    raise NoBackendError(
-        {
-            "error": "no eligible backend",
-            "skipped": skipped,
-            "ladder": ladder,
-            "profile": profile_name,
-            "role": role,
-            "available": avail,
-        }
+    raise _no_backend(
+        error="no eligible backend",
+        profile_name=profile_name,
+        role=role,
+        ladder=ladder,
+        skipped=skipped
+        or [{"backend": "*", "reason": "ladder exhausted with no candidates tried"}],
+        avail=avail,
     )
 
 
@@ -977,7 +1059,13 @@ def cmd_show(settings: dict, available: dict[str, bool]) -> dict:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="worker-resolve")
+    class _JsonArgParser(argparse.ArgumentParser):
+        def error(self, message: str) -> None:  # type: ignore[override]
+            json.dump({"error": message}, sys.stdout, indent=2)
+            sys.stdout.write("\n")
+            raise SystemExit(1)  # usage/config — never exit 2
+
+    parser = _JsonArgParser(prog="worker-resolve")
     parser.add_argument(
         "command", choices=["show", "probe", "route"], help="subcommand"
     )
@@ -997,7 +1085,10 @@ def main(argv: list[str] | None = None) -> int:
         "--plugin-root",
         default=os.environ.get("CLAUDE_PLUGIN_ROOT", "."),
     )
-    args = parser.parse_args(argv)
+    try:
+        args = parser.parse_args(argv)
+    except SystemExit as e:
+        return int(e.code) if isinstance(e.code, int) else 1
 
     try:
         settings = load_merged_settings(args.project_root, args.plugin_root)
@@ -1047,6 +1138,8 @@ if __name__ == "__main__":
     sys.exit(main())
 ```
 
+**Note on `concurrency_cap`:** returned in route JSON as an **advisory** for the conductor (serialize GLM; do not fan out past 3). This plan does **not** implement a shared account-wide semaphore — multi-session GLM contention remains operator/process discipline (same as today’s glm-execute docs). Do not claim automatic cross-process enforcement.
+
 Make executable:
 
 ```bash
@@ -1062,20 +1155,35 @@ python3 -m pytest plugins/meta-dev/tests/test_worker_resolve.py -q
 
 Expected: all PASS.
 
-- [ ] **Step 5: Smoke CLI**
+- [ ] **Step 5: Add CLI subprocess tests (credential-free)**
+
+Append to `test_worker_resolve.py` (or `test_worker_resolve_cli.py`) using `subprocess.run([sys.executable, str(SCRIPT), ...], capture_output=True, text=True)` with:
+- `TMPDIR` project root containing empty `plans/_dashboard/` 
+- `env` with keys stripped; `HOME` temp without auth files
+- Assert **stdout is one JSON object** for:
+  - `probe` → exit 0, keys include deep/glm/grok/codex
+  - `route --role farm --needs-write` with probe_auth true and no keys → exit **2**, payload has `skipped`+`available`
+  - invalid `--role not-a-role` → exit **1**, JSON `{"error":...}` (not bare argparse text)
+  - `route --profile no-such-profile --role farm` → exit **1**
+  - `route --needs-write --readonly --role farm` → exit **1**
+  - `route --profile budget --role farm --needs-write` with `probe_auth` forced false via a tiny settings.local.json → exit 0, backend deep or glm
+
+Do **not** require live DEEPSEEK/GLM/Grok credentials for these tests.
+
+- [ ] **Step 6: Smoke CLI (optional manual)**
 
 ```bash
 export CLAUDE_PLUGIN_ROOT=/mnt/d/Projects/360-HEXTILE/meta-dev/plugins/meta-dev
-cd /mnt/d/Projects/360-Hextile   # any project with or without workers key
+cd /mnt/d/Projects/360-Hextile
 python3 "$CLAUDE_PLUGIN_ROOT/scripts/worker-resolve.py" show
 python3 "$CLAUDE_PLUGIN_ROOT/scripts/worker-resolve.py" probe
 python3 "$CLAUDE_PLUGIN_ROOT/scripts/worker-resolve.py" route --role farm --needs-write
 python3 "$CLAUDE_PLUGIN_ROOT/scripts/worker-resolve.py" route --role stateful --needs-slash --needs-write
 ```
 
-Expected: JSON objects; `farm` → `deep` if key present; `stateful --needs-slash` never returns `grok`.
+Expected: JSON objects; `stateful --needs-slash` never returns `grok`.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
 cd /mnt/d/Projects/360-HEXTILE/meta-dev
@@ -1103,6 +1211,19 @@ EOF
 
 - [ ] **Step 1: Rewrite frontmatter description + argument-hint**
 
+**Full rewrite checklist (mandatory — every item must be updated or deleted):**
+1. YAML `description` + `argument-hint` (add `--grok|--opus|--fable|--profile`)
+2. Opening **Purpose** / **Wraps** paragraph (include grok-headless-exec)
+3. Entire **Core Bias** section → Worker routing (this plan)
+4. Conductor loop steps 2–5 (route via resolver; escalate via `--role escalation`)
+5. Multi-phase **Routing per phase** + **Fat-phase fan-out** (no hard-coded “GLM holds core”)
+6. Dashboard emit prose that only names DeepSeek/GLM/Codex
+7. **Step 1: Parse Arguments** force-flag list
+8. **Step 2: Plan the Run** per-chunk backend language
+9. **Step 3** dispatch bash (array + flag matrix)
+10. **Use it for any meta-dev work** waterfall bullets that say DeepSeek→GLM
+11. Final `grep` gate (Step 7 below) must pass before Task 3 commit
+
 Replace the YAML frontmatter with:
 
 ```yaml
@@ -1124,11 +1245,13 @@ Delete the hard-coded DeepSeek→GLM-only bias block. Insert this section (keep 
 
 ```bash
 # Once at Step 2 — print active profile + what's authenticated on this machine
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/worker-resolve.py show
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/worker-resolve.py show \
+  ${PROFILE:+--profile "$PROFILE"}
 
 # Per chunk — pick role + capability flags, get a dispatch plan
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/worker-resolve.py route \
   --role <farm|stateful|escalation|plan_write|review_lens> \
+  ${PROFILE:+--profile "$PROFILE"} \
   ${NEEDS_SLASH:+--needs-slash} \
   ${NEEDS_WRITE:+--needs-write} \
   ${READONLY:+--readonly} \
@@ -1164,7 +1287,7 @@ Exit `2` → no eligible backend; surface `skipped` + `available` to the user (u
 
 ### Fan-out
 
-Obey `fanout` from the route result: `high` (DeepSeek) may parallelize; `low` (Grok, GLM, Codex) → **serialize** — especially GLM (`concurrency_cap: 3` account-wide) and Grok (cost).
+Obey `fanout` from the route result: `high` (DeepSeek) may parallelize; `low` (Grok, GLM, Codex) → **serialize within this conductor**. `concurrency_cap` (e.g. GLM=3) is **advisory** — the operator/conductor must not oversubscribe; there is no cross-session lock in this plan.
 
 ### Force flags (CLI)
 
@@ -1215,17 +1338,14 @@ mapfile -t DISPATCH_ARR < <(python3 -c "import json,sys; print('\n'.join(json.lo
 cmd=( "${CLAUDE_PLUGIN_ROOT}/scripts/${SCRIPT}" )
 ((${#DISPATCH_ARR[@]})) && cmd+=( "${DISPATCH_ARR[@]}" )
 [[ -n "$RO_FLAG" ]] && cmd+=( "$RO_FLAG" )
-# Only forward flags the chosen script supports (claude-headless-exec: effort/repo/max-turns;
-# grok-headless-exec: repo/max-turns/readonly; codex-headless-exec: repo/readonly — no max-turns).
-if [[ "$SCRIPT" == "claude-headless-exec" ]]; then
-  [[ -n "${EFFORT:-}" ]] && cmd+=( --effort "$EFFORT" )
-  [[ -n "${REPO:-}" ]] && cmd+=( --repo "$REPO" )
-  [[ -n "${MAX_TURNS:-}" ]] && cmd+=( --max-turns "$MAX_TURNS" )
-elif [[ "$SCRIPT" == "grok-headless-exec" ]]; then
-  [[ -n "${REPO:-}" ]] && cmd+=( --repo "$REPO" )
-  [[ -n "${MAX_TURNS:-}" ]] && cmd+=( --max-turns "$MAX_TURNS" )
-elif [[ "$SCRIPT" == "codex-headless-exec" ]]; then
-  [[ -n "${REPO:-}" ]] && cmd+=( --repo "$REPO" )
+# Flag matrix matches real wrappers (all three accept --effort; codex has no --max-turns):
+#   claude-headless-exec: --effort --repo --max-turns --readonly
+#   grok-headless-exec:   --effort --repo --max-turns --readonly
+#   codex-headless-exec:  --effort --repo --readonly  (no --max-turns)
+[[ -n "${EFFORT:-}" ]] && cmd+=( --effort "$EFFORT" )
+[[ -n "${REPO:-}" ]] && cmd+=( --repo "$REPO" )
+if [[ "$SCRIPT" != "codex-headless-exec" && -n "${MAX_TURNS:-}" ]]; then
+  cmd+=( --max-turns "$MAX_TURNS" )
 fi
 cmd+=( -- "<self-contained chunk spec>" )
 "${cmd[@]}"
@@ -1244,7 +1364,25 @@ for multi-chunk jobs; use `/grok-execute` for a single forced Grok call.
 
 Remove or rewrite any sentence that says Grok is “not yet wired” into auto-execute / is only a manual higher-cost option outside the farm.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 7: Stale-doctrine grep gate (must pass before commit)**
+
+```bash
+cd /mnt/d/Projects/360-HEXTILE/meta-dev
+# These phrases must NOT remain as active routing doctrine in auto-execute.md
+# (comments explaining migration history are OK only if clearly historical).
+if grep -nE 'DeepSeek→GLM|DeepSeek > GLM|escalat(e|ing) DeepSeek|DEFAULT  → DeepSeek|either backend' \
+  plugins/meta-dev/commands/auto-execute.md | grep -v 'historical\|was:\|formerly'; then
+  echo "FAIL: stale DeepSeek→GLM doctrine remains"
+  exit 1
+fi
+# Force flags and wraps must mention grok
+grep -q '\-\-grok' plugins/meta-dev/commands/auto-execute.md
+grep -q 'worker-resolve' plugins/meta-dev/commands/auto-execute.md
+grep -q 'grok-headless-exec' plugins/meta-dev/commands/auto-execute.md
+echo "stale-doctrine gate OK"
+```
+
+- [ ] **Step 8: Commit**
 
 ```bash
 cd /mnt/d/Projects/360-HEXTILE/meta-dev
@@ -1329,11 +1467,11 @@ Or hand-edit `plans/_dashboard/settings.json`:
 
 | Backend | Probe |
 |---------|-------|
-| deep | `DEEPSEEK_API_KEY` |
-| glm | `GLM_API_KEY` |
+| deep | `claude` on PATH + `DEEPSEEK_API_KEY` |
+| glm | `claude` on PATH + `GLM_API_KEY` |
 | sonnet/opus/fable | `claude` on PATH |
 | grok | `grok` on PATH + `~/.grok/auth.json` |
-| codex | `codex` on PATH + (`~/.codex/auth.json` or `OPENAI_API_KEY`) |
+| codex | `codex` on PATH + `~/.codex/auth.json` (auth.json required by wrapper) |
 
 `probe_auth: false` trusts the ladder without checking (CI fixtures / offline dry-runs).
 
@@ -1506,9 +1644,10 @@ cd /mnt/d/Projects/360-Hextile
 python3 "$CLAUDE_PLUGIN_ROOT/scripts/worker-resolve.py" show
 # expect active_profile: grok-first
 python3 "$CLAUDE_PLUGIN_ROOT/scripts/worker-resolve.py" route --role stateful --needs-write
-# expect backend: grok if auth present, else glm/deep per probe
+# grok-first stateful ladder is ["grok","glm"] only:
+#   → grok if probe ok; else glm if probe ok; else exit 2 (never deep — deep not on this ladder)
 python3 "$CLAUDE_PLUGIN_ROOT/scripts/worker-resolve.py" route --role stateful --needs-slash --needs-write
-# expect never grok
+# expect never grok (slash filter); glm if available else exit 2
 ```
 
 - [ ] **Step 3: Commit in the 360-Hextile meta repo**
@@ -1544,9 +1683,11 @@ EOF
 **Placeholder scan:** none intentional.  
 **Type consistency:** `NoBackendError`, roles enum, JSON route shape consistent across T2 tests and T3 conductor docs.
 
-### Hardened by `/loop-gap` (this session)
+### Hardened by `/loop-gap` (pass 1) + Codex Sol (pass 2)
 
-Fixed before execute: broken `test_probe_auth_*` bodies; farm ladders with auth/slash-safe fallbacks; `resolve_route` probe default; `--profile` one-shot CLI; bash array dispatch (empty dispatch for grok); config-set layer args; plan_write+needs_slash note; dual-source profile sync rule; codex/grok flag matrix on dispatch.
+**Pass 1:** farm fallbacks; slash-safe grok-first farm; probe default; `--profile`; bash arrays; config-set layers; plan_write+needs_slash; dual-source note.
+
+**Pass 2 (Codex `gpt-5.6-sol` / high, readonly):** probes match real wrappers (claude+key; codex auth.json only); immutable backend capability fields; schema validate on merge; argparse JSON exit 1; Task 3 full rewrite checklist + grep gate; `--profile` on every route; effort for grok+codex; red-phase fail-not-skip; non-vacuous disabled/write tests; dual-source equality unit test; success-shape example; centralized NoBackendError payload; concurrency_cap advisory-only; needs_write⊥readonly; Task 6 ladder expectations.
 
 ---
 
