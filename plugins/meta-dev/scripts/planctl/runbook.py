@@ -443,12 +443,19 @@ def _member_label(path, kind, missing=False, offindex=None):
 
     if kind == "runbook":
         return "▸ **%s** _(nested runbook)_" % (folder or stem)
+
+    # An off-index member is a real file but NOT tracked in the index, so say
+    # which — otherwise "archived" and "live plan" render identically and the
+    # row silently overstates what the index knows. (The Status cell carries the
+    # emoji; this is the name-side half of the same signal.)
+    suffix = {"archived": " _(archived)_", "doc": " _(doc)_"}.get(offindex, "")
+
     if folder:
         # Folder is the identity; say what the file is only when it is NOT the
         # conventional master plan (those are interchangeable by definition).
         detail = "master plan" if base.startswith("00-master") else stem
-        return "**%s** · _%s_" % (folder, detail)
-    return "**%s**" % stem
+        return "**%s** · _%s_%s" % (folder, detail, suffix)
+    return "**%s**%s" % (stem, suffix)
 
 
 def _member_rows(conn, root, rb_rel):

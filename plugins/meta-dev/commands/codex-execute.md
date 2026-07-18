@@ -6,7 +6,11 @@ description: Run a bounded task with headless OpenAI Codex using task-aware GPT 
 
 # /codex-execute - GPT Task Runner
 
-Run a direct, bounded task through `codex exec`. Codex is its own agent harness: give it the task and success criteria directly. Do not ask it to invoke a meta-dev slash command.
+Run a direct, bounded task through `codex exec`.
+
+**The worker has the meta-dev framework.** Every dispatch injects a generated harness preamble: the framework root, the roster of all protocols (`skills/`) and procedures (`commands/`), the binding LAWS (planctl is the only write door; never hand-edit a checkbox; report failures honestly), and a Claude→Codex translation table. So the worker knows the harness exists and is told to use it — rather than freelancing its own process, which is what a bare Codex dispatch does.
+
+Codex cannot invoke a slash command, but it can **follow** any procedure file once handed the path. That is what `--skill` and `--command` do, and it keeps ONE source of truth: Codex reads the same markdown Claude Code does, from the source tree, with no install and no version-keyed cache to go stale.
 
 The default is `gpt-5.6-terra` with `medium` reasoning. Route based on the work, then state the selected tier and effort before dispatching. An explicit `--tier`, `--effort`, or `--model` from the user always wins.
 
@@ -22,6 +26,9 @@ Parse these flags:
 - `--model <model>`: exact Codex model ID; it overrides tier selection but not a supplied effort.
 - `--sandbox <mode>`: `read-only`, `workspace-write`, or `danger-full-access`.
 - `--timeout <ms>`: wall-clock limit; default is `7200000`.
+- `--skill <name>`: run a meta-dev **protocol** (`skills/<name>/SKILL.md`).
+- `--command <name>`: run a meta-dev **procedure** (`commands/<name>.md`).
+- `--no-framework`: omit the harness preamble. Only for trivial one-shots (a lookup, a probe) — never for real work.
 
 Everything else is the task. Ask for a task if none is provided.
 
@@ -42,6 +49,17 @@ Classify the task by scope, ambiguity, reversibility, and quality sensitivity. P
 
 **Availability is account-scoped — verified live 2026-07-18 on this ChatGPT account:** `gpt-5.3-codex-spark`, `gpt-5.6-luna|terra|sol` all answer. `gpt-5.6-codex` is **rejected** by the API (*"not supported when using Codex with a ChatGPT account"*), so it is deliberately absent from the ladder. Re-probe before adding any new model ID rather than assuming a newer number is available.
 
+**Routing meta-dev work specifically** (these map to the harness's own stages):
+
+| meta-dev work | Tier / effort | Dispatch as |
+| --- | --- | --- |
+| Bulk mechanical sweep across many plan files (stamp, rename, path fix) | `spark` / `low` | plain task |
+| Phase-gate or diff review | `sol` / `high` | `--skill code-review-protocol` |
+| Over-engineering / complexity audit | `terra` / `medium` | `--skill sniff-test` |
+| Executing a phase file task-by-task | `terra` / `medium` | `--command meta-execute` |
+| Plan gap-scan (HARDEN) | `sol` / `high` | `--command meta-loop-gap` |
+| Architecture, security, ambiguous root cause | `sol` / `xhigh` | plain task, `--readonly` |
+
 For a review, explanation, diagnosis, or plan, make no changes and select `--readonly` unless the user explicitly asks for implementation. For a change, build, or fix request, make only the in-scope local changes and run relevant non-destructive, path-scoped validation. Require confirmation for external writes, destructive operations, purchases, or a material scope expansion.
 
 ## Step 3: Confirm and Execute
@@ -60,6 +78,8 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/codex-headless-exec \
   --tier "$TIER" \
   --effort "$EFFORT" \
   ${MODEL:+--model "$MODEL"} \
+  ${SKILL:+--skill "$SKILL"} \
+  ${COMMAND:+--command "$COMMAND"} \
   ${READONLY:+--readonly} \
   ${SANDBOX:+--sandbox "$SANDBOX"} \
   ${TIMEOUT:+--timeout "$TIMEOUT"} \
