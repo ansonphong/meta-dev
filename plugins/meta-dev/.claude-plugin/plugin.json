@@ -17,6 +17,7 @@
     "changelog",
     "versioning"
   ],
+  "skills": "./skills/",
   "hooks": {
     "SessionStart": [
       {

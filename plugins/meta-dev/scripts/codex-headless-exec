@@ -87,6 +87,7 @@ while [[ $# -gt 0 ]]; do
         --output)   OUTPUT_FORMAT="$2"; shift 2 ;;
         --output-file) OUTPUT_FILE="$2"; shift 2 ;;
         --prompt-file) PROMPT_INPUT_FILE="$2"; shift 2 ;;
+        --skill)    SKILL_NAME="$2"; shift 2 ;;
         -h|--help)  show_help ;;
         --)         shift; PROMPT="$*"; break ;;
         *)          PROMPT="$*"; break ;;
@@ -96,6 +97,33 @@ done
 # Prompt resolution + fail-loud validation (positional OR --prompt-file).
 source "$SCRIPT_DIR/lib/read-prompt.sh"
 resolve_prompt "$PROMPT_INPUT_FILE" "codex-headless-exec"
+
+# ── --skill <name>: deterministic procedure dispatch ────────────────────────
+# Codex has NO commands surface (its manifest allowlist has no `commands` key)
+# and NO --skill flag: a skill is either chosen by model discretion from its
+# description, or named by absolute path in the prompt. Discretion is not
+# dispatch — for a worker we must know WHICH procedure ran. So resolve the
+# skill to its absolute SKILL.md and instruct Codex to follow it.
+#
+# This reads from the SOURCE tree, so it needs no plugin install and never goes
+# stale against a version-keyed cache. Skills are the portable unit; the
+# Claude-only slash command is just another entry point to the same file.
+if [[ -n "${SKILL_NAME:-}" ]]; then
+    SKILL_MD="$SCRIPT_DIR/../skills/${SKILL_NAME}/SKILL.md"
+    if [[ ! -f "$SKILL_MD" ]]; then
+        echo "[ERROR] --skill '$SKILL_NAME': no SKILL.md at $SKILL_MD" >&2
+        echo "        Available:" >&2
+        ls -1 "$SCRIPT_DIR/../skills" 2>/dev/null | sed 's/^/          /' >&2
+        exit 2
+    fi
+    SKILL_MD="$(cd "$(dirname "$SKILL_MD")" && pwd)/SKILL.md"
+    PROMPT="Read ${SKILL_MD} and follow it EXACTLY as your procedure.
+Resolve any relative references/ paths in it against $(dirname "$SKILL_MD").
+Ignore any instruction to invoke a slash command (/foo) — you have no such
+surface; perform the described work directly with your own shell/patch tools.
+
+Task: ${PROMPT}"
+fi
 
 # ── GPT routing ────────────────────────────────────────────────────────
 # Tiers select real model IDs. An explicit --model remains available for
