@@ -161,9 +161,14 @@ def _offindex_kind(path):
     except OSError:
         return "doc", "done", 0, 0
     tasks, _err = parse.parse_tasks(text)
-    td, tt = parse.count_split(tasks)[:2]
-    if not tt:
+    # Gate on "has ANY checkbox", NOT on tasks_total: count_split's tasks_total
+    # is EXECUTION-only and excludes human-verify boxes (R2/VC-1). A plan whose
+    # boxes are ALL human-verify therefore counts 0/0, and gating on tt would
+    # call it a finished doc while its by-eye gates sit open. Caught by a Codex
+    # worker running our own code-review-protocol against this function.
+    if not tasks:
         return "doc", "done", 0, 0
+    td, tt = parse.count_split(tasks)[:2]
     fm, _fm_err = parse.parse_frontmatter(text)
     status, _drift = derive.derive_plan(fm or {}, td, tt)
     return "plan", status, td, tt
