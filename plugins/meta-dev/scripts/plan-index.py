@@ -1,22 +1,12 @@
 #!/usr/bin/env python3
 """Live source-of-truth scanner for the unified plan-tracking system.
 
-Scan model (runbook-first):
-  * The set of TRACKED plans is the ordered `plans/...md` list under the
-    `## Sequence` section of plans/meta-runbook.md. Each is read individually —
-    frontmatter parsed, checkboxes counted IN THAT FILE ONLY (phase files are
-    never summed in).
-  * If meta-runbook.md is absent (pre-migration), fall back to discovering
-    allowlisted master/loose plan files (`*master-plan*.md`, `00-*.md`, loose
-    dated `plans/<repo>/YYYY-MM-DD-*.md`) that carry a frontmatter block, so the
-    scanner is still useful before the runbook exists.
+Thin shim delegating to planctl (the unified state layer). Kept for one version
+as a rollback path (design §7). parse_frontmatter(text) + count_checkboxes(text)
+keep their PURE-TEXT bodies — runbook-render.py imports them with raw strings,
+not paths. main() / build_entry() / walk_candidates() delegate to planctl reads.
 
-Runs from the PROJECT ROOT (same CWD assumption as dashboard-data.sh — run
-where plans/ lives). Emits ONE consolidated JSON object to stdout.
-
-Deterministic, no LLM, no third-party deps (hand-rolled frontmatter parser —
-never imports yaml). MUST NEVER crash on bad input: every per-file parse is
-wrapped, and a malformed plan becomes a flagged entry rather than an exception.
+Deterministic, no LLM, no third-party deps. MUST NEVER crash on bad input.
 """
 import argparse
 import glob
@@ -38,16 +28,9 @@ REQUIRED_KEYS = ("status", "stage", "repo")
 RUNBOOK = "plans/meta-runbook.md"
 
 CHECKBOX = re.compile(r"^\s*[-*]\s*\[([ xX])\]")
-# Markdown ## / ### headings — used for the per-section breakdown in --scope FILE
-# focus mode (group 2 is the heading text, trailing #'s and whitespace stripped).
 HEADING = re.compile(r"^(#{2,3})\s+(.+?)\s*#*\s*$")
 MILESTONE = re.compile(r"^=+\s*MILESTONE:\s*(.+?)\s*=+\s*$")
 DATED = re.compile(r"^\d{4}-\d{2}-\d{2}-.*\.md$")
-# Noise files that are NEVER standalone tracked plans (phase docs, designs,
-# handoffs, configs, campaign-runbook manuscripts). Excluded from the allowlist
-# regardless of frontmatter. Campaign runbooks (_runbook-YYYY-MM-DD.md, and the
-# legacy _exec-order-* form) are orchestration manuscripts that sequence member
-# plans and carry their own in-file dashboard — they are not themselves plans.
 NOISE = re.compile(
     r"^(phase-.*\.md|design\.md|handoff.*|.*-config\.md|\.loop-gap-config\.md"
     r"|_runbook-.*\.md|_exec-order-.*\.md)$",
@@ -262,8 +245,173 @@ def read_plan_file(rel):
             "progress": count_checkboxes(text)}
 
 
+# ── planctl delegation (lazy — import-time side-effect-free) ────────────────────
+def _derive_legacy_status(derived_status, override):
+    """Map a planctl derived_status to the legacy 4-word vocabulary the old
+    dashboard-render.py's GLYPH map understands (done/blocked/active/draft).
+    Mirror for one version alongside derived_status (W2A-3 rollback)."""
+    if override:
+        return "blocked"
+    if derived_status in ("done", "draft"):
+        return derived_status
+    if derived_status in ("executing", "ready", "needs-review"):
+        return "active"
+    if derived_status == "blocked":
+        return "blocked"
+    return "draft"
+
+
+def _planctl_data():
+    """Query the planctl DB for plan data. Returns (plans, runbooks, plan_to_runbook,
+    order, milestones, trailing, untracked, counts, focus, scope, scope_kind)
+    or None when planctl is unavailable (import error / no DB / stale schema)."""
+    try:
+        from planctl import db as _db, statedir as _statedir, sync as _sync
+    except ImportError:
+        return None
+
+    try:
+        conn = _db.open_db()
+    except Exception:
+        return None
+
+    try:
+        # Ensure freshness (cheap — ensure_fresh, not full sync)
+        root = _statedir.project_root()
+        try:
+            _sync.ensure_fresh(conn, root)
+        except Exception:
+            pass  # non-fatal: use whatever is indexed
+
+        # ── query plans ──────────────────────────────────────────────────────
+        plan_rows = conn.execute(
+            "SELECT p.path, p.repo, p.stage, p.override, p.note, p.why, "
+            "p.tasks_done, p.tasks_total, p.drift, p.derived_status, "
+            "f.parse_err FROM plans p JOIN files f ON f.path=p.path "
+            "WHERE f.kind='plan' ORDER BY p.path"
+        ).fetchall()
+
+        # ── query runbooks ───────────────────────────────────────────────────
+        rb_rows = conn.execute(
+            "SELECT p.path, p.repo, p.stage, p.override, p.note, p.why, "
+            "p.tasks_done, p.tasks_total, p.derived_status "
+            "FROM plans p JOIN files f ON f.path=p.path "
+            "WHERE f.kind='runbook' ORDER BY p.path"
+        ).fetchall()
+
+        # ── query edges ──────────────────────────────────────────────────────
+        edge_rows = conn.execute(
+            "SELECT src, dst, kind FROM edges ORDER BY src, dst"
+        ).fetchall()
+        edges_by_src = {}
+        for src, dst, kind in edge_rows:
+            edges_by_src.setdefault(src, {"depends": [], "blocks": []})
+            edges_by_src[src][kind].append(dst)
+
+        # ── query membership ─────────────────────────────────────────────────
+        member_rows = conn.execute(
+            "SELECT parent, child FROM membership ORDER BY parent, child"
+        ).fetchall()
+        plan_to_runbook = {}  # child → parent (first runbook a plan belongs to)
+        rb_members = {}       # parent → [child, ...]
+        for parent, child in member_rows:
+            plan_to_runbook.setdefault(child, parent)
+            rb_members.setdefault(parent, []).append(child)
+
+        # ── parse runbook sequence FIRST (order + milestones from meta-runbook.md)
+        order, milestones, trailing_paths = parse_runbook_sequence()
+        order_set = set(order)
+
+        # ── build all plan entries (from DB, before Sequence filtering) ─────
+        all_plans = []
+        for row in plan_rows:
+            (path, repo, stage, override, note, why,
+             td, tt, drift, dstatus, parse_err) = row
+            legacy = _derive_legacy_status(dstatus, override)
+            edges = edges_by_src.get(path, {"depends": [], "blocks": []})
+            pct_val = round(100 * td / tt) if tt else 0
+            all_plans.append({
+                "path": path,
+                "status": legacy,              # mirrored for old render (W2A-3)
+                "derived_status": dstatus,     # NEW — the new render reads this
+                "stage": stage or 0,
+                "repo": repo or "",
+                "why": why or "",
+                "depends": edges.get("depends", []),
+                "blocks": edges.get("blocks", []),
+                "progress": {"done": td or 0, "total": tt or 0, "pct": pct_val},
+                "archived": "/_archive/" in path,
+                "malformed": bool(parse_err),
+                "runbook_group": plan_to_runbook.get(path),  # NEW
+            })
+
+        plan_by_path = {p["path"]: p for p in all_plans}
+
+        # ── when Sequence order is available, restrict plans[] to exactly the
+        #    Sequence-ordered set; everything else becomes untracked ──────────
+        if order:
+            plans = [plan_by_path[p] for p in order if p in plan_by_path]
+            untracked = [p["path"] for p in all_plans if p["path"] not in order_set]
+        else:
+            plans = list(all_plans)
+            untracked = []
+
+        # ── build runbook rollups ────────────────────────────────────────────
+        runbooks = []
+        for row in rb_rows:
+            (path, repo, stage, override, note, why,
+             td, tt, dstatus) = row
+            try:
+                rollup = _sync.compute_rollup(conn, path) or {}
+            except Exception:
+                rollup = {}
+            runbooks.append({
+                "path": path,
+                "repo": repo or "",
+                "stage": stage or 0,
+                "derived_status": dstatus,
+                "members_done": rollup.get("members_done", 0),
+                "members_total": rollup.get("members_total", 0),
+                "tasks_done": rollup.get("tasks_done", td or 0),
+                "tasks_total": rollup.get("tasks_total", tt or 0),
+                "effective_stage": rollup.get("effective_stage"),
+                "now": rollup.get("now"),
+            })
+
+        # ── build counts (tracked = Sequence set size when order present) ─────
+        counts = {
+            "tracked": len(plans),
+            "malformed": sum(1 for p in plans if p.get("malformed")),
+            "archived": sum(1 for p in plans if p.get("archived")),
+        }
+
+        # Fill milestone + trailing done counts (done = derived_status == "done")
+        status_by_path = {p["path"]: p for p in plans}
+        for m in milestones:
+            paths = m.get("plan_paths", [])
+            m["plans_total"] = len(paths)
+            m["plans_done"] = sum(
+                1 for p in paths
+                if status_by_path.get(p, {}).get("derived_status") == "done"
+            )
+
+        trailing = {
+            "plans_total": len(trailing_paths),
+            "plans_done": sum(
+                1 for p in trailing_paths
+                if status_by_path.get(p, {}).get("derived_status") == "done"
+            ),
+            "plan_paths": trailing_paths,
+        }
+
+        return (plans, runbooks, order, milestones, trailing, untracked, counts)
+    finally:
+        conn.close()
+
+
 def build_entry(rel, info):
-    """Build a plan entry dict from a read_plan_file() info blob."""
+    """Build a plan entry dict from a read_plan_file() info blob (shim — kept
+    for backward compat; new code paths use _planctl_data directly)."""
     entry = {"path": rel, "archived": "/_archive/" in rel}
     if not info.get("ok_read"):
         entry["malformed"] = True
@@ -286,21 +434,34 @@ def build_entry(rel, info):
         "blocks": as_list(fm.get("blocks")),
         "progress": info.get("progress", {"done": 0, "total": 0, "pct": 0}),
     })
-    # Malformed iff a frontmatter block is present but required keys are
-    # missing (the file declares itself a plan but does so incompletely), OR a
-    # tracked Sequence path has no frontmatter at all (no metadata to track by).
     if missing:
         entry["malformed"] = True
     return entry
 
 
-# ── discovery walk ────────────────────────────────────────────────────────────
 def walk_candidates(exclude_dirs=EXCLUDE_DIRS):
     """Walk plans/, return allowlisted candidate paths (excluded dirs pruned).
 
-    The sensitive ledger and EXCLUDE_BY_NAME are pruned UNCONDITIONALLY — even
-    when exclude_dirs is empty (--all), those are never surfaced.
-    """
+    Delegates to planctl DB when available; falls back to filesystem walk."""
+    # Try planctl DB first
+    try:
+        from planctl import db as _db
+        conn = _db.open_db()
+        try:
+            rows = conn.execute(
+                "SELECT path FROM files WHERE kind='plan' ORDER BY path"
+            ).fetchall()
+            out = [r[0] for r in rows]
+            if exclude_dirs:
+                out = [p for p in out
+                       if not any(d in p.split("/") for d in exclude_dirs)]
+            return out
+        finally:
+            conn.close()
+    except Exception:
+        pass
+
+    # Fallback: filesystem walk (original behavior)
     out = []
     if not os.path.isdir("plans"):
         return out
@@ -412,15 +573,13 @@ def parse_args(argv):
 
 def main(argv=None):
     args = parse_args(sys.argv[1:] if argv is None else argv)
-    exclude_dirs = set() if args.all else EXCLUDE_DIRS
     scope = norm_path(args.scope) if args.scope else None
 
-    # --scope resolution. A FILE (or a restricted ledger path, even if absent)
-    # becomes single-plan focus mode; a DIR narrows the plans panel.
+    # --scope resolution
     focus = None
     scope_kind = None
     if scope and (scope == SENSITIVE or scope in EXCLUDE_BY_NAME):
-        focus = build_focus(scope)          # refused before any open()
+        focus = build_focus(scope)
         scope_kind = "file"
     elif scope and os.path.isfile(scope):
         focus = build_focus(scope)
@@ -430,97 +589,99 @@ def main(argv=None):
     elif scope:
         scope_kind = "missing"
 
-    runbook_present = os.path.isfile(RUNBOOK)
-    order, milestones, trailing_paths = parse_runbook_sequence()
-
-    # Discover allowlisted candidates that carry a frontmatter block (or are
-    # unreadable). These drive the fallback tracked set + the untracked list.
-    discovered = []  # (rel, info)
-    for rel in walk_candidates(exclude_dirs):
-        info = read_plan_file(rel)
-        if not info.get("ok_read"):
-            discovered.append((rel, info))
-            continue
-        if not info.get("has_fm"):
-            continue  # no frontmatter block -> a doc, not a plan
-        discovered.append((rel, info))
-    discovered_map = dict(discovered)
-
-    plans = []
-    status_by_path = {}
-
-    if runbook_present and order:
-        # Runbook is the source of truth: tracked = Sequence paths, read each.
-        for rel in order:
-            info = discovered_map.get(rel) or read_plan_file(rel)
-            entry = build_entry(rel, info)
-            plans.append(entry)
-            status_by_path[rel] = entry
+    # ── try planctl DB first ─────────────────────────────────────────────────
+    pdata = _planctl_data()
+    if pdata is not None:
+        plans, runbooks, order, milestones, trailing, untracked, counts = pdata
+        using_planctl = True
     else:
-        # Pre-migration fallback: tracked = discovered allowlisted plan files.
-        for rel, info in discovered:
-            entry = build_entry(rel, info)
-            plans.append(entry)
-            status_by_path[rel] = entry
+        # ── fallback: old filesystem walk ────────────────────────────────────
+        using_planctl = False
+        exclude_dirs = set() if args.all else EXCLUDE_DIRS
 
-    # untracked = allowlisted plan files with frontmatter NOT in the Sequence.
-    order_set = set(order)
-    untracked = [rel for rel, _ in discovered if rel not in order_set]
+        runbook_present = os.path.isfile(RUNBOOK)
+        order, milestones, trailing_paths = parse_runbook_sequence()
 
-    # ── scope DIR: narrow to plans under the dir, appending discovered-but-
-    # untracked plans living there so the area view is complete.
+        discovered = []
+        for rel in walk_candidates(exclude_dirs):
+            info = read_plan_file(rel)
+            if not info.get("ok_read"):
+                discovered.append((rel, info))
+                continue
+            if not info.get("has_fm"):
+                continue
+            discovered.append((rel, info))
+        discovered_map = dict(discovered)
+
+        plans = []
+        status_by_path = {}
+
+        if runbook_present and order:
+            for rel in order:
+                info = discovered_map.get(rel) or read_plan_file(rel)
+                entry = build_entry(rel, info)
+                plans.append(entry)
+                status_by_path[rel] = entry
+        else:
+            for rel, info in discovered:
+                entry = build_entry(rel, info)
+                plans.append(entry)
+                status_by_path[rel] = entry
+
+        order_set = set(order)
+        untracked = [rel for rel, _ in discovered if rel not in order_set]
+        runbooks = []
+
+        # Fill milestone + trailing done counts (done = status == "done")
+        def done_for(p):
+            e = status_by_path.get(p)
+            return bool(e) and e.get("status") == "done"
+
+        for m in milestones:
+            paths = m.get("plan_paths", [])
+            m["plans_total"] = len(paths)
+            m["plans_done"] = sum(1 for p in paths if done_for(p))
+
+        trailing = {
+            "plans_total": len(trailing_paths),
+            "plans_done": sum(1 for p in trailing_paths if done_for(p)),
+            "plan_paths": trailing_paths,
+        }
+
+        counts = {
+            "tracked": len(plans),
+            "malformed": sum(1 for p in plans if p.get("malformed")),
+            "archived": sum(1 for p in plans if p.get("archived")),
+        }
+
+    # ── scope DIR: narrow to plans under the dir ──────────────────────────────
     if scope_kind == "dir":
         prefix = scope + "/"
 
         def under(p):
+            if isinstance(p, dict):
+                return p.get("path", "") == scope or p.get("path", "").startswith(prefix)
             return p == scope or p.startswith(prefix)
 
-        have = set()
-        kept = []
-        for p in plans:
-            if under(p["path"]):
-                kept.append(p)
-                have.add(p["path"])
-        for rel in untracked:
-            if under(rel) and rel not in have:
-                kept.append(build_entry(rel, discovered_map[rel]))
-                have.add(rel)
-        plans = kept
+        plans = [p for p in plans if under(p)]
         untracked = [u for u in untracked if under(u)]
     elif scope_kind in ("file", "missing"):
-        # Focus / non-existent scope: the plans panel is not the subject.
         plans = []
         untracked = []
+        runbooks = []
 
-    # ── repo / status filters (on whatever plan set remains).
+    # ── repo / status filters ─────────────────────────────────────────────────
     if args.repo:
         plans = [p for p in plans if p.get("repo") == args.repo]
+        runbooks = [r for r in runbooks if r.get("repo") == args.repo]
     if args.status:
-        plans = [p for p in plans if p.get("status") == args.status]
+        if using_planctl:
+            # Filter by derived_status (the new vocabulary)
+            plans = [p for p in plans if p.get("derived_status") == args.status]
+        else:
+            plans = [p for p in plans if p.get("status") == args.status]
 
-    # Fill milestone + trailing done counts (done = status == "done"). Computed
-    # from the GLOBAL status map so milestone progress is scope-independent.
-    def done_for(p):
-        e = status_by_path.get(p)
-        return bool(e) and e.get("status") == "done"
-
-    for m in milestones:
-        paths = m.get("plan_paths", [])
-        m["plans_total"] = len(paths)
-        m["plans_done"] = sum(1 for p in paths if done_for(p))
-
-    trailing = {
-        "plans_total": len(trailing_paths),
-        "plans_done": sum(1 for p in trailing_paths if done_for(p)),
-        "plan_paths": trailing_paths,
-    }
-
-    counts = {
-        "tracked": len(plans),
-        "malformed": sum(1 for p in plans if p.get("malformed")),
-        "archived": sum(1 for p in plans if p.get("archived")),
-    }
-
+    # ── emit JSON ─────────────────────────────────────────────────────────────
     out = {
         "plans": plans,
         "order": order,
@@ -532,6 +693,10 @@ def main(argv=None):
         "scope": scope,
         "scope_kind": scope_kind,
     }
+    # NEW keys (phase 2a): runbook rollups for the render to group on
+    if runbooks:
+        out["runbooks"] = runbooks
+
     json.dump(out, sys.stdout, indent=2)
     sys.stdout.write("\n")
 

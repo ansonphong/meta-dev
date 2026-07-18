@@ -57,8 +57,8 @@ case "$COMMIT_COUNT" in ''|*[!0-9]*) COMMIT_COUNT=10 ;; esac
 
 # Plans: delegate ALL plan scanning to plan-index.py — the single source of
 # truth. It parses the runbook Sequence (display order), milestones, and each
-# plan's status/stage/progress from frontmatter + checkboxes. This script no
-# longer reads plans/ directly, nor STATUS.md / exec-order.md (both retired).
+# plan's status/stage/progress. Freshness comes from plan-index's internal
+# _sync.ensure_fresh — no separate sync step needed here.
 PLAN_INDEX_JSON="{}"
 if [ -f "$SCRIPT_DIR/plan-index.py" ]; then
     PI_ARGS=()
@@ -163,11 +163,15 @@ try:
 except: print('[]')
 " 2>/dev/null || echo "[]")
 
-# Output full JSON. The plan-index payload is passed via env (not string
-# interpolation) so unicode escapes / quotes in plan titles can't corrupt the
-# generated Python source. Reshape plan-index's plans into the fields the
-# renderer expects, ordered by the runbook Sequence first, extras after.
-export PLAN_INDEX_JSON SESSIONS SWEEP_JSON COMMITS_JSON ONLY NO COMMITS_FLAG
+# Output full JSON. The plan-index payload is written to a temp file (NOT
+# exported as an env var — the full index is >300KB with 500+ plans and
+# exceeds exec's ARG_MAX when combined with the system environment).
+# Reshape plan-index's plans into the fields the renderer expects, ordered
+# by the runbook Sequence first, extras after.
+_PI_TMP=$(mktemp -t dashboard-plan-index.XXXXXX.json)
+trap 'rm -f "$_PI_TMP"' EXIT
+echo "$PLAN_INDEX_JSON" > "$_PI_TMP"
+export _PI_TMP SESSIONS SWEEP_JSON COMMITS_JSON ONLY NO COMMITS_FLAG
 python3 -c "
 import json, os, re
 
@@ -179,7 +183,8 @@ def plan_name(path):
         nm = os.path.splitext(base)[0]
     return re.sub(r'^\d{4}-\d{2}-\d{2}-', '', nm)
 
-idx = json.loads(os.environ.get('PLAN_INDEX_JSON') or '{}')
+with open(os.environ.get('_PI_TMP', '/dev/null')) as f:
+    idx = json.load(f)
 order = idx.get('order', [])
 pos = {p: i for i, p in enumerate(order)}
 raw = list(idx.get('plans', []))
@@ -194,7 +199,9 @@ for p in raw:
         'repo': p.get('repo', ''),
         'tasks_done': prog.get('done', 0),
         'tasks_total': prog.get('total', 0),
-        'status': p.get('status') or 'draft',
+        'status': p.get('status') or 'draft',                 # legacy — old render rollback (W2A-3)
+        'derived_status': p.get('derived_status') or p.get('status') or 'draft',  # NEW — derived from planctl
+        'runbook_group': p.get('runbook_group'),               # NEW — campaign grouping
         'stage': p.get('stage', 0),
         'why': p.get('why', ''),
         'malformed': bool(p.get('malformed', False)),
@@ -221,6 +228,7 @@ else:
 data = {
     'project': '$GIT_REPO',
     'plans': plans,
+    'runbooks': idx.get('runbooks', []),             # NEW — campaign rollups for runbook-aware render
     'milestones': idx.get('milestones', []),
     'untracked': idx.get('untracked', []),
     'counts': idx.get('counts', {}),

@@ -3,121 +3,191 @@
 
 Display-width aware: emoji render as 2 terminal cells but count as 1 codepoint
 in len(), so every pad/truncate uses dwidth() instead of len() — that is what
-keeps the rounded box borders aligned (the reason earlier versions fell back to
-flat text).
+keeps the rounded box borders aligned. Shared render primitives imported from
+planctl.render_lib (one source for global + boxed views, 2a/2b).
+
+Phase 2a: runbook-aware — campaign members grouped under runbook headers with
+rollup bars; derived glyphs (⊙ needs-review, ▹ ready, ✓⚠ drift); override
+notes (‖ parked, ⌀ superseded).
 """
 import json
 import sys
-import unicodedata
 from datetime import datetime
 
-BOX_W = 74            # total visible width including both borders
-FIELD = BOX_W - 4     # text field inside "│ … │"
-BAR_W = 18
-
-# Status markers use geometric/symbol glyphs, NOT emoji. Emoji are spec-width-2
-# but many renderers (incl. inline markdown) draw them at 1 cell, which shifts
-# every box border. These glyphs are width-1-stable, so the rounded boxes stay
-# aligned everywhere. Real emoji are confined to the header line (outside boxes).
-# Keyed on the plan-index status enum: done / blocked / active / draft.
-GLYPH = {"done": "✓", "blocked": "!", "active": "→", "draft": "◦"}
-
-
-# ── display width ────────────────────────────────────────────────────────────
-def _cw(ch):
-    o = ord(ch)
-    if o == 0x200D or 0xFE00 <= o <= 0xFE0F:      # ZWJ + variation selectors
-        return 0
-    if unicodedata.combining(ch):
-        return 0
-    if 0x1F000 <= o <= 0x1FAFF:                   # true emoji / pictographs only
-        return 2
-    if unicodedata.east_asian_width(ch) in ("W", "F"):
-        return 2
-    return 1
-
-
-def dwidth(s):
-    return sum(_cw(c) for c in s)
-
-
-def fit(s, w):
-    """Pad or truncate s to EXACTLY w display cells."""
-    if dwidth(s) > w:
-        out, cur = "", 0
-        for ch in s:
-            cw = _cw(ch)
-            if cur + cw > w - 1:
-                break
-            out += ch
-            cur += cw
-        out += "…"
-        cur += 1
-        return out + " " * (w - cur)
-    return s + " " * (w - dwidth(s))
-
-
-def col(s, n):
-    return fit(s, n)
-
-
-# ── box primitives ───────────────────────────────────────────────────────────
-def _top():
-    return "╭" + "─" * (BOX_W - 2) + "╮"
-
-
-def _bottom():
-    return "╰" + "─" * (BOX_W - 2) + "╯"
+# ── shared render primitives (phase 2a — one source, 2a+2b) ──────────────────
+sys.path.insert(0, __import__('os').path.dirname(__import__('os').path.dirname(__import__('os').path.abspath(__file__))))
+try:
+    from planctl.render_lib import (
+        BOX_W, FIELD, BAR_W,
+        GLYPH, status_glyph,
+        dwidth, fit, col,
+        box_top, box_bottom, box_sep, box_row, box_rule, panel,
+        bar, pct,
+    )
+except ImportError:
+    # Fallback: inline copies (render_lib absent — pre-M0 or standalone)
+    import unicodedata
+    BOX_W = 74; FIELD = BOX_W - 4; BAR_W = 18
+    GLYPH = {"draft":"◦","ready":"▹","executing":"→","needs-review":"⊙",
+             "done":"✓","blocked":"!","parked":"‖","superseded":"⌀"}
+    LEGACY_GLYPH = {"done":"✓","blocked":"!","active":"→","draft":"◦"}
+    def status_glyph(status, drift=False):
+        if status == "done" and drift: return "✓⚠"
+        return GLYPH.get(status) or LEGACY_GLYPH.get(status, "?")
+    def _cw(ch):
+        o = ord(ch)
+        if o == 0x200D or 0xFE00 <= o <= 0xFE0F: return 0
+        if unicodedata.combining(ch): return 0
+        if 0x1F000 <= o <= 0x1FAFF: return 2
+        if unicodedata.east_asian_width(ch) in ("W","F"): return 2
+        return 1
+    def dwidth(s): return sum(_cw(c) for c in s)
+    def fit(s, w):
+        if dwidth(s) > w:
+            out, cur = "", 0
+            for ch in s:
+                cw = _cw(ch)
+                if cur + cw > w - 1: break
+                out += ch; cur += cw
+            out += "…"; cur += 1
+            return out + " " * (w - cur)
+        return s + " " * (w - dwidth(s))
+    def col(s, n): return fit(s, n)
+    def box_top(): return "╭" + "─" * (BOX_W - 2) + "╮"
+    def box_bottom(): return "╰" + "─" * (BOX_W - 2) + "╯"
+    def box_sep(): return "├" + "─" * (BOX_W - 2) + "┤"
+    def box_row(text=""): return "│ " + fit(text, FIELD) + " │"
+    def box_rule(): return "│ " + "─" * FIELD + " │"
+    def panel(title, body_lines):
+        out = [box_top(), box_row(title.upper()), box_sep()]
+        out += [box_row(line) for line in body_lines] if body_lines else [box_row("(empty)")]
+        out.append(box_bottom()); return out
+    def bar(d, t):
+        if t <= 0: return "░" * BAR_W
+        f = max(0, min(BAR_W, round(BAR_W * d / t)))
+        return "█" * f + "░" * (BAR_W - f)
+    def pct(d, t):
+        return f"{int(100 * d / t):>3d}%" if t > 0 else "  —"
 
 
-def _sep():
-    return "├" + "─" * (BOX_W - 2) + "┤"
+# ── plan name helper ──────────────────────────────────────────────────────────
+def _plan_name(path):
+    """Extract a short display name from a plan path."""
+    import re, os
+    base = os.path.basename(path)
+    if "master-plan" in base:
+        nm = os.path.basename(os.path.dirname(path))
+    else:
+        nm = os.path.splitext(base)[0]
+    return re.sub(r"^\d{4}-\d{2}-\d{2}-", "", nm)
 
 
-def _row(text=""):
-    return "│ " + fit(text, FIELD) + " │"
-
-
-def _rule():
-    return "│ " + "─" * FIELD + " │"
-
-
-def panel(title, body):
-    out = [_top(), _row(title.upper()), _sep()]
-    out += [_row(line) for line in body] if body else [_row("(empty)")]
-    out.append(_bottom())
-    return out
-
-
-def bar(d, t):
-    if t <= 0:
-        return "░" * BAR_W
-    f = max(0, min(BAR_W, round(BAR_W * d / t)))
-    return "█" * f + "░" * (BAR_W - f)
-
-
-def pct(d, t):
-    return f"{int(100 * d / t):>3d}%" if t > 0 else "  —"
+# ── runbook name helper ───────────────────────────────────────────────────────
+def _runbook_label(path):
+    """Short label from a runbook path (the parent dir or filename slug)."""
+    import re, os
+    parts = path.split("/")
+    if len(parts) >= 2:
+        parent = parts[-2]
+        if parent and parent != "plans":
+            name = parent.replace("-", " ").replace("_", " ")
+            name = re.sub(r"\s+", " ", name).strip()
+            if name:
+                return name.upper()
+    base = parts[-1]
+    name = re.sub(r"^_runbook-|\.md$", "", base, flags=re.IGNORECASE)
+    name = re.sub(r"^\d{4}-\d{2}-\d{2}-", "", name)
+    name = name.replace("-", " ").replace("_", " ")
+    name = re.sub(r"\s+", " ", name).strip()
+    return name.upper() if name else path
 
 
 # ── sections ─────────────────────────────────────────────────────────────────
-def plans_body(plans):
+def plans_body(plans, runbooks=None):
+    """Build the Plans panel body, runbook-aware.
+
+    Plans are grouped by ``runbook_group``. Ungrouped plans appear first,
+    then each runbook group with a header row + rollup bar. Plans show
+    derived glyphs + override notes + drift markers.
+    """
     if not plans:
         return ["(no active plans — run /meta-init)"]
-    body = []
-    td = tt = 0
+
+    # Index runbooks by path for quick lookup
+    rb_index = {}
+    if runbooks:
+        for r in runbooks:
+            rb_index[r.get("path", "")] = r
+
+    # Partition plans: grouped vs ungrouped
+    groups = {}   # runbook_path → [plan, ...]
+    ungrouped = []
     for p in plans:
+        rg = p.get("runbook_group")
+        if rg:
+            groups.setdefault(rg, []).append(p)
+        else:
+            ungrouped.append(p)
+
+    body = []
+    td = tt = 0  # grand totals
+
+    def _append_plan_row(p):
+        nonlocal td, tt
         d = p.get("tasks_done", 0)
         t = p.get("tasks_total", 0)
-        td += d
-        tt += t
-        st = p.get("status", "draft")
-        g = GLYPH.get(st, "◦")
+        td += d; tt += t
+
+        ds = p.get("derived_status") or p.get("status", "draft")
+        drift = p.get("drift", False)
+        g = status_glyph(ds, drift)
         stg = p.get("stage", 0)
-        stage_tag = f"  S{stg}·{st}"
-        body.append(f"{g} {col(p.get('name', '?'), 22)} {bar(d, t)} {d:>3}/{t:<3} {pct(d, t)}{stage_tag}")
+        stage_tag = f"  S{stg}·{ds}"
+        override = p.get("override")
+
+        if override:
+            note = p.get("note", "")
+            note_str = f" — {note}" if note else ""
+            stage_tag = f"  {override}{note_str}"
+
+        body.append(
+            f"{g} {col(p.get('name', '?'), 22)} {bar(d, t)} "
+            f"{d:>3}/{t:<3} {pct(d, t)}{stage_tag}"
+        )
+
+    def _append_runbook_header(rb_path, member_plans):
+        """Header row + rollup bar for a runbook group."""
+        rb = rb_index.get(rb_path, {})
+        md = rb.get("members_done", 0)
+        mt = rb.get("members_total", len(member_plans))
+        rd = rb.get("tasks_done", 0)
+        rt = rb.get("tasks_total", 0)
+        label = _runbook_label(rb_path)
+
+        body.append(box_rule())
+        body.append(
+            f"▸ {col(label, 22)} {bar(md, mt)} {md:>3}/{mt:<3} {pct(md, mt)}"
+            f"  · {rd}/{rt} tasks"
+        )
+
+    # ── Ungrouped plans first ──────────────────────────────────────────────
+    for p in ungrouped:
+        _append_plan_row(p)
+
+    # ── Runbook groups ─────────────────────────────────────────────────────
+    # Sort groups by runbook path for stable output
+    for rb_path in sorted(groups.keys()):
+        member_plans = groups[rb_path]
+        # Sort members within group by Sequence order (preserved from input)
+        _append_runbook_header(rb_path, member_plans)
+        for p in member_plans:
+            _append_plan_row(p)
+
+    # ── Grand total ────────────────────────────────────────────────────────
     body.append("─" * FIELD)
-    body.append(f"   {col('TOTAL', 22)} {bar(td, tt)} {td:>3}/{tt:<3} {pct(td, tt)}")
+    body.append(
+        f"   {col('TOTAL', 22)} {bar(td, tt)} {td:>3}/{tt:<3} {pct(td, tt)}"
+    )
     return body
 
 
@@ -224,7 +294,7 @@ def _plans_panel(data):
         extra.append(f"{len(untr)} untracked")
     if extra:
         title += " · " + " · ".join(extra)
-    return panel(title, plans_body(data.get("plans", [])))
+    return panel(title, plans_body(data.get("plans", []), data.get("runbooks", [])))
 
 
 def render_section(sec, data):
@@ -245,7 +315,7 @@ def render_section(sec, data):
     if sec == "sweep":
         sweep = data.get("sweep_log", [])
         if not sweep:
-            return None  # conditional — only renders when there is activity
+            return None
         return panel("Sweep Log · 24h", [f"✓ {s}" for s in sweep])
     if sec == "commits":
         commits = data.get("recent_commits", [])
@@ -288,15 +358,48 @@ def render(data):
     return "\n".join(L)
 
 
+# ── TEST_DATA (extended with runbook groups + derived_status) ────────────────
 TEST_DATA = {
     "project": "meta-dev",
     "plans": [
-        {"name": "auth-refactor", "tasks_done": 24, "tasks_total": 24, "status": "done", "stage": 6},
-        {"name": "payments-v2", "tasks_done": 18, "tasks_total": 28, "status": "active", "stage": 5},
-        {"name": "onboarding-flow", "tasks_done": 7, "tasks_total": 22, "status": "blocked", "stage": 4},
-        {"name": "search-v3", "tasks_done": 0, "tasks_total": 14, "status": "draft", "stage": 2},
+        {"name": "auth-refactor", "path": "plans/app/auth-refactor/00-master-plan.md",
+         "repo": "app", "tasks_done": 24, "tasks_total": 24,
+         "status": "done", "derived_status": "done", "stage": 6, "why": "",
+         "runbook_group": None, "malformed": False},
+        {"name": "payments-v2", "path": "plans/app/payments-v2/00-master-plan.md",
+         "repo": "app", "tasks_done": 18, "tasks_total": 28,
+         "status": "active", "derived_status": "executing", "stage": 5, "why": "",
+         "runbook_group": "plans/app/_runbook-commerce.md", "malformed": False},
+        {"name": "checkout-flow", "path": "plans/app/checkout-flow/00-master-plan.md",
+         "repo": "app", "tasks_done": 7, "tasks_total": 22,
+         "status": "blocked", "derived_status": "blocked", "stage": 4, "why": "",
+         "override": "blocked", "note": "waiting on payments-v2",
+         "runbook_group": "plans/app/_runbook-commerce.md", "malformed": False},
+        {"name": "onboarding-flow", "path": "plans/app/onboarding/00-master-plan.md",
+         "repo": "app", "tasks_done": 12, "tasks_total": 12,
+         "status": "active", "derived_status": "needs-review", "stage": 5, "why": "",
+         "runbook_group": None, "malformed": False},
+        {"name": "search-v3", "path": "plans/app/search-v3/00-master-plan.md",
+         "repo": "app", "tasks_done": 0, "tasks_total": 14,
+         "status": "draft", "derived_status": "draft", "stage": 2, "why": "",
+         "runbook_group": None, "malformed": False},
+        {"name": "drift-plan", "path": "plans/app/drift-plan/00-master-plan.md",
+         "repo": "app", "tasks_done": 3, "tasks_total": 5,
+         "status": "done", "derived_status": "done", "stage": 6, "why": "",
+         "drift": True, "runbook_group": None, "malformed": False},
+        {"name": "parked-feature", "path": "plans/app/parked/00-design.md",
+         "repo": "app", "tasks_done": 2, "tasks_total": 8,
+         "status": "blocked", "derived_status": "parked", "stage": 3, "why": "",
+         "override": "parked", "note": "indefinitely deferred",
+         "runbook_group": None, "malformed": False},
     ],
-    "counts": {"tracked": 4, "malformed": 0, "archived": 0},
+    "runbooks": [
+        {"path": "plans/app/_runbook-commerce.md", "repo": "app",
+         "members_done": 0, "members_total": 2, "tasks_done": 25, "tasks_total": 50,
+         "effective_stage": 4, "derived_status": "executing",
+         "now": "plans/app/payments-v2/00-master-plan.md"},
+    ],
+    "counts": {"tracked": 7, "malformed": 0, "archived": 0},
     "untracked": [],
     "milestones": [
         {"type": "PRODUCT LAUNCH", "label": "Public Beta", "version": "1.1.0-beta.1",
