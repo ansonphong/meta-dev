@@ -29,6 +29,16 @@ done
 [ -z "$SOURCE" ] && { echo "Usage: inbox-add.sh --source <source> --title <title> [flags]"; exit 1; }
 [ -z "$TITLE" ] && { echo "Missing --title"; exit 1; }
 
+# ── M4 gate: done-gate items are stateful per-(plan,cause), managed by
+# planctl reconcile via inbox.upsert(). Blind append-per-stop is the old
+# world — refuse it here. Non-done-gate items (manual advisories, overlord)
+# keep working unchanged.
+if [ "$SOURCE" = "done-gate" ]; then
+  echo "inbox-add: done-gate items are now managed by planctl reconcile (stateful per-(plan,cause))." >&2
+  echo "inbox-add: run 'bash plugins/meta-dev/scripts/planctl.sh reconcile' to update inbox state." >&2
+  exit 1
+fi
+
 INBOX_DIR="plans/_dashboard/inbox"
 mkdir -p "$INBOX_DIR"
 INBOX_FILE="$INBOX_DIR/inbox.jsonl"

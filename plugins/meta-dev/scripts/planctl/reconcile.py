@@ -32,7 +32,7 @@ import subprocess
 import sys
 import time
 
-from planctl import db, derive, events, parse, runbook, statedir, sync
+from planctl import db, derive, events, inbox, parse, runbook, statedir, sync
 
 
 
@@ -426,6 +426,84 @@ def _self_heal_runbooks(conn, root, already_rebuilt):
     return extra
 
 
+# ── stateful inbox management (M4 — per-plan, per-cause) ──────────────────────
+
+_DECISION_TO_CAUSE = {
+    "docs_missing": "docs_missing",
+    "review_missing": "review_missing",
+    "fail_open_boxes": "open_boxes",
+}
+
+_CAUSE_TITLE = {
+    "review_missing": "DONE-gate: {plan} — review missing",
+    "docs_missing": "DONE-gate: {plan} — docs/context evidence missing",
+    "open_boxes": "DONE-gate: {plan} — FAIL: open execution checkboxes claimed done",
+}
+
+_CAUSE_BODY = {
+    "review_missing": (
+        "All execution checkboxes are done but no review_verdict(pass) is on "
+        "record — NOT stamped DONE. Run (or record) the mandatory post-run "
+        "code review, then the gate will advance it on the next stop."
+    ),
+    "docs_missing": (
+        "Declared context:/docs: paths have no git commits since stage 5. "
+        "Commit docs evidence before the gate will advance to stage 6."
+    ),
+    "open_boxes": (
+        "Plan claims to be done (status=completed or derived=done) but has "
+        "open execution checkboxes. Fix the checkboxes or the frontmatter "
+        "status — the gate will NOT advance until all execution boxes are "
+        "checked AND a review verdict is on record."
+    ),
+}
+
+_CAUSE_SEVERITY = {
+    "review_missing": "medium",
+    "docs_missing": "medium",
+    "open_boxes": "high",
+}
+
+
+def _manage_inbox_items(root, scopes, decisions):
+    """After the decision matrix, upsert/resolve stateful inbox items.
+
+    For each plan in scope:
+      * Causes that are CURRENTLY active (from decisions) → upsert (bump
+        seen_count if already open, create if first time).
+      * Causes that are NOT in the current decisions → resolve (auto-resolve
+        when the condition clears — review landed, docs committed, boxes fixed).
+
+    The three causes are ``review_missing``, ``docs_missing``, ``open_boxes``.
+    ``done`` and ``noop`` decisions produce no inbox items (they map to zero
+    causes → all three are resolved if previously open).
+    """
+    # Build current-cause set per plan from the decisions list.
+    current_causes = {}  # plan_rel → set of cause strings
+    for d in decisions:
+        plan = d["plan"]
+        cause = _DECISION_TO_CAUSE.get(d["decision"])
+        if cause:
+            current_causes.setdefault(plan, set()).add(cause)
+
+    all_causes = ("review_missing", "docs_missing", "open_boxes")
+
+    for _scope_path, plan_rel in scopes:
+        active = current_causes.get(plan_rel, set())
+
+        for cause in all_causes:
+            if cause in active:
+                title = _CAUSE_TITLE[cause].format(plan=plan_rel)
+                body = _CAUSE_BODY[cause]
+                severity = _CAUSE_SEVERITY[cause]
+                inbox.upsert(root, plan_rel, cause, title, body, severity)
+            else:
+                inbox.resolve(
+                    root, plan_rel, cause,
+                    note="cause '%s' cleared (no longer active)" % cause,
+                )
+
+
 # ── the verb ───────────────────────────────────────────────────────────────────
 
 def cmd_reconcile(args):
@@ -619,6 +697,9 @@ def cmd_reconcile(args):
                         "decision": "noop",
                         "open_exec": open_exec,
                     })
+
+        # ── 3.5 Stateful inbox management (per-plan, per-cause) ─────────────
+        _manage_inbox_items(root, scopes, decisions)
 
         # ── 4. Render only DIRTY runbooks ───────────────────────────────────
         dirty = set(rebuilt_runbooks)
