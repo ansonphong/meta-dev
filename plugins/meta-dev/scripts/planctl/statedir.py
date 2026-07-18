@@ -49,7 +49,7 @@ def slugify(abs_path):
     """Sanitize an absolute path into a stable slug.
 
     ``re.sub(r'[/.]', '-', abs_path)`` — casefold-stable. Golden:
-    ``slugify('/mnt/d/Projects/360-Hextile')`` == ``-mnt-d-Projects-360-Hextile``
+    ``slugify('/home/u/Projects/My-App')`` == ``-home-u-Projects-My-App``
     (G0a-3/G-IMP4 — matches Claude Code's scheme).
     """
     return re.sub(r"[/.]", "-", abs_path)

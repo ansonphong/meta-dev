@@ -85,10 +85,17 @@ check_skills() {
       else
         FAIL=$((FAIL+1)); red "  FAIL skill: $skill_name"
       fi
-      # Check references exist
-      refs=$(grep -o 'references/[a-zA-Z0-9_/.-]*\.md' "$skill_file" 2>/dev/null || true)
+      # Check references exist. A ref may be skill-local ("references/x.md") OR
+      # cross-skill ("other-skill/references/x.md") — capture the optional
+      # leading skill segment so a cross-skill ref resolves against skills/,
+      # not against THIS skill dir (which reported false missing-reference
+      # failures for every cross-skill pointer).
+      refs=$(grep -oE '[a-zA-Z0-9_.-]*/?references/[a-zA-Z0-9_/.-]*\.md' "$skill_file" 2>/dev/null || true)
       for ref in $refs; do
-        ref_path="$skill_dir/$ref"
+        case "$ref" in
+          references/*) ref_path="$skill_dir/$ref" ;;
+          *)            ref_path="$PLUGIN_DIR/skills/$ref" ;;
+        esac
         if [ ! -f "$ref_path" ]; then
           FAIL=$((FAIL+1)); red "  FAIL: $skill_name — missing reference: $ref"
         fi

@@ -127,20 +127,48 @@ def mark_cycle_parse_errors(conn):
     return cyclic_paths
 
 
+def _offindex_kind(path):
+    """Classify a member that has NO index row: ``missing`` | ``archived`` | ``doc``.
+
+    ``path`` is project-root-relative. The disk is the authority here — sync's
+    allowlist decides what gets COUNTED, never what EXISTS.
+    """
+    if not os.path.isfile(os.path.join(statedir.project_root(), path)):
+        return "missing"
+    return "archived" if "/_archive/" in "/" + path else "doc"
+
+
 # ── child-result builders (derive.rollup's input shape) ──────────────────────
 def _child_result_from_plan(conn, path):
     """Build a ``derive.rollup`` child-result dict for a PLAN member.
 
-    A MISSING member (not on disk / not indexed) → not-done, no-stage
-    placeholder (render renders it loud as ``✗ MISSING``; doctor/ledger surface
-    it)."""
+    No index row is NOT the same as "gone" — sync deliberately excludes
+    ``_archive/`` (R7/W2C-3: archived is never parsed/derived/counted) and
+    ``_NOISE`` names like ``design.md``. Treating either as MISSING made the
+    runbook scream ``✗ MISSING`` at files sitting right there on disk. So when
+    there is no row, ASK THE DISK:
+
+      * absent            → ``missing``  — genuinely gone, render loud (debt)
+      * present, archived → ``archived`` — shipped + filed away; done by
+        doctrine (CLAUDE.md: archive only at 100% complete). ``ledger check``
+        separately nags to re-register it, which is the right place for that.
+      * present, noise    → ``doc``      — a document member (design.md etc.):
+        it has no checkboxes to roll up, so existing IS delivered.
+
+    Only the first is debt; the other two are done and must not be counted as
+    missing."""
     r = conn.execute(
         "SELECT stage,override,tasks_done,tasks_total,derived_status "
         "FROM plans WHERE path=?", (path,)).fetchone()
     if r is None:
-        return {"path": path, "kind": "plan", "done": False, "overridden": False,
+        kind = _offindex_kind(path)
+        if kind == "missing":
+            return {"path": path, "kind": "plan", "done": False, "overridden": False,
+                    "effective_stage": None, "tasks_done": 0, "tasks_total": 0,
+                    "now": None, "missing": True}
+        return {"path": path, "kind": "plan", "done": True, "overridden": False,
                 "effective_stage": None, "tasks_done": 0, "tasks_total": 0,
-                "now": None, "missing": True}
+                "now": None, "missing": False, "offindex": kind}
     stage, override, td, tt, dstatus = r
     done = dstatus == "done"
     overridden = bool(override)
@@ -342,14 +370,17 @@ def _bar(frac, width=4):
 _REPO_DIRS = ("app", "www", "gallery", "meta", "cam")
 
 
-def _member_label(path, kind, missing=False):
+def _member_label(path, kind, missing=False, offindex=None):
     """Human-tellable label for a member row.
 
     A campaign plan lives in its OWN folder as ``00-master-plan.md``, so the
     basename is identical for every such member — useless in a table. The
     FOLDER is the identity; the filename is the footnote. Standalone plans
     (a dated ``.md`` sitting directly in ``plans/<repo>/``) have no folder to
-    borrow, so their own stem is the identity."""
+    borrow, so their own stem is the identity.
+
+    ``offindex`` members (archived / plain docs) are real files, so they get a
+    real name with a quiet suffix — never the MISSING treatment."""
     if missing:
         return "%s MISSING `%s`" % (derive.EMOJI_MISSING, path)
     base = path.rsplit("/", 1)[-1]
@@ -394,8 +425,16 @@ def _member_rows(conn, root, rb_rel):
             "SELECT stage,override,derived_status,tasks_done,tasks_total,drift "
             "FROM plans WHERE path=?", (child,)).fetchone()
         if prow is None or not on_disk:
-            rows.append({"path": child, "kind": "plan", "missing": True,
-                         "stage": None, "status": None, "glyph": "✗",
+            # No index row is not "gone". sync excludes _archive/ and _NOISE
+            # names (design.md …) BY DESIGN, so only the disk can say MISSING.
+            offindex = None if not on_disk else (
+                "archived" if "/_archive/" in "/" + child else "doc")
+            rows.append({"path": child, "kind": "plan",
+                         "missing": offindex is None,
+                         "offindex": offindex,
+                         "stage": None,
+                         "status": "done" if offindex else None,
+                         "glyph": "✓" if offindex else "✗",
                          "drift": False,
                          "tasks_done": 0, "tasks_total": 0, "pct": 0,
                          "override": None})
@@ -460,7 +499,8 @@ def compose_block(rb_rel, rollup, member_rows):
     lines.append("| # | Plan | Stage | Progress | Status | → |")
     lines.append("|---|------|-------|----------|--------|---|")
     for i, row in enumerate(member_rows):
-        name = _member_label(row["path"], row["kind"], row.get("missing"))
+        name = _member_label(row["path"], row["kind"], row.get("missing"),
+                             row.get("offindex"))
         stage = row.get("stage")
         if stage is None:
             stage_cell = "—"
@@ -473,9 +513,16 @@ def compose_block(rb_rel, rollup, member_rows):
                                   row["pct"])
         else:
             prog = "—"
-        status_cell = ("%s MISSING" % derive.EMOJI_MISSING) if row.get("missing") else (
-            "%s %s" % (derive.emoji(row.get("status"), row.get("drift")),
-                       row.get("status") or "?"))
+        if row.get("missing"):
+            status_cell = "%s MISSING" % derive.EMOJI_MISSING
+        elif row.get("offindex") == "archived":
+            status_cell = "📦 archived"
+        elif row.get("offindex") == "doc":
+            status_cell = "📄 doc"
+        else:
+            status_cell = "%s %s" % (
+                derive.emoji(row.get("status"), row.get("drift")),
+                row.get("status") or "?")
         lines.append("| %d | %s | %s | %s | %s | [plan](%s) |" % (
             i + 1, name, stage_cell, prog, status_cell, row["path"]))
     lines.append("")
