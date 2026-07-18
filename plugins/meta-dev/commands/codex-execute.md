@@ -12,7 +12,7 @@ Run a direct, bounded task through `codex exec`.
 
 Codex cannot invoke a slash command, but it can **follow** any procedure file once handed the path. That is what `--skill` and `--command` do, and it keeps ONE source of truth: Codex reads the same markdown Claude Code does, from the source tree, with no install and no version-keyed cache to go stale.
 
-The default is `gpt-5.6-terra` with `medium` reasoning. Route based on the work, then state the selected tier and effort before dispatching. An explicit `--tier`, `--effort`, or `--model` from the user always wins.
+**Route Spark-first** (see Step 2 — Spark bills to a separate quota, so it is effectively free capacity). The runner's fallback default is `gpt-5.6-terra`/`medium`, but you should be *choosing* a tier every time, not inheriting that. State the selected tier and effort before dispatching. An explicit `--tier`, `--effort`, or `--model` from the user always wins.
 
 ## Step 1: Parse Arguments
 
@@ -29,10 +29,32 @@ Parse these flags:
 - `--skill <name>`: run a meta-dev **protocol** (`skills/<name>/SKILL.md`).
 - `--command <name>`: run a meta-dev **procedure** (`commands/<name>.md`).
 - `--no-framework`: omit the harness preamble. Only for trivial one-shots (a lookup, a probe) — never for real work.
+- `--multi-agent`: enable Codex `spawn_agent` (4 concurrent). **Parallelism only — spawned agents inherit the parent's model, so this does NOT save quota.** Under-development flag; opt-in deliberately.
+
+**You may dispatch `--tier spark` directly**, and should whenever the task is mechanical — it is a separate quota (Step 2). Every worker also receives instructions to delegate its own mechanical sub-work to spark via `codex exec -m gpt-5.3-codex-spark`, so a `sol` worker spends its expensive reasoning only on the judgment-bearing part.
 
 Everything else is the task. Ask for a task if none is provided.
 
 ## Step 2: Select Model and Effort
+
+### ⚡ SPARK FIRST — it bills to a SEPARATE quota
+
+**Default to `spark` unless the task genuinely needs more.** `codex /status` reports two independent weekly pools: one shared by `gpt-5.6-sol|terra|luna`, and a separate `GPT-5.3-Codex-Spark` pool. **Spark work does not consume the 5.6 budget at all.**
+
+So Spark is not merely "the fast tier" — it is *free capacity running alongside* your main budget. Every mechanical pass Spark absorbs is 5.6 quota preserved for the reasoning-heavy work only `sol` can do. Sending bulk work to `terra` "because it's the default" actively burns the scarce pool to do something the free pool handles fine.
+
+**Ask in this order:**
+1. **Can `spark` do this competently?** → use `spark`. It is coding-tuned and lowest-latency, so it beats `luna` on any bulk *code* pass.
+2. If not, does it need real reasoning (ambiguity, cross-module behaviour, security, architecture)? → `sol`.
+3. Only otherwise → `terra`.
+
+**Spark handles well:** bulk renames, boilerplate, mass lint/format fixes, syntax triage, mechanical multi-file edits, "which file defines X", grep-and-summarize sweeps, fan-out probes, single-file focused edits with clear acceptance criteria.
+
+**Spark is the wrong tool for:** ambiguous root cause, cross-module reasoning, security/reliability review, architecture, migrations, anything where being subtly wrong is expensive. Escalate those to `sol` without hesitation — that is what the preserved budget is *for*.
+
+When work decomposes, split it: let `spark` do the mechanical 80% and spend `sol` only on the judgment-bearing remainder.
+
+---
 
 Classify the task by scope, ambiguity, reversibility, and quality sensitivity. Pick the smallest tier and effort that can meet the acceptance criteria. Do not select a higher tier merely because the task has many words.
 
@@ -46,6 +68,8 @@ Classify the task by scope, ambiguity, reversibility, and quality sensitivity. P
 | Only the hardest quality-first work, after `xhigh` is demonstrably insufficient | `sol` / `max` | match the requested action |
 
 `gpt-5.6-sol` is the flagship model, `gpt-5.6-terra` is the balanced model, `gpt-5.6-luna` is optimized for efficient high-volume work, and `gpt-5.3-codex-spark` is the Codex-specialized speed model — coding-tuned and lowest-latency, so it beats `luna` on bulk mechanical *code* passes while `luna` remains the better generalist for prose/analysis. `high`, `xhigh`, and especially `max` increase latency and usage; use them only when the task's risk or evaluation criteria justify it. Never infer that `danger-full-access` is needed from tier or effort.
+
+**Spark bills to a SEPARATE weekly bucket.** `codex /status` reports two independent pools — one shared by `gpt-5.6-sol|terra|luna`, and a distinct `GPT-5.3-Codex-Spark Weekly limit`. Spark work therefore does not consume the 5.6 budget at all. Route to `spark` whenever it is competent for the task, not merely when latency matters: every mechanical pass it absorbs is 5.6 quota preserved for the reasoning-heavy work only `sol` can do. When choosing between `spark` and `luna` for a bulk *code* pass, prefer `spark` — it is coding-tuned AND free relative to the shared pool.
 
 **Availability is account-scoped — verified live 2026-07-18 on this ChatGPT account:** `gpt-5.3-codex-spark`, `gpt-5.6-luna|terra|sol` all answer. `gpt-5.6-codex` is **rejected** by the API (*"not supported when using Codex with a ChatGPT account"*), so it is deliberately absent from the ladder. Re-probe before adding any new model ID rather than assuming a newer number is available.
 

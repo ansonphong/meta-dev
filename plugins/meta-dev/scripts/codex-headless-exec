@@ -16,7 +16,17 @@
 #   --repo <name>            Resolve via topology config; unresolvable => abort.
 #                            Omit to run at the PROJECT ROOT (never the caller's cwd).
 #   --tier <tier>            GPT routing tier: spark | luna | terra | sol
-#                            (default: terra)
+#                            (fallback default: terra — but CHOOSE, don't inherit)
+#
+#   ⚡ SPARK FIRST — spark bills to a SEPARATE weekly quota from the shared
+#      gpt-5.6 sol/terra/luna pool (see `codex /status`, which lists the two
+#      independently). Spark work costs the 5.6 budget NOTHING, so every
+#      mechanical pass routed to spark preserves scarce budget for the
+#      reasoning-heavy work only sol can do. Default to spark whenever it is
+#      competent — bulk renames, boilerplate, lint/format sweeps, syntax
+#      triage, grep-and-summarize, single-file edits with clear criteria.
+#      Escalate to sol for ambiguity, cross-module behaviour, security, or
+#      architecture — that is what the preserved budget is for.
 #   --effort <level>         Reasoning: none | low | medium | high | xhigh | max
 #                            (default follows tier; terra = medium)
 #   --model <model>          Explicit model override; wins over --tier
@@ -91,6 +101,7 @@ while [[ $# -gt 0 ]]; do
         --command)  COMMAND_NAME="$2"; shift 2 ;;
         --no-framework) NO_FRAMEWORK=true; shift ;;
         --framework-full) FRAMEWORK_FULL=true; shift ;;
+        --multi-agent) MULTI_AGENT=true; shift ;;
         -h|--help)  show_help ;;
         --)         shift; PROMPT="$*"; break ;;
         *)          PROMPT="$*"; break ;;
@@ -303,6 +314,43 @@ ${PROMPT}"
     fi
 fi
 
+# ── Delegation preamble: how a worker buys cheap capacity ───────────────────
+# Two DIFFERENT mechanisms, and conflating them costs money:
+#
+#   spawn_agent (--multi-agent)  — same-model fan-out. Verified live: its params
+#       are task_name/message/fork_turns and there is NO model parameter, so a
+#       sol worker spawning agents gets MORE SOL AGENTS on the same scarce 5.6
+#       pool. Good for parallelism, useless for saving quota.
+#   shell out to `codex exec -m gpt-5.3-codex-spark` — a REAL spark subagent,
+#       billed to spark's SEPARATE weekly pool. This is the one that saves
+#       budget, and every worker already has a shell.
+#
+# So we tell the worker to delegate mechanical sub-work to spark by shell.
+DELEGATION_PREAMBLE="DELEGATING SUB-WORK (how to buy cheap capacity):
+Spark (gpt-5.3-codex-spark) bills to a SEPARATE weekly quota from the shared
+gpt-5.6 sol/terra/luna pool. Work you hand to spark costs the 5.6 budget
+NOTHING. When your task contains mechanical sub-work — bulk edits, boilerplate,
+lint/format sweeps, syntax triage, grep-and-summarize across many files —
+delegate it rather than doing it yourself:
+
+  codex exec -m gpt-5.3-codex-spark --sandbox read-only \\
+    -c model_reasoning_effort=low '<bounded sub-task with acceptance criteria>'
+
+Give each delegated sub-task explicit scope and success criteria, then VERIFY
+its output yourself — you remain accountable for the result. Spend your own
+(expensive) reasoning on the judgment-bearing part only.
+"
+if [[ "${MULTI_AGENT:-false}" == "true" ]]; then
+    DELEGATION_PREAMBLE="${DELEGATION_PREAMBLE}
+You also have spawn_agent (up to 4 concurrent, including you). NOTE: spawned
+agents INHERIT YOUR MODEL — there is no model parameter — so use spawn_agent
+only for genuine PARALLELISM, never to save quota. For cheap work, shell out to
+spark as above.
+"
+fi
+PROMPT="${DELEGATION_PREAMBLE}
+${PROMPT}"
+
 GIT_GUARD_PREAMBLE='HARD GIT RULES (binding — this worktree is SHARED with 4-20 concurrent agents):
 1. NEVER `git add -A`, `git add .`, or `git add <dir>/`. Stage ONLY explicit file paths you personally edited. A broad add sweeps up other agents in-flight work.
 2. NEVER `git stash`, `git stash pop`, or `git stash drop`. These are worktree-GLOBAL and rip out every peer agent uncommitted work at once.
@@ -320,11 +368,17 @@ PROMPT="${GIT_GUARD_PREAMBLE}${PROMPT}"
 # the 120-min cap. See lib/stall-watchdog.sh.
 source "$SCRIPT_DIR/lib/stall-watchdog.sh"
 stall_launch_worker() {
+    # multi_agent_v2 is flagged UNDER DEVELOPMENT by the CLI, so it is opt-in
+    # (--multi-agent) rather than always-on: an unstable feature must not be in
+    # the default path for production dispatches.
+    local _MA=()
+    [[ "${MULTI_AGENT:-false}" == "true" ]] && _MA=(--enable multi_agent_v2)
     printf '%s' "$PROMPT" | timeout "${TIMEOUT_S}s" codex exec \
         --json \
         -o "$LASTMSG_FILE" \
         -s "$SANDBOX" \
         --skip-git-repo-check \
+        "${_MA[@]}" \
         -m "$MODEL" \
         -c "model_reasoning_effort=\"$EFFORT\"" \
         - \
