@@ -132,6 +132,8 @@ def build_parser():
     sp = sub.add_parser("stage", help="set declared stage (name or 1-6) in frontmatter")
     sp.add_argument("plan", help="plan path (repo-relative or absolute)")
     sp.add_argument("stage", help="brainstorm|design|plan|harden|execute|review or 1-6")
+    sp.add_argument("--status", default=None,
+                    help="event-payload status (in_progress|completed|blocked) — event ONLY, never frontmatter")
     sp.add_argument("--json", action="store_true", help="emit {stage, stage_num}")
     sp.set_defaults(func=_dispatch_module("stage", "cmd_stage"))
 
@@ -171,12 +173,14 @@ def build_parser():
     sp.add_argument("plan", help="scope to claim (plan path or dir)")
     sp.add_argument("--pid", type=int, default=None, help="process id (default $PID)")
     sp.add_argument("--session", default=None, help="session id (default $CLAUDE_SESSION_ID)")
-    sp.add_argument("--ttl", type=int, default=None, help="claim TTL seconds (default 1800)")
+    sp.add_argument("--ttl", type=int, default=None, help="claim TTL seconds (default 7200)")
     sp.add_argument("--json", action="store_true", help="emit {scope, session, pid}")
     sp.set_defaults(func=_dispatch_module("claims", "cmd_claim"))
 
     sp = sub.add_parser("release", help="release a claimed scope")
     sp.add_argument("plan", help="scope to release")
+    sp.add_argument("--pid", type=int, default=None, help="process id (default $PID)")
+    sp.add_argument("--session", default=None, help="session id (default $CLAUDE_SESSION_ID)")
     sp.add_argument("--json", action="store_true", help="emit {scope, released}")
     sp.set_defaults(func=_dispatch_module("claims", "cmd_release"))
 

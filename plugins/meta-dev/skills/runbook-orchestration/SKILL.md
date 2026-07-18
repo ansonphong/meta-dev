@@ -43,11 +43,11 @@ now), the **wave strategy** (which members can run in parallel by file-footprint
    ≤3-sentence purpose header, the dashboard sentinels, and the `## DEPENDENCY ORDER` +
    `## GATES & INVARIANTS` contract. Do NOT author PACKAGE / LIVE STATUS / queued-summaries /
    CURRENT phase-tracker / HIGHER CONCEPT sections — the runbook is exactly 3 zones.
-5. Run `scripts/runbook-render.py <file>` to fill the computed PROGRESS block.
+5. Run `scripts/runbook-render.py <file>` (shim over `planctl runbook render` — the unified state layer) to fill the computed PROGRESS block.
 6. **Register in the META runbook** (see below).
 
 ### `(no verb) | status | refresh` — recompute the dashboard
-Run `scripts/runbook-render.py <runbook>` to refresh the PROGRESS block from members' **live**
+Run `scripts/runbook-render.py <runbook>` (shim over `planctl runbook render`) to refresh the PROGRESS block from members' **live**
 frontmatter + checkboxes. Pure read→compute→write-one-span; safe to run anytime. This is the
 "dashboard like /meta-dashboard" surface, scoped to the campaign.
 

@@ -38,6 +38,15 @@ meta-dev/
 4. **JSON-first config.** All customization in JSON with schemas.
 5. **References pattern.** Command/skill body <=30 lines. Detail in references/.
 
+## State Layer (`planctl`)
+
+Markdown plan files are the **git truth**; a disposable SQLite read-model at `~/.cache/meta-dev/<project-slug>/` (off-9p, ext4) makes every view fast. **`planctl` is the ONLY write door** — every state mutation (check/uncheck, stage, claim, review, runbook) routes through `python3 -m planctl <verb>` (via the `scripts/planctl.sh` bash shim). Legacy shells (`task-done.sh`, `stage-emit.sh`, `worker-claim.sh`) are now thin shims delegating to planctl.
+
+- Design doc: `plans/meta/meta-dev-unified-state/2026-07-17-unified-state-layer-design.md`
+- Master plan: `plans/meta/meta-dev-unified-state/00-master-plan.md`
+- Source: `plugins/meta-dev/scripts/planctl/` (python3 stdlib only)
+- Invocation: `bash plugins/meta-dev/scripts/planctl.sh <verb> [--json]`
+
 ## Testing
 
 ```bash

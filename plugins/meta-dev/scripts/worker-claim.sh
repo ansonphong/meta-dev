@@ -1,27 +1,6 @@
 #!/usr/bin/env bash
-set -euo pipefail
-# ============================================================================
-# worker-claim.sh — cross-session directory CLAIM REGISTRY (file-based, no daemon)
-#
-# The meta working tree is SHARED across concurrent Claude Code sessions. Two
-# sessions that dispatch headless plan-editing workers to the SAME directory
-# race the same files (last-writer-wins) and tangle each other's edits
-# (incident 2026-07-05). This registry COORDINATES instead of isolating: a
-# conductor claims a plan-directory scope BEFORE dispatching a worker there; an
-# overlapping live claim makes the second dispatch refuse/queue rather than
-# race. It is the no-worktree alternative to filesystem isolation.
-#
-# Mechanism (mirrors the _dashboard/*.jsonl pattern — append-only, shared tree):
-#   • plans/_dashboard/.worker-locks/<hash>/meta.json  — one persistent lock
-#     dir per claimed scope. `mkdir` is the ATOMIC mutex.
-#   • plans/_dashboard/.worker-locks/.registry.lock    — a short-lived GLOBAL
-#     mutex held only across the scan+create critical section, so two dispatches
-#     claiming OVERLAPPING-but-different scopes can't both pass the overlap scan
-#     (closes the check-then-claim TOCTOU that a per-scope lock alone leaves).
-#   • plans/_dashboard/worker-claims.jsonl             — append-only audit log.
-#
-# Stale claims auto-expire (dead pid OR ts older than TTL, default 30 min) so a
-# crashed session never permanently wedges a scope.
+# worker-claim.sh — cross-session work-claim registry.
+# SHIM: delegates claim/release to planctl claim/release (M3a — unified state layer).
 #
 # Usage:
 #   worker-claim.sh claim   <scope> [--pid N] [--session S] [--ttl SECS]
@@ -30,185 +9,122 @@ set -euo pipefail
 #   worker-claim.sh list
 #   worker-claim.sh sweep
 #
-# Exit codes:  claim → 0 granted / 3 blocked / 2 usage / 1 lock-timeout
+# Exit codes:  claim → 0 granted / 3 blocked / 2 usage / 1 lock-busy
 #              check → 0 free    / 3 blocked
-# Registry is anchored to the project root (repo-topology.py --root), so it is
-# the SAME registry no matter which directory you invoke this from. Override the
-# location with WORKER_CLAIM_DIR.
-# ============================================================================
+set -euo pipefail
 
 VERB="${1:-}"; shift 2>/dev/null || true
-SCOPE=""; PID_ARG=""; SESSION_ARG=""; TTL="${WORKER_CLAIM_TTL:-1800}"
+SCOPE=""; PID_ARG=""; SESSION_ARG=""; TTL="${WORKER_CLAIM_TTL:-7200}"
 while [ $# -gt 0 ]; do
   case "$1" in
-    --pid)     PID_ARG="${2:-}";     shift 2 ;;
-    --session) SESSION_ARG="${2:-}"; shift 2 ;;
-    --ttl)     TTL="${2:-1800}";     shift 2 ;;
+    --pid)     [ $# -ge 2 ] || { echo "worker-claim.sh: --pid requires a value" >&2; exit 2; }; PID_ARG="${2}";     shift 2 ;;
+    --session) [ $# -ge 2 ] || { echo "worker-claim.sh: --session requires a value" >&2; exit 2; }; SESSION_ARG="${2}"; shift 2 ;;
+    --ttl)     [ $# -ge 2 ] || { echo "worker-claim.sh: --ttl requires a value" >&2; exit 2; }; TTL="${2}";     shift 2 ;;
     *)         [ -z "$SCOPE" ] && SCOPE="$1"; shift ;;
   esac
 done
 
-# Registry location must be ABSOLUTE and cwd-independent. A relative
-# "plans/_dashboard" silently forks the registry per-cwd: a conductor that had
-# `cd`'d into a child repo would claim scopes in <child>/plans/_dashboard/,
-# never colliding with the real registry at the project root — so the
-# cross-session gate would report "free" for a scope another session held, which
-# is exactly the race it exists to prevent.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PCTL=(bash "$SCRIPT_DIR/planctl.sh")
+
+# WORKER_CLAIM_DIR is retired — claims now live in planctl's unified claims table
+# (off-9p, in state.db). Remapping state dir would fork the claims view between
+# wrapper invocations and plain planctl calls.
 if [ -n "${WORKER_CLAIM_DIR:-}" ]; then
-  DASH="$WORKER_CLAIM_DIR"
-else
-  ROOT="$(python3 "$SCRIPT_DIR/lib/repo-topology.py" --root 2>/dev/null || true)"
-  [ -n "$ROOT" ] || ROOT="$(pwd)"   # standalone: no topology config anywhere
-  DASH="$ROOT/plans/_dashboard"
+  echo "[worker-claim] WORKER_CLAIM_DIR is retired — claims live in planctl's claims table; ignoring." >&2
 fi
-LOCKS="$DASH/.worker-locks"
-LOG="$DASH/worker-claims.jsonl"
-GLOCK="$LOCKS/.registry.lock"
-mkdir -p "$LOCKS"
-
-now()   { date +%s; }
-host()  { hostname 2>/dev/null || echo "?"; }
-keyof() { printf '%s' "$1" | md5sum | cut -c1-16; }
-alive() { [ -n "${1:-}" ] && kill -0 "$1" 2>/dev/null; }
-
-# Normalize a scope path: collapse //, strip trailing / and leading ./
-norm() { printf '%s' "$1" | sed -e 's#//*#/#g' -e 's#/*$##' -e 's#^\./##'; }
-
-# Two scopes overlap if equal or one is a path-prefix (ancestor) of the other.
-overlaps() {
-  local a b; a="$(norm "$1")"; b="$(norm "$2")"
-  [ "$a" = "$b" ] && return 0
-  case "$b/" in "$a/"*) return 0 ;; esac
-  case "$a/" in "$b/"*) return 0 ;; esac
-  return 1
-}
-
-append_log() { # status scope pid session
-  printf '{"ts":%s,"status":%s,"scope":%s,"pid":%s,"session":%s,"host":%s}\n' \
-    "$(now)" \
-    "$(jq -nc --arg v "$1" '$v')" "$(jq -nc --arg v "$2" '$v')" \
-    "$(jq -nc --arg v "${3:-}" '$v')" "$(jq -nc --arg v "${4:-}" '$v')" \
-    "$(jq -nc --arg v "$(host)" '$v')" >> "$LOG"
-}
-
-# Global critical-section mutex — held only across scan+create (sub-second).
-acquire_glock() {
-  local i age
-  for i in $(seq 1 100); do
-    if mkdir "$GLOCK" 2>/dev/null; then
-      trap 'rmdir "$GLOCK" 2>/dev/null || true' EXIT
-      return 0
-    fi
-    if [ -d "$GLOCK" ]; then           # break a wedged lock (should be sub-second)
-      age=$(( $(now) - $(stat -c %Y "$GLOCK" 2>/dev/null || echo 0) ))
-      [ "$age" -gt 15 ] && rmdir "$GLOCK" 2>/dev/null || true
-    fi
-    sleep 0.1
-  done
-  return 1
-}
-
-# Remove expired claims (dead pid OR older than TTL). Call while holding GLOCK.
-sweep_stale() {
-  local d meta ts pid age sc
-  for d in "$LOCKS"/*/; do
-    [ -d "$d" ] || continue
-    meta="$d/meta.json"
-    [ -f "$meta" ] || { rmdir "$d" 2>/dev/null || true; continue; }
-    ts=$(jq -r '.ts // 0' "$meta" 2>/dev/null || echo 0)
-    pid=$(jq -r '.pid // ""' "$meta" 2>/dev/null || echo "")
-    age=$(( $(now) - ts ))
-    if [ "$age" -gt "$TTL" ] || { [ -n "$pid" ] && ! alive "$pid"; }; then
-      sc=$(jq -r '.scope // "?"' "$meta" 2>/dev/null || echo "?")
-      rm -f "$meta"; rmdir "$d" 2>/dev/null || true
-      append_log "expired" "$sc" "$pid" ""
-    fi
-  done
-}
-
-# Print meta.json path of the first LIVE claim overlapping $SCOPE, else return 1.
-find_overlap() {
-  local d meta sc
-  for d in "$LOCKS"/*/; do
-    [ -d "$d" ] || continue
-    meta="$d/meta.json"; [ -f "$meta" ] || continue
-    sc=$(jq -r '.scope // ""' "$meta" 2>/dev/null || echo "")
-    [ -n "$sc" ] || continue
-    if overlaps "$SCOPE" "$sc"; then printf '%s' "$meta"; return 0; fi
-  done
-  return 1
-}
 
 case "$VERB" in
   claim)
     [ -n "$SCOPE" ] || { echo "usage: worker-claim.sh claim <scope>" >&2; exit 2; }
-    acquire_glock || { echo "[worker-claim] could not acquire registry lock (busy)" >&2; exit 1; }
-    sweep_stale
-    if OV=$(find_overlap); then
-      osc=$(jq -r '.scope' "$OV"); opid=$(jq -r '.pid // "?"' "$OV")
-      ots=$(jq -r '.ts // 0' "$OV"); osess=$(jq -r '.session // "?"' "$OV")
-      {
-        echo "[worker-claim] BLOCKED: '$SCOPE' overlaps LIVE claim '$osc'"
-        echo "               (session=$osess pid=$opid age=$(( $(now) - ots ))s)."
-        echo "  Another session is editing that scope. Partition by directory, wait,"
-        echo "  or it auto-expires after ${TTL}s (or on that pid dying)."
-      } >&2
-      exit 3
-    fi
-    d="$LOCKS/$(keyof "$(norm "$SCOPE")")"
-    if ! mkdir "$d" 2>/dev/null; then
-      echo "[worker-claim] BLOCKED: '$SCOPE' was just claimed by a racing dispatch." >&2
-      exit 3
-    fi
-    pid="${PID_ARG:-$PPID}"; sess="${SESSION_ARG:-${CLAUDE_SESSION_ID:-$PPID}}"
-    jq -nc --argjson ts "$(now)" --arg scope "$(norm "$SCOPE")" \
-       --arg pid "$pid" --arg session "$sess" --arg host "$(host)" \
-       '{ts:$ts,scope:$scope,pid:$pid,session:$session,host:$host}' > "$d/meta.json"
-    append_log "claimed" "$(norm "$SCOPE")" "$pid" "$sess"
-    echo "[worker-claim] GRANTED: '$SCOPE' (pid=$pid session=$sess ttl=${TTL}s)"
-    exit 0
+    PCTL_ARGS=(claim "$SCOPE")
+    [ -n "$PID_ARG" ]     && PCTL_ARGS+=(--pid "$PID_ARG")
+    [ -n "$SESSION_ARG" ] && PCTL_ARGS+=(--session "$SESSION_ARG")
+    [ -n "$TTL" ]         && PCTL_ARGS+=(--ttl "$TTL")
+    exec "${PCTL[@]}" "${PCTL_ARGS[@]}"
     ;;
 
   release)
     [ -n "$SCOPE" ] || { echo "usage: worker-claim.sh release <scope>" >&2; exit 2; }
-    d="$LOCKS/$(keyof "$(norm "$SCOPE")")"
-    if [ -d "$d" ]; then
-      rm -f "$d/meta.json"; rmdir "$d" 2>/dev/null || true
-      append_log "released" "$(norm "$SCOPE")" "" ""
-      echo "[worker-claim] released '$SCOPE'"
-    else
-      echo "[worker-claim] no active claim for '$SCOPE'"
-    fi
-    exit 0
+    PCTL_ARGS=(release "$SCOPE")
+    [ -n "$PID_ARG" ]     && PCTL_ARGS+=(--pid "$PID_ARG")
+    [ -n "$SESSION_ARG" ] && PCTL_ARGS+=(--session "$SESSION_ARG")
+    exec "${PCTL[@]}" "${PCTL_ARGS[@]}"
     ;;
 
   check)
     [ -n "$SCOPE" ] || { echo "usage: worker-claim.sh check <scope>" >&2; exit 2; }
-    acquire_glock || true
-    sweep_stale
-    if OV=$(find_overlap); then
-      osc=$(jq -r '.scope' "$OV")
-      echo "BLOCKED: '$SCOPE' overlaps live claim '$osc'"; exit 3
+    # Capture planctl exit code BEFORE any pipe — pipe swallows it.
+    PCTL_OUT=""; PCTL_RC=0
+    PCTL_OUT=$("${PCTL[@]}" list --json 2>/dev/null) || PCTL_RC=$?
+    if [ "$PCTL_RC" -ne 0 ]; then
+      echo "[worker-claim] planctl list failed (rc=$PCTL_RC) — cannot determine claim status" >&2
+      exit 1
     fi
-    echo "FREE: '$SCOPE' is claimable"; exit 0
+    # Validate JSON — unparseable output is false success for a lock primitive.
+    if ! echo "$PCTL_OUT" | python3 -c "import json,sys; json.loads(sys.stdin.read() or '[]')" 2>/dev/null; then
+      echo "[worker-claim] planctl list returned unparseable output" >&2
+      exit 1
+    fi
+    LIVE="$PCTL_OUT"
+    NORM_SCOPE="$(printf '%s' "$SCOPE" | sed -e 's#//*#/#g' -e 's#/*$##' -e 's#^\./##')"
+    # Check prefix-overlap: our scope starts with a listed scope OR vice versa.
+    OVERLAP=$(python3 -c "
+import json, sys
+scopes = [e['scope'] for e in json.loads(sys.stdin.read())]
+s = sys.argv[1]
+for c in scopes:
+    if s == c or s.startswith(c + '/') or c.startswith(s + '/'):
+        print(c)
+        sys.exit(0)
+sys.exit(1)
+" "$NORM_SCOPE" <<< "$LIVE" 2>/dev/null) || true
+    if [ -n "${OVERLAP:-}" ]; then
+      echo "BLOCKED: '$SCOPE' overlaps live claim '$OVERLAP'"
+      exit 3
+    fi
+    echo "FREE: '$SCOPE' is claimable"
+    exit 0
     ;;
 
   list)
-    acquire_glock || true
-    sweep_stale
-    found=0
-    for d in "$LOCKS"/*/; do
-      [ -f "$d/meta.json" ] || continue
-      found=1; jq -c . "$d/meta.json"
-    done
-    [ "$found" = 0 ] && echo "(no active claims)"
+    # planctl list --json auto-sweeps stale claims. Field names .scope/.session/.pid
+    # are pinned (WC-4) — jq contract preserved for on-session-start.sh banner.
+    #
+    # SHAPE matters as much as field names: the legacy `list` emitted ONE JSON
+    # object PER LINE (jq -c per lock dir), or the literal "(no active claims)".
+    # on-session-start.sh pipes this output straight into
+    #   jq -r '"  - " + (.scope|tostring) + …'
+    # which CANNOT index a JSON ARRAY — emitting planctl's raw `[...]` here makes
+    # the banner (a) fire on EVERY session start (the string "[]" is non-empty, so
+    # the `grep -v '(no active claims)'` guard passes) and (b) print an EMPTY claim
+    # list when claims DO exist (jq errors, silenced by 2>/dev/null). Re-emit as
+    # newline-delimited objects so the banner keeps working until 3b rewires it.
+    LIVE=$("${PCTL[@]}" list --json) || exit $?
+    printf '%s' "$LIVE" | python3 -c '
+import json, sys
+try:
+    rows = json.loads(sys.stdin.read() or "[]")
+except ValueError:
+    rows = []
+if not rows:
+    print("(no active claims)")
+else:
+    for r in rows:
+        print(json.dumps(r))
+'
     exit 0
     ;;
 
   sweep)
-    acquire_glock || true
-    sweep_stale
+    # planctl list auto-sweeps stale claims before listing. Capture exit code
+    # BEFORE any pipe — planctl failure must never look like success.
+    PCTL_RC=0
+    "${PCTL[@]}" list --json >/dev/null 2>&1 || PCTL_RC=$?
+    if [ "$PCTL_RC" -ne 0 ]; then
+      echo "[worker-claim] planctl list failed (rc=$PCTL_RC) — sweep incomplete" >&2
+      exit 1
+    fi
     echo "[worker-claim] swept stale claims (ttl=${TTL}s)"
     exit 0
     ;;

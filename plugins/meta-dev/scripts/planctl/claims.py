@@ -32,7 +32,7 @@ import time
 
 from planctl import db, events, statedir, sync
 
-_TTL_DEFAULT = 1800
+_TTL_DEFAULT = 7200
 
 
 def _now():
@@ -82,33 +82,51 @@ def _overlaps(a, b):
 
 
 def _pid_alive(pid):
-    """True if ``pid`` is a running process (``kill -0``). No pid → assume alive."""
-    if not pid:
-        return True
+    """Tri-state liveness probe: True (alive), False (known-dead), None (unknown).
+
+    Only probes numeric pids > 0 via ``kill -0``. Falsy, non-numeric, or pids
+    <= 0 are unknown — ``os.kill(-1, 0)`` targets a process GROUP and must
+    never be used as a liveness probe."""
+    if pid is None or pid == '' or pid == 0:
+        return None
     try:
-        os.kill(int(pid), 0)
+        p = int(pid)
+    except (ValueError, TypeError):
+        return None
+    if p <= 0:
+        return None
+    try:
+        os.kill(p, 0)
         return True
-    except (OSError, ValueError):
+    except OSError:
         return False
+    except (ValueError, TypeError):
+        return None
 
 
 def _row_live(row):
     """``(scope,session,host,ts,pid,status,ttl)`` → True if a LIVE claim.
 
-    Live = ``status=='claimed'`` AND within TTL AND pid alive (W2D-7/R13)."""
+    Precedence ladder:
+    1. ``status != 'claimed'`` → NOT live.
+    2. pid is **known-dead** → NOT live (reaps crashed workers immediately).
+    3. pid is **known-alive** → LIVE (regardless of age — the F3 goal).
+    4. pid **unknown/absent** → TTL comparison (age > ttl ⇒ NOT live)."""
     _scope, _session, _host, ts, pid, status, ttl = row
     if status != "claimed":
         return False
+    alive = _pid_alive(pid)
+    if alive is False:
+        return False   # rung 2: known-dead — reap immediately
+    if alive is True:
+        return True    # rung 3: known-alive — claim is live regardless of age
+    # rung 4: unknown — fall back to TTL
     try:
         age = _now() - float(ts)
         ttl_s = int(ttl or _TTL_DEFAULT)
     except (TypeError, ValueError):
         return False
-    if age > ttl_s:
-        return False
-    if not _pid_alive(pid):
-        return False
-    return True
+    return age <= ttl_s
 
 
 def _sweep_stale(conn):
@@ -220,19 +238,39 @@ def cmd_claim(args):
 
 # ── release ──────────────────────────────────────────────────────────────────
 def cmd_release(args):
-    """``planctl release <plan>`` — drop the exact-scope claim (exit 0 either way)."""
+    """``planctl release <plan>`` — drop the exact-scope claim (exit 0 either way).
+
+    Ownership gate: only deletes a row whose pid OR session matches the releasing
+    process. A non-owner release is a no-op that reports it did not own the claim
+    (do NOT delete, do NOT crash)."""
     scope = _resolve_scope(args)
+    my_pid = getattr(args, "pid", None)
+    my_pid = my_pid if my_pid is not None else os.getppid()
+    my_session = getattr(args, "session", None) or \
+        os.environ.get("CLAUDE_SESSION_ID") or ("pid-%d" % os.getppid())
     conn = db.open_db()
     try:
         row = conn.execute(
-            "SELECT scope FROM claims WHERE scope=?", (scope,)).fetchone()
-        with conn:
-            conn.execute("DELETE FROM claims WHERE scope=?", (scope,))
-        released = row is not None
-        if released:
+            "SELECT scope,pid,session FROM claims WHERE scope=?", (scope,)).fetchone()
+        owned = False
+        if row is not None:
+            _rscope, rpid, rsession = row
+            if str(rpid) == str(my_pid) or (rsession and rsession == my_session):
+                owned = True
+            else:
+                owned = False
+        if owned:
+            with conn:
+                conn.execute("DELETE FROM claims WHERE scope=?", (scope,))
             events.append({"event": "release", "plan": scope,
                            "data": {"expired": False}})
-        _emit(args, {"scope": scope, "released": released})
+            _emit(args, {"scope": scope, "released": True})
+        else:
+            reason = "not_owner" if row is not None else "not_found"
+            sys_err("[planctl] release: no claim owned by this pid/session for "
+                    "scope %s — nothing released." % scope)
+            _emit(args, {"scope": scope, "released": False,
+                         "reason": reason})
         return 0
     finally:
         conn.close()

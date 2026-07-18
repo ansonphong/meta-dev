@@ -63,9 +63,10 @@ Inserted into hard rule #9 per the risk tag detected:
 
 ## Post-task verification gates (run by orchestrator, not subagent)
 
-**⛔ FIRST — flip the plan checkbox via `task-done` (BEFORE any other post-task action):**
+**⛔ FIRST — flip the plan checkbox via `planctl check` (BEFORE any other post-task action):**
 Once a task's verify returns green, the orchestrator (conductor) MUST immediately run
 `bash ${CLAUDE_PLUGIN_ROOT}/scripts/task-done.sh <plan> <handle-from-runtime-entry>`
+(shim over `planctl check` — atomic MD edit + index upsert + event append inside the unified state layer)
 then commit the flipped plan: `chore(plan): mark <handle> DONE`. This is step zero — do it before the inline checks below, before advancing, before anything else. Never hand-Edit `[ ]`→`[x]`. Worker never edits checkboxes. The checkbox is the user's visibility; unchecked = "nothing happened."
 
 **Instant inline (gate the commit — milliseconds):**

@@ -18,7 +18,7 @@ The runbook lives at `<plans_root>/meta-runbook.md`.
 
 ## Per-Stage Updates
 
-Stage transitions are written ONLY by `scripts/stage-emit.sh`, which patches the plan's YAML `stage:`/`status:` and appends a slim history event. `on-stage-prompt.sh` calls it on stage-command submit. Do NOT hand-edit `stage:` in a plan — let stage-emit own it.
+Stage transitions are written ONLY by `scripts/stage-emit.sh` (a shim over `planctl stage` — the unified state layer's single write door), which sets the plan's YAML `stage:` and appends a stage event to planctl's `events.jsonl`. `on-stage-prompt.sh` calls it on stage-command submit. Do NOT hand-edit `stage:` in a plan — let stage-emit/planctl own it.
 
 ## Post-Stage-6 Housekeeping (full)
 

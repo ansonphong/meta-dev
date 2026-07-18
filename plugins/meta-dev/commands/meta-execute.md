@@ -82,6 +82,7 @@ For EACH task-list item:
 
 ```bash
 bash ${CLAUDE_PLUGIN_ROOT}/scripts/task-done.sh <plan-path> <handle-from-the-runtime-entry>
+# ^-- shim over `planctl check` (the unified state layer's single write door).
 git add -- <plan-path> && git commit -m "chore(plan): mark <handle> DONE"
 ```
 
@@ -109,7 +110,7 @@ Record verdict in the report card. If the review returns substantive findings, f
 
 ```bash
 NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-bash ${CLAUDE_PLUGIN_ROOT}/scripts/state-append.sh "{\"event\":\"review_verdict\",\"plan\":\"<plan-path>\",\"verdict\":\"pass\",\"time\":\"$NOW\"}"
+bash ${CLAUDE_PLUGIN_ROOT}/scripts/planctl.sh review "<plan-path>" pass --by "conductor"
 ```
 
 On a substantive FAIL that halts the run, emit `\"verdict\":\"fail\"` (or omit). Either way the run NEVER silently ends half-stamped: the gate either advances it to DONE or surfaces what's outstanding to the inbox.

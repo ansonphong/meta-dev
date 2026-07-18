@@ -529,6 +529,7 @@ check_task_done() {
   local DONE="$PLUGIN_DIR/scripts/task-done.sh"
   local UNDONE="$PLUGIN_DIR/scripts/task-undone.sh"
   local STAMP="$PLUGIN_DIR/scripts/task-stamp.py"
+  local PCTL="$PLUGIN_DIR/scripts/planctl.sh"
   # Live-project event log (if present). Concurrent sessions may append to it;
   # hermetic proof is: our fixture plan path must NEVER appear in the live log.
   local LIVE_EVENTS=""
@@ -541,6 +542,7 @@ check_task_done() {
   local FIX
   FIX=$(mktemp -d)
   export META_DEV_STATE_DIR="$FIX/state"
+  export META_DEV_ROOT="$FIX"
   mkdir -p "$META_DEV_STATE_DIR"
   # Unique marker so we can prove live log never received our events
   local HERMETIC_MARK="hermetic-task-done-$RANDOM$RANDOM"
@@ -562,7 +564,6 @@ EOF
   if grep -qE '\[x\].*`T1\.1`' "$FIX/master.md" \
      && grep -qE '\[ \].*`T1\.2`' "$FIX/master.md"; then
     # other non-target open boxes unchanged besides T1.1
-    # strip T1.1 line and compare
     if python3 -c "
 b=open('$FIX/before.md').read().splitlines()
 a=open('$FIX/master.md').read().splitlines()
@@ -644,7 +645,8 @@ assert changed==1
     FAIL=$((FAIL+1)); red "  FAIL ambiguous bare plan (rc=$rc11)"; cat "$FIX/err11" || true
   fi
 
-  # T1.12 concurrent flip (forced contention loop)
+  # T1.12 concurrent flip — planctl uses mutation_lock (flock on state-dir sidecar,
+  # not a plan-adjacent .task-lock). Assert both flips land; NO .task-lock sidecar.
   cat > "$FIX/race.md" <<'EOF'
 ### Phase 1
 - [ ] `T1.1` A
@@ -667,62 +669,67 @@ EOF
       break
     fi
   done
-  if [ "$race_ok" -eq 1 ] && [ -f "$FIX/race.md.task-lock" ]; then
-    PASS=$((PASS+1)); green "  PASS concurrent flip both land (sidecar lock, 20× race)"
+  # planctl uses state-dir locks (off-9p), NOT plan-adjacent .task-lock sidecars.
+  if [ "$race_ok" -eq 1 ] && [ ! -f "$FIX/race.md.task-lock" ]; then
+    PASS=$((PASS+1)); green "  PASS concurrent flip both land (planctl lock, 20× race, no .task-lock)"
   else
-    FAIL=$((FAIL+1)); red "  FAIL concurrent flip lost update or missing sidecar"
+    FAIL=$((FAIL+1)); red "  FAIL concurrent flip lost update or .task-lock reappeared"
   fi
 
-  # T1.13 event only after success + hermetic sink
-  if grep -q '"event":"task_done"' "$META_DEV_STATE_DIR/state.events.jsonl" 2>/dev/null \
-     && grep -q '"handle":"T1.1"' "$META_DEV_STATE_DIR/state.events.jsonl"; then
-    PASS=$((PASS+1)); green "  PASS task_done event appended under META_DEV_STATE_DIR"
+  # T1.13 check event in planctl events.jsonl (NOT legacy state.events.jsonl)
+  if grep -q '"event":"check"' "$META_DEV_STATE_DIR/events.jsonl" 2>/dev/null \
+     && grep -q '"T1.1"' "$META_DEV_STATE_DIR/events.jsonl"; then
+    PASS=$((PASS+1)); green "  PASS check event in planctl events.jsonl under META_DEV_STATE_DIR"
   else
-    FAIL=$((FAIL+1)); red "  FAIL task_done event missing in fixture state dir"
+    FAIL=$((FAIL+1)); red "  FAIL check event missing in planctl events.jsonl"
   fi
   # refuse → no extra event for unknown
   local ev_before
-  ev_before=$(wc -l < "$META_DEV_STATE_DIR/state.events.jsonl" || echo 0)
+  ev_before=$(wc -l < "$META_DEV_STATE_DIR/events.jsonl" || echo 0)
   set +e
   bash "$DONE" "$FIX/master.md" T_NOPE >/dev/null 2>&1
   set -e
   local ev_after
-  ev_after=$(wc -l < "$META_DEV_STATE_DIR/state.events.jsonl" || echo 0)
+  ev_after=$(wc -l < "$META_DEV_STATE_DIR/events.jsonl" || echo 0)
   if [ "$ev_after" -eq "$ev_before" ]; then
     PASS=$((PASS+1)); green "  PASS no event when flip refused/failed"
   else
     FAIL=$((FAIL+1)); red "  FAIL event appended on failed flip"
   fi
 
-  # undone round-trip
+  # undone round-trip — planctl writes "uncheck" event to events.jsonl
   bash "$UNDONE" "$FIX/master.md" T1.1 >/dev/null 2>&1 || true
   if grep -qE '\[ \].*`T1\.1`' "$FIX/master.md" \
-     && grep -q '"event":"task_undone"' "$META_DEV_STATE_DIR/state.events.jsonl"; then
-    PASS=$((PASS+1)); green "  PASS task-undone reopens + appends task_undone"
+     && grep -q '"event":"uncheck"' "$META_DEV_STATE_DIR/events.jsonl"; then
+    PASS=$((PASS+1)); green "  PASS task-undone reopens + uncheck event in planctl events.jsonl"
   else
     FAIL=$((FAIL+1)); red "  FAIL task-undone"
   fi
 
-  # T1.15 hermetic: fixture events landed; live log must not contain our marker path
+  # T1.15 hermetic: fixture events landed in planctl events.jsonl; live legacy log
+  # must not contain our marker path. (task_done events no longer land in legacy log
+  # — M3a writer swap; planctl writes to its own off-9p events.jsonl.)
   if [ -n "$LIVE_EVENTS" ] && [ -f "$LIVE_EVENTS" ]; then
     if grep -qF "$FIX/master.md" "$LIVE_EVENTS" 2>/dev/null \
        || grep -qF "$HERMETIC_MARK" "$LIVE_EVENTS" 2>/dev/null; then
       FAIL=$((FAIL+1)); red "  FAIL live state.events.jsonl received hermetic fixture events"
     else
-      PASS=$((PASS+1)); green "  PASS live state.events.jsonl free of fixture events (META_DEV_STATE_DIR hermetic)"
+      PASS=$((PASS+1)); green "  PASS live state.events.jsonl free of fixture events (planctl events.jsonl hermetic)"
     fi
   else
     PASS=$((PASS+1)); green "  PASS (skip live-events check — no live log in this tree)"
   fi
 
-  # META_DEV_STATE_DIR present in state-append.sh
-  if grep -q 'META_DEV_STATE_DIR' "$PLUGIN_DIR/scripts/state-append.sh"; then
-    PASS=$((PASS+1)); green "  PASS state-append.sh honors META_DEV_STATE_DIR"
+  # planctl events.jsonl has our check/uncheck events (not legacy state.events.jsonl)
+  if [ -f "$META_DEV_STATE_DIR/events.jsonl" ] \
+     && grep -q '"event":"check"' "$META_DEV_STATE_DIR/events.jsonl"; then
+    PASS=$((PASS+1)); green "  PASS planctl events.jsonl present + contains check events"
   else
-    FAIL=$((FAIL+1)); red "  FAIL META_DEV_STATE_DIR missing from state-append.sh"
+    FAIL=$((FAIL+1)); red "  FAIL planctl events.jsonl missing or no check events"
   fi
 
   unset META_DEV_STATE_DIR
+  unset META_DEV_ROOT
   rm -rf "$FIX"
 }
 

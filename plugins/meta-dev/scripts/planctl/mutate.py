@@ -33,6 +33,7 @@ import json
 import os
 import re
 import subprocess
+import sys
 import tempfile
 
 from planctl import events, parse, statedir, sync
@@ -174,7 +175,10 @@ def _run_verify(cmd, cwd):
 
 # ── the verbs ────────────────────────────────────────────────────────────────
 def _emit(args, payload):
-    """Print the verb result — JSON when ``--json``, else a human summary."""
+    """Print the verb result — JSON when ``--json``, else a human summary.
+
+    Successful summaries go to stdout; skipped/refused/error diagnostics go to
+    stderr so callers doing ``>/dev/null`` still see the diagnostic."""
     if getattr(args, "json", False):
         # Drop the internal ``_ev`` hint from the JSON payload.
         out = {k: v for k, v in payload.items() if k != "_ev"}
@@ -189,9 +193,9 @@ def _emit(args, payload):
     else:
         print("planctl %s: no boxes flipped" % ev)
     for s in skipped:
-        print("  skipped %s (%s)" % (s.get("tid"), s.get("reason")))
+        sys.stderr.write("  skipped %s (%s)\n" % (s.get("tid"), s.get("reason")))
     if verified is False:
-        print("  --verify failed: aborted all flips")
+        sys.stderr.write("  --verify failed: aborted all flips\n")
 
 
 def _resolve_plan_arg(plan_arg):
@@ -259,7 +263,8 @@ def cmd_check(args, to_checked=True):
                 if t is None:
                     skipped.append({"tid": q, "reason": "unresolved"})
                     continue
-                if t.human_verify and not getattr(args, "human", False) \
+                if to_checked and t.human_verify \
+                        and not getattr(args, "human", False) \
                         and not getattr(args, "force", False):
                     skipped.append({"tid": q, "reason": "human_verify"})
                     continue

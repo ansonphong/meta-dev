@@ -46,7 +46,7 @@ _TAG_RE = re.compile(r"(by\s+eye|by\s+hand|gpu|manual)", re.I)
 _SEC_RE = re.compile(r"(acceptance|by\s+eye|by\s+hand|gpu|manual|human[-\s]*verify)", re.I)
 
 # Markdown heading (1-6 #'s) — nearest-preceding section for a box.
-_HEADING_RE = re.compile(r"^(#{1,6})\s+(.+?)\s*#*\s*$")
+_HEADING_RE = re.compile(r"^(?:[ \t]{0,3})(#{1,6})\s+(.+?)\s*#*\s*$")
 
 # Override canon values (design §3.2 closed vocabulary).
 _OVERRIDE_CANON = ("blocked", "parked", "superseded")

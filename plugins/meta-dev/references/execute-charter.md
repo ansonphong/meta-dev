@@ -89,7 +89,7 @@ The single biggest execution cost is slow test cycles. Measured on a real run: `
 - **🚫🚫 `git stash` / `stash pop` / `stash drop` — ABSOLUTELY BANNED, NO EXCEPTIONS.** Stash is worktree-**GLOBAL**: on a tree with 20 live agents it rips out *every peer's* in-flight work at once, and `pop` can conflict and silently lose it. It is an invisible side-channel with no history. **COMMIT INSTEAD. ALWAYS.** There is no situation where stash is the answer. (Workers are mechanically denied it anyway.)
 - **Never `discard` / `git checkout <file>` / `git restore <file>`** a peer's uncommitted work. Commit preserves it; these destroy it.
 - **Escalate to the user ONLY for genuine ambiguity in WHAT they want — never for tree state.** Tree state is YOUR problem, and the answer is always the same: **commit it and charge on.**
-- **Claim is an optional advisory hint, NEVER a gate.** `claude-headless-exec --claim <plan-dir>` records a coarse directory reservation in `plans/_dashboard/worker-claims.jsonl`. It must **never abort or block a dispatch** — prefer `--claim-warn` (warn, proceed). An unclaimed tree, or an overlapping claim, is **not** a reason to refuse work. If the registry is going unused, it is dead weight, not a safety mechanism.
+- **Claim is an optional advisory hint, NEVER a gate.** `claude-headless-exec --claim <plan-dir>` records a coarse directory reservation in planctl's `claims` table (via the `worker-claim.sh` shim → `planctl claim`; the old `plans/_dashboard/.worker-locks/` + `worker-claims.jsonl` litter is retired). It must **never abort or block a dispatch** — prefer `--claim-warn` (warn, proceed). An unclaimed tree, or an overlapping claim, is **not** a reason to refuse work. If the registry is going unused, it is dead weight, not a safety mechanism.
 - **Stage EXACTLY the worker's files — never a tree-wide add.** Each worker writes a touched-file manifest (`<output>.manifest.jsonl`, surfaced as `MANIFEST_FILE=` in the wrapper trailer). The conductor stages precisely those paths — `git add -- $(jq -r .path <manifest> | sort -u)` — NOT a `git diff`/`git status` scan (which picks up a concurrent session's edits in a shared tree). `git add -A` / `.` / `<dir/>` is **BLOCKED by the host guard hook** (it sweeps foreign edits). Sanctioned single-session dir-adds (plan archival) prefix `META_ALLOW_DIR_ADD=1`.
 - **Workers are commit-free, mechanically.** The injected worker git-guard hook DENIES `git add/commit/stash/checkout/reset/rebase/merge/push` in worker context (read-only git stays available). The conductor owns git — always.
 - **The exit code is honest.** A worker that reports `is_error:false` exits 0 (the wrapper reconciles the raw process code and no longer lets the EXIT trap force a 1). Trust the exit code together with the `is_error` field.
@@ -98,7 +98,7 @@ The single biggest execution cost is slow test cycles. Measured on a real run: `
 
 The plan file's checkboxes are the user's ONLY visibility into execution progress. Every checkbox — every `### Task N:` AND every `- [ ]` subtask checkbox — MUST pass through the lifecycle below. 1 runtime task ↔ 1 checkbox ↔ 1 handle (`` `T<phase>.<seq>` ``). Completing the task is what checks the box.
 
-**Handles and CLAIMED are orthogonal.** The handle identifies the line (stamped by `task-stamp.py`). `CLAIMED` marks in-flight. The flip itself is **never an `Edit` of `[ ]`→`[x]`** — the conductor runs `task-done`.
+**Handles and CLAIMED are orthogonal.** The handle identifies the line (stamped by `task-stamp.py`). `CLAIMED` marks in-flight. The flip itself is **never an `Edit` of `[ ]`→`[x]`** — the conductor runs `task-done` (a shim over `planctl check` — the unified state layer's single write door; the atomic MD edit + index upsert + event append all happen inside planctl).
 
 ### State 1: CLAIM (before dispatch)
 
@@ -107,18 +107,19 @@ Before dispatching a subagent for a task:
 2. Optionally mark in-flight: Edit the plan line to insert `CLAIMED` prose (this is **not** the flip). Example: `` - [ ] `T4.2` CLAIMED Add Tile wiring ``.
 3. Commit the claim: `chore(plan): claim <handle>` (or Task ID if unstamped legacy).
 
-### State 2: DONE (immediately after green verify) — `task-done`, never Edit
+### State 2: DONE (immediately after green verify) — `planctl check` (via `task-done`), never Edit
 
 **The instant a task's verify returns green** (async or sync), the **conductor** flips the box before anything else:
 
 ```bash
 bash ${CLAUDE_PLUGIN_ROOT}/scripts/task-done.sh <plan-path> <handle-from-runtime-entry>
-# then commit the flipped plan file (task-done is scope-locked — no git):
+# ^-- shim over `planctl check` (atomic MD edit + index upsert + event append).
+# then commit the flipped plan file:
 git add -- <plan-path> && git commit -m "chore(plan): mark <handle> DONE"
 ```
 
 - **Conductor owns the handle at dispatch** (bound on the runtime entry). Worker may echo the handle for audit; a missing echo must **never** skip the flip. Worker never `Edit`s a checkbox.
-- `task-done` matches on the handle and only rewrites the mark `[ ]`→`[x]` — indifferent to CLAIMED/DONE prose on the line.
+- `planctl check` (via the `task-done.sh` shim) matches on the handle and only rewrites the mark `[ ]`→`[x]` — indifferent to CLAIMED/DONE prose on the line. The atomic MD write + index upsert + event append all happen inside planctl (the unified state layer); no `.task-lock` sidecar is written.
 - Already `[x]` → no-op exit 0. Unknown handle → non-zero (named error) but remaining handles in a batch still process; treat unknown as a conductor bug, re-bind and retry.
 - Human-tagged boxes (`by eye` / `by hand` / `gpu` / `manual`, or under an Acceptance/Human-verify heading) refuse without `--human`.
 - **Never** hand-edit `[ ]`→`[x]`. That is the hole this primitive closes.
@@ -135,7 +136,7 @@ If the count is non-zero for tasks you believe are done, STOP — run `task-done
 
 ### The deterministic backstop — `on-run-complete.sh`
 
-The checkbox discipline above is **guidance**; the **guarantee** is the `on-run-complete.sh` Stop hook. On any stop, for a plan at stage 5 it checks that all EXECUTION checkboxes are flipped (human-verify gates — `by eye` / `by hand` / `GPU` / `manual` — are excluded; those are the user's smoke test) AND a `review_verdict(pass)` is on record:
+The checkbox discipline above is **guidance**; the **guarantee** is the `on-run-complete.sh` Stop hook (→ `planctl reconcile`, M3b). On any stop, for a plan at stage 5 it checks that all EXECUTION checkboxes are flipped (human-verify gates — `by eye` / `by hand` / `GPU` / `manual` — are excluded; those are the user's smoke test) AND a `review_verdict(pass)` is on record in planctl's `events.jsonl` (emitted via `planctl review <plan> pass --by <who>`):
 
 - both met → it stamps DONE (stage 6) and re-renders the dashboard itself;
 - run claimed `execute completed` with execution boxes still open → it **FAILS LOUD** to the inbox (never silently half-stamps);

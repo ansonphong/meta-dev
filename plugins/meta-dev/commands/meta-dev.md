@@ -36,7 +36,7 @@ Stage definitions in `references/dev-swarms.md`. Each stage delegates to ported 
 ```
 bash ${CLAUDE_PLUGIN_ROOT}/scripts/stage-emit.sh "<plan-path>" <stage> <in_progress|completed|blocked>
 ```
-where `<stage>` ∈ `brainstorm|design|plan|harden|execute|review` (1→6). `stage-emit.sh` patches the plan's YAML `stage:`/`status:` frontmatter in place — that frontmatter is the single source of truth for the plan's stage — and appends a slim history event to `events.jsonl`. `/meta-dashboard` then computes live from the plans via `scripts/plan-index.py`; there is no separate plan state to maintain. The stage-owning commands (`/meta-planner`, `/meta-loop-gap`, `/meta-execute`, `/meta-eval`) also emit when invoked standalone — emitting twice is harmless (last write wins), so always emit here too for the stages this orchestrator drives directly (brainstorm, design).
+where `<stage>` ∈ `brainstorm|design|plan|harden|execute|review` (1→6). `stage-emit.sh` is a shim over `planctl stage` (the unified state layer's single write door) — it sets the plan's YAML `stage:` frontmatter and appends a stage event to planctl's `events.jsonl`. `/meta-dashboard` then computes live from the plans via planctl's index; there is no separate plan state to maintain. The stage-owning commands (`/meta-planner`, `/loop-gap`, `/meta-execute`, `/meta-eval`) also emit when invoked standalone — emitting twice is harmless (last write wins), so always emit here too for the stages this orchestrator drives directly (brainstorm, design).
 
 ## Cruise Control (Autopilot)
 
@@ -53,7 +53,7 @@ When given multiple subjects: cap 2 concurrent. Each independent pipeline. Queue
 
 ## Post-Stage Housekeeping
 
-After each stage: the stage is already recorded by the `stage-emit.sh`→YAML call above — no ledger to hand-edit. After Stage 6: full housekeeping per `references/dev-housekeeping.md` (archive, commit). Cross-plan ordering/milestones live in `plans/meta-runbook.md` — edit it only when execution priority or milestones change.
+After each stage: the stage is already recorded by the `stage-emit.sh`→`planctl stage` call above — no ledger to hand-edit. After Stage 6: full housekeeping per `references/dev-housekeeping.md` (archive, commit). Cross-plan ordering/milestones live in `plans/meta-runbook.md` — edit it only when execution priority or milestones change.
 
 ## Safety Invariants
 

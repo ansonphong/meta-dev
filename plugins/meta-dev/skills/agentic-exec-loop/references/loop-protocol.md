@@ -25,7 +25,8 @@
    clean context) with the task spec INCLUDING its `Verify:` command. The
    worker runs its own verify hook and self-fixes locally before returning.
    Conductor reads only the one-line `result`, then flips that task via
-   `bash ${CLAUDE_PLUGIN_ROOT}/scripts/task-done.sh <plan> <handle>` using the
+   `bash ${CLAUDE_PLUGIN_ROOT}/scripts/task-done.sh <plan> <handle>` (shim over
+   `planctl check` — the unified state layer's single write door) using the
    handle the conductor **already bound on the runtime task entry at dispatch**
    (not parsed from the worker). Worker never Edits a checkbox. Conductor
    commits the flipped plan file per task (momentum). No Opus review at this
@@ -41,7 +42,7 @@
    - **PASS** → advance to next phase. Persist the verdict for the end-of-run
      DONE-gate — the `on-run-complete.sh` Stop hook stamps the plan DONE only
      when a pass is on record, so emit one per phase PASS:
-     `NOW=$(date -u +%FT%TZ); bash ${CLAUDE_PLUGIN_ROOT}/scripts/state-append.sh "{\"event\":\"review_verdict\",\"plan\":\"$PLAN_REL\",\"verdict\":\"pass\",\"time\":\"$NOW\"}"`.
+     `NOW=$(date -u +%FT%TZ); bash ${CLAUDE_PLUGIN_ROOT}/scripts/planctl.sh review "$PLAN_REL" pass --by "conductor"`.
    - **CONDITIONAL_PASS** → apply the `suggested_fix`es via one Fixer on the
      active tier's primary backend (see Tier mapping), then advance (no
      re-review needed for minor issues).

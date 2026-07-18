@@ -42,6 +42,9 @@ STAGE_NUM_TO_NAME = {v: k for k, v in STAGE_NAMES.items()}
 # Override canon (design §3.2 closed vocabulary — the schema gate enforces it).
 OVERRIDE_CANON = ("blocked", "parked", "superseded")
 
+# Status values accepted by --status (event payload ONLY, never frontmatter).
+STATUS_CANON = ("in_progress", "completed", "blocked")
+
 # Off-limits: never patch this file's frontmatter (event append still ok) —
 # mirrors stage-emit.sh's GUARDED.
 _GUARDED_BASENAME = "exec-order-2026-06-26.md"
@@ -155,6 +158,17 @@ def cmd_stage(args):
         return 1
 
     name = STAGE_NUM_TO_NAME.get(n, "?")
+
+    # --status <s> validation — event payload ONLY, never written to frontmatter.
+    status_val = getattr(args, "status", None)
+    if status_val is not None:
+        status_val = status_val.strip().lower()
+        if status_val not in STATUS_CANON:
+            sys.stderr.write(
+                "planctl stage: invalid --status %r (expected %s)\n"
+                % (status_val, "|".join(STATUS_CANON)))
+            return 2
+
     guarded = _is_guarded(rel)
     patched = False
     if guarded:
@@ -164,14 +178,30 @@ def cmd_stage(args):
                          "for %s\n" % rel)
     else:
         with mutate.mutation_lock(abs_path):
+            # Re-read and check bounds UNDER the lock (F16 — close the TOCTOU window).
+            with open(abs_path, "r", encoding="utf-8") as _f:
+                _raw = _f.read()
+            if _frontmatter_bounds(_raw.split("\n")) is None:
+                sys.stderr.write(
+                    "planctl stage: no valid frontmatter in %s — "
+                    "refusing to synthesize one (add a --- … --- block first).\n" % rel)
+                return 1
             def mutator(lines):
                 return _patch_frontmatter_keys(lines, set_map={"stage": str(n)})
             mutate.atomic_write_md(abs_path, mutator)
             sync.sync_one(rel)
             patched = True
+            # Event append MUST be inside the lock — two concurrent stage writes
+            # can otherwise interleave so markdown says stage 6 while the event
+            # chronology ends at 5 (mirrors cmd_check's shape in mutate.py).
+            events.append({"event": "stage", "plan": rel,
+                           "data": {"stage": n, "name": name, "patched": patched,
+                                    "status": status_val}})
 
-    events.append({"event": "stage", "plan": rel,
-                   "data": {"stage": n, "name": name, "patched": patched}})
+    if guarded:
+        events.append({"event": "stage", "plan": rel,
+                       "data": {"stage": n, "name": name, "patched": False,
+                                "status": status_val}})
 
     if getattr(args, "json", False):
         print(json.dumps({"stage": n, "stage_num": n, "name": name,
@@ -215,6 +245,14 @@ def cmd_override(args):
         return 1
 
     with mutate.mutation_lock(abs_path):
+        # Re-read and check bounds UNDER the lock (F16 — close the TOCTOU window).
+        with open(abs_path, "r", encoding="utf-8") as _f:
+            _raw = _f.read()
+        if _frontmatter_bounds(_raw.split("\n")) is None:
+            sys.stderr.write(
+                "planctl override: no valid frontmatter in %s — "
+                "refusing to synthesize one (add a --- … --- block first).\n" % rel)
+            return 1
         def mutator(lines):
             if mode == "clear":
                 return _patch_frontmatter_keys(
