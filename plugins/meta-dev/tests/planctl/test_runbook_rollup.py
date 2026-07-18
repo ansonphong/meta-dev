@@ -33,7 +33,7 @@ from types import SimpleNamespace
 
 import pytest  # noqa: E402  (conftest puts scripts/ on sys.path)
 
-from planctl import db, runbook, sync  # noqa: E402
+from planctl import db, derive, runbook, sync  # noqa: E402
 
 # scripts/ is three parents up from this file (planctl/ -> tests/ -> .../scripts).
 _SCRIPTS = str(pathlib.Path(__file__).resolve().parent.parent.parent / "scripts")
@@ -232,7 +232,11 @@ def test_render_writes_block_and_is_idempotent(tree, capsys):
 def test_render_missing_member_is_loud(tree):
     assert runbook.cmd_runbook_render(SimpleNamespace(rb=RMISS, json=False)) == 0
     text = open(os.path.join(_root(), RMISS), encoding="utf-8").read()
-    assert "✗ MISSING" in text and "does-not-exist.md" in text
+    # Rendered-markdown surfaces use the emoji vocabulary (derive.EMOJI_MISSING);
+    # the ✗ glyph remains the terminal/box spelling. "Loud" is the contract —
+    # assert the marker AND the offending path, in both the name and status cells.
+    assert "%s MISSING" % derive.EMOJI_MISSING in text
+    assert "does-not-exist.md" in text
 
 
 # ── runbook add: happy path populates membership; cycle refused at door (I7) ───

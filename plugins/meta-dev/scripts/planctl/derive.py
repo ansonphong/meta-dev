@@ -34,6 +34,34 @@ GLYPHS = {
 }
 
 
+# Emoji vocabulary for RENDERED-MARKDOWN surfaces (the runbook progress block),
+# where colour makes a 30-row table scannable at a glance. The GLYPHS above stay
+# the vocabulary for terminal/box views: emoji are double-width and would break
+# the fixed-cell layouts.
+EMOJI = {
+    "draft": "📝",
+    "ready": "▶️",
+    "executing": "🔄",
+    "needs-review": "👀",
+    "done": "✅",
+    "blocked": "⛔",
+    "parked": "⏸️",
+    "superseded": "🚫",
+}
+EMOJI_MISSING = "❌"
+
+
+def emoji(status, drift=False):
+    """Emoji counterpart of ``glyph`` — same precedence, same non-canon safety.
+
+    ``done`` with ``drift`` → ``'✅⚠️'`` (declared done with open work; the warning
+    must survive into every rendered view). Unknown status → ``'❔'``, never a
+    ``KeyError``."""
+    if status == "done" and drift:
+        return "✅⚠️"
+    return EMOJI.get(status, "❔")
+
+
 def glyph(status, drift=False):
     """Render the glyph for a derived status.
 

@@ -338,6 +338,35 @@ def _bar(frac, width=4):
     return "▰" * filled + "▱" * (width - filled)
 
 
+# Repo-root buckets under plans/ — never the identity of a plan, just its repo.
+_REPO_DIRS = ("app", "www", "gallery", "meta", "cam")
+
+
+def _member_label(path, kind, missing=False):
+    """Human-tellable label for a member row.
+
+    A campaign plan lives in its OWN folder as ``00-master-plan.md``, so the
+    basename is identical for every such member — useless in a table. The
+    FOLDER is the identity; the filename is the footnote. Standalone plans
+    (a dated ``.md`` sitting directly in ``plans/<repo>/``) have no folder to
+    borrow, so their own stem is the identity."""
+    if missing:
+        return "%s MISSING `%s`" % (derive.EMOJI_MISSING, path)
+    base = path.rsplit("/", 1)[-1]
+    stem = base[:-3] if base.endswith(".md") else base
+    parent = os.path.basename(os.path.dirname(path))
+    folder = parent if parent and parent not in _REPO_DIRS else None
+
+    if kind == "runbook":
+        return "▸ **%s** _(nested runbook)_" % (folder or stem)
+    if folder:
+        # Folder is the identity; say what the file is only when it is NOT the
+        # conventional master plan (those are interchangeable by definition).
+        detail = "master plan" if base.startswith("00-master") else stem
+        return "**%s** · _%s_" % (folder, detail)
+    return "**%s**" % stem
+
+
 def _member_rows(conn, root, rb_rel):
     """Direct-member rows for the render table, index-driven (NOT re-read)."""
     rows = []
@@ -348,6 +377,7 @@ def _member_rows(conn, root, rb_rel):
                 "path": child, "kind": "runbook", "missing": False,
                 "stage": sub.get("effective_stage"),
                 "status": sub.get("status"),
+                "drift": bool(sub.get("drift")),
                 "glyph": derive.glyph(sub.get("status"), sub.get("drift")),
                 "tasks_done": sub.get("tasks_done", 0),
                 "tasks_total": sub.get("tasks_total", 0),
@@ -357,19 +387,25 @@ def _member_rows(conn, root, rb_rel):
             })
             continue
         on_disk = os.path.isfile(os.path.join(root, child))
+        # ``drift`` is selected so the declared-done-with-open-work warning
+        # reaches the rendered table. compose_block reads row["drift"]; without
+        # it every member renders as clean ✅ and the warning is silently lost.
         prow = conn.execute(
-            "SELECT stage,override,derived_status,tasks_done,tasks_total "
+            "SELECT stage,override,derived_status,tasks_done,tasks_total,drift "
             "FROM plans WHERE path=?", (child,)).fetchone()
         if prow is None or not on_disk:
             rows.append({"path": child, "kind": "plan", "missing": True,
                          "stage": None, "status": None, "glyph": "✗",
+                         "drift": False,
                          "tasks_done": 0, "tasks_total": 0, "pct": 0,
                          "override": None})
             continue
-        stage, override, dstatus, td, tt = prow
+        stage, override, dstatus, td, tt, pdrift = prow
+        pdrift = bool(pdrift)
         rows.append({
             "path": child, "kind": "plan", "missing": False, "stage": stage,
-            "status": dstatus, "glyph": derive.glyph(dstatus, False),
+            "status": dstatus, "drift": pdrift,
+            "glyph": derive.glyph(dstatus, pdrift),
             "tasks_done": td or 0, "tasks_total": tt or 0,
             "pct": derive.pct(td or 0, tt or 0), "override": override,
         })
@@ -418,17 +454,13 @@ def compose_block(rb_rel, rollup, member_rows):
         lines.append("**Members done:** %d / %d  ·  **Tasks:** %d/%d (%d%%)  "
                      "·  **%s %s**" % (
                          members_done, members_total, tasks_done, tasks_total, pct,
-                         derive.glyph(status, r.get("drift")), status or "?"))
+                         derive.emoji(status, r.get("drift")), status or "?"))
     lines.append("")
 
     lines.append("| # | Plan | Stage | Progress | Status | → |")
     lines.append("|---|------|-------|----------|--------|---|")
     for i, row in enumerate(member_rows):
-        name = row["path"].rsplit("/", 1)[-1]
-        if row["kind"] == "runbook":
-            name = "▸ " + name + "  _(nested runbook)_"
-        if row.get("missing"):
-            name = "✗ MISSING " + row["path"]
+        name = _member_label(row["path"], row["kind"], row.get("missing"))
         stage = row.get("stage")
         if stage is None:
             stage_cell = "—"
@@ -441,8 +473,9 @@ def compose_block(rb_rel, rollup, member_rows):
                                   row["pct"])
         else:
             prog = "—"
-        status_cell = "✗ MISSING" if row.get("missing") else (
-            "%s %s" % (row.get("glyph") or "?", row.get("status") or "?"))
+        status_cell = ("%s MISSING" % derive.EMOJI_MISSING) if row.get("missing") else (
+            "%s %s" % (derive.emoji(row.get("status"), row.get("drift")),
+                       row.get("status") or "?"))
         lines.append("| %d | %s | %s | %s | %s | [plan](%s) |" % (
             i + 1, name, stage_cell, prog, status_cell, row["path"]))
     lines.append("")
