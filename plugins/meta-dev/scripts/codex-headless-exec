@@ -15,7 +15,7 @@
 # Options:
 #   --repo <name>            Resolve via topology config; unresolvable => abort.
 #                            Omit to run at the PROJECT ROOT (never the caller's cwd).
-#   --tier <tier>            GPT-5.6 routing tier: luna | terra | sol
+#   --tier <tier>            GPT routing tier: spark | luna | terra | sol
 #                            (default: terra)
 #   --effort <level>         Reasoning: none | low | medium | high | xhigh | max
 #                            (default follows tier; terra = medium)
@@ -97,15 +97,22 @@ done
 source "$SCRIPT_DIR/lib/read-prompt.sh"
 resolve_prompt "$PROMPT_INPUT_FILE" "codex-headless-exec"
 
-# ── GPT-5.6 routing ────────────────────────────────────────────────────
-# Tiers select real GPT-5.6 model IDs. An explicit --model remains available
-# for account-specific snapshots or a future model-family migration.
+# ── GPT routing ────────────────────────────────────────────────────────
+# Tiers select real model IDs. An explicit --model remains available for
+# account-specific snapshots or a future model-family migration.
+#
+# `spark` is the Codex-specialized speed tier (gpt-5.3-codex-spark) — a
+# coding-tuned, low-latency model for high-volume mechanical passes. It is a
+# 5.3-family ID on purpose: verified live on this account 2026-07-18, while
+# `gpt-5.6-codex` is REJECTED by the API ("not supported when using Codex with
+# a ChatGPT account"). Do not "upgrade" spark to 5.6-codex without re-probing.
 case "$TIER" in
+    spark) TIER_MODEL="gpt-5.3-codex-spark"; TIER_EFFORT="low" ;;
     luna)  TIER_MODEL="gpt-5.6-luna";  TIER_EFFORT="low" ;;
     terra) TIER_MODEL="gpt-5.6-terra"; TIER_EFFORT="medium" ;;
     sol)   TIER_MODEL="gpt-5.6-sol";   TIER_EFFORT="high" ;;
     *)
-        echo "[ERROR] Invalid --tier '$TIER'. Use luna, terra, or sol." >&2
+        echo "[ERROR] Invalid --tier '$TIER'. Use spark, luna, terra, or sol." >&2
         exit 1
         ;;
 esac
