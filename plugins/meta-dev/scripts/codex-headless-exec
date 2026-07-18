@@ -90,6 +90,7 @@ while [[ $# -gt 0 ]]; do
         --skill)    SKILL_NAME="$2"; shift 2 ;;
         --command)  COMMAND_NAME="$2"; shift 2 ;;
         --no-framework) NO_FRAMEWORK=true; shift ;;
+        --framework-full) FRAMEWORK_FULL=true; shift ;;
         -h|--help)  show_help ;;
         --)         shift; PROMPT="$*"; break ;;
         *)          PROMPT="$*"; break ;;
@@ -280,7 +281,7 @@ cd "$WORK_DIR"
 if [[ "${NO_FRAMEWORK:-false}" != "true" ]]; then
     _PLUGIN_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
     FRAMEWORK_PREAMBLE="$(python3 "$SCRIPT_DIR/lib/framework-preamble.py" \
-        "$_PLUGIN_ROOT" 2>/dev/null || true)"
+        "$_PLUGIN_ROOT" ${FRAMEWORK_FULL:+--full} 2>/dev/null || true)"
     if [[ -n "$FRAMEWORK_PREAMBLE" ]]; then
         PROMPT="${FRAMEWORK_PREAMBLE}
 

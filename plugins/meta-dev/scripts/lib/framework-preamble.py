@@ -19,7 +19,25 @@ has less left for the job. So descriptions are truncated to one clause and
 commands are emitted as bare names — enough to know a thing EXISTS and read it
 on demand, which is exactly how Codex surfaces its own skills.
 
-Usage:  framework-preamble.py <plugin-root>
+Two modes, and the default is the SMALL one
+-------------------------------------------
+The first cut of this shipped the full roster — 16 protocol descriptions and all
+67 command names — to every worker. A Codex worker running under sol/high was
+asked to critique it and was blunt: the catalog is noise. Verbatim, it
+"increases search and invites accidental orchestration," while what actually
+constrained its behavior was the git rules, the framework root, the
+Claude→Codex translation, and the planctl-only law. It also judged
+``--command meta-execute`` a poor worker target, because that delegates
+conductor duties (checkbox flips, phase review, dashboards) a Codex worker
+cannot reliably perform.
+
+That matches the harness's own split: the conductor owns state, the worker owns
+none. So CORE is the default — laws and translation, no menu — and the roster
+is opt-in via ``--full`` for a genuinely exploratory run. When the conductor
+knows which protocol applies, it should NAME it (``--skill``/``--command``)
+rather than ship a catalog and hope.
+
+Usage:  framework-preamble.py <plugin-root> [--full]
 Stdout: the preamble. Stderr: nothing. Never fails the caller — a broken roster
 must not take down a dispatch, so any error degrades to the static core.
 """
@@ -65,7 +83,7 @@ def _one_clause(desc):
     return cut
 
 
-def build(root):
+def build(root, full=False):
     skills_dir = os.path.join(root, "skills")
     cmds_dir = os.path.join(root, "commands")
 
@@ -90,41 +108,43 @@ def build(root):
     out = []
     out.append("=== META-DEV HARNESS (you are a worker inside it) ===")
     out.append("")
-    out.append("You are NOT a general assistant on a loose task. You are executing")
-    out.append("inside the meta-dev harness, which has established protocols for this")
-    out.append("work. Use them instead of inventing your own.")
+    out.append("You are a BOUNDED WORKER, not an orchestrator. Do the task you were")
+    out.append("given, verify it, report evidence. Do NOT advance phases, flip")
+    out.append("checkboxes, render dashboards, or dispatch sub-workers — the conductor")
+    out.append("owns all of that, and it owns the state.")
     out.append("")
     out.append("Framework root: %s" % root)
-    out.append("  skills/<name>/SKILL.md    — protocols (read the one that fits)")
+    out.append("  skills/<name>/SKILL.md    — protocols")
     out.append("  commands/<name>.md        — entry-point procedures")
     out.append("  references/               — deep detail referenced by the above")
     out.append("  scripts/planctl.sh        — THE state CLI (see LAWS below)")
     out.append("")
-    out.append("BEFORE YOU START: if any protocol below matches your task, READ IT")
-    out.append("FIRST and follow it. Reading one file is cheap; a freelanced review or")
-    out.append("a hand-edited plan file is expensive to undo.")
+    out.append("If your task NAMES a protocol file, read it first and follow it")
+    out.append("exactly. Otherwise do not go shopping for one — a bounded task does")
+    out.append("not need the catalog, and searching it invites scope creep.")
     out.append("")
 
-    if skills:
-        out.append("PROTOCOLS (%d) — read %s/skills/<name>/SKILL.md" % (
-            len(skills), root))
-        for n, d in skills:
-            out.append("  %-24s %s" % (n, d))
-        out.append("")
-
-    if cmds:
-        out.append("PROCEDURES (%d) — read %s/commands/<name>.md" % (
-            len(cmds), root))
-        # Bare names, wrapped: presence is the signal; the file is the content.
-        line = "  "
-        for c in cmds:
-            if len(line) + len(c) + 2 > 100:
-                out.append(line.rstrip())
-                line = "  "
-            line += c + ", "
-        if line.strip():
-            out.append(line.rstrip().rstrip(","))
-        out.append("")
+    if full:
+        # Opt-in only. A bounded worker does not need this and is measurably
+        # worse with it (see module docstring).
+        if skills:
+            out.append("PROTOCOLS (%d) — read %s/skills/<name>/SKILL.md" % (
+                len(skills), root))
+            for n, d in skills:
+                out.append("  %-24s %s" % (n, d))
+            out.append("")
+        if cmds:
+            out.append("PROCEDURES (%d) — read %s/commands/<name>.md" % (
+                len(cmds), root))
+            line = "  "
+            for c in cmds:
+                if len(line) + len(c) + 2 > 100:
+                    out.append(line.rstrip())
+                    line = "  "
+                line += c + ", "
+            if line.strip():
+                out.append(line.rstrip().rstrip(","))
+            out.append("")
 
     out.append("LAWS (binding — these are why the harness exists):")
     out.append("1. planctl is the ONLY write door for plan state. To flip a checkbox,")
@@ -162,11 +182,13 @@ what your task declares.
 
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
+    args = [a for a in sys.argv[1:] if a != "--full"]
+    full = "--full" in sys.argv[1:]
+    if not args:
         sys.stdout.write(_FALLBACK)
         sys.exit(0)
     try:
-        sys.stdout.write(build(os.path.abspath(sys.argv[1])))
+        sys.stdout.write(build(os.path.abspath(args[0]), full=full))
     except Exception:
         # A roster problem must never break a dispatch.
         sys.stdout.write(_FALLBACK)
