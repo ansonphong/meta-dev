@@ -454,6 +454,24 @@ def _bar(frac, width=4):
 _REPO_DIRS = ("app", "www", "gallery", "meta", "cam")
 
 
+def _link_to(target_rel, from_rel):
+    """Markdown link href for ``target_rel``, relative to the FILE at ``from_rel``.
+
+    Both inputs are project-root-relative. A markdown link resolves against the
+    directory of the file containing it, NOT the project root — so writing
+    ``plans/app/x.md`` into ``plans/meta/_runbook-*.md`` resolved to
+    ``plans/meta/plans/app/x.md`` and every link 404'd. It only ever worked for
+    runbooks that happened to sit at the project root.
+
+    ``os.path.relpath`` emits ``/`` separators on POSIX, which is what markdown
+    wants; this tree is Linux/WSL-only (LF everywhere), so no translation needed.
+    """
+    base = os.path.dirname(from_rel)
+    if not base:
+        return target_rel
+    return os.path.relpath(target_rel, base)
+
+
 def _member_label(path, kind, missing=False, offindex=None):
     """Human-tellable label for a member row.
 
@@ -618,7 +636,8 @@ def compose_block(rb_rel, rollup, member_rows):
                 derive.emoji(row.get("status"), row.get("drift")),
                 row.get("status") or "?")
         lines.append("| %d | %s | %s | %s | %s | [plan](%s) |" % (
-            i + 1, name, stage_cell, prog, status_cell, row["path"]))
+            i + 1, name, stage_cell, prog, status_cell,
+            _link_to(row["path"], rb_rel)))
     lines.append("")
 
     # Now / blocked / needs-review queues.
