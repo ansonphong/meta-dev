@@ -240,16 +240,66 @@ def _incremental_candidates(conn, root):
     return cands
 
 
+# ── Sequence-registered paths (the oracle tracks Sequence paths directly) ──────
+_SEQ_HEAD = re.compile(r"^#{1,6}\s+Sequence\b", re.IGNORECASE)
+_SEQ_NEXT_HEAD = re.compile(r"^#{1,6}\s+\S")
+_SEQ_BULLET = re.compile(r"^(?:[-*]\s+|\d+\.\s+)")
+_SEQ_PATH = re.compile(r"(plans/\S*?\.md)")
+
+
+def _sequence_paths(root):
+    """Sequence-registered plan paths from ``plans/meta-runbook.md ## Sequence``.
+
+    The oracle (``plan-index.py``) reads Sequence paths DIRECTLY via
+    ``read_plan_file`` regardless of the filename allowlist — so a Sequence-
+    registered file is TRACKED even when ``is_indexed`` would skip it (e.g. a
+    ``SEED.md``). For parity (R7/BC7), sync unions these into the ``--full``
+    ground set. Archived Sequence entries (``/_archive/``) are excluded (parity
+    excludes archived from both sides). Local parse (mirrors ``read.sequence_order``;
+    not imported from read to avoid a read→sync cycle)."""
+    ledger = os.path.join(root, "plans", "meta-runbook.md")
+    if not os.path.isfile(ledger):
+        return []
+    try:
+        with open(ledger, encoding="utf-8", errors="ignore") as fh:
+            lines = fh.read().split("\n")
+    except OSError:
+        return []
+    start = None
+    for i, line in enumerate(lines):
+        if _SEQ_HEAD.match(line.strip()):
+            start = i + 1
+            break
+    if start is None:
+        return []
+    end = len(lines)
+    for i in range(start, len(lines)):
+        if _SEQ_NEXT_HEAD.match(lines[i]):
+            end = i
+            break
+    order = []
+    for raw in lines[start:end]:
+        body = _SEQ_BULLET.sub("", raw.strip())
+        m = _SEQ_PATH.match(body)
+        if m and m.group(1) not in order:
+            order.append(m.group(1))
+    return [p for p in order if "/_archive/" not in p]
+
+
 def _walk_indexed(root):
-    """Allowlisted ``plans/**/*.md`` (the ``--full`` ground set)."""
+    """Allowlisted ``plans/**/*.md`` (the ``--full`` ground set), UNIONED with
+    Sequence-registered paths (tracked regardless of filename allowlist — parity
+    with the oracle)."""
     out = []
     base = os.path.join(root, "plans")
-    if not os.path.isdir(base):
-        return out
-    for p in sorted(glob.glob(os.path.join(base, "**", "*.md"), recursive=True)):
-        rel = os.path.relpath(p, root).replace("\\", "/")
-        if is_indexed(rel):
-            out.append(rel)
+    if os.path.isdir(base):
+        for p in sorted(glob.glob(os.path.join(base, "**", "*.md"), recursive=True)):
+            rel = os.path.relpath(p, root).replace("\\", "/")
+            if is_indexed(rel):
+                out.append(rel)
+    for p in _sequence_paths(root):
+        if p not in out:
+            out.append(p)
     return out
 
 
@@ -395,69 +445,17 @@ def _populate_membership(conn, root, rel):
         )
 
 
-# ── runbook rollup (read-time recursive walker; the SQL CTE is 0e) ─────────────
-def _child_result_from_plan(conn, path):
-    """Build a ``derive.rollup`` child-result dict for a PLAN member."""
-    r = conn.execute(
-        "SELECT stage,override,tasks_done,tasks_total,derived_status "
-        "FROM plans WHERE path=?", (path,)).fetchone()
-    if r is None:
-        # MISSING member — design says render loud (✗ MISSING); 0c returns a
-        # not-done, no-stage placeholder (doctor/ledger check surface it in 0e).
-        return {"path": path, "kind": "plan", "done": False, "overridden": False,
-                "effective_stage": None, "tasks_done": 0, "tasks_total": 0,
-                "now": None}
-    stage, override, td, tt, dstatus = r
-    done = dstatus == "done"
-    overridden = bool(override)
-    eff_stage = None if overridden else stage
-    now = None if (done or overridden) else path
-    return {"path": path, "kind": "plan", "done": done, "overridden": overridden,
-            "effective_stage": eff_stage, "tasks_done": td or 0,
-            "tasks_total": tt or 0, "now": now}
-
-
-def _child_result_from_rollup(sub, path):
-    """Build a ``derive.rollup`` child-result dict for a nested RUNBOOK member
-    from its already-computed rollup (``sub``)."""
-    if not sub:
-        return {"path": path, "kind": "runbook", "done": False, "overridden": False,
-                "effective_stage": None, "tasks_done": 0, "tasks_total": 0,
-                "now": None}
-    done = sub.get("status") == "done"
-    return {"path": path, "kind": "runbook", "done": done, "overridden": False,
-            "effective_stage": sub.get("effective_stage"),
-            "tasks_done": sub.get("tasks_done", 0),
-            "tasks_total": sub.get("tasks_total", 0),
-            "now": sub.get("now")}
-
-
+# ── runbook rollup (delegates to runbook.py/0e — the canonical recursive CTE) ──
 def compute_rollup(conn, path, _visited=None):
-    """Read-time recursive rollup for a runbook path → ``derive.rollup`` dict,
-    or None if ``path`` has no membership (not a runbook / empty).
-
-    Manual descent + cycle guard (``_visited``); a cycle bails to None (doctor
-    flags both files in 0e). DISTINCT diamond-dedup + the SQL recursive CTE are
-    0e's refinement — deferred (the 0c fixture has no diamonds, so incremental
-    ≡ full holds via this same function)."""
-    if _visited is None:
-        _visited = set()
-    if path in _visited:
-        return None  # cycle — bail (bounded; doctor surfaces in 0e)
-    _visited.add(path)
-    rows = conn.execute(
-        "SELECT child, child_kind FROM membership WHERE parent=? ORDER BY ord",
-        (path,)).fetchall()
-    if not rows:
-        return None
-    child_results = []
-    for child, kind in rows:
-        if kind == "runbook":
-            sub = compute_rollup(conn, child, _visited)
-            child_results.append(_child_result_from_rollup(sub, child))
-        else:
-            child_results.append(_child_result_from_plan(conn, child))
-    return derive.rollup(child_results)
+    """Delegate to ``runbook.compute_rollup`` (0e absorbed the 0c read-time
+    walker into the canonical recursive-CTE rollup with DISTINCT diamond-dedup +
+    path-guarded cycle termination). Kept here as the call-site every 0c reader
+    (``read.cmd_status``/``_active_arcs``/``_build_brief`` + ``_rollup_sig``)
+    already targets; the signature + return contract (None for not-a-runbook)
+    are unchanged. Lazy import avoids a top-level cycle (runbook imports sync
+    inside its verbs only)."""
+    from planctl import runbook
+    return runbook.compute_rollup(conn, path, _visited)
 
 
 def _rollup_sig(conn, path):
@@ -499,7 +497,7 @@ def _drop_derived_rows(conn):
         conn.execute("DELETE FROM %s" % t)
 
 
-def _reindex_paths(conn, root, paths, full=False, head_sha=None):
+def _reindex_paths(conn, root, paths, full=False, head_sha=None, mark_cycles=True):
     """Reindex a set of repo-relative paths. Returns ``(synced, rebuilt)``:
       * ``synced``  — paths actually reparsed (sha changed / ``full``)
       * ``rebuilt`` — set of ancestor-runbook paths whose rollup changed
@@ -507,12 +505,22 @@ def _reindex_paths(conn, root, paths, full=False, head_sha=None):
     For each path: exists+allowlisted → upsert (sha short-circuit unless
     ``full``); missing on disk → delete rows (rename/archive/delete — W2C-1/3).
     Watermark + (on ``full``) derive_v land in the SAME transaction as the
-    upserts (W2C-10 — no second rev-parse)."""
+    upserts (W2C-10 — no second rev-parse).
+
+    ``mark_cycles`` (W2E-1/W2-T4): after membership population, scan the FULL
+    membership table for cycles and mark both endpoints ``parse_err`` (a
+    hand-edited cycle bypasses the ``runbook add`` door, so sync must catch it).
+    On for the write paths (``cmd_sync`` + ``sync_one``); OFF for the read path
+    (``ensure_fresh``) so reads don't mutate ``parse_err`` — sync owns it."""
     actions = []  # (rel, 'upsert'|'delete')
+    # Sequence-registered paths are TRACKED regardless of filename allowlist
+    # (parity with the oracle — it reads Sequence paths directly). Compute once;
+    # upsert any on-disk path that is allowlisted OR Sequence-registered.
+    seq_set = set(_sequence_paths(root))
     for rel in paths:
         full_path = os.path.join(root, rel)
         if os.path.isfile(full_path):
-            if is_indexed(rel):
+            if is_indexed(rel) or rel in seq_set:
                 actions.append((rel, "upsert"))
         else:
             actions.append((rel, "delete"))
@@ -542,6 +550,12 @@ def _reindex_paths(conn, root, paths, full=False, head_sha=None):
         for rel, act in actions:
             if act == "upsert":
                 _populate_membership(conn, root, rel)
+        if mark_cycles:
+            # W2E-1/W2-T4: a hand-edited membership cycle bypasses the
+            # ``runbook add`` door — sync catches it + marks BOTH endpoints
+            # parse_err (cheap: membership is a handful of rows).
+            from planctl import runbook
+            runbook.mark_cycle_parse_errors(conn)
         if head_sha is not None:
             conn.execute(
                 "INSERT OR REPLACE INTO meta(key,value) VALUES('last_commit',?)",
@@ -617,7 +631,8 @@ def ensure_fresh(conn, root):
     if db.is_stale(conn, derive.DERIVE_V):
         _drop_derived_rows(conn)
         head_sha = _head_sha(root)
-        _reindex_paths(conn, root, _walk_indexed(root), full=True, head_sha=head_sha)
+        _reindex_paths(conn, root, _walk_indexed(root), full=True,
+                       head_sha=head_sha, mark_cycles=False)
         return
 
     head = _head_sha(root)
@@ -634,10 +649,12 @@ def ensure_fresh(conn, root):
     else:
         # watermark missing or GC'd — drop rows + full reindex + rewrite derive_v
         _drop_derived_rows(conn)
-        _reindex_paths(conn, root, _walk_indexed(root), full=True, head_sha=head)
+        _reindex_paths(conn, root, _walk_indexed(root), full=True,
+                       head_sha=head, mark_cycles=False)
         return
     if cands:
-        _reindex_paths(conn, root, cands, full=False, head_sha=head)
+        _reindex_paths(conn, root, cands, full=False, head_sha=head,
+                       mark_cycles=False)
     else:
         with conn:
             conn.execute(

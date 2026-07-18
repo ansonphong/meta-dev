@@ -203,6 +203,8 @@ def _active_arcs(conn, repo_filter=None):
         rollup = sync.compute_rollup(conn, rb)
         if not rollup:
             continue
+        if rollup.get("members_total", 0) == 0:
+            continue  # empty runbook (0 members) is NOT an active arc (§4/W2E-8)
         if rollup.get("status") == "done":
             continue  # active = ≥1 non-done member (design §4)
         arcs.append({

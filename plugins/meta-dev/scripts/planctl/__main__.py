@@ -153,6 +153,24 @@ def build_parser():
     sp.add_argument("--json", action="store_true", help="emit {verdict, by}")
     sp.set_defaults(func=_dispatch_module("stage", "cmd_review"))
 
+    # ── runbook add/render (phase 0e.1) — membership + rollup ─────────────────
+    sp = sub.add_parser("runbook", help="runbook membership + progress render")
+    sub_rb = sp.add_subparsers(dest="runbook_verb", metavar="<sub>")
+    sp_add = sub_rb.add_parser(
+        "add", help="add a member to a runbook (cycle-refused at the door)")
+    sp_add.add_argument("rb", help="runbook path (repo-relative or absolute)")
+    sp_add.add_argument("member", help="member path to add (plan or runbook)")
+    sp_add.add_argument("--json", action="store_true",
+                        help="emit {rb, member, added}")
+    sp_add.set_defaults(func=_dispatch_module("runbook", "cmd_runbook_add"))
+
+    sp_render = sub_rb.add_parser(
+        "render", help="write the RUNBOOK:PROGRESS sentinel block (idempotent)")
+    sp_render.add_argument("rb", help="runbook path (repo-relative or absolute)")
+    sp_render.add_argument("--json", action="store_true",
+                           help="emit the rollup without writing")
+    sp_render.set_defaults(func=_dispatch_module("runbook", "cmd_runbook_render"))
+
     # ── claim / release / list (phase 0d.3) — work-claim registry ─────────────
     sp = sub.add_parser("claim", help="claim a plan/dir scope (blocks overlapping claims)")
     sp.add_argument("plan", help="scope to claim (plan path or dir)")
@@ -170,6 +188,27 @@ def build_parser():
     sp = sub.add_parser("list", help="list live work-claims (field names pinned for jq)")
     sp.add_argument("--json", action="store_true", help="emit [{scope, session, pid, …}]")
     sp.set_defaults(func=_dispatch_module("claims", "cmd_list"))
+
+    # ── ledger check/shipped (phase 0e.2) — ledger ⇄ reality ───────────────────
+    sp = sub.add_parser("ledger", help="ledger-as-projection tools (check + shipped)")
+    sub_ledger = sp.add_subparsers(dest="ledger_verb", metavar="<sub>")
+    sp_chk = sub_ledger.add_parser(
+        "check", help="diff the human ledger vs the index")
+    sp_chk.add_argument("--json", action="store_true",
+                        help="emit {unregistered, dead, marker_drift, …}")
+    sp_chk.set_defaults(func=_dispatch_module("ledger", "cmd_ledger_check"))
+
+    sp_shp = sub_ledger.add_parser(
+        "shipped", help="regenerate a compact ## Shipped index (stdout unless --write)")
+    sp_shp.add_argument("--write", action="store_true",
+                        help="write the section (backup + per-entry gate)")
+    sp_shp.set_defaults(func=_dispatch_module("ledger", "cmd_ledger_shipped"))
+
+    # ── doctor (phase 0e.3) — integrity sweep + auto-heal ──────────────────────
+    sp = sub.add_parser("doctor", help="integrity sweep + auto-heal (cycles/9p/derive_v)")
+    sp.add_argument("--json", action="store_true",
+                    help="emit {ok, integrity, derive_v, cycles, missing, …}")
+    sp.set_defaults(func=_dispatch_module("doctor", "cmd_doctor"))
     return parser
 
 
