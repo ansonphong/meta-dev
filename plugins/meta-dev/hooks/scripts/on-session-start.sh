@@ -43,15 +43,52 @@ SETTINGS="plans/_dashboard/settings.json"
 AUTO_INJECT=$(bash "$PLUGIN_ROOT/scripts/config-get.sh" meta_dev.dashboard.auto_inject_on_session 2>/dev/null || echo "false")
 [ "$AUTO_INJECT" = "true" ] || exit 0
 
-echo "---"
-echo "meta-dev dashboard snapshot:"
+# ── M3b: planctl brief --oneline (SessionStart orientation, design §3.7) ──
+# Cold-db guard (W3B-5): on a cold DB, brief would force a full 1,946-file
+# rebuild against the 15s hook timeout. Gate on "db exists && warm" — check
+# that the DB file exists AND has at least one row in the plans table (a DB
+# with schema only is cold — never synced). Skip silently otherwise (brief
+# is advisory, not critical).
+if [ -f "$PLUGIN_ROOT/scripts/planctl.sh" ]; then
+  DB_WARM=0
+  if DB_PATH=$(PYTHONPATH="$PLUGIN_ROOT/scripts" python3 -c "
+import os, sys
+sys.path.insert(0, os.path.join('$PLUGIN_ROOT', 'scripts'))
+from planctl import statedir
+p = statedir.db_path()
+if os.path.isfile(p):
+    import sqlite3
+    try:
+        c = sqlite3.connect(p)
+        n = c.execute('SELECT COUNT(*) FROM plans').fetchone()[0]
+        c.close()
+        print('warm' if n > 0 else 'cold')
+    except Exception:
+        print('cold')
+else:
+    print('cold')
+" 2>/dev/null); then
+    [ "$DB_PATH" = "warm" ] && DB_WARM=1
+  fi
 
-# Active state summary
+  if [ "$DB_WARM" -eq 1 ]; then
+    BRIEF_LINE=$(bash "$PLUGIN_ROOT/scripts/planctl.sh" brief --oneline 2>/dev/null || echo '')
+    if [ -n "$BRIEF_LINE" ]; then
+      echo "---"
+      echo "meta-dev dashboard snapshot:"
+      echo "$BRIEF_LINE"
+    fi
+  fi
+fi
+
+echo "---"
+
+# Active state summary (legacy — kept for backward compat until M4)
 bash "$PLUGIN_ROOT/scripts/state-read.sh" 2>/dev/null || echo "(state unavailable)"
 
 echo "---"
 
-# Quick counts
+# Quick counts (legacy — kept for backward compat until M4)
 ACTIVE_PLANS=$(find plans -name "masterplan.md" -o -name "00-master-plan.md" 2>/dev/null | wc -l | tr -d ' ')
 INBOX_OPEN=$(bash "$PLUGIN_ROOT/scripts/inbox-count.sh" --status open 2>/dev/null || echo 0)
 echo "Active plans: $ACTIVE_PLANS | Inbox open: $INBOX_OPEN"

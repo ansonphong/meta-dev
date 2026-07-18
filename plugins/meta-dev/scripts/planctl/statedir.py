@@ -55,6 +55,15 @@ def slugify(abs_path):
     return re.sub(r"[/.]", "-", abs_path)
 
 
+# Memo for project_root(). Resolution spawns `repo-topology.py` as a SUBPROCESS,
+# and reconcile calls this ~25x per run (directly and via state_dir/events_path).
+# On a 9p mount each spawn costs ~160ms → ~4s of pure fork overhead, which alone
+# blew the <1s Stop-hook budget (G3). The result is a pure function of the two
+# env vars below, so the cache is keyed on them: hermetic tests that repoint
+# META_DEV_ROOT per fixture get their own entry instead of a stale hit.
+_ROOT_MEMO = {}
+
+
 def project_root():
     """Absolute path of the HOST project root.
 
@@ -64,8 +73,20 @@ def project_root():
       3. ``$CLAUDE_PROJECT_DIR``       — plugin-runtime fallback
       4. error loudly                  — refuse-to-guess (resolve-workdir law)
 
+    Memoized per (META_DEV_ROOT, CLAUDE_PROJECT_DIR) — see ``_ROOT_MEMO``.
+
     Raises SystemExit (exit 1) if none resolve.
     """
+    _key = (os.environ.get("META_DEV_ROOT"), os.environ.get("CLAUDE_PROJECT_DIR"))
+    if _key in _ROOT_MEMO:
+        return _ROOT_MEMO[_key]
+    _resolved = _project_root_uncached()
+    _ROOT_MEMO[_key] = _resolved
+    return _resolved
+
+
+def _project_root_uncached():
+    """The real resolution — see ``project_root`` for the order."""
     env_root = os.environ.get("META_DEV_ROOT")
     if env_root:
         return os.path.abspath(env_root)

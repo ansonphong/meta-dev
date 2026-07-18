@@ -208,6 +208,12 @@ def build_parser():
     sp.add_argument("--json", action="store_true",
                     help="emit {ok, integrity, derive_v, cycles, missing, …}")
     sp.set_defaults(func=_dispatch_module("doctor", "cmd_doctor"))
+
+    # ── reconcile (phase 3b) — Stop-hook composition ──────────────────────────
+    sp = sub.add_parser("reconcile", help="sync → DONE-gate → render dirty runbooks (Stop hook)")
+    sp.add_argument("--json", action="store_true",
+                    help="emit {synced, decisions, rendered, elapsed_ms}")
+    sp.set_defaults(func=_dispatch_module("reconcile", "cmd_reconcile"))
     return parser
 
 
