@@ -88,6 +88,7 @@ while [[ $# -gt 0 ]]; do
         --output-file) OUTPUT_FILE="$2"; shift 2 ;;
         --prompt-file) PROMPT_INPUT_FILE="$2"; shift 2 ;;
         --skill)    SKILL_NAME="$2"; shift 2 ;;
+        --command)  COMMAND_NAME="$2"; shift 2 ;;
         -h|--help)  show_help ;;
         --)         shift; PROMPT="$*"; break ;;
         *)          PROMPT="$*"; break ;;
@@ -108,19 +109,49 @@ resolve_prompt "$PROMPT_INPUT_FILE" "codex-headless-exec"
 # This reads from the SOURCE tree, so it needs no plugin install and never goes
 # stale against a version-keyed cache. Skills are the portable unit; the
 # Claude-only slash command is just another entry point to the same file.
+PROC_MD=""
 if [[ -n "${SKILL_NAME:-}" ]]; then
-    SKILL_MD="$SCRIPT_DIR/../skills/${SKILL_NAME}/SKILL.md"
-    if [[ ! -f "$SKILL_MD" ]]; then
-        echo "[ERROR] --skill '$SKILL_NAME': no SKILL.md at $SKILL_MD" >&2
+    PROC_MD="$SCRIPT_DIR/../skills/${SKILL_NAME}/SKILL.md"
+    if [[ ! -f "$PROC_MD" ]]; then
+        echo "[ERROR] --skill '$SKILL_NAME': no SKILL.md at $PROC_MD" >&2
         echo "        Available:" >&2
         ls -1 "$SCRIPT_DIR/../skills" 2>/dev/null | sed 's/^/          /' >&2
         exit 2
     fi
-    SKILL_MD="$(cd "$(dirname "$SKILL_MD")" && pwd)/SKILL.md"
-    PROMPT="Read ${SKILL_MD} and follow it EXACTLY as your procedure.
-Resolve any relative references/ paths in it against $(dirname "$SKILL_MD").
-Ignore any instruction to invoke a slash command (/foo) — you have no such
-surface; perform the described work directly with your own shell/patch tools.
+elif [[ -n "${COMMAND_NAME:-}" ]]; then
+    # A command IS a procedure written in markdown. Codex cannot DISCOVER it
+    # (no commands key in its manifest, no /command dispatch), but it can
+    # perfectly well FOLLOW it once handed the path — which is all a worker
+    # needs. Pointing at commands/ directly keeps ONE source of truth: forking
+    # 2,469 lines of command prose into parallel skills would buy Codex
+    # discovery it does not need, at the cost of permanent drift.
+    PROC_MD="$SCRIPT_DIR/../commands/${COMMAND_NAME#/}.md"
+    if [[ ! -f "$PROC_MD" ]]; then
+        echo "[ERROR] --command '$COMMAND_NAME': no such command at $PROC_MD" >&2
+        echo "        Available:" >&2
+        ls -1 "$SCRIPT_DIR/../commands" 2>/dev/null | sed 's/\.md$//;s/^/          /' >&2
+        exit 2
+    fi
+fi
+
+if [[ -n "$PROC_MD" ]]; then
+    PROC_DIR="$(cd "$(dirname "$PROC_MD")" && pwd)"
+    PROC_MD="$PROC_DIR/$(basename "$PROC_MD")"
+    PLUGIN_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+    PROMPT="Read ${PROC_MD} and follow it EXACTLY as your procedure.
+
+Harness translation — that file is written for Claude Code; you are Codex:
+- \${CLAUDE_PLUGIN_ROOT} means ${PLUGIN_ROOT}
+- \$ARGUMENTS means the Task line below.
+- Resolve relative references/ and skills/ paths against ${PLUGIN_ROOT}.
+- It may tell you to invoke a slash command (/foo) or a named skill, or to use
+  the Read/Grep/Glob/Task tools. You have NONE of those. Instead: read files
+  with your shell (rg/sed/cat), edit with apply_patch, and when it names
+  another procedure file, READ THAT FILE and follow it inline.
+- If it says to dispatch a subagent, do that work yourself sequentially unless
+  you have spawn_agent available.
+Everything else in the file — the actual procedure, rules, and gates — is
+binding exactly as written.
 
 Task: ${PROMPT}"
 fi
