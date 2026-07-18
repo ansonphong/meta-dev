@@ -34,7 +34,9 @@ DeepSeek is the **cheap, scalable workhorse** — strongest when the task is **s
 
 When `/auto-execute` (or the user) hands you **one phase/wave file** from a multi-phase meta-planner plan — e.g. `plans/<repo>/<plan-dir>/00-master-plan.md` — that **single phase file is your entire unit of work for the round**:
 
-- **Run `/meta-execute <phase-file>` internally** (the command is available in the worker's harness). Do NOT freelance task-by-task — `/meta-execute` is the per-task executor (claim → dispatch → verify → commit → checkbox flip) and is what keeps you on-thread across the phase's `Task N.1 → N.2 → …` sequence.
+- **Follow the phase loop end-to-end.** Do NOT freelance task-by-task — the loop (claim → dispatch → verify → commit) is what keeps you on-thread across the phase's `Task N.1 → N.2 → …` sequence. The conductor owns the checkbox flip; you never edit one.
+  - *Claude Code worker:* run `/meta-execute <phase-file>` internally.
+  - *Any other harness:* read `skills/agentic-exec-loop/references/loop-protocol.md` and execute it directly — it is the same procedure, and it is the portable form. Name the SKILL, not the slash command: slash commands are Claude-Code-only, skills are not.
 - **Read `00-master-plan.md` first** for cross-phase context, then execute **ONLY the one phase you were given** — never touch other `phase-*.md` files. `/auto-execute` owns phase ordering and reviews each phase between rounds.
 - **Follow the project test policy** — critical-breakage tests only; do not retrofit or over-test.
 - **Report** which tasks landed (SHAs) + anything that blocked, so the conductor can review the phase diff and advance to the next phase.

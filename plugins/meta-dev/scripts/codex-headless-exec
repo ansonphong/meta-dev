@@ -199,6 +199,28 @@ echo ""
 # -s MODE    → sandbox policy (read-only for audits, workspace-write for fixes)
 cd "$WORK_DIR"
 
+# ── Git-discipline preamble (replaces the PreToolUse guard Codex does not have) ──
+# Claude Code workers are fenced by hooks/scripts/guard-check.sh +
+# worker-git-guard.sh, which BLOCK `git add -A`, broad dir-adds, rebase/pull/
+# merge, and stash. Codex has no PreToolUse hook, and `--sandbox
+# workspace-write` does NOT stop a broad `git add` INSIDE the workspace — it
+# only fences the filesystem. This tree runs 4-20 concurrent agents and a
+# `git rebase` here once deleted 5,544 files, so the rules ride in the prompt
+# where Codex will actually read them. Prompt-level is weaker than a hook;
+# it is not a reason to leave the rail off.
+GIT_GUARD_PREAMBLE='HARD GIT RULES (binding — this worktree is SHARED with 4-20 concurrent agents):
+1. NEVER `git add -A`, `git add .`, or `git add <dir>/`. Stage ONLY explicit file paths you personally edited. A broad add sweeps up other agents in-flight work.
+2. NEVER `git stash`, `git stash pop`, or `git stash drop`. These are worktree-GLOBAL and rip out every peer agent uncommitted work at once.
+3. NEVER `git rebase`, `git pull` (without --ff-only), or `git merge` (without --ff-only). A rebase on this tree once destroyed 5,544 files.
+4. Every git command names its repo absolutely: `git -C <ABS-REPO-ROOT> ...`. Never a bare `git add`. Never `cd "$(git rev-parse --show-toplevel)"`.
+5. If a file you need is dirty from a peer: commit it as its own discrete commit, then proceed. Do not stash, do not revert, do not wait.
+If a task seems to require breaking one of these, STOP and report instead.
+
+---
+
+'
+PROMPT="${GIT_GUARD_PREAMBLE}${PROMPT}"
+
 # Liveness watchdog: kill + auto-reset a wedged codex run instead of waiting out
 # the 120-min cap. See lib/stall-watchdog.sh.
 source "$SCRIPT_DIR/lib/stall-watchdog.sh"

@@ -40,7 +40,7 @@ import json
 import os
 import re
 
-from planctl import db, derive, events, mutate, statedir
+from planctl import db, derive, events, mutate, parse, statedir
 
 # ── the path-guarded recursive descent CTE ────────────────────────────────────
 # Walks membership DOWNWARD from a root, accumulating the path of nodes so a
@@ -128,14 +128,48 @@ def mark_cycle_parse_errors(conn):
 
 
 def _offindex_kind(path):
-    """Classify a member that has NO index row: ``missing`` | ``archived`` | ``doc``.
+    """Classify a member that has NO index row.
+
+    Returns ``(kind, status, tasks_done, tasks_total)`` where kind is
+    ``missing`` | ``archived`` | ``plan`` | ``doc``, and ``status`` for a
+    ``plan`` comes from ``derive.derive_plan`` — the ONE interpreter (I2).
+    Deciding completion here with a hand-rolled ``done >= total`` would be a
+    SECOND interpreter and would get it wrong: an execution-complete plan below
+    stage 6 is ``needs-review``, not ``done``.
 
     ``path`` is project-root-relative. The disk is the authority here — sync's
     allowlist decides what gets COUNTED, never what EXISTS.
+
+    The PATH cannot tell you whether an unindexed file is a finished document or
+    a live plan: ``sync.is_indexed`` also excludes undated names, ``phase-*``,
+    ``01-plan.md`` and friends, and plenty of those carry open checkboxes. An
+    earlier cut classified purely by path, so every such plan came back ``doc``
+    ⇒ done — trading false-MISSING for false-DONE, which is the worse error
+    (it inflates ``members_done`` and can flip a runbook to ``done`` with real
+    work still open). So ASK THE FILE: anything checkbox-bearing is a plan and
+    is done only when its boxes are.
     """
-    if not os.path.isfile(os.path.join(statedir.project_root(), path)):
-        return "missing"
-    return "archived" if "/_archive/" in "/" + path else "doc"
+    full = os.path.join(statedir.project_root(), path)
+    if not os.path.isfile(full):
+        return "missing", None, 0, 0
+    if "/_archive/" in "/" + path:
+        # Archived is done by doctrine (CLAUDE.md archives only at 100%).
+        return "archived", "done", 0, 0
+    try:
+        with open(full, encoding="utf-8", errors="replace") as fh:
+            text = fh.read()
+    except OSError:
+        return "doc", "done", 0, 0
+    tasks, _err = parse.parse_tasks(text)
+    td, tt = parse.count_split(tasks)[:2]
+    if not tt:
+        return "doc", "done", 0, 0
+    fm, _fm_err = parse.parse_frontmatter(text)
+    status, _drift = derive.derive_plan(fm or {}, td, tt)
+    return "plan", status, td, tt
+
+
+# ── child-result builders (derive.rollup's input shape) ──────────────────────
 
 
 # ── child-result builders (derive.rollup's input shape) ──────────────────────
@@ -152,23 +186,26 @@ def _child_result_from_plan(conn, path):
       * present, archived → ``archived`` — shipped + filed away; done by
         doctrine (CLAUDE.md: archive only at 100% complete). ``ledger check``
         separately nags to re-register it, which is the right place for that.
-      * present, noise    → ``doc``      — a document member (design.md etc.):
-        it has no checkboxes to roll up, so existing IS delivered.
+      * present, boxes    → ``plan``     — a REAL plan sync just doesn't index;
+        done only when its own checkboxes are.
+      * present, no boxes → ``doc``      — a document member (design.md etc.):
+        nothing to roll up, so existing IS delivered.
 
-    Only the first is debt; the other two are done and must not be counted as
-    missing."""
+    Only ``missing`` is debt; only ``plan`` can be legitimately not-done."""
     r = conn.execute(
         "SELECT stage,override,tasks_done,tasks_total,derived_status "
         "FROM plans WHERE path=?", (path,)).fetchone()
     if r is None:
-        kind = _offindex_kind(path)
+        kind, ostatus, td, tt = _offindex_kind(path)
         if kind == "missing":
             return {"path": path, "kind": "plan", "done": False, "overridden": False,
                     "effective_stage": None, "tasks_done": 0, "tasks_total": 0,
                     "now": None, "missing": True}
-        return {"path": path, "kind": "plan", "done": True, "overridden": False,
-                "effective_stage": None, "tasks_done": 0, "tasks_total": 0,
-                "now": None, "missing": False, "offindex": kind}
+        done = ostatus == "done"
+        return {"path": path, "kind": "plan", "done": done, "overridden": False,
+                "effective_stage": None, "tasks_done": td, "tasks_total": tt,
+                "now": None if done else path,
+                "missing": False, "offindex": kind}
     stage, override, td, tt, dstatus = r
     done = dstatus == "done"
     overridden = bool(override)
@@ -213,38 +250,49 @@ def compute_rollup(conn, path, _visited=None):
         return None  # cycle — bounded; doctor detects + marks parse_err
     _visited.add(path)
 
-    frow = conn.execute(
-        "SELECT kind FROM files WHERE path=?", (path,)).fetchone()
-    is_runbook = bool(frow and frow[0] == "runbook")
+    # ``_visited`` must be the CURRENT PATH, not everything ever seen. It is
+    # passed by reference into every child, so without unwinding it becomes a
+    # global-visited set and a legal DIAMOND (two runbooks sharing one child)
+    # is misread as a cycle: the second parent gets None -> a not-done
+    # placeholder, and the root under-reports members_done / status / now.
+    # (tasks_* survive — _distinct_leaf_tasks dedups correctly on its own.)
+    # discard-on-exit restores the path-guard the docstring promises and
+    # matches _DESCEND_CTE.
+    try:
+        frow = conn.execute(
+            "SELECT kind FROM files WHERE path=?", (path,)).fetchone()
+        is_runbook = bool(frow and frow[0] == "runbook")
 
-    rows = conn.execute(
-        "SELECT child, child_kind FROM membership WHERE parent=? ORDER BY ord",
-        (path,)).fetchall()
+        rows = conn.execute(
+            "SELECT child, child_kind FROM membership WHERE parent=? ORDER BY ord",
+            (path,)).fetchall()
 
-    if not rows:
-        if is_runbook:
-            return derive.rollup([])  # empty runbook → 0/0 (W2E-8)
-        return None  # not a runbook
+        if not rows:
+            if is_runbook:
+                return derive.rollup([])  # empty runbook → 0/0 (W2E-8)
+            return None  # not a runbook
 
-    child_results = []
-    for child, kind in rows:
-        if kind == "runbook":
-            sub = compute_rollup(conn, child, _visited)
-            child_results.append(_child_result_from_rollup(sub, child))
-        else:
-            child_results.append(_child_result_from_plan(conn, child))
+        child_results = []
+        for child, kind in rows:
+            if kind == "runbook":
+                sub = compute_rollup(conn, child, _visited)
+                child_results.append(_child_result_from_rollup(sub, child))
+            else:
+                child_results.append(_child_result_from_plan(conn, child))
 
-    rolled = derive.rollup(child_results)
-    # Override task counts with the DISTINCT leaf-plan union (diamond-dedup,
-    # W2E-5) — derive.rollup's per-level sum would double-count a diamond;
-    # the root's tasks are its OWN reachable-leaf SET, not a sum of subtree sums.
-    leaf_done, leaf_total = _distinct_leaf_tasks(conn, path)
-    rolled["tasks_done"] = leaf_done
-    rolled["tasks_total"] = leaf_total
-    rolled["status"], rolled["drift"] = derive._derive_runbook_status(
-        rolled["members_done"], rolled["members_total"],
-        leaf_done, leaf_total, rolled["effective_stage"])
-    return rolled
+        rolled = derive.rollup(child_results)
+        # Override task counts with the DISTINCT leaf-plan union (diamond-dedup,
+        # W2E-5) — derive.rollup's per-level sum would double-count a diamond;
+        # the root's tasks are its OWN reachable-leaf SET, not a sum of subtree sums.
+        leaf_done, leaf_total = _distinct_leaf_tasks(conn, path)
+        rolled["tasks_done"] = leaf_done
+        rolled["tasks_total"] = leaf_total
+        rolled["status"], rolled["drift"] = derive._derive_runbook_status(
+            rolled["members_done"], rolled["members_total"],
+            leaf_done, leaf_total, rolled["effective_stage"])
+        return rolled
+    finally:
+        _visited.discard(path)
 
 
 def direct_members(conn, rb):
@@ -426,17 +474,20 @@ def _member_rows(conn, root, rb_rel):
             "FROM plans WHERE path=?", (child,)).fetchone()
         if prow is None or not on_disk:
             # No index row is not "gone". sync excludes _archive/ and _NOISE
-            # names (design.md …) BY DESIGN, so only the disk can say MISSING.
-            offindex = None if not on_disk else (
-                "archived" if "/_archive/" in "/" + child else "doc")
+            # names (design.md …) BY DESIGN, so only the disk can say MISSING —
+            # and only the FILE can say whether an unindexed member is a
+            # finished doc or a plan with open boxes (see _offindex_kind).
+            okind, ostatus, otd, ott = _offindex_kind(child)
+            is_missing = okind == "missing"
             rows.append({"path": child, "kind": "plan",
-                         "missing": offindex is None,
-                         "offindex": offindex,
+                         "missing": is_missing,
+                         "offindex": None if is_missing else okind,
                          "stage": None,
-                         "status": "done" if offindex else None,
-                         "glyph": "✓" if offindex else "✗",
+                         "status": ostatus,
+                         "glyph": "✗" if is_missing else derive.glyph(ostatus, False),
                          "drift": False,
-                         "tasks_done": 0, "tasks_total": 0, "pct": 0,
+                         "tasks_done": otd, "tasks_total": ott,
+                         "pct": derive.pct(otd, ott),
                          "override": None})
             continue
         stage, override, dstatus, td, tt, pdrift = prow
