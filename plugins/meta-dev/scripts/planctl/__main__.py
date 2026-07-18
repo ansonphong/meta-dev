@@ -89,6 +89,87 @@ def build_parser():
     sp.add_argument("--runbook", default=None, help="scope to one runbook's members")
     sp.add_argument("--json", action="store_true", help="emit a JSON list")
     sp.set_defaults(func=_dispatch_read("next"))
+
+    # ── check / uncheck (phase 0d.1) — flip checkboxes ────────────────────────
+    sp = sub.add_parser("check", help="flip [ ] → [x] for one or more task ids")
+    sp.add_argument("plan", help="plan path (repo-relative or absolute)")
+    sp.add_argument("tids", nargs="+", metavar="tid", help="task id (#hex / T3.2 / text)")
+    sp.add_argument("--human", action="store_true",
+                    help="allow flipping a by-eye/gpu/manual box")
+    sp.add_argument("--force", action="store_true", help="alias of --human")
+    sp.add_argument("--verify", metavar="CMD", default=None,
+                    help='run CMD (explicit cwd, 300s) first; abort all flips unless it exits 0')
+    sp.add_argument("--by", default=None, help="who flipped (default $USER)")
+    sp.add_argument("--json", action="store_true",
+                    help="emit {flipped, skipped, verified}")
+    sp.set_defaults(func=_dispatch_module("mutate", "cmd_check"))
+
+    sp = sub.add_parser("uncheck", help="flip [x] → [ ] for one or more task ids")
+    sp.add_argument("plan", help="plan path (repo-relative or absolute)")
+    sp.add_argument("tids", nargs="+", metavar="tid", help="task id (#hex / T3.2 / text)")
+    sp.add_argument("--human", action="store_true", help="allow flipping a human-verify box")
+    sp.add_argument("--force", action="store_true", help="alias of --human")
+    sp.add_argument("--by", default=None, help="who flipped (default $USER)")
+    sp.add_argument("--json", action="store_true", help="emit {flipped, skipped, verified}")
+    sp.set_defaults(func=_dispatch_module("mutate", "cmd_uncheck"))
+
+    # ── stamp / task add (phase 0d.2) — checkbox lifecycle ─────────────────────
+    sp = sub.add_parser("stamp", help="add stable #hex beads to untagged checkboxes")
+    sp.add_argument("plan", help="plan path (repo-relative or absolute)")
+    sp.add_argument("--json", action="store_true", help="emit {stamped, collisions}")
+    sp.set_defaults(func=_dispatch_module("tasks", "cmd_stamp"))
+
+    sp = sub.add_parser("task", help="task lifecycle (add …)")
+    sub_task = sp.add_subparsers(dest="task_verb", metavar="<sub>")
+    sp_add = sub_task.add_parser("add", help="append a born-tagged checkbox")
+    sp_add.add_argument("plan", help="plan path (repo-relative or absolute)")
+    sp_add.add_argument("text", help="the checkbox text (gets a fresh #hex)")
+    sp_add.add_argument("--section", default=None, help="heading to append under (default: EOF)")
+    sp_add.add_argument("--json", action="store_true", help="emit {tid}")
+    sp_add.set_defaults(func=_dispatch_module("tasks", "cmd_task_add"))
+
+    # ── stage / override / review (phase 0d.2) — frontmatter writers ──────────
+    sp = sub.add_parser("stage", help="set declared stage (name or 1-6) in frontmatter")
+    sp.add_argument("plan", help="plan path (repo-relative or absolute)")
+    sp.add_argument("stage", help="brainstorm|design|plan|harden|execute|review or 1-6")
+    sp.add_argument("--json", action="store_true", help="emit {stage, stage_num}")
+    sp.set_defaults(func=_dispatch_module("stage", "cmd_stage"))
+
+    sp = sub.add_parser(
+        "override",
+        help="set/clear override (blocked|parked|superseded) in frontmatter")
+    # Both forms share one subparser: ``override <plan> <value> [--note]`` and
+    # ``override clear <plan>`` (detected by plan == "clear" in cmd_override).
+    sp.add_argument("plan", help="plan path, OR the literal 'clear'")
+    sp.add_argument("value", help="blocked|parked|superseded, OR the plan (clear form)")
+    sp.add_argument("--note", default=None, help="override note (set form only)")
+    sp.add_argument("--json", action="store_true", help="emit {override, note}")
+    sp.set_defaults(func=_dispatch_module("stage", "cmd_override"))
+
+    sp = sub.add_parser("review", help="record a review verdict (pass|fail) in the event log")
+    sp.add_argument("plan", help="plan path (repo-relative or absolute)")
+    sp.add_argument("verdict", choices=("pass", "fail"), help="review outcome")
+    sp.add_argument("--by", default=None, help="reviewer (default $USER)")
+    sp.add_argument("--json", action="store_true", help="emit {verdict, by}")
+    sp.set_defaults(func=_dispatch_module("stage", "cmd_review"))
+
+    # ── claim / release / list (phase 0d.3) — work-claim registry ─────────────
+    sp = sub.add_parser("claim", help="claim a plan/dir scope (blocks overlapping claims)")
+    sp.add_argument("plan", help="scope to claim (plan path or dir)")
+    sp.add_argument("--pid", type=int, default=None, help="process id (default $PID)")
+    sp.add_argument("--session", default=None, help="session id (default $CLAUDE_SESSION_ID)")
+    sp.add_argument("--ttl", type=int, default=None, help="claim TTL seconds (default 1800)")
+    sp.add_argument("--json", action="store_true", help="emit {scope, session, pid}")
+    sp.set_defaults(func=_dispatch_module("claims", "cmd_claim"))
+
+    sp = sub.add_parser("release", help="release a claimed scope")
+    sp.add_argument("plan", help="scope to release")
+    sp.add_argument("--json", action="store_true", help="emit {scope, released}")
+    sp.set_defaults(func=_dispatch_module("claims", "cmd_release"))
+
+    sp = sub.add_parser("list", help="list live work-claims (field names pinned for jq)")
+    sp.add_argument("--json", action="store_true", help="emit [{scope, session, pid, …}]")
+    sp.set_defaults(func=_dispatch_module("claims", "cmd_list"))
     return parser
 
 
@@ -104,6 +185,17 @@ def _dispatch_read(verb):
     def _shim(args):
         from planctl import read
         return getattr(read, "cmd_%s" % verb)(args)
+    return _shim
+
+
+def _dispatch_module(module, func):
+    """Return a lazy shim for a verb in ``mutate``/``tasks``/``stage``/``claims``.
+
+    Lazy so ``python3 -m planctl --help`` never imports the DB/deriver/events
+    stack; the verb's module is imported only when the verb actually runs."""
+    def _shim(args):
+        mod = __import__("planctl." + module, fromlist=[module])
+        return getattr(mod, func)(args)
     return _shim
 
 
