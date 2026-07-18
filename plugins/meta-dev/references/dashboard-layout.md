@@ -41,6 +41,11 @@ Keyed on the plan-index status enum (`dashboard-render.py` `GLYPH`):
 
 ## Plan Source
 
+> **planctl-backed (M2a).** `dashboard-data.sh` now calls `planctl sync` + SQL for
+> the plan index; `plan-index.py` delegates to planctl. The dashboard is runbook-aware:
+> campaign members render grouped under indented runbook headers with rollup bars, and
+> `=== RUNBOOK ===` markers in `plans/meta-runbook.md` are honored.
+
 Plans come from `plan-index.py` (the single source of truth), which the
 `dashboard-data.sh` gatherer invokes and reshapes. The tracked set is the
 ordered `plans/…md` list under the `## Sequence` of `plans/meta-runbook.md`

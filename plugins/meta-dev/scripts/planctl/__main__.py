@@ -153,23 +153,18 @@ def build_parser():
     sp.add_argument("--json", action="store_true", help="emit {verdict, by}")
     sp.set_defaults(func=_dispatch_module("stage", "cmd_review"))
 
-    # ── runbook add/render (phase 0e.1) — membership + rollup ─────────────────
-    sp = sub.add_parser("runbook", help="runbook membership + progress render")
-    sub_rb = sp.add_subparsers(dest="runbook_verb", metavar="<sub>")
-    sp_add = sub_rb.add_parser(
-        "add", help="add a member to a runbook (cycle-refused at the door)")
-    sp_add.add_argument("rb", help="runbook path (repo-relative or absolute)")
-    sp_add.add_argument("member", help="member path to add (plan or runbook)")
-    sp_add.add_argument("--json", action="store_true",
-                        help="emit {rb, member, added}")
-    sp_add.set_defaults(func=_dispatch_module("runbook", "cmd_runbook_add"))
-
-    sp_render = sub_rb.add_parser(
-        "render", help="write the RUNBOOK:PROGRESS sentinel block (idempotent)")
-    sp_render.add_argument("rb", help="runbook path (repo-relative or absolute)")
-    sp_render.add_argument("--json", action="store_true",
-                           help="emit the rollup without writing")
-    sp_render.set_defaults(func=_dispatch_module("runbook", "cmd_runbook_render"))
+    # ── runbook (phase 0e.1 + 2b) — membership, render, boxed view ────────────
+    # Flat parser with REMAINDER — argparse subparsers ALWAYS validate choices
+    # when a positional is present (even required=False), so we can't use nested
+    # subparsers for a bare ``runbook <path>`` form. REMAINDER captures everything
+    # after ``--json``; the router (_dispatch_runbook_router) detects "add"/
+    # "render" subcommands vs a bare runbook path (R22 — ONE spelling).
+    sp = sub.add_parser("runbook", help="runbook membership + boxed view + render")
+    sp.add_argument("--json", action="store_true",
+                    help="emit structured JSON (boxed view)")
+    sp.add_argument("runbook_args", nargs=argparse.REMAINDER, default=None,
+                    help=argparse.SUPPRESS)
+    sp.set_defaults(func=_dispatch_runbook_router)
 
     # ── claim / release / list (phase 0d.3) — work-claim registry ─────────────
     sp = sub.add_parser("claim", help="claim a plan/dir scope (blocks overlapping claims)")
@@ -210,6 +205,67 @@ def build_parser():
                     help="emit {ok, integrity, derive_v, cycles, missing, …}")
     sp.set_defaults(func=_dispatch_module("doctor", "cmd_doctor"))
     return parser
+
+
+def _dispatch_runbook_router(args):
+    """Route ``planctl runbook`` — subcommand or bare boxed view.
+
+    argparse subparsers always validate choices when a positional is present,
+    so we use REMAINDER + manual routing. ``args.runbook_args`` is the list
+    of tokens after ``runbook`` (minus ``--json`` which the parent parser
+    consumes). ``args.json`` is True when ``--json`` appeared before the
+    positional args.
+
+    Subcommands:
+      ``planctl runbook add <rb> <member> [--json]``
+      ``planctl runbook render <rb> [--json]``
+
+    Bare form (boxed view, phase 2b):
+      ``planctl runbook <path> [--json]``
+    """
+    ra = args.runbook_args or []
+    is_json = getattr(args, "json", False)
+
+    # ``--json`` may land in REMAINDER when it appears after the first positional
+    if "--json" in ra:
+        is_json = True
+        ra = [a for a in ra if a != "--json"]
+
+    if not ra:
+        print("planctl runbook: expected 'add', 'render', or a runbook path.",
+              file=sys.stderr)
+        print("  planctl runbook <path>            boxed campaign view",
+              file=sys.stderr)
+        print("  planctl runbook add <rb> <m>      add a member",
+              file=sys.stderr)
+        print("  planctl runbook render <rb>        write progress block",
+              file=sys.stderr)
+        return 1
+
+    verb = ra[0]
+
+    if verb == "add":
+        if len(ra) < 3:
+            print("planctl runbook add: expected <rb> and <member> args.",
+                  file=sys.stderr)
+            return 1
+        from types import SimpleNamespace as _SN
+        from planctl import runbook as _runbook
+        return _runbook.cmd_runbook_add(_SN(rb=ra[1], member=ra[2], json=is_json))
+
+    elif verb == "render":
+        if len(ra) < 2:
+            print("planctl runbook render: expected <rb> arg.", file=sys.stderr)
+            return 1
+        from types import SimpleNamespace as _SN
+        from planctl import runbook as _runbook
+        return _runbook.cmd_runbook_render(_SN(rb=ra[1], json=is_json))
+
+    else:
+        # verb is the runbook path → boxed view
+        from types import SimpleNamespace as _SN
+        from planctl import view as _view
+        return _view.cmd_runbook_boxed(_SN(rb_path=verb, json=is_json))
 
 
 def _dispatch_sync(args):

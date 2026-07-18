@@ -401,6 +401,7 @@ EOF
   cat > "$RG/plans/CAMPAIGN/_runbook-test.md" <<'EOF'
 ---
 name: test-campaign
+type: runbook
 members:
   - plans/CAMPAIGN/50-FOO/00-master-plan.md
 predecessor: null
@@ -415,7 +416,7 @@ EOF
   # Fire the Stop hook. MAP is empty (no stage-5 plan under plans/), so ONLY the
   # unconditional reconcile can refresh — precisely the path the old hook lacked.
   echo '{}' | env CLAUDE_PROJECT_DIR="$RG" CLAUDE_PLUGIN_ROOT="$PLUGIN_DIR" bash "$hook" >/dev/null 2>&1 || true
-  if grep -q 'DONE' "$RB" && ! grep -q 'EXECUTING' "$RB"; then
+  if grep -qi 'done' "$RB" && ! grep -qi 'EXECUTING' "$RB"; then
     PASS=$((PASS+1)); green "  PASS reconciles a hand-flipped stage-6 member to DONE (no stamp branch)"
   else
     FAIL=$((FAIL+1)); red "  FAIL runbook not reconciled (still EXECUTING / no DONE)"
@@ -433,7 +434,7 @@ t = re.sub(r'(RUNBOOK:PROGRESS:START.*?-->).*?(<!-- RUNBOOK:PROGRESS:END)',
 open(p, 'w', encoding='utf-8').write(t)
 PYEOF
   echo '{}' | ( cd / && env CLAUDE_PROJECT_DIR="$RG" CLAUDE_PLUGIN_ROOT="$PLUGIN_DIR" bash "$hook" >/dev/null 2>&1 ) || true
-  if grep -q 'DONE' "$RB" && ! grep -q 'EXECUTING' "$RB"; then
+  if grep -qi 'done' "$RB" && ! grep -qi 'EXECUTING' "$RB"; then
     PASS=$((PASS+1)); green "  PASS reconciles from a foreign cwd (anchors on CLAUDE_PROJECT_DIR)"
   else
     FAIL=$((FAIL+1)); red "  FAIL foreign-cwd reconcile failed"

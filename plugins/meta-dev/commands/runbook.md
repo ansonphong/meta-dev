@@ -8,51 +8,23 @@ model: opus
 
 # /runbook
 
-Manage a **campaign runbook** — `_runbook-YYYY-MM-DD.md`, the orchestration manuscript that sequences
-multiple related plans and drives them through the waterfall as a single arc. This command is the entry
-point; the procedure + doctrine live in the **`meta-dev:runbook-orchestration`** skill (invoke it first).
-
-```
-plans/meta-runbook.md          META runbook — global cross-repo ledger (one entry per campaign)
-  └─ _runbook-YYYY-MM-DD.md     CAMPAIGN runbook — what /runbook manages
-       └─ plan dirs/files        members — each driven by /meta-dev or /meta-execute
-```
-
-**Use `/runbook` (not `/meta-dev`) when** the work is a *set* of interdependent plans that must land in
-a specific order — a feature arc, launch wave, or cross-subsystem migration. A single plan → `/meta-dev`.
-
-## First step — always
-
-Invoke the `meta-dev:runbook-orchestration` skill. It defines what a runbook is, the frontmatter schema,
-the daisy-chain model, META-runbook registration, gates, and the dashboard contract. Then dispatch on
-the verb below. **The prompt after the verb is freeform** — interpret it (which plans, what theme, which
-side of the launch milestone) per the skill; "manage the runbook according to what the person prompts."
+Manage a **campaign runbook** — sequences related plans through the 6-stage waterfall
+as one arc. One level above `/meta-dev`; one below `plans/meta-runbook.md`.
+**First step:** invoke `meta-dev:runbook-orchestration` for full procedure + gating rules.
+**Use for:** feature arcs, launch waves, cross-subsystem migrations. Single plan → `/meta-dev`.
 
 ## Verbs
 
 | Verb | What it does | Gated? |
 |------|--------------|:------:|
-| `new <feature-dir \| plan-paths…>` | Resolve members → topo-sort from their `depends`/`blocks` → scaffold `_runbook-<today>.md` from the template → render dashboard → register marker in `plans/meta-runbook.md`. | no |
-| `refresh` / *(bare)* | Re-run `runbook-render.py` to recompute the PROGRESS block from members' live frontmatter + checkboxes. | no |
-| `execute` / `go` | Walk `members` in order; per member run `/meta-dev` (unplanned) or `/meta-execute`/`/auto-execute` (execute-ready); refresh after each phase/plan. File-disjoint members may run in parallel; the only lock is the file — never write one already dirty on the tree. | **YES** — per-member "go" |
-| `chain <label>` | Create a successor runbook (`predecessor:` = current), mark current `status: done` + set `successor:`. Daisy-chain or break-off. | no |
-| `add <plan>` | Insert a plan into `members` at the dependency-correct slot; re-render. | no |
-| `done <plan>` | Mark a member `done` (frontmatter is truth); re-render. | no |
-| `archive` | All members done → runbook `status: done`, move META-runbook entry Sequence→Shipped, archive per repo convention. Never delete. | no |
+| `new <dir\|paths…>` | Resolve → topo-sort → scaffold → render → register in meta-runbook | no |
+| `refresh` / *(bare)* | Boxed campaign status (planctl-backed); `<path>` = that campaign | no |
+| `execute` / `go` | Walk members in order; refresh after each; parallel where file-disjoint | **YES** |
+| `chain <label>` | Successor runbook, daisy-chain | no |
+| `add <plan>` | Insert at dependency-correct slot | no |
+| `done <plan>` | Mark member done | no |
+| `archive` | All done → `status:done`, move Sequence→Shipped, archive | no |
 
-## Scripts
-
-- `${CLAUDE_PLUGIN_ROOT}/scripts/runbook-render.py <runbook-file>` — computes the dashboard PROGRESS
-  block (reuses `plan-index.py`). Idempotent; writes only the sentineled span.
-
-## Rules
-
-- **Track it.** Stand up a TaskCreate list (one entry per member, `<id> — <what> [<Backend>]`) for any
-  `execute` run, mirroring CLAUDE.md's granular-tasklist doctrine; flip each member as it lands.
-- **EXECUTE is gated.** `new`/`refresh`/`chain`/`add`/`done`/`archive` are non-gated authoring. `execute`
-  writes code → needs Phong's explicit "go" per member; never auto-advance.
-- **Delegate.** Authoring the manuscript + topo-sort + wave strategy = Opus. Driving members through
-  HARDEN/EXECUTE = DeepSeek→GLM; gate reviews = Codex (review-only). The runbook is the score.
-- **The dashboard is fully computed** — never hand-edit between the `<!-- RUNBOOK:PROGRESS … -->`
-  sentinels. Outside it, author ONLY the ≤3-sentence purpose, `## DEPENDENCY ORDER`, and
-  `## GATES & INVARIANTS`. Closeouts go in the member's master plan (`## Closeout`), never the runbook.
+**Progress block:** `planctl runbook render <rb>` (sentinel write, lazy dirty-set).
+**Boxed view:** `planctl runbook <path>` (interactive terminal surface).
+**Detail:** `references/runbook-view.md` · `skills/runbook-orchestration/`.
