@@ -1,6 +1,6 @@
 ---
 name: inbox-clearer
-description: Process inbox items autonomously — fix auto-clearable issues via haiku/sonnet, escalate hard items to opus, surface advisories to user. Goal: drive issue inbox to zero, surface advisories clearly.
+description: "Process inbox items autonomously — fix auto-clearable issues via haiku/sonnet, escalate hard items to opus, surface advisories to user. Goal: drive issue inbox to zero, surface advisories clearly."
 ---
 
 # Inbox Clearer

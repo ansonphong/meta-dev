@@ -67,8 +67,27 @@ assert content.startswith('---'), 'No frontmatter'
 parts = content.split('---', 2)
 assert len(parts) >= 3, 'Malformed frontmatter'
 fm = parts[1]
-assert 'name:' in fm, 'Missing name in frontmatter'
-assert 'description:' in fm, 'Missing description in frontmatter'
+# Substring checks ('name:' in fm) are too lenient: they pass on frontmatter
+# that is not valid YAML. Claude Code parses leniently so the breakage is
+# invisible here, but STRICT parsers (Codex) reject the skill outright and it
+# silently fails to load. Two skills shipped that way — both had an unquoted
+# description containing ': ', which YAML reads as a nested mapping.
+try:
+    import yaml
+except ImportError:
+    yaml = None
+if yaml is not None:
+    try:
+        data = yaml.safe_load(fm)
+    except Exception as e:
+        raise AssertionError('frontmatter is not valid YAML (strict parsers '
+                             'will drop this skill): %s' % str(e).split(chr(10))[0])
+    assert isinstance(data, dict), 'Frontmatter is not a YAML mapping'
+    assert data.get('name'), 'Missing name in frontmatter'
+    assert data.get('description'), 'Missing description in frontmatter'
+else:
+    assert 'name:' in fm, 'Missing name in frontmatter'
+    assert 'description:' in fm, 'Missing description in frontmatter'
 print('OK')
 "
 }
