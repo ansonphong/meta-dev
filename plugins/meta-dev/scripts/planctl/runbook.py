@@ -76,7 +76,28 @@ def _distinct_leaf_tasks(conn, root):
         "      JOIN files f ON f.path = w.child WHERE f.kind='plan') leaf "
         "JOIN plans p ON p.path = leaf.child",
         (root,)).fetchone()
-    return int(row[0] or 0), int(row[1] or 0)
+    done, total = int(row[0] or 0), int(row[1] or 0)
+
+    # The JOIN above is index-only, so OFF-INDEX members contribute nothing —
+    # a runbook whose sole member is an unindexed phase-1.md with one open box
+    # rendered that member as 0/1 while the aggregate said 0/0. The member rows
+    # and the header disagreed on the same page. Off-index members are already
+    # read from disk for their status; fold their counts in here too, over the
+    # same DISTINCT reachable set (so a diamond still counts once).
+    offindex = conn.execute(
+        _DESCEND_CTE +
+        "SELECT DISTINCT w.child FROM walk w "
+        "LEFT JOIN plans p ON p.path = w.child WHERE p.path IS NULL",
+        (root,)).fetchall()
+    for (child,) in offindex:
+        try:
+            kind, _st, td, tt, _ov = _offindex_kind(child)
+        except Exception:
+            continue
+        if kind == "plan":
+            done += td
+            total += tt
+    return done, total
 
 
 def reaches(conn, src, dst):
@@ -151,15 +172,16 @@ def _offindex_kind(path):
     """
     full = os.path.join(statedir.project_root(), path)
     if not os.path.isfile(full):
-        return "missing", None, 0, 0
+        return "missing", None, 0, 0, None
     if "/_archive/" in "/" + path:
         # Archived is done by doctrine (CLAUDE.md archives only at 100%).
-        return "archived", "done", 0, 0
+        return "archived", "done", 0, 0, None
     try:
         with open(full, encoding="utf-8", errors="replace") as fh:
             text = fh.read()
     except OSError:
-        return "doc", "done", 0, 0
+        return "doc", "done", 0, 0, None
+    fm_early, _ = parse.parse_frontmatter(text)
     tasks, _err = parse.parse_tasks(text)
     # Gate on "has ANY checkbox", NOT on tasks_total: count_split's tasks_total
     # is EXECUTION-only and excludes human-verify boxes (R2/VC-1). A plan whose
@@ -167,11 +189,15 @@ def _offindex_kind(path):
     # call it a finished doc while its by-eye gates sit open. Caught by a Codex
     # worker running our own code-review-protocol against this function.
     if not tasks:
-        return "doc", "done", 0, 0
+        return "doc", "done", 0, 0, None
     td, tt = parse.count_split(tasks)[:2]
-    fm, _fm_err = parse.parse_frontmatter(text)
-    status, _drift = derive.derive_plan(fm or {}, td, tt)
-    return "plan", status, td, tt
+    fm = fm_early or {}
+    status, _drift = derive.derive_plan(fm, td, tt)
+    # Carry the override OUT. Discarding it let an off-index plan declaring
+    # `override: blocked` derive 'blocked' and still be handed back with
+    # overridden=False and now=<path> — so the runbook offered blocked work as
+    # "Now" while its Blocked queue stayed empty.
+    return "plan", status, td, tt, (fm.get("override") or None)
 
 
 # ── child-result builders (derive.rollup's input shape) ──────────────────────
@@ -201,15 +227,20 @@ def _child_result_from_plan(conn, path):
         "SELECT stage,override,tasks_done,tasks_total,derived_status "
         "FROM plans WHERE path=?", (path,)).fetchone()
     if r is None:
-        kind, ostatus, td, tt = _offindex_kind(path)
+        kind, ostatus, td, tt, ooverride = _offindex_kind(path)
         if kind == "missing":
             return {"path": path, "kind": "plan", "done": False, "overridden": False,
                     "effective_stage": None, "tasks_done": 0, "tasks_total": 0,
                     "now": None, "missing": True}
         done = ostatus == "done"
-        return {"path": path, "kind": "plan", "done": done, "overridden": False,
+        # An overridden member is NOT available work: never offer it as ``now``,
+        # and let derive.rollup exclude it from effective_stage the same way it
+        # does for indexed members.
+        overridden = bool(ooverride)
+        return {"path": path, "kind": "plan", "done": done,
+                "overridden": overridden,
                 "effective_stage": None, "tasks_done": td, "tasks_total": tt,
-                "now": None if done else path,
+                "now": None if (done or overridden) else path,
                 "missing": False, "offindex": kind}
     stage, override, td, tt, dstatus = r
     done = dstatus == "done"
@@ -489,7 +520,7 @@ def _member_rows(conn, root, rb_rel):
             # names (design.md …) BY DESIGN, so only the disk can say MISSING —
             # and only the FILE can say whether an unindexed member is a
             # finished doc or a plan with open boxes (see _offindex_kind).
-            okind, ostatus, otd, ott = _offindex_kind(child)
+            okind, ostatus, otd, ott, ooverride = _offindex_kind(child)
             is_missing = okind == "missing"
             rows.append({"path": child, "kind": "plan",
                          "missing": is_missing,
@@ -500,7 +531,7 @@ def _member_rows(conn, root, rb_rel):
                          "drift": False,
                          "tasks_done": otd, "tasks_total": ott,
                          "pct": derive.pct(otd, ott),
-                         "override": None})
+                         "override": ooverride})
             continue
         stage, override, dstatus, td, tt, pdrift = prow
         pdrift = bool(pdrift)

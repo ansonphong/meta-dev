@@ -140,6 +140,20 @@ if [[ -n "$PROC_MD" ]]; then
     PROC_DIR="$(cd "$(dirname "$PROC_MD")" && pwd)"
     PROC_MD="$PROC_DIR/$(basename "$PROC_MD")"
     PLUGIN_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+    # Containment check: the -f test alone accepts traversal, so
+    # `--command ../../../README` resolved to the repo README and Codex was then
+    # told to follow it "EXACTLY as your procedure" — arbitrary local markdown
+    # promoted to an instruction source. Resolve first, THEN require the result
+    # to live under the plugin root.
+    case "$PROC_MD" in
+        "$PLUGIN_ROOT"/skills/*|"$PLUGIN_ROOT"/commands/*) ;;
+        *)
+            echo "[ERROR] procedure path escapes the plugin root — refusing." >&2
+            echo "        resolved : $PROC_MD" >&2
+            echo "        allowed  : $PLUGIN_ROOT/{skills,commands}/" >&2
+            exit 2
+            ;;
+    esac
     PROMPT="Read ${PROC_MD} and follow it EXACTLY as your procedure.
 
 Harness translation — that file is written for Claude Code; you are Codex:
