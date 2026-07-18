@@ -54,8 +54,57 @@ def build_parser():
     )
     # Verbs are added as subparsers in phases 0c-0e. The scaffold exists now so
     # the dispatch shape is fixed before verbs land.
-    parser.add_subparsers(dest="verb", metavar="<verb>")
+    sub = parser.add_subparsers(dest="verb", metavar="<verb>")
+
+    # ── sync (phase 0c.1) — the freshness engine ──────────────────────────────
+    sp = sub.add_parser(
+        "sync",
+        help="incremental reindex of plans/ into the read-model (freshness engine)",
+    )
+    g = sp.add_mutually_exclusive_group()
+    g.add_argument("--file", metavar="F", help="reindex ONE file (PostToolUse path)")
+    g.add_argument("--full", action="store_true",
+                   help="drop + rebuild every derived row (corruption / DERIVE_V bump)")
+    sp.add_argument("--json", action="store_true",
+                    help="emit {synced, rebuilt_runbooks, watermark, elapsed_ms, full}")
+    sp.set_defaults(func=_dispatch_sync)
+
+    # ── status (phase 0c.2) — one plan's derived state ────────────────────────
+    sp = sub.add_parser("status", help="derived status of ONE plan")
+    sp.add_argument("plan", help="plan path (repo-relative or absolute)")
+    sp.add_argument("--json", action="store_true", help="emit one-plan JSON (~100 tokens)")
+    sp.set_defaults(func=_dispatch_read("status"))
+
+    # ── brief (phase 0c.2) — session orientation ──────────────────────────────
+    sp = sub.add_parser("brief", help="≤600-token session-orientation summary")
+    sp.add_argument("--repo", default=None, help="filter to one repo alias")
+    sp.add_argument("--runbook", default=None, help="scope to one runbook's members")
+    sp.add_argument("--oneline", action="store_true",
+                    help="single line (SessionStart hook)")
+    sp.add_argument("--json", action="store_true", help="emit structured JSON")
+    sp.set_defaults(func=_dispatch_read("brief"))
+
+    # ── next (phase 0c.3) — ready-work, ledger-ordered ────────────────────────
+    sp = sub.add_parser("next", help="ready-work (unclaimed, unblocked, in ledger order)")
+    sp.add_argument("--runbook", default=None, help="scope to one runbook's members")
+    sp.add_argument("--json", action="store_true", help="emit a JSON list")
+    sp.set_defaults(func=_dispatch_read("next"))
     return parser
+
+
+def _dispatch_sync(args):
+    """Shim: import sync lazily so ``python3 -m planctl`` (help) never imports
+    the DB/deriver for users who only want ``--help``."""
+    from planctl import sync
+    return sync.cmd_sync(args)
+
+
+def _dispatch_read(verb):
+    """Return a lazy shim for a read.py verb (status/brief/next)."""
+    def _shim(args):
+        from planctl import read
+        return getattr(read, "cmd_%s" % verb)(args)
+    return _shim
 
 
 def main(argv=None):
