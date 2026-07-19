@@ -821,10 +821,28 @@ case "${1:-}" in
   --check-docs-gate) check_docs_gate ;;
   *)
     check_schemas
-    if bash "$PLUGIN_DIR/tests/test-codex-parity.sh"; then
-      PASS=$((PASS+2))
+    PARITY_RC=0
+    if PARITY_OUTPUT="$(bash "$PLUGIN_DIR/tests/test-codex-parity.sh" 2>&1)"; then
+      PARITY_RC=0
+    else
+      PARITY_RC=$?
+    fi
+    printf '%s\n' "$PARITY_OUTPUT"
+    PARITY_SUMMARY="$(printf '%s\n' "$PARITY_OUTPUT" | tail -n 1)"
+    if [[ "$PARITY_SUMMARY" =~ ^===\ Results:\ ([0-9]+)\ passed,\ ([0-9]+)\ failed\ ===$ ]]; then
+      PARITY_PASS="${BASH_REMATCH[1]}"
+      PARITY_FAIL="${BASH_REMATCH[2]}"
+      PASS=$((PASS+PARITY_PASS))
+      if [ "$PARITY_RC" -ne 0 ] && [ "$PARITY_FAIL" -lt 1 ]; then
+        PARITY_FAIL=1
+      fi
+      FAIL=$((FAIL+PARITY_FAIL))
+      if [ "$PARITY_RC" -eq 0 ] && [ "$PARITY_FAIL" -ne 0 ]; then
+        red "  FAIL codex parity reported failures but exited zero"
+      fi
     else
       FAIL=$((FAIL+1))
+      red "  FAIL could not parse codex parity result summary (exit $PARITY_RC)"
     fi
     check_templates
     check_scripts
