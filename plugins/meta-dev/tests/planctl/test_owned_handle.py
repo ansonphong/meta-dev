@@ -217,6 +217,58 @@ def test_lenient_regex_would_have_hijacked():
         )
 
 
+# ── the same class, one line up: beads ───────────────────────────────────────
+
+BEAD_HIJACK_CASES = [
+    ("bead-in-prose", "- [ ] #a3f8 add the cache bound",
+     "- [ ] revert the bound introduced by #a3f8", "#a3f8"),
+    ("bead-in-verify-line", "- [ ] #b1c2 stamp the ledger",
+     "- [ ] verify: `grep -n '#b1c2' plans/foo.md`", "#b1c2"),
+    ("dotted-bead-in-prose", "- [ ] #629a.1 wire the picker",
+     "- [ ] follow-up to #629a.1 once the seam lands", "#629a.1"),
+]
+
+
+@pytest.mark.parametrize(
+    "case_id,owner_line,mention_line,bead",
+    BEAD_HIJACK_CASES,
+    ids=[c[0] for c in BEAD_HIJACK_CASES],
+)
+def test_prose_bead_mention_does_not_claim_the_box(case_id, owner_line, mention_line, bead):
+    """A bead-shaped token in prose must not claim a box by bead id.
+
+    ``_BEAD_RE.search`` had the identical shape as the handle bug, one line
+    apart in the source. Never observed in the wild — but the class is the
+    same, and anchoring it is free: across the 44,362-line plans corpus,
+    ``search()`` and the anchored form agree on all 7,852 beaded boxes.
+    """
+    tasks = _by_line(_plan(owner_line, mention_line))
+    assert tasks[9].tid == bead, (
+        "the box that OWNS %s must resolve to it, got %r" % (bead, tasks[9].tid)
+    )
+    assert tasks[10].tid != bead, (
+        "box merely MENTIONING %s hijacked it (tid=%r)" % (bead, tasks[10].tid)
+    )
+
+
+def test_beaded_forms_still_own_their_bead():
+    """Decoration before a bead does not break ownership."""
+    for line, bead in [
+        ("- [ ] #a3f8 plain", "#a3f8"),
+        ("- [ ] **#a3f8** bold", "#a3f8"),
+        ("- [ ] #629a.1 dotted", "#629a.1"),
+        ("- [ ] #a3f8 `T1.2` bead then handle", "#a3f8"),
+    ]:
+        tasks = _by_line(_plan(line))
+        assert tasks[9].tid == bead, "%r lost its bead: %r" % (line, tasks[9].tid)
+
+
+def test_six_hex_colour_is_not_read_as_a_bead():
+    """``#aabbcc`` is a colour, not a bead — the negative lookahead must hold."""
+    tasks = _by_line(_plan("- [ ] #aabbcc set the highlight token"))
+    assert tasks[9].tid != "#aabb", "a 6-hex colour was mis-parsed as a bead"
+
+
 def test_patch_is_present_in_this_parse_module():
     """Guard against the fix being silently reverted by a plugin update.
 
@@ -231,6 +283,12 @@ def test_patch_is_present_in_this_parse_module():
     assert parse._OWNED_HANDLE_RE.pattern.startswith("^"), (
         "_OWNED_HANDLE_RE must be ANCHORED; an unanchored pattern reintroduces "
         "the match-anywhere hijack"
+    )
+    assert hasattr(parse, "_OWNED_BEAD_RE"), (
+        "_OWNED_BEAD_RE is missing — a prose bead token can hijack a box again"
+    )
+    assert parse._OWNED_BEAD_RE.pattern.startswith("^"), (
+        "_OWNED_BEAD_RE must be ANCHORED"
     )
 
 

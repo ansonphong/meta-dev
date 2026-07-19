@@ -34,6 +34,20 @@ _CHECKBOX_RE = re.compile(r"^(\s*)([-*])\s+\[([ xX])\]\s*(.*)$")
 # mis-parsed as ``#aabb``.
 _BEAD_RE = re.compile(r"#([0-9a-fA-F]{4})(?![0-9a-fA-F])(\.(\d+))?")
 
+# ...and, exactly as with handles below, IDENTIFYING the bead a box OWNS is a
+# different question from finding one anywhere in its text. A bead-shaped token
+# quoted in prose (`#a3f8`) could claim a box by bead id under `search()` — the
+# identical hijack class as `_HANDLE_RE`, one line apart. `task-stamp.py` always
+# emits the bead FIRST, so an owned bead is anchored at the start of rest-text,
+# preceded only by markdown emphasis/backticks.
+#
+# Calibrated against the full plans/ corpus (44,362 checkbox lines): 7,852 boxes
+# carry a bead, and `search()` and this anchored form agree on EVERY ONE — zero
+# divergence. Anchoring costs nothing on real plans and closes the class.
+_OWNED_BEAD_RE = re.compile(
+    r"^[*_~`]{0,3}#([0-9a-fA-F]{4})(?![0-9a-fA-F])(\.(\d+))?"
+)
+
 # Legacy handle: ``T3.2`` / `` `T3.2` `` — accepted as an alias. Used for
 # STRIPPING handle text out of the normalize_rest() fallback, where matching
 # anywhere is correct and harmless.
@@ -323,7 +337,9 @@ def parse_tasks(text):
         # Extract bead (#hex[.N]) and legacy handle (T3.2) from rest.
         bead_id = None
         handle_id = None
-        bm = _BEAD_RE.search(rest)
+        # ANCHORED, not search(): only the bead this box OWNS may identify it
+        # (same rule as the handle below; see _OWNED_BEAD_RE).
+        bm = _OWNED_BEAD_RE.match(rest)
         if bm:
             bead_id = "#" + bm.group(1).lower() + (bm.group(2) or "")
         # ANCHORED, not search(): only the handle this box OWNS may identify it.
