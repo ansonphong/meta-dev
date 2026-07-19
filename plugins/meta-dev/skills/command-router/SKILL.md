@@ -47,6 +47,10 @@ That markdown is written for Claude Code. In Codex:
   model parameter and silently inherits the parent's expensive model.
 - `allowed-tools:` and `model:` in a command's frontmatter are Claude-only. Ignore them.
 
+**First session in a while?** Run
+`bash <plugin-root>/scripts/codex-doctor.sh` once. It catches the blocked-network
+and stale-plugin-cache failures before they waste a dispatch.
+
 ## Laws that still bind you
 
 1. **planctl is the ONLY write door for plan state.** `bash <plugin-root>/scripts/planctl.sh <verb>`.
