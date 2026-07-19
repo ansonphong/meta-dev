@@ -133,7 +133,8 @@ def build_parser():
     sp.add_argument("plan", help="plan path (repo-relative or absolute)")
     sp.add_argument("stage", help="brainstorm|design|plan|harden|execute|review or 1-6")
     sp.add_argument("--status", default=None,
-                    help="event-payload status (in_progress|completed|blocked) — event ONLY, never frontmatter")
+                    help="record status in the event log and stage_state frontmatter "
+                         "(completed -> done; otherwise -> active; omitted removes it)")
     sp.add_argument("--json", action="store_true", help="emit {stage, stage_num}")
     sp.set_defaults(func=_dispatch_module("stage", "cmd_stage"))
 

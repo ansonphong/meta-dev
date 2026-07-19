@@ -42,7 +42,11 @@ STAGE_NUM_TO_NAME = {v: k for k, v in STAGE_NAMES.items()}
 # Override canon (design §3.2 closed vocabulary — the schema gate enforces it).
 OVERRIDE_CANON = ("blocked", "parked", "superseded")
 
-# Status values accepted by --status (event payload ONLY, never frontmatter).
+# Status values accepted by --status. Drives the stage_state frontmatter bit:
+# completed -> done, anything else (in_progress, blocked) -> active. The write is
+# unconditional whenever --status is given, so a status can never inherit a stale
+# stage_state from the stage it just left. For a durable halt use `override`,
+# which outranks stage_state in derive precedence.
 STATUS_CANON = ("in_progress", "completed", "blocked")
 
 # Off-limits: never patch this file's frontmatter (event append still ok) —
@@ -159,7 +163,7 @@ def cmd_stage(args):
 
     name = STAGE_NUM_TO_NAME.get(n, "?")
 
-    # --status <s> validation — event payload ONLY, never written to frontmatter.
+    # --status <s> validation — drives stage_state in frontmatter (see mutator).
     status_val = getattr(args, "status", None)
     if status_val is not None:
         status_val = status_val.strip().lower()
@@ -187,7 +191,23 @@ def cmd_stage(args):
                     "refusing to synthesize one (add a --- … --- block first).\n" % rel)
                 return 1
             def mutator(lines):
-                return _patch_frontmatter_keys(lines, set_map={"stage": str(n)})
+                set_map = {"stage": str(n)}
+                remove_set = set()
+                # The stage_state write is UNCONDITIONAL when --status is given:
+                # only "completed" means the stage's work is finished; every other
+                # status (in_progress, blocked) means it is still open. Omitting
+                # the write would let a new stage inherit the previous stage's
+                # bit -- e.g. a FAILED review (`stage-emit.sh ... review blocked`)
+                # landing at stage 6 with a stale `done` and deriving "done".
+                if status_val is not None:
+                    set_map["stage_state"] = (
+                        "done" if status_val == "completed" else "active")
+                else:
+                    # No status declared -> drop the key rather than carry a stale
+                    # one; absent == legacy semantics (stage reached).
+                    remove_set.add("stage_state")
+                return _patch_frontmatter_keys(
+                    lines, set_map=set_map, remove_set=remove_set)
             mutate.atomic_write_md(abs_path, mutator)
             sync.sync_one(rel)
             patched = True

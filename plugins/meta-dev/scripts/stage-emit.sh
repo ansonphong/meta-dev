@@ -4,8 +4,8 @@
 #
 # Usage: stage-emit.sh <plan> <stage> [status]
 #   <stage>   brainstorm|design|plan|harden|execute|review or 1-6
-#   [status]  Accepted for compat; conveyed via event only — NEVER written to
-#             frontmatter (planctl derives status, never types it).
+#   [status]  Forwarded to the event log and written to stage_state in the plan's
+#             frontmatter, making this a git-visible write.
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/anchor-root.sh
@@ -26,6 +26,7 @@ esac
 
 # Delegate to planctl stage — planctl handles the exec-order guard, never writes
 # status:/updated:, and emits the event via the new events.jsonl (not state-append.sh).
-# Forward $3 as --status for the event payload only (planctl derives status; never types it).
+# Forward $3 as --status; planctl also writes completed -> stage_state: done and
+# every other accepted status -> stage_state: active in the plan frontmatter.
 STATUS_VAL="${3:-in_progress}"
 exec bash "$SCRIPT_DIR/planctl.sh" stage "$PLAN" "$STAGE" --status "$STATUS_VAL"
