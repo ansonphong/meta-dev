@@ -287,6 +287,7 @@ def _planctl_data():
         plan_rows = conn.execute(
             "SELECT p.path, p.repo, p.stage, p.override, p.note, p.why, "
             "p.tasks_done, p.tasks_total, p.drift, p.derived_status, "
+            "p.stage_state, p.smoke_total, "
             "f.parse_err FROM plans p JOIN files f ON f.path=p.path "
             "WHERE f.kind='plan' ORDER BY p.path"
         ).fetchall()
@@ -326,7 +327,7 @@ def _planctl_data():
         all_plans = []
         for row in plan_rows:
             (path, repo, stage, override, note, why,
-             td, tt, drift, dstatus, parse_err) = row
+             td, tt, drift, dstatus, stage_state, smoke_total, parse_err) = row
             legacy = _derive_legacy_status(dstatus, override)
             edges = edges_by_src.get(path, {"depends": [], "blocks": []})
             pct_val = round(100 * td / tt) if tt else 0
@@ -335,6 +336,10 @@ def _planctl_data():
                 "status": legacy,              # mirrored for old render (W2A-3)
                 "derived_status": dstatus,     # NEW — the new render reads this
                 "stage": stage or 0,
+                "stage_state": stage_state,
+                "smoke": smoke_total or 0,
+                "smoke_total": smoke_total or 0,
+                "drift": bool(drift),
                 "repo": repo or "",
                 "why": why or "",
                 "depends": edges.get("depends", []),

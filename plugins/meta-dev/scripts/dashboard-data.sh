@@ -203,6 +203,10 @@ for p in raw:
         'derived_status': p.get('derived_status') or p.get('status') or 'draft',  # NEW — derived from planctl
         'runbook_group': p.get('runbook_group'),               # NEW — campaign grouping
         'stage': p.get('stage', 0),
+        'stage_state': p.get('stage_state'),
+        'smoke': p.get('smoke', 0),
+        'smoke_total': p.get('smoke_total', 0),
+        'drift': p.get('drift', False),
         'why': p.get('why', ''),
         'malformed': bool(p.get('malformed', False)),
     })
