@@ -81,19 +81,52 @@ else
   bad "router path claim BROKEN — ../../commands does not resolve"
 fi
 
-# Every meta-<name> must have a bare <name> twin, or the router's step-2
-# fallback advertises a name that does not exist.
-MISSING_TWIN=""
-for f in "$PLUGIN_ROOT"/commands/meta-*.md; do
-  base="$(basename "$f" .md)"; short="${base#meta-}"
-  # meta-dev and meta-init are documented exceptions with no bare twin rule
-  case "$short" in dev|init) continue ;; esac
-  [ -f "$PLUGIN_ROOT/commands/$short.md" ] || MISSING_TWIN="$MISSING_TWIN $short"
-done
+# Every meta-<name> must have a bare <name> twin whose body is the literal
+# one-line redirect promised by the command-pairing invariant.
+TWIN_OUT="$(python3 - "$PLUGIN_ROOT" <<'PY'
+from pathlib import Path
+import sys
+
+commands = Path(sys.argv[1]) / "commands"
+missing = []
+bad_bodies = []
+meta_commands = sorted(commands.glob("meta-*.md"))
+
+for implementation in meta_commands:
+    short = implementation.stem.removeprefix("meta-")
+    twin = commands / f"{short}.md"
+    if not twin.is_file():
+        missing.append(short)
+        continue
+
+    raw = twin.read_bytes()
+    if not raw.startswith(b"---\n"):
+        bad_bodies.append(short)
+        continue
+    _, separator, body = raw[4:].partition(b"\n---\n")
+    expected = f"Execute /{implementation.stem} $ARGUMENTS\n".encode()
+    if not separator or body != expected:
+        bad_bodies.append(short)
+
+print(len(meta_commands))
+print("|".join(missing))
+print("|".join(bad_bodies))
+PY
+)"
+TWIN_COUNT="$(echo "$TWIN_OUT" | sed -n 1p)"
+MISSING_TWIN="$(echo "$TWIN_OUT" | sed -n 2p)"
+BAD_TWIN_BODY="$(echo "$TWIN_OUT" | sed -n 3p)"
+
 if [ -z "$MISSING_TWIN" ]; then
-  ok "every meta-<name> has a bare <name> twin"
+  ok "every meta-<name> has a bare <name> twin ($TWIN_COUNT pairs)"
 else
-  bad "meta-<name> without bare twin:$MISSING_TWIN"
+  bad "meta-<name> without bare twin: $MISSING_TWIN"
+fi
+
+if [ -z "$BAD_TWIN_BODY" ]; then
+  ok "all bare twin bodies are exact one-line redirects"
+else
+  bad "bare twins with non-redirect bodies: $BAD_TWIN_BODY"
 fi
 
 echo
