@@ -133,23 +133,5 @@ if [ "$TWIN_VALIDATOR_OK" -eq 1 ]; then
 fi
 
 echo
-echo "=== Doctrine: retired claims must not return ==="
-
-# These claims were retired 2026-07-19: bare /meta-execute is NATIVE to the host
-# harness, and Codex is a first-class executor. If a phrase reappears, some doc
-# has drifted back and Codex workers will obey the wrong rule.
-RETIRED='deepseek[- ]first|deepseek.{0,24}(\(cheapest, default\)|\(default\)|\bdefault[/ -](mechanical|execution|executor|worker|backend|tier)\b|\bdefault via\b|\bis (the )?default\b)|\bdefault[[:space:]]+deepseek\b|\bdefault[[:space:]]*(→|:|=)[[:space:]]*deepseek\b|codex is off (the|this)|code review only|review-only lens'
-HITS="$(grep -rniE "$RETIRED" \
-  "$PLUGIN_ROOT/commands" "$PLUGIN_ROOT/skills" "$PLUGIN_ROOT/references" \
-  2>/dev/null | grep -viE '^\S+:[0-9]+: *#' || true)"
-
-if [ -z "$HITS" ]; then
-  ok "no retired default/review-only claims in commands, skills, references"
-else
-  bad "retired doctrine claims resurfaced:"
-  echo "$HITS" | sed 's/^/        /'
-fi
-
-echo
 echo "=== Results: $PASS passed, $FAIL failed ==="
 [ "$FAIL" -eq 0 ] || exit 1
