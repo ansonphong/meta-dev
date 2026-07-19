@@ -64,6 +64,43 @@ GOLDEN = [
 ]
 
 
+# ── stage_state axis (Phase 2) ──────────────────────────────────────────────
+# (id, stage, exec_done, exec_total, override, stage_state, exp_status, exp_drift)
+GOLDEN_STAGE_STATE = [
+    # THE FIX: stage6 + active review is NOT done.
+    ("stage6-active-review",       6, 5, 5, None, "active", "needs-review", False),
+    ("stage6-done-explicit",       6, 5, 5, None, "done",   "done",         False),
+    # BACKWARD COMPAT: absent must derive exactly today's behavior.
+    ("stage6-absent-is-legacy",    6, 5, 5, None, None,     "done",         False),
+    # drift still reported while actively reviewing with open exec boxes.
+    ("stage6-active-open-exec",    6, 3, 5, None, "active", "needs-review", True),
+    ("stage6-done-open-exec",      6, 3, 5, None, "done",   "done",         True),
+    # override still wins over everything (rule 1 precedence unchanged).
+    ("override-beats-stage-state", 6, 5, 5, "parked", "active", "parked",  False),
+    # stages 1-5 are UNAFFECTED by stage_state (render-only signal there).
+    ("stage4-done-still-ready",    4, 0, 0, None, "done",   "ready",        False),
+    ("stage4-active-still-ready",  4, 0, 0, None, "active", "ready",        False),
+    ("stage5-done-needs-review",   5, 5, 5, None, "done",   "needs-review", False),
+    # unknown/garbage stage_state is ignored, not fatal.
+    ("stage6-garbage-ignored",     6, 5, 5, None, "wat",    "done",         False),
+]
+
+
+@pytest.mark.parametrize(
+    "tid,stage,ed,et,override,stage_state,exp_status,exp_drift",
+    GOLDEN_STAGE_STATE,
+    ids=[r[0] for r in GOLDEN_STAGE_STATE],
+)
+def test_derive_stage_state(tid, stage, ed, et, override, stage_state,
+                            exp_status, exp_drift):
+    fm = {"stage": stage}
+    if override:
+        fm["override"] = override
+    if stage_state is not None:
+        fm["stage_state"] = stage_state
+    assert derive.derive_plan(fm, ed, et) == (exp_status, exp_drift)
+
+
 @pytest.mark.parametrize(
     "stage,exec_done,exec_total,human_open,override,exp_status,exp_drift",
     [(r[1], r[2], r[3], r[4], r[5], r[6], r[7]) for r in GOLDEN],
@@ -155,8 +192,8 @@ def test_pct_bankers_round_matches_plan_index():
     assert derive.pct(1, 8) == round(100 * 1 / 8)
 
 
-def test_derive_v_is_one():
-    assert derive.DERIVE_V == 1
+def test_derive_v_is_two():
+    assert derive.DERIVE_V == 2
 
 
 # ── parse -> derive integration (the fixture mini-plan) ───────────────────────

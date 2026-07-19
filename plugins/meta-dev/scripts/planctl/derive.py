@@ -7,15 +7,16 @@ again; it is computed from declared ``stage`` + EXECUTION-only checkbox counts +
 (``tests/planctl/test_derive.py``, design §10 item 1) regression-locks the
 ``completed != done`` class that today reads 0% on the control plane.
 
-``DERIVE_V`` is the rule-version constant callers pass into ``db.is_stale``; bump
-on ANY rule change → index auto-rebuilds (mixed-semantics rows are impossible).
+``DERIVE_V`` is the rule-version constant callers pass into ``db.is_stale``; v2
+makes stage-6 derivation ``stage_state``-aware. Bump it on ANY rule change so a
+full sync rebuilds the index under the current semantics.
 ``db.py`` deliberately does NOT import this module (cycle avoidance) — callers
 wire ``DERIVE_V`` in by hand: ``db.is_stale(conn, derive.DERIVE_V)``.
 
 Stdlib only.
 """
 
-DERIVE_V = 1
+DERIVE_V = 2
 
 # Derived vocabulary (canon, closed — design §3.2).
 PLAN_STATUSES = ("draft", "ready", "executing", "needs-review", "done")
@@ -96,7 +97,10 @@ def derive_plan(fm, tasks_done, tasks_total):
       1. ``override`` present            → ``(override_value, False)``
          (caller shows ``note``; drift suppressed).
       2. ``stage >= 6``                  → ``('done', drift)`` where
-         ``drift = tasks_done < tasks_total`` (open EXECUTION boxes remain).
+         ``drift = tasks_done < tasks_total`` (open EXECUTION boxes remain) —
+         UNLESS ``stage_state == 'active'``, which means the review itself is
+         still running and derives ``('needs-review', drift)``. An ABSENT
+         ``stage_state`` is legacy-equivalent to ``done`` (no migration).
       3. ``tasks_total>0 and tasks_done==tasks_total``
                                          → ``('needs-review', False)``
          (execution work complete at stage <6 — a human-only-open plan at stage 5
@@ -118,8 +122,12 @@ def derive_plan(fm, tasks_done, tasks_total):
     # 1. override wins; drift suppressed.
     if override:
         return override, False
-    # 2. stage >= 6 -> done (drift iff open EXEC boxes remain).
+    # 2. stage >= 6 -> done, UNLESS the review is still actively running.
+    #    stage_state ABSENT means legacy semantics (== done) so no live plan
+    #    file needs migrating; only an explicit "active" changes the outcome.
     if stage >= 6:
+        if str(fm.get("stage_state", "")).strip().lower() == "active":
+            return "needs-review", tasks_done < tasks_total
         return "done", tasks_done < tasks_total
     # 3. all EXEC done at stage <6 -> needs-review (rule-3 beats rule-5).
     if tasks_total > 0 and tasks_done == tasks_total:
