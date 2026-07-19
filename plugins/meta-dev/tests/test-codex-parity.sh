@@ -151,15 +151,5 @@ else
 fi
 
 echo
-echo "=== Codex Parity: prompt shims ==="
-if python3 "$PLUGIN_ROOT/scripts/gen-codex-prompts.py" --check >/dev/null 2>&1; then
-  ok "~/.codex/prompts shims in sync with command catalog"
-else
-  # Drift is a WARNING not a failure: the dest is user-global and outside git,
-  # so a fresh clone or another machine legitimately has none.
-  echo "  WARN: prompt shims drifted or absent — run gen-codex-prompts.py --write"
-fi
-
-echo
 echo "=== Results: $PASS passed, $FAIL failed ==="
 [ "$FAIL" -eq 0 ] || exit 1
