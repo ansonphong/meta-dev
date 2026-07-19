@@ -24,7 +24,7 @@ This command owns the **EXECUTE** waterfall stage (5/6). Keep `/meta-dashboard` 
 
 **Before starting work on ANY task (whether dispatched to a subagent or run `--inline`), the main thread MUST stand up a visible task list via `TaskCreate` — one entry per CHECKBOX in the plan (every `### Task N:` heading AND every `- [ ]` subtask checkbox nested under it) — and keep it live with `TaskUpdate` for the whole run.** Granularity is the point: the user runs `/meta-execute` to *watch* progress, so a list of fine-grained, checkbox-mapped entries is a primary deliverable — a list of 4 broad items hides progress; the same plan's 14 checkboxes as 14 entries shows it. No tracker visible = the run has not started correctly. Updates are mirrored *as each state changes* — never batched at the end.
 
-Parse plan, dispatch one **native subagent per task — native to whatever harness you are running in** (Claude Code → `Agent`/Task subagent; Codex → `codex exec` delegation), commit + push between. No external backend is spawned unless a tier flag says so. **Optimistic by default:** never block forward progress on tests. After each task, run only the instant inline checks, then launch the task's test/verify suite **async in the background** and advance to the next task immediately — tests run in parallel while the run keeps moving. When an async verify comes back red, spawn a background fixer scoped to it, defer dependents, advance independent work, then solidify the foundation before completion. Only critical-risk tasks (`money-path` / `release-stability` / `schema-drift`) verify synchronously. `--strict` = old serial gate (every test runs inline and blocks).
+Parse plan, dispatch one **native subagent per task — native to whatever harness you are running in** (Claude Code → `Agent`/Task subagent; Codex → `codex exec` delegation), and require every editing worker to create an exact-path local commit before returning, including on red verification. Green then permits conductor push/state advancement; red keeps both blocked while repair runs. No external backend is spawned unless a tier flag says so. **Optimistic by default:** never block forward progress on tests. After each task commit, run only the instant inline checks, then launch the task's test/verify suite **async in the background** and advance to the next independent task immediately — tests run in parallel while the run keeps moving. When an async verify comes back red, spawn a background fixer scoped to it, defer dependents, advance independent work, then solidify the foundation before completion. Only critical-risk tasks (`money-path` / `release-stability` / `schema-drift`) verify synchronously. `--strict` = serial acceptance gate (every red stops after its scoped commit exists).
 
 ## Charter
 
@@ -60,18 +60,19 @@ Call `TaskCreate` once per **checkbox** from the step-1 inventory (every task he
 - Read branch policy from host `CLAUDE.md` per `references/host-claude-contract.md`
 - Working tree: if dirty files overlap plan file set → commit immediately, keep moving
 - Confirm on the host's declared main branch
-- `git fetch origin`: rebase silently if behind; only surface on conflict
+- `git fetch origin`, review the ahead commits, then `git merge --ff-only` if
+  behind. Never rebase. Divergence is a genuine conflict and must surface.
 - If `filesystem.git_corruption_mitigations` config is true → apply host-specific git mitigations
 - Read `references/execute-charter.md` for full pre-flight details
 
-### 4. Per task: claim → risk-tag → dispatch → verify → commit
+### 4. Per task: claim → risk-tag → dispatch → local commit → verify → accept/repair
 
 For EACH task-list item:
 
 1. Mark `in_progress` via `TaskUpdate`. CLAIM in plan file (per execute-charter.md). Commit claim.
 2. Run `echo "<task body>" | bash scripts/risk-tag.sh` → get risk tags
 3. Dispatch **natively — in the harness you are already running in** — with the task spec from `references/execute-dispatch.md` + risk-tag clauses. In **Claude Code**: an `Agent` subagent (no external process). In **Codex**: `codex exec -m gpt-5.3-codex-spark -c model_reasoning_effort=low --sandbox workspace-write '<bounded task>'` — spark bills to a **separate quota from gpt-5.6**, so it is the cheapest tier available. Under `--deep` this becomes a headless DeepSeek worker instead (`${CLAUDE_PLUGIN_ROOT}/scripts/claude-headless-exec --backend deep`), and `--glm`/`--sonnet`/`--codex` force their own backends per the Worker-tier section — an external backend is used **only** when its flag was passed. Default: dispatch the next dep-satisfied, non-deferred task without waiting on in-flight fixers or in-flight tests (momentum). `--strict`: wait for the prior task to go green first.
-4. Subagent returns → **instant inline checks only** (stub grep on the diff + declared-file existence — milliseconds). Commit + push. Then **launch the task's `Verify:`/test suite async in the background** (`Bash run_in_background`, tracked as its own tracker entry `🧪 testing <ID> (async)`) and DO NOT block on it. **Exception — critical gate:** if the task is risk-tagged `money-path`, `release-stability`, or `schema-drift`, run its verify synchronously and require green before advancing. **Never run the full baseline suite per task** — that's the slow part; it runs once at solidify (step 5). **The async test MUST be path-scoped** — run the task's named test file (`pytest path/test_x.py -q`, `-m "not slow and not gpu"`), NEVER `pytest <dir>/` or `pytest … -k <expr>` (both collect the whole tree = ~18× slower every cycle), and NEVER `svelte-check`/`tsc`/`build` per task. Full doctrine: `references/execute-charter.md` → Fast Test Doctrine.
+4. Subagent returns only after any scoped edits are in an exact-path **local commit**, even if its own Verify was red. Run **instant inline checks only** (stub grep on the committed diff + declared-file existence — milliseconds). Then launch the task's `Verify:`/test suite async in the background (`Bash run_in_background`, tracked as its own tracker entry `🧪 testing <ID> (async)`) and DO NOT block on it. Green permits conductor push + checkbox advancement; red withholds both and routes the existing commit to repair. **Exception — critical gate:** if the task is risk-tagged `money-path`, `release-stability`, or `schema-drift`, run its verify synchronously after the local commit and require green before push/advance. **Never run the full baseline suite per task** — that's the slow part; it runs once at solidify (step 5). **The async test MUST be path-scoped** — run the task's named test file (`pytest path/test_x.py -q`, `-m "not slow and not gpu"`), NEVER `pytest <dir>/` or `pytest … -k <expr>` (both collect the whole tree = ~18× slower every cycle), and NEVER `svelte-check`/`tsc`/`build` per task. Full doctrine: `references/execute-charter.md` → Fast Test Doctrine.
 5. **Advance immediately** to the next dep-satisfied task while tests run. Mark the task `✅ code done, tests pending`. When its async verify returns: **green** → mark `completed`, **IMMEDIATELY run `task-done` for that entry's handle** (see ⛔ CHECKBOX RULE below). **Recoverable red** → spawn background fixer (execute-dispatch.md), mark task `blocked`, defer dependents, keep dispatching independents. **TRUE BLOCKER** → STOP, surface (see charter momentum gate).
 
 ### ⛔ MANDATORY CHECKBOX RULE — NEVER SKIP, NEVER DEFER
@@ -95,13 +96,15 @@ git add -- <plan-path> && git commit -m "chore(plan): mark <handle> DONE"
 
 ### 5. Solidify foundation
 
-**Drain all in-flight async test/verify jobs** (wait for every backgrounded suite to report), all fixers green, no deferred/blocked tasks left → run the **full acceptance suite once** (the clustered test pass deferred from per-task). Gate: all green before proceeding. The run is NOT done while any async test job is still pending or red.
+**Drain all in-flight async test/verify jobs** (wait for every backgrounded suite to report), all fixers green, no deferred/blocked tasks left → run the **full acceptance suite once** (the clustered test pass deferred from per-task). Gate: all green before proceeding. If it is red, confirm every editing worker/fixer commit exists, block phase/run completion and any new repair push, and surface the evidence; never stop with scoped edits loose. Task checkboxes/commits already accepted and pushed by their earlier path-scoped gates remain truthful and are not rolled back. The run is NOT done while any async test job is still pending or red.
 
 ### 6. Mandatory post-run code review
 
 **Default path:** end-of-run `superpowers:requesting-code-review` over `git diff <start>..HEAD`. **Tier-flag path (`--deep`/`--glm`/`--sonnet`/`--codex`):** the closing review is satisfied by the per-phase `meta-dev:review-agent` passes (always the **Opus** reviewer, regardless of which backend executed the tasks) — the final phase review IS the closing review (no separate end-of-run review). Either way, a run NEVER ends unreviewed. Route findings:
 
-- **Trivial/mechanical** (lint, format, missing annotation) → fix inline, commit, push
+- **Trivial/mechanical** (lint, format, missing annotation) → fix inline and
+  exact-path local commit; re-run the affected verification and code review;
+  push only after both are green
 - **Substantive** (logic, security, contract, scope creep) → surface to user with file:line in the Follow-ups section of the report card, do NOT silently auto-fix
 
 Record verdict in the report card. If the review returns substantive findings, fix them before proceeding to housekeeping.

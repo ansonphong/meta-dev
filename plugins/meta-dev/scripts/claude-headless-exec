@@ -378,14 +378,14 @@ fi
 # The headless worker is a SEPARATE `claude -p` process — it does NOT inherit
 # this project's plugin hooks. Inject two hooks via --settings so worker
 # behaviour is mechanically constrained no matter the --permission-mode:
-#   • PreToolUse Bash  → worker-git-guard.sh — workers are COMMIT-FREE (blocks
-#     mutating git; read-only git stays available). A PreToolUse deny fires
+#   • PreToolUse Bash  → worker-git-guard.sh — workers may stage explicit paths
+#     and create local commits, but broad staging, destructive/history git and
+#     remote operations are blocked. A PreToolUse deny fires
 #     even under bypassPermissions (hooks are a separate layer from the
 #     permission engine), which --disallowedTools is not guaranteed to be.
 #   • PostToolUse Edit|Write|MultiEdit → worker-manifest-record.sh — appends
-#     each touched path to MANIFEST_FILE so the CONDUCTOR stages EXACTLY those
-#     files instead of a tree-wide `git add` that would sweep a concurrent
-#     session's edits (commit-sweep, incident 2026-07-05).
+#     each touched path to MANIFEST_FILE for conductor audit/recovery. The
+#     worker normally stages exactly its own paths and commits before return.
 # Both hooks self-gate on META_WORKER_MANIFEST, so they're no-ops anywhere else.
 MANIFEST_FILE="${OUTPUT_FILE}.manifest.jsonl"
 WORKER_SETTINGS_FILE="${OUTPUT_FILE}.worker-settings.json"
@@ -551,6 +551,14 @@ START_TIME=$(date +%s)
 # stdout (the JSON payload) → RAW_FILE ; stderr (warnings) → STDERR_FILE.
 # Keeping the two streams apart is what makes OUTPUT_FILE cleanly parseable.
 cd "$WORK_DIR"
+
+PROMPT="HARD WORKER PERSISTENCE RULE (binding): If you edit any scoped file,
+stage only those exact paths and create a LOCAL commit before every return,
+including red verification, failed review, BLOCKED, or exhausted repair. Red
+blocks DONE/checkbox/remote push, never the local commit. Never push, pull, or
+rebase; the conductor owns the remote. Read-only work creates no empty commit.
+
+${PROMPT}"
 
 # ── Output-format-aware liveness config ──────────────────────────────────
 # The stall-watchdog spots a hung worker by watching the RAW file stop GROWING.

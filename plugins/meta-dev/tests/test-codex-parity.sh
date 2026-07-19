@@ -166,5 +166,109 @@ if [ "$TWIN_VALIDATOR_OK" -eq 1 ]; then
 fi
 
 echo
+echo "=== Codex Parity: worker commit-on-red contract ==="
+
+if COMMIT_CONTRACT_DETAIL="$(python3 - "$PLUGIN_ROOT" <<'PY'
+from pathlib import Path
+import sys
+
+root = Path(sys.argv[1])
+required = {
+    "references/execute-dispatch.md": [
+        "3. **COMMIT-ON-RED:**",
+        "4. **COMMIT-ON-RED:**",
+        "blocks DONE/push, not",
+        "ONLY AFTER every applicable conductor gate is green",
+    ],
+    "references/execute-charter.md": [
+        "**COMMIT-ON-RED INVARIANT.**",
+        "later aggregate phase/review failure",
+    ],
+    "commands/meta-execute.md": [
+        "including on red verification",
+        "push only after both are green",
+    ],
+    "commands/codex-execute.md": ["red blocks DONE and remote push, not persistence"],
+    "skills/agentic-exec-loop/references/loop-protocol.md": [
+        "creates a local commit before",
+    ],
+    "skills/repair-loop/SKILL.md": ["before every return after editing"],
+    "scripts/lib/framework-preamble.py": ["4. COMMIT-ON-RED:"],
+    "scripts/codex-headless-exec": [
+        "6. COMMIT-ON-RED:",
+        "NEVER `git push`, `git pull`, `git fetch`, `git rebase`, or `git merge`",
+    ],
+    "scripts/claude-headless-exec": ["HARD WORKER PERSISTENCE RULE"],
+}
+forbidden = {
+    "references/execute-dispatch.md": [
+        "Green = done, red = STOP.",
+        "fix inline, commit, push",
+    ],
+    "commands/meta-execute.md": ["fix inline, commit, push"],
+    "commands/codex-execute.md": ["Codex changes are never automatically committed."],
+    "scripts/claude-headless-exec": ["workers are COMMIT-FREE"],
+}
+
+issues = []
+texts = {}
+for rel, markers in required.items():
+    path = root / rel
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError as exc:
+        issues.append(f"{rel}: unreadable: {exc}")
+        continue
+    texts[rel] = text
+    for marker in markers:
+        if marker not in text:
+            issues.append(f"{rel}: missing {marker!r}")
+
+for rel, markers in forbidden.items():
+    text = texts.get(rel)
+    if text is None:
+        continue
+    for marker in markers:
+        if marker in text:
+            issues.append(f"{rel}: stale contradiction {marker!r}")
+
+dispatch = texts.get("references/execute-dispatch.md", "")
+commit_step = dispatch.find("4. **COMMIT-ON-RED:**")
+stub_step = dispatch.find("5. Run stub grep on the committed diff")
+verify_step = dispatch.find("6. Run the task's Verify command exactly")
+if (
+    commit_step < 0
+    or stub_step < 0
+    or verify_step < 0
+    or not (commit_step < stub_step < verify_step)
+):
+    issues.append(
+        "execute-dispatch.md: local commit must precede stub and Verify gates"
+    )
+
+audit_gate = dispatch.find("FIRST — audit the worker's existing local commit")
+conductor_verify = dispatch.find("Then verify the existing commit")
+accept_gate = dispatch.find("ONLY AFTER every applicable conductor gate is green")
+if (
+    audit_gate < 0
+    or conductor_verify < 0
+    or accept_gate < 0
+    or not (audit_gate < conductor_verify < accept_gate)
+):
+    issues.append(
+        "execute-dispatch.md: conductor must audit+verify before checkbox/push"
+    )
+
+if issues:
+    print(" | ".join(issues))
+    raise SystemExit(1)
+PY
+)"; then
+  ok "all implementation-worker paths commit scoped edits before red/BLOCKED return"
+else
+  bad "worker commit-on-red contract drifted: $COMMIT_CONTRACT_DETAIL"
+fi
+
+echo
 echo "=== Results: $PASS passed, $FAIL failed ==="
 [ "$FAIL" -eq 0 ] || exit 1

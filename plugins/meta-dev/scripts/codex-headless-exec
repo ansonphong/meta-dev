@@ -354,9 +354,10 @@ ${PROMPT}"
 GIT_GUARD_PREAMBLE='HARD GIT RULES (binding — this worktree is SHARED with 4-20 concurrent agents):
 1. NEVER `git add -A`, `git add .`, or `git add <dir>/`. Stage ONLY explicit file paths you personally edited. A broad add sweeps up other agents in-flight work.
 2. NEVER `git stash`, `git stash pop`, or `git stash drop`. These are worktree-GLOBAL and rip out every peer agent uncommitted work at once.
-3. NEVER `git rebase`, `git pull` (without --ff-only), or `git merge` (without --ff-only). A rebase on this tree once destroyed 5,544 files.
+3. NEVER `git push`, `git pull`, `git fetch`, `git rebase`, or `git merge` from a worker. The conductor owns every remote/history operation; a rebase on this tree once destroyed 5,544 files.
 4. Every git command names its repo absolutely: `git -C <ABS-REPO-ROOT> ...`. Never a bare `git add`. Never `cd "$(git rev-parse --show-toplevel)"`.
 5. If a file you need is dirty from a peer: commit it as its own discrete commit, then proceed. Do not stash, do not revert, do not wait.
+6. COMMIT-ON-RED: if this task edits scoped files, stage only those exact paths and create a LOCAL commit before every return, including red verification or BLOCKED. Red blocks DONE and remote action, never the local commit.
 If a task seems to require breaking one of these, STOP and report instead.
 
 ---

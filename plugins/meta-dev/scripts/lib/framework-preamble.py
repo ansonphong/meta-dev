@@ -156,7 +156,10 @@ def build(root, full=False):
     out.append("   repos. Never write plan files into a code repo, or vice versa.")
     out.append("3. Report honestly. If a verify command fails, say so and paste the")
     out.append("   output. A green claim over a red run is the one unrecoverable error.")
-    out.append("4. Touch only what your task declares. If the task contradicts what you")
+    out.append("4. COMMIT-ON-RED: if you edit a declared file, stage only those exact")
+    out.append("   paths and create a local commit before every return, including red or")
+    out.append("   BLOCKED. Red blocks DONE/checkbox/push, never the local commit.")
+    out.append("5. Touch only what your task declares. If the task contradicts what you")
     out.append("   find on disk, STOP and report — do not improvise.")
     out.append("")
     out.append("Harness translation (that markdown is written for Claude Code):")
@@ -176,8 +179,10 @@ You are executing inside the meta-dev harness. Protocols live in
 skills/<name>/SKILL.md and commands/<name>.md under the plugin root; read the
 one matching your task before starting.
 LAWS: planctl (scripts/planctl.sh) is the ONLY write door for plan state —
-never hand-edit a checkbox. Report failures honestly with output. Touch only
-what your task declares.
+never hand-edit a checkbox. Report failures honestly with output. If you edit
+declared files, stage only those exact paths and create a local commit before
+every return, including red/BLOCKED; red blocks DONE/push, not persistence.
+Touch only what your task declares.
 === END META-DEV HARNESS ==="""
 
 

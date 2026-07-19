@@ -116,4 +116,4 @@ The runner maps tiers to `gpt-5.3-codex-spark`, `gpt-5.6-luna`, `gpt-5.6-terra`,
 
 Read `OUTPUT_FILE`, which is clean JSON containing `is_error`, `result`, `num_turns`, `duration_ms`, `session_id`, `usage`, and `backend`. Inspect `.raw` for the complete event stream and `.stderr` for runner errors.
 
-Report the selected model and effort, work completed, files changed, validation performed, and remaining risks. Exit `3` means result distillation failed, `4` means the worker reported an error, `124` means timeout, and `125` means the liveness watchdog halted the run. Codex changes are never automatically committed.
+Report the selected model and effort, work completed, files changed, validation performed, commit SHA, and remaining risks. For an authorized implementation task, Codex must locally commit its exact scoped edits before returning even when validation is red/BLOCKED; red blocks DONE and remote push, not persistence. Read-only/review tasks create no empty commit. Exit `3` means result distillation failed, `4` means the worker reported an error, `124` means timeout, and `125` means the liveness watchdog halted the run.

@@ -33,16 +33,24 @@
 1. At phase start record `PHASE_PRE_SHA=$(git rev-parse HEAD)`.
 2. For EACH task in the phase: dispatch a FRESH worker (new headless process,
    clean context) with the task spec INCLUDING its `Verify:` command. The
-   worker runs its own verify hook and self-fixes locally before returning.
-   Conductor reads only the one-line `result`, then flips that task via
+   worker runs its own verify hook and self-fixes locally. If it changed any
+   declared file, it stages those exact paths and creates a local commit before
+   every return — green, red, BLOCKED, or exhausted. Red gates acceptance, not
+   persistence. Conductor reads only the one-line `result`; only after green it
+   pushes and flips that task via
    `bash ${CLAUDE_PLUGIN_ROOT}/scripts/task-done.sh <plan> <handle>` (shim over
    `planctl check` — the unified state layer's single write door) using the
    handle the conductor **already bound on the runtime task entry at dispatch**
    (not parsed from the worker). Worker never Edits a checkbox. Conductor
    commits the flipped plan file per task (momentum). No Opus review at this
-   granularity.
+   granularity. A red result keeps its local commit, leaves the handle open and
+   the remote untouched, and enters the repair/failure path.
 
 ## Phase gate — the single Opus checkpoint per phase
+Task commits/checks already accepted by their narrower per-task gates remain in
+history and on the remote. This aggregate gate controls phase completion and
+new fixer pushes; a FAIL never rewrites or unchecks earlier accepted tasks.
+
 3. At phase end dispatch the Reviewer. Verdict JSON (review-agent's real shape):
    `{ "verdict": "PASS | CONDITIONAL_PASS | FAIL", "confidence": 0-1,
    "blast_radius": "isolated | file | module | cross-cutting | dependency-graph",
@@ -54,16 +62,21 @@
      when a pass is on record, so emit one per phase PASS:
      `NOW=$(date -u +%FT%TZ); bash ${CLAUDE_PLUGIN_ROOT}/scripts/planctl.sh review "$PLAN_REL" pass --by "conductor"`.
    - **CONDITIONAL_PASS** → apply the `suggested_fix`es via one Fixer on the
-     active tier's primary backend (see Tier mapping), then advance (no
-     re-review needed for minor issues).
+     active tier's primary backend (see Tier mapping). The fixer exact-path
+     commits its scoped edits before returning on either result; advance only
+     on green (no re-review needed for minor issues).
    - **FAIL** → Fix ladder (step 5).
 5. **Fix ladder** (max 2 worker attempts, then surface) — backends per the
    **active tier** (see Tier mapping), never looping the same backend twice on
    the same failure:
-   - Attempt 1: Fixer on the tier's **primary** backend fed `issues` → re-Review (step 3).
-   - Attempt 2 (still FAIL): Fixer on the tier's **escalation** backend → re-Review.
-   - Still FAIL → failure dossier to the inbox (repair-loop convention) +
-     surface the one-line `summary`. Leave the phase uncommitted-beyond-tasks. Stop.
+   - Attempt 1: Fixer on the tier's **primary** backend fed `issues`; it locally
+     commits scoped edits before return → re-Review (step 3).
+   - Attempt 2 (still FAIL): Fixer on the tier's **escalation** backend; it
+     locally commits scoped edits before return → re-Review.
+   - Still FAIL → ensure the fixer's scoped edits are locally committed, write
+     the failure dossier to the inbox (repair-loop convention), and surface the
+     one-line `summary`. Leave ledger/phase state, remote, and advancement
+     untouched; the red commits remain as durable repair evidence. Stop.
 
 ## Runbook dashboard sync — re-render the owning runbook at every phase gate (NON-NEGOTIABLE for runbook members)
 The campaign-runbook `🎯 LIVE EXECUTION DASHBOARD` is a **pull-based** artifact —

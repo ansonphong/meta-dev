@@ -12,8 +12,13 @@ Read the plan section for this task in full. Read .claude/context/<relevant>.md 
 Hard rules (from host CLAUDE.md + plan, all binding):
 1. Work on master. No worktrees, no branches, no stashing.
 2. <TEST_DIRECTIVE>   ← orchestrator inserts ONE of the two variants below per the task's `test:` tag.
-3. Auto-commit + push at every closure. No Co-Authored-By trailer. No Claude attribution.
-4. Run the task's declared Verify: command. Paste output. Green = done, red = STOP.
+3. **COMMIT-ON-RED:** if you edit any declared file, stage only those exact
+   paths and create a local commit before every return — green, red, BLOCKED,
+   or exhausted. Verification gates DONE, not durability. Never push; the
+   conductor owns the remote. No Co-Authored-By trailer or Claude attribution.
+4. Run the task's declared Verify: command and paste its real output. Green =
+   eligible for DONE; red = commit the scoped attempt, then STOP and report it
+   as red with the SHA. Never flip the checkbox yourself.
 5. Stub grep on touched files before declaring done: grep for TODO, FIXME, pass, return [], return {}, NotImplementedError, "coming soon", "Phase N", placeholder.
 6. Never silently catch IntegrityError outside the documented savepoint path.
 7. Touch only files this task declares. If you need a file outside scope, STOP and report.
@@ -24,10 +29,16 @@ Steps:
 1. Read the task. List files you'll touch. Confirm they exist + match plan claims.
 2. <TEST_STEP>   ← orchestrator inserts the matching variant (test-first, or "no test — skip to impl").
 3. Implement.
-4. Run task's Verify command exactly: <VERIFY_CMD>. Paste output.
-5. Run stub grep on touched files. Paste output. Must be empty.
-6. git add <ONLY the explicit files from step 1> && git commit -m "<conventional commit>" && git push origin master. Paste commit SHA. NEVER `git add -A`/`.`/`<dir>` — the tree is SHARED across concurrent sessions and a broad add sweeps another session's in-flight edits (the guard hook now blocks it).
-7. Report: SHA, files changed, verify output tail, anything surprising.
+4. **COMMIT-ON-RED:** `git -C <ABS_REPO_ROOT> add <ONLY the explicit files
+   from step 1> && git -C <ABS_REPO_ROOT> commit -m "<conventional commit>"`.
+   Paste the SHA. NEVER `git add -A`/`.`/`<dir>` or `commit -a`; the tree is
+   shared. Never push; the conductor owns the remote.
+5. Run stub grep on the committed diff. Paste output. Empty = eligible for DONE;
+   any hit = red acceptance evidence, but the local commit remains.
+6. Run the task's Verify command exactly: <VERIFY_CMD>. Paste output. If red,
+   STOP only now — after the local commit exists — and report the SHA + red
+   evidence. Do not claim DONE or touch the ledger.
+7. Report: SHA, files changed, verify output tail, green/red status, anything surprising.
 
 Do NOT: modify the plan checkbox (orchestrator owns that), touch files outside scope, run /deploy, archive plans. Do NOT write a test the task did not ask for — if `<TEST_DIRECTIVE>` says no test, adding one is scope creep.
 
@@ -43,11 +54,11 @@ TEST DISCIPLINE (hard rule — every cycle must be CHEAP):
 `/meta-execute` chooses the variant from the task's `test:` tag (set by `/meta-planner`), falling back to `meta_dev.execute.test_policy` config (default `critical-only`) when a task carries no tag:
 
 - **`test: yes`** (critical-breakage task, or `test_policy: tdd-all`) →
-  - Hard rule #2: `TDD: write failing test -> run -> impl -> run -> commit.`
+  - Hard rule #2: `TDD: write failing test -> run -> impl -> commit -> Verify.`
   - Step 2: `Write failing test (or extend existing). Run it. Paste failure output.`
 - **`test: no`** (default for ordinary tasks under `critical-only`, and all tasks under `none`) →
   - Hard rule #2: `No new test for this task — verify by the declared Verify command (build / grep / run / by-eye). Do not author a test.`
-  - Step 2: `No test step — go straight to implementation. (Verify via step 4.)`
+  - Step 2: `No test step — go straight to implementation. (Verify via step 6.)`
 
 **What counts as `test: yes` (critical-breakage):** data corruption paths, auth/crypto verification, payment/value transfer, DB migration, serialization round-trip, cross-service API contract — refined by the host `CLAUDE.md` testing policy if it names specific critical surfaces. Everything else is `test: no`. When in doubt, prefer `test: no` and lean on the Verify command — fewer tests is the intended posture.
 
@@ -63,23 +74,27 @@ Inserted into hard rule #9 per the risk tag detected:
 
 ## Post-task verification gates (run by orchestrator, not subagent)
 
-**⛔ FIRST — flip the plan checkbox via `planctl check` (BEFORE any other post-task action):**
-Once a task's verify returns green, the orchestrator (conductor) MUST immediately run
-`bash ${CLAUDE_PLUGIN_ROOT}/scripts/task-done.sh <plan> <handle-from-runtime-entry>`
-(shim over `planctl check` — atomic MD edit + index upsert + event append inside the unified state layer)
-then commit the flipped plan: `chore(plan): mark <handle> DONE`. This is step zero — do it before the inline checks below, before advancing, before anything else. Never hand-Edit `[ ]`→`[x]`. Worker never edits checkboxes. The checkbox is the user's visibility; unchecked = "nothing happened."
-
-**Instant inline (gate the commit — milliseconds):**
+**FIRST — audit the worker's existing local commit (milliseconds):**
 1. `git show --stat <sha>` — diff scope matches declared files?
 2. Re-run stub grep on diff: `git diff HEAD~1 -- <files> | grep -E '^\+.*(TODO|FIXME|coming soon|Phase [0-9]|placeholder|pass$|return \[\]|return \{\}|NotImplementedError)'`
 
-**Async after commit (do NOT block — advance to next task while these run):**
+**Then verify the existing commit:**
 3. Re-run the verify/test command (don't trust subagent paste) via `Bash run_in_background`; track as `🧪 testing <ID> (async)`. Reap the result later.
 4. Risk-tag-specific gates (schema round-trip, security diff review, release signature check, money-path full review).
 
 **Exception — critical gate runs synchronously:** when the task is risk-tagged `money-path`, `release-stability`, or `schema-drift`, run steps 3–4 inline and require green BEFORE advancing. Everything else verifies async (see `references/execute-charter.md` → Verify Posture).
 
-A red async verify or stub-grep hit is, by default, a RECOVERABLE regression → spawn the background fixer below and keep moving (see `references/execute-charter.md` → Momentum gate). Under `--strict`, all gates run inline; re-dispatch once then STOP on 2nd red.
+**ONLY AFTER every applicable conductor gate is green:** run
+`bash ${CLAUDE_PLUGIN_ROOT}/scripts/task-done.sh <plan> <handle-from-runtime-entry>`,
+commit the flipped plan as `chore(plan): mark <handle> DONE`, and let the
+conductor push. Never hand-edit `[ ]`→`[x]`; worker never edits checkboxes.
+
+A red async verify, scope mismatch, or stub-grep hit leaves the local code
+commit intact but the checkbox and remote untouched. By default it is a
+RECOVERABLE regression → spawn the background fixer below and keep moving on
+independent tasks (see `references/execute-charter.md` → Momentum gate). Under
+`--strict`, all gates run inline; re-dispatch once then STOP on 2nd red — after
+all edited attempts are locally committed.
 
 ## Background fixer prompt (optimistic mode)
 
@@ -95,10 +110,15 @@ Failure output:
 Hard rules (binding):
 - Work on master. No worktrees, no branches, no stashing.
 - Touch ONLY the files <TASK_ID> declares: <FILE LIST>. If the fix needs a file outside that set, STOP and report — do NOT widen scope (a wider fix can collide with tasks the main loop is running in parallel).
-- Diagnose root cause, repair/extend the failing test, implement the smallest correct fix, re-run <VERIFY_CMD> until green.
+- Diagnose root cause, repair/extend the failing test, and implement the smallest correct fix.
 - Stub grep your diff before declaring done. No Co-Authored-By / Claude attribution.
-- git add <files> && git commit -m "fix(<scope>): repair <TASK_ID> regression" && git push origin master. If push rejects (behind), `git pull --rebase origin master` then push.
-- Report: SHA, green verify output tail, root cause in one line. If you cannot get green, report BLOCKED with the reason — do not fake a pass.
+- Before every return after an edit, stage the exact declared files and make a
+  local commit. Green commit: `fix(<scope>): repair <TASK_ID> regression`.
+  Exhausted/red commit: `wip(<scope>): preserve <TASK_ID> repair attempt`.
+  Never push, pull, or rebase; the conductor owns the remote.
+- Re-run <VERIFY_CMD>. Green permits resolution. If it remains red, report
+  BLOCKED with the commit SHA and real output — the red blocks DONE/push, not
+  the local commit. Do not fake a pass.
 ```
 
 On fixer return: green → re-verify, flip task `completed`, re-open tasks deferred on it. BLOCKED/red first return → re-dispatch once. Red twice → escalate to TRUE BLOCKER, surface. Concurrent fixer pool cap: 3 (queue beyond).
@@ -110,7 +130,9 @@ On fixer return: green → re-verify, flip task `completed`, re-open tasks defer
 1. Collect the full run diff: `git log --oneline <start-sha>..HEAD` then `git diff <start-sha>..HEAD`.
 2. **Invoke `superpowers:requesting-code-review`** over the full run diff. This is the project's code review skill — use it, not the meta-dev internal reviewer.
 3. Route findings per the review's verdict:
-   - **Trivial/mechanical** (lint, format, missing annotation) → fix inline, commit, push.
+   - **Trivial/mechanical** (lint, format, missing annotation) → fix inline and
+     exact-path local commit, then re-run the affected verification and code
+     review; conductor pushes only after both are green.
    - **Substantive** (logic error, security, contract breach, scope creep) → surface to user with file:line in the Follow-ups section of the report card. Do NOT silently auto-fix.
 4. Record the verdict in the report card's Code Review section: `✅ CLEAN — 0 findings`, `⚠️ <N> findings fixed · 0 remaining`, or `❌ <N> findings surfaced — see Follow-ups`.
 5. **Never skip.** Even if per-task review covered individual files, the full-diff review catches cross-task interactions, ordering effects, and integration gaps that per-task review misses.
