@@ -359,6 +359,10 @@ def _upsert_file(conn, root, rel, force_reparse=False):
     fm, _raw_status = parse.parse_frontmatter(text)
     tasks, perr = parse.parse_tasks(text)
     td, tt, ho, ht, rd, rt = parse.count_split(tasks)
+    smoke_total = parse.parse_smoke(text)
+    stage_state = fm.get("stage_state")
+    if stage_state is not None:
+        stage_state = str(stage_state).strip().lower() or None
     kind = parse.kind_of(text, fm, rel)
     parse_err = fm.get("parse_err") or perr
 
@@ -391,10 +395,12 @@ def _upsert_file(conn, root, rel, force_reparse=False):
     conn.execute(
         "INSERT OR REPLACE INTO plans(path,repo,stage,override,note,why,title,"
         "tasks_done,tasks_total,human_open,human_total,raw_done,raw_total,drift,"
-        "context_json,docs_json,derived_status) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        "context_json,docs_json,derived_status,smoke_total,stage_state) "
+        "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         (rel, fm.get("repo"), fm.get("stage"), fm.get("override"), fm.get("note"),
          fm.get("why"), _derive_title(text), td, tt, ho, ht, rd, rt,
-         1 if drift else 0, context_json, docs_json, dstatus),
+         1 if drift else 0, context_json, docs_json, dstatus, smoke_total,
+         stage_state),
     )
 
     # edges (depends/blocks — replace)
@@ -586,6 +592,31 @@ def _needs_full(conn, root):
     return False
 
 
+def _rebuild_stale_derive(conn, root, head_sha=None, mark_cycles=True):
+    """Single-flight a DERIVE_V rebuild; return its reindex result or ``None``.
+
+    The optimistic check keeps the steady-state path to one cheap meta lookup.
+    A stale caller takes the same lock -> recheck pattern as ``db.heal`` so only
+    one process performs the full rebuild after a rule-version bump. A waiter
+    returns an empty result after the winner makes the database current.
+    """
+    if not db.is_stale(conn, derive.DERIVE_V):
+        return None
+
+    # Share heal()'s lock: schema/data rebuilds for one state DB must not race
+    # each other, regardless of whether corruption or DERIVE_V triggered them.
+    lock_path = os.path.join(statedir.state_dir(), ".heal.lock")
+    with db._single_flight(lock_path):
+        if not db.is_stale(conn, derive.DERIVE_V):
+            return [], set()
+        if head_sha is None:
+            head_sha = _head_sha(root)
+        _drop_derived_rows(conn)
+        return _reindex_paths(
+            conn, root, _walk_indexed(root), full=True, head_sha=head_sha,
+            mark_cycles=mark_cycles)
+
+
 # ── exported single-file reindex (0d post-mutation callable) ──────────────────
 def sync_one(path, conn=None):
     """Reindex ONE file post-mutation; return the rebuilt ancestor-runbook set.
@@ -601,8 +632,12 @@ def sync_one(path, conn=None):
         root = statedir.project_root()
         rel = _normalize_arg_path(path, root)
         head_sha = _head_sha(root) if own else None
+        stale_result = _rebuild_stale_derive(
+            conn, root, head_sha=head_sha, mark_cycles=True)
         _synced, rebuilt = _reindex_paths(
             conn, root, [rel], full=False, head_sha=head_sha)
+        if stale_result is not None:
+            rebuilt |= stale_result[1]
         return rebuilt
     finally:
         if own:
@@ -628,11 +663,9 @@ def ensure_fresh(conn, root):
     path honors I4 (it verifies freshness via rev-parse; never trusts a
     cold/stale index) and is what makes the G2/G3 read-latency promises
     achievable on 9p. Resolved ambiguity (see phase report)."""
-    if db.is_stale(conn, derive.DERIVE_V):
-        _drop_derived_rows(conn)
-        head_sha = _head_sha(root)
-        _reindex_paths(conn, root, _walk_indexed(root), full=True,
-                       head_sha=head_sha, mark_cycles=False)
+    stale_result = _rebuild_stale_derive(
+        conn, root, mark_cycles=False)
+    if stale_result is not None:
         return
 
     head = _head_sha(root)
@@ -683,16 +716,26 @@ def cmd_sync(args):
         head_sha = _head_sha(root)
 
         if file_arg:
+            stale_result = _rebuild_stale_derive(
+                conn, root, head_sha=head_sha, mark_cycles=True)
             rel = _normalize_arg_path(file_arg, root)
             paths = [rel] if rel else []
             synced, rebuilt = _reindex_paths(
                 conn, root, paths, full=False, head_sha=head_sha)
-            is_full = False
+            if stale_result is not None:
+                synced = stale_result[0] + synced
+                rebuilt |= stale_result[1]
+            is_full = stale_result is not None
         elif full or _needs_full(conn, root):
-            _drop_derived_rows(conn)
-            paths = _walk_indexed(root)
-            synced, rebuilt = _reindex_paths(
-                conn, root, paths, full=True, head_sha=head_sha)
+            stale_result = _rebuild_stale_derive(
+                conn, root, head_sha=head_sha, mark_cycles=True)
+            if stale_result is not None:
+                synced, rebuilt = stale_result
+            else:
+                _drop_derived_rows(conn)
+                paths = _walk_indexed(root)
+                synced, rebuilt = _reindex_paths(
+                    conn, root, paths, full=True, head_sha=head_sha)
             is_full = True
         else:
             cands = _incremental_candidates(conn, root)

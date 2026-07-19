@@ -53,7 +53,9 @@ CREATE TABLE IF NOT EXISTS plans (
     drift           INTEGER,     -- stage>=6 AND open exec boxes (0/1)
     context_json    TEXT,        -- declared Stage-3 context paths (docs-evidence gate)
     docs_json       TEXT,        -- declared Stage-3 docs paths (docs-evidence gate)
-    derived_status  TEXT         -- stored for PLAN files only (runbook status computed-on-read)
+    derived_status  TEXT,        -- stored for PLAN files only (runbook status computed-on-read)
+    smoke_total     INTEGER,     -- plain bullets under a canonical Smoke heading (badge only)
+    stage_state     TEXT         -- active | done | NULL (NULL == legacy: stage reached)
 );
 
 CREATE TABLE IF NOT EXISTS tasks (
@@ -102,6 +104,40 @@ class DBCorrupt(Exception):
     """Raised when ``PRAGMA integrity_check`` != 'ok'. Triggers ``heal()``."""
 
 
+_PLAN_COLUMNS = (
+    ("smoke_total", "INTEGER"),
+    ("stage_state", "TEXT"),
+)
+
+
+def _ensure_columns(conn):
+    """Idempotently add columns introduced after a DB was first created.
+
+    ``SCHEMA`` uses ``CREATE TABLE IF NOT EXISTS``, which cannot alter a warm
+    database. Take a write lock only when the optimistic schema read finds a
+    missing column, then re-read under that lock so concurrent first-openers do
+    not race the same ``ALTER TABLE``.
+    """
+    have = {row[1] for row in conn.execute("PRAGMA table_info(plans)")}
+    missing = [(name, col_type) for name, col_type in _PLAN_COLUMNS
+               if name not in have]
+    if not missing:
+        return
+
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        have = {row[1] for row in conn.execute("PRAGMA table_info(plans)")}
+        for name, col_type in _PLAN_COLUMNS:
+            if name not in have:
+                conn.execute("ALTER TABLE plans ADD COLUMN %s %s" %
+                             (name, col_type))
+                have.add(name)
+        conn.commit()
+    except BaseException:
+        conn.rollback()
+        raise
+
+
 def open_db(path=None):
     """Open (or create) the state DB at ``path``, applying the schema idempotently.
 
@@ -110,8 +146,8 @@ def open_db(path=None):
     WAL + a 5s busy_timeout + foreign_keys, then ``executescript(SCHEMA)``.
 
     Returns an open ``sqlite3.Connection`` (callers use ``conn.execute``).
-    Idempotent: re-running on an existing DB is a no-op (``CREATE … IF NOT
-    EXISTS``); disposable: ``rm`` of the file heals (I3).
+    Idempotent: a current DB is unchanged, while `_ensure_columns` upgrades a
+    warm legacy schema in place; disposable: removal of the file heals (I3).
     """
     if path is None:
         path = statedir.db_path()
@@ -121,6 +157,7 @@ def open_db(path=None):
     conn.execute("PRAGMA busy_timeout=5000")
     conn.execute("PRAGMA foreign_keys=ON")
     conn.executescript(SCHEMA)
+    _ensure_columns(conn)
     return conn
 
 

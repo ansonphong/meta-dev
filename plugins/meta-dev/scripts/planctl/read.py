@@ -101,7 +101,8 @@ def _plan_row(conn, rel):
     return conn.execute(
         "SELECT path,repo,stage,override,note,why,title,tasks_done,tasks_total,"
         "human_open,human_total,raw_done,raw_total,drift,context_json,docs_json,"
-        "derived_status FROM plans WHERE path=?", (rel,)).fetchone()
+        "derived_status,smoke_total,stage_state FROM plans WHERE path=?",
+        (rel,)).fetchone()
 
 
 def cmd_status(args):
@@ -126,7 +127,8 @@ def cmd_status(args):
             return 1
 
         (path, repo, stage, override, note, why, title, td, tt, ho, ht,
-         _rd, _rt, drift, _ctx, _docs, dstatus) = row
+         _rd, _rt, drift, _ctx, _docs, dstatus, _smoke_total,
+         _stage_state) = row
 
         frow = conn.execute(
             "SELECT kind, parse_err FROM files WHERE path=?", (rel,)).fetchone()
