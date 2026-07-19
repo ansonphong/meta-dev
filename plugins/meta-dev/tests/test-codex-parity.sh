@@ -65,5 +65,37 @@ else
 fi
 
 echo
+echo "=== Codex Parity: command-router resolution ==="
+
+ROUTER="$PLUGIN_ROOT/skills/command-router/SKILL.md"
+if [ -f "$ROUTER" ]; then
+  ok "command-router skill present"
+else
+  bad "command-router skill MISSING — Codex has no path to the 67 commands"
+fi
+
+# The router tells Codex commands/ is two levels up from the SKILL.md.
+if [ -d "$PLUGIN_ROOT/skills/command-router/../../commands" ]; then
+  ok "router path claim holds (../../commands resolves)"
+else
+  bad "router path claim BROKEN — ../../commands does not resolve"
+fi
+
+# Every meta-<name> must have a bare <name> twin, or the router's step-2
+# fallback advertises a name that does not exist.
+MISSING_TWIN=""
+for f in "$PLUGIN_ROOT"/commands/meta-*.md; do
+  base="$(basename "$f" .md)"; short="${base#meta-}"
+  # meta-dev and meta-init are documented exceptions with no bare twin rule
+  case "$short" in dev|init) continue ;; esac
+  [ -f "$PLUGIN_ROOT/commands/$short.md" ] || MISSING_TWIN="$MISSING_TWIN $short"
+done
+if [ -z "$MISSING_TWIN" ]; then
+  ok "every meta-<name> has a bare <name> twin"
+else
+  bad "meta-<name> without bare twin:$MISSING_TWIN"
+fi
+
+echo
 echo "=== Results: $PASS passed, $FAIL failed ==="
 [ "$FAIL" -eq 0 ] || exit 1

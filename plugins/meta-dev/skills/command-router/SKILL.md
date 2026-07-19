@@ -29,6 +29,11 @@ one source of truth and follows it in place.
 3. **Read it and follow it inline.** The whole file, before acting. If it
    delegates to another command or a named skill, read that file too.
 
+**Worked example.** User types `/meta-execute plans/app/00-master-plan.md`.
+1. Catalog → `<plugin-root>/commands/`.
+2. Name `meta-execute` → try `execute.md` (hit; it is the bare twin, a pure redirect) → the real body is `meta-execute.md`. Read **that**.
+3. Read it end to end, then follow it, translating tools as below.
+
 ## Translate as you read
 
 That markdown is written for Claude Code. In Codex:
