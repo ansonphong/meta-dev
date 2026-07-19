@@ -29,10 +29,13 @@ Injection seam (R8/DR-4) — two env overrides, NEVER set in production:
 
 Stdlib only.
 """
+import errno
 import os
 import re
+import stat
 import subprocess
 import sys
+import tempfile
 
 # Scripts dir = the PARENT of this package dir (dirname applied twice:
 # __file__ → planctl/ → scripts/). repo-topology.py lives in scripts/lib/.
@@ -43,6 +46,12 @@ _TOPOLOGY = os.path.join(_SCRIPTS_DIR, "lib", "repo-topology.py")
 # fstypes / option markers that mark the unwritable 9p mount.
 _9P_FSTYPES = ("9p", "drvfs")
 _DRVFS_OPT = "drvfs"
+
+# Only these failures mean "the normal cache location is unavailable".  Other
+# failures (notably ENOSPC and EIO) must remain visible instead of being hidden
+# behind a fallback that may fail later for the same reason.
+_FALLBACK_ERRNOS = frozenset((errno.EACCES, errno.EPERM, errno.EROFS))
+_FALLBACK_NOTICE_EMITTED = False
 
 
 def slugify(abs_path):
@@ -229,13 +238,127 @@ def assert_ext4(path):
     )
 
 
+def _write_probe(path):
+    """Prove that SQLite can create sidecars in ``path``.
+
+    An existing ``~/.cache/meta-dev`` tree can be readable while the managed
+    sandbox denies new files.  ``makedirs(exist_ok=True)`` cannot detect that;
+    a real create+unlink can.  The randomized name makes concurrent probes
+    independent.
+    """
+    fd = None
+    probe = None
+    try:
+        fd, probe = tempfile.mkstemp(prefix=".planctl-write-probe-", dir=path)
+    finally:
+        if fd is not None:
+            os.close(fd)
+        if probe is not None:
+            try:
+                os.unlink(probe)
+            except FileNotFoundError:
+                pass
+
+
+def _normal_state_dir(slug):
+    """Prepare and prove the normal per-user cache directory writable."""
+    path = os.path.join(os.path.expanduser("~"), ".cache", "meta-dev", slug)
+    assert_ext4(path)  # refuse 9p BEFORE creating anything on it
+    os.makedirs(path, mode=0o700, exist_ok=True)
+    os.chmod(path, 0o700)
+    _write_probe(path)
+    return path
+
+
+def _open_private_dir(path, uid):
+    """Create/open ``path`` without following symlinks; return a verified fd.
+
+    The stable name lives below a shared temp directory.  A hostile process
+    must not be able to pre-create that name as a symlink or as a directory
+    owned by another uid.
+    """
+    try:
+        os.mkdir(path, 0o700)
+    except FileExistsError:
+        pass
+
+    flags = os.O_RDONLY
+    flags |= getattr(os, "O_CLOEXEC", 0)
+    flags |= getattr(os, "O_DIRECTORY", 0)
+    flags |= getattr(os, "O_NOFOLLOW", 0)
+    try:
+        fd = os.open(path, flags)
+    except OSError as exc:
+        # Normalize the platform-dependent ELOOP/ENOTDIR result for a
+        # no-follow open into an explicit security rejection.
+        try:
+            is_link = stat.S_ISLNK(os.lstat(path).st_mode)
+        except OSError:
+            is_link = False
+        if is_link:
+            raise PermissionError(
+                errno.EPERM, "unsafe symlink at planctl temp state path", path
+            ) from exc
+        raise
+
+    try:
+        info = os.fstat(fd)
+        if not stat.S_ISDIR(info.st_mode):
+            raise NotADirectoryError(errno.ENOTDIR, "not a directory", path)
+        if info.st_uid != uid:
+            raise PermissionError(
+                errno.EPERM,
+                "planctl temp state path is owned by uid %s (expected %s)"
+                % (info.st_uid, uid),
+                path,
+            )
+        if stat.S_IMODE(info.st_mode) != 0o700:
+            os.fchmod(fd, 0o700)
+            if stat.S_IMODE(os.fstat(fd).st_mode) != 0o700:
+                raise PermissionError(
+                    errno.EPERM, "cannot secure planctl temp state path", path
+                )
+        return fd
+    except BaseException:
+        os.close(fd)
+        raise
+
+
+def _fallback_state_dir(slug):
+    """Return a stable, private off-9p temp directory for this uid/project."""
+    uid = os.getuid()
+    root = os.path.join(tempfile.gettempdir(), "meta-dev-state-%s" % uid)
+    path = os.path.join(root, slug)
+    assert_ext4(path)
+
+    root_fd = _open_private_dir(root, uid)
+    os.close(root_fd)
+    path_fd = _open_private_dir(path, uid)
+    os.close(path_fd)
+    _write_probe(path)
+    return path
+
+
+def _notice_fallback(path):
+    """Emit at most one concise fallback notice in this process."""
+    global _FALLBACK_NOTICE_EMITTED
+    if _FALLBACK_NOTICE_EMITTED:
+        return
+    print(
+        "planctl: user cache is read-only; using private temp state at %s" % path,
+        file=sys.stderr,
+    )
+    _FALLBACK_NOTICE_EMITTED = True
+
+
 def state_dir():
     """Absolute state dir, creating it (mode 0o700) if absent.
 
     ``$META_DEV_STATE_DIR`` (if set) is returned VERBATIM (no slugify, no 9p
-    assert) — the hermeticity knob. Otherwise:
-    ``$HOME/.cache/meta-dev/<slug>/`` where ``slug = slugify(project_root())``,
-    asserted off-9p before anything is written there.
+    assert) — the hermeticity knob. Otherwise the writable normal location is
+    ``$HOME/.cache/meta-dev/<slug>/``.  If and only if that location rejects a
+    real write with EACCES/EPERM/EROFS, a stable uid+project directory under the
+    system temp root is used.  Both automatic locations are asserted off-9p.
 
     ``db_path()`` and ``events_path()`` route through here so the first write
     can never hit a missing dir (DR-5).
@@ -250,14 +373,15 @@ def state_dir():
         return env
 
     slug = slugify(project_root())
-    d = os.path.join(os.path.expanduser("~"), ".cache", "meta-dev", slug)
-    assert_ext4(d)  # refuse 9p BEFORE creating anything on it
-    os.makedirs(d, exist_ok=True)
     try:
-        os.chmod(d, 0o700)
-    except OSError:
-        pass
-    return d
+        return _normal_state_dir(slug)
+    except OSError as exc:
+        if exc.errno not in _FALLBACK_ERRNOS:
+            raise
+
+    fallback = _fallback_state_dir(slug)
+    _notice_fallback(fallback)
+    return fallback
 
 
 def db_path():
