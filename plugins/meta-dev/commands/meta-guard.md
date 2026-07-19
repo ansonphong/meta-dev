@@ -1,7 +1,7 @@
 ---
 name: meta-guard
 description: Safety hooks — intercept destructive commands, optionally restrict edits to a directory scope
-argument-hint: [freeze <dir>] [off] [status]
+argument-hint: "[freeze <dir>] [off] [status]"
 allowed-tools: [Read, Write, Bash(bash:*)]
 model: opus
 ---

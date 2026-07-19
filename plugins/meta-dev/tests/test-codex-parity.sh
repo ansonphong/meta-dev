@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Codex-parity guards. Claude Code is lenient about frontmatter; Codex is not.
-# A skill with invalid YAML is SILENTLY INVISIBLE in Codex (commit 677c47d).
+# A skill or command with invalid YAML is SILENTLY INVISIBLE in Codex.
 set -uo pipefail
 
 PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -8,12 +8,13 @@ PASS=0; FAIL=0
 ok()   { echo -e "\033[32m  PASS: $1\033[0m"; PASS=$((PASS+1)); }
 bad()  { echo -e "\033[31m  FAIL: $1\033[0m"; FAIL=$((FAIL+1)); }
 
-echo "=== Codex Parity: skill frontmatter ==="
+echo "=== Codex Parity: skill + command frontmatter ==="
 python3 - "$PLUGIN_ROOT" <<'PY'
 import glob, os, sys, yaml
 root = sys.argv[1]
 bad = []
-files = sorted(glob.glob(os.path.join(root, "skills", "*", "SKILL.md")))
+files = (sorted(glob.glob(os.path.join(root, "skills", "*", "SKILL.md")))
+         + sorted(glob.glob(os.path.join(root, "commands", "*.md"))))
 for f in files:
     raw = open(f, encoding="utf-8").read()
     try:
@@ -33,7 +34,8 @@ PARITY_OUT="$(python3 - "$PLUGIN_ROOT" <<'PY'
 import glob, os, sys, yaml
 root = sys.argv[1]
 bad = []
-files = sorted(glob.glob(os.path.join(root, "skills", "*", "SKILL.md")))
+skill_files = sorted(glob.glob(os.path.join(root, "skills", "*", "SKILL.md")))
+files = skill_files + sorted(glob.glob(os.path.join(root, "commands", "*.md")))
 for f in files:
     raw = open(f, encoding="utf-8").read()
     try:
@@ -43,15 +45,17 @@ for f in files:
         bad.append(os.path.relpath(f, root))
 print(len(files))
 print("|".join(bad))
+print(len(skill_files))
 PY
 )"
-SKILL_COUNT="$(echo "$PARITY_OUT" | sed -n 1p)"
-SKILL_BAD="$(echo "$PARITY_OUT" | sed -n 2p)"
+FRONTMATTER_COUNT="$(echo "$PARITY_OUT" | sed -n 1p)"
+FRONTMATTER_BAD="$(echo "$PARITY_OUT" | sed -n 2p)"
+SKILL_COUNT="$(echo "$PARITY_OUT" | sed -n 3p)"
 
-if [ -z "$SKILL_BAD" ]; then
-  ok "all $SKILL_COUNT skills parse under strict YAML (Codex-visible)"
+if [ -z "$FRONTMATTER_BAD" ]; then
+  ok "all $FRONTMATTER_COUNT skill/command frontmatters parse under strict YAML (Codex-visible)"
 else
-  bad "invalid skill frontmatter — INVISIBLE in Codex: $SKILL_BAD"
+  bad "invalid skill/command frontmatter — INVISIBLE in Codex: $FRONTMATTER_BAD"
 fi
 
 if [ "$SKILL_COUNT" -lt 17 ]; then

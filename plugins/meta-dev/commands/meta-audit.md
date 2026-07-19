@@ -1,7 +1,7 @@
 ---
 name: meta-audit
 description: Harness simplification audit — tests whether pipeline components are still load-bearing or have become overhead
-argument-hint: [full | component:<name>] [--compare] [--force-full]
+argument-hint: "[full | component:<name>] [--compare] [--force-full]"
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent]
 model: opus
 ---

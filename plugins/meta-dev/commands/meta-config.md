@@ -1,7 +1,7 @@
 ---
 name: meta-config
 description: Read/write meta-dev harness configuration. Three-layer JSON cascade with schema validation.
-argument-hint: [get <path> | set <path> <value> [--local] | reset | export | import <file>]
+argument-hint: "[get <path> | set <path> <value> [--local] | reset | export | import <file>]"
 allowed-tools: [Read, Write, Bash(bash:*)]
 model: opus
 ---

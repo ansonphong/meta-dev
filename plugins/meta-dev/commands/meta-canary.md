@@ -1,7 +1,7 @@
 ---
 name: meta-canary
 description: Post-deploy health monitor — runs continuous checks after deployment, alerts on failures, patches meta-ship with recurring issues
-argument-hint: [<target>] [<duration>] [--verbose]
+argument-hint: "[<target>] [<duration>] [--verbose]"
 allowed-tools: [Read, Edit, Bash, Grep]
 model: opus
 ---

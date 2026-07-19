@@ -1,7 +1,7 @@
 ---
 name: grok-execute
-argument-hint: <task description> [--repo <name>] [--readonly] [--model <model>] [--effort <level>] [--max-turns <n>]  # --repo names from .claude/meta-dev-repos.json
-description: Execute a task via headless xAI Grok (Grok Build CLI). Grok is its OWN harness (like Codex) — it cannot run our slash commands, so give it a DIRECT task. Like Codex, Grok can read AND write, so it serves double duty: a full general-purpose execution worker (sibling of /deep-execute and /glm-execute) AND a third cross-family review lens (xAI family, alongside Anthropic and OpenAI). Default model grok-4.5.
+argument-hint: "<task description> [--repo <name>] [--readonly] [--model <model>] [--effort <level>] [--max-turns <n>]  # --repo names from .claude/meta-dev-repos.json"
+description: "Execute a task via headless xAI Grok (Grok Build CLI). Grok is its OWN harness (like Codex) — it cannot run our slash commands, so give it a DIRECT task. Like Codex, Grok can read AND write, so it serves double duty: a full general-purpose execution worker (sibling of /deep-execute and /glm-execute) AND a third cross-family review lens (xAI family, alongside Anthropic and OpenAI). Default model grok-4.5."
 ---
 
 # /grok-execute — Grok Headless Execution
