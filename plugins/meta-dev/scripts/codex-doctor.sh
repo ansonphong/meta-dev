@@ -15,7 +15,10 @@ echo "=== codex-doctor ==="
 code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 https://api.anthropic.com/v1/models 2>/dev/null)" || code="000"
 if [ "$code" = "000" ]; then
   err "network egress BLOCKED (HTTP 000). Claude workers cannot run.
-         Fix: [sandbox_workspace_write] network_access = true in ~/.codex/config.toml, then restart Codex."
+         STOP and choose a policy before dispatch: prefer restarting Codex with
+         -c sandbox_workspace_write.network_access=true for one invocation.
+         Global ~/.codex/config.toml changes require Phong's explicit approval
+         and weaken every workspace-write session machine-wide, permanently."
 else
   good "network egress OK (HTTP $code)"
 fi

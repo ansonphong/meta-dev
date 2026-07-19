@@ -52,16 +52,40 @@ echo
 echo "=== Codex Parity: plugin manifest ==="
 
 MANIFEST="${CODEX_PARITY_MANIFEST:-$PLUGIN_ROOT/.claude-plugin/plugin.json}"
-if python3 - "$MANIFEST" <<'PY'
-import json, pathlib, sys
+if MANIFEST_DETAIL="$(python3 - "$MANIFEST" "$PLUGIN_ROOT" <<'PY'
+import json
+from pathlib import Path
+import sys
 
-manifest = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
-sys.exit(0 if "skills" in manifest else 1)
+manifest_path = Path(sys.argv[1])
+plugin_root = Path(sys.argv[2]).resolve()
+expected_value = "./skills/"
+
+try:
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    actual_value = manifest.get("skills")
+    if actual_value != expected_value:
+        raise ValueError(
+            f"skills must equal {expected_value!r}, found {actual_value!r}"
+        )
+
+    skills_dir = (plugin_root / actual_value).resolve(strict=True)
+    expected_dir = (plugin_root / "skills").resolve(strict=True)
+    if skills_dir != expected_dir or not skills_dir.is_dir():
+        raise ValueError(f"skills resolves outside the real skills directory: {skills_dir}")
+
+    router = skills_dir / "command-router" / "SKILL.md"
+    if not router.is_file():
+        raise ValueError(f"command-router skill missing at {router}")
+except (OSError, ValueError, json.JSONDecodeError) as exc:
+    print(exc)
+    sys.exit(1)
 PY
+)"
 then
-  ok "manifest declares a skills key (command-router is reachable in Codex)"
+  ok "manifest skills path is exact and resolves to command-router"
 else
-  bad "manifest has no skills key — EVERY skill is invisible in Codex"
+  bad "manifest skills wiring invalid — EVERY skill is invisible in Codex: $MANIFEST_DETAIL"
 fi
 
 echo
