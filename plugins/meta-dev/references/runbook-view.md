@@ -44,7 +44,7 @@ plans/meta-runbook.md          META runbook — global cross-repo ledger (one en
 - **Track it.** Stand up a TaskCreate list (one entry per member) for `execute` runs.
 - **EXECUTE is gated.** `execute` writes code → needs Phong's explicit "go" per member.
 - **Delegate.** Authoring + topo-sort = Opus. Driving members = DeepSeek→GLM.
-  Gate reviews = Codex (review-only).
+  Gate reviews = Codex (cross-family lens; also available as an executor).
 - **Status truth lives in member frontmatter + checkboxes** — the sentinel block is
   derived, never authored.
 - **Closeouts** go in the member's master plan (`## Closeout`), never the runbook.

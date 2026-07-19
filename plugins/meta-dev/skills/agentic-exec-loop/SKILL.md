@@ -1,6 +1,6 @@
 ---
 name: agentic-exec-loop
-description: "The shared execute→review→fix loop for headless plan execution. A fresh worker per task (DeepSeek default via claude-headless-exec, GLM/Sonnet-200K on flag, Codex review-only) executes and self-runs its task Verify hook; review gates at the PHASE boundary (not per task) via the meta-dev:review-agent Opus subagent, which computes its own git diff and returns a verdict; a fixer worker repairs on non-pass (tier-specific fix ladder). Only N worker lines + one phase verdict return to the conductor — diffs never enter the main thread. Used by /meta-execute --deep|--glm|--sonnet|--codex and /auto-execute. Protocol: references/loop-protocol.md."
+description: "The shared execute→review→fix loop for plan execution. A fresh worker per task — unflagged means NATIVE to the host harness (Claude Code Agent subagent; Codex gpt-5.3-codex-spark delegation, its own weekly quota), with DeepSeek/GLM/Sonnet-200K headless workers and Codex-as-executor available on explicit flag — executes and self-runs its task Verify hook; review gates at the PHASE boundary (not per task) via the meta-dev:review-agent Opus subagent, which computes its own git diff and returns a verdict; a fixer worker repairs on non-pass (tier-specific fix ladder). Only N worker lines + one phase verdict return to the conductor — diffs never enter the main thread. Used by bare /meta-execute (native) and its --deep|--glm|--sonnet|--codex opt-ins, plus /auto-execute. Protocol: references/loop-protocol.md."
 ---
 
 # Agentic Execute → Review → Fix Loop

@@ -1,7 +1,7 @@
 ---
 name: grok-execute
 argument-hint: <task description> [--repo <name>] [--readonly] [--model <model>] [--effort <level>] [--max-turns <n>]  # --repo names from .claude/meta-dev-repos.json
-description: Execute a task via headless xAI Grok (Grok Build CLI). Grok is its OWN harness (like Codex) — it cannot run our slash commands, so give it a DIRECT task. Unlike Codex, Grok can read AND write, so it serves double duty: a full general-purpose execution worker (sibling of /deep-execute and /glm-execute) AND a third cross-family review lens (xAI family, alongside Anthropic and OpenAI). Default model grok-4.5.
+description: Execute a task via headless xAI Grok (Grok Build CLI). Grok is its OWN harness (like Codex) — it cannot run our slash commands, so give it a DIRECT task. Like Codex, Grok can read AND write, so it serves double duty: a full general-purpose execution worker (sibling of /deep-execute and /glm-execute) AND a third cross-family review lens (xAI family, alongside Anthropic and OpenAI). Default model grok-4.5.
 ---
 
 # /grok-execute — Grok Headless Execution
@@ -20,7 +20,7 @@ Consequence: **give Grok a direct task, never a "run `/command`" instruction.** 
 
 Grok occupies a unique slot: it is **both** a general execution tier **and** a cross-family reviewer.
 
-- **As an executor:** Grok 4.5 is a frontier-tier model and, unlike Codex, **can write files** — so it can do real bounded implementation work (fixes, refactors, scaffolding), not just read-and-report. Use it like `/deep-execute` or `/glm-execute` for a self-contained task where an independent strong model is wanted.
+- **As an executor:** Grok 4.5 is a frontier-tier model that **can write files** (like Codex under `--sandbox workspace-write`) — so it can do real bounded implementation work (fixes, refactors, scaffolding), not just read-and-report. Use it like `/deep-execute` or `/glm-execute` for a self-contained task where an independent strong model is wanted.
 - **As a reviewer:** Point it (read-only via `--readonly`) at a diff, the changed files, or a specific finding. An xAI-family model reviewing Claude/GLM/DeepSeek/OpenAI output is a **third independent family** — it catches failure modes that same-family review (and even the OpenAI/Codex lens) miss. That independent-family lens is the entire value of Grok-as-reviewer.
 
 **Where it sits on the work ladder:** DeepSeek (cheap/mechanical) → GLM (complex/stateful) remain the execution farm; Grok is a **higher-cost frontier option** for tasks that earn it (hard reasoning, a wanted second family) — not a bulk farm. Treat its quota/budget with the same deliberation as Codex, not the fan-out freedom of DeepSeek.

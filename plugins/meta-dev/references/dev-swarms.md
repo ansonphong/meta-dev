@@ -50,7 +50,7 @@ Delegate to `/loop-gap` with the loop-gap config from Stage 3.
 
 **Conditional stage — runs ONLY when the user passed `--codex`.** Mirrors the Stage 2.5 design-eval gate: a quality gate slotted in at a decimal stage. Without `--codex`, the waterfall goes straight from Stage 4 → Stage 5 exactly as before.
 
-**Goal:** an independent **cross-family** read on the hardened plan, right before code gets written. Stage 4 hardening (`/loop-gap`, driven DeepSeek→GLM) is same-family — Claude-lineage models gap-checking Claude-lineage plans. Codex (GPT) catches the blind spots that same-family review shares. This is the canonical, highest-leverage use of Codex's review-only lens: review the *plan that is about to drive execution*.
+**Goal:** an independent **cross-family** read on the hardened plan, right before code gets written. Stage 4 hardening (`/loop-gap`, driven DeepSeek→GLM) is same-family — Claude-lineage models gap-checking Claude-lineage plans. Codex (GPT) catches the blind spots that same-family review shares. This is the canonical, highest-leverage use of Codex's cross-family review lens: review the *plan that is about to drive execution*. (Codex is also a first-class executor elsewhere in the harness — this stage just happens to be a read-only one.)
 
 **Precondition:** Stage 4 has already reported "NO GAPS REMAINING" — i.e. the **final DeepSeek/GLM hardening pass is done**. Codex scans the *already-hardened* plan; it is not a substitute for `/loop-gap`, it is the cross-family confirmation on top of it.
 

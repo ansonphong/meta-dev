@@ -1,7 +1,7 @@
 ---
 name: auto-execute
 argument-hint: <any task, prompt, plan, or meta-dev op> [--deep|--glm|--sonnet|--codex] [--effort <level>] [--repo <name>] [--readonly] [--max-turns <n>]  # --repo names from .claude/meta-dev-repos.json
-description: Opus-conducted headless work router for ANY task — brainstorm, design, plan, harden, execute, review/audit, or any arbitrary prompt/plan. Decomposes a job into chunks, farms each to DeepSeek (cheapest, default) or GLM (long-horizon), with Codex reserved as the cross-family CODE-REVIEW lens (review only); reviews every round-trip, escalates DeepSeek→GLM on failure.
+description: "Opus-conducted headless work router for ANY task — brainstorm, design, plan, harden, execute, review/audit, or any arbitrary prompt/plan. Decomposes a job into chunks and farms each NATIVELY to the host harness by default (Claude Code → an Agent subagent; Codex → gpt-5.3-codex-spark on its own weekly quota), with --deep (DeepSeek, cheapest external), --glm (long-horizon), --sonnet, and --codex (first-class executor AND the cross-family review lens) as explicit opt-ins; reviews every round-trip, escalates native→DeepSeek→GLM on failure."
 ---
 
 # /auto-execute — Conducted Headless Work (any task)
@@ -18,35 +18,45 @@ description: Opus-conducted headless work router for ANY task — brainstorm, de
 
 The conductor loop, routing bias, review gate, and gating rules below are **identical regardless of what the job is** — only the chunk *content* and the *worker's internal command* change.
 
-**Purpose.** Delegate **as much work as possible, automatically**, to the cheaper models (DeepSeek > GLM). Opus is the **top-level planner + reviewer**; the cheap models run what Opus plans. If a chunk *can* be farmed out, farm it — main-thread Opus does the thinking (decompose, route, review, integrate), not the typing. This protects Opus's context while keeping spend low.
+**Purpose.** Delegate **as much work as possible, automatically**, off the main thread. Opus is the **top-level planner + reviewer**; the workers run what Opus plans. If a chunk *can* be farmed out, farm it — main-thread Opus does the thinking (decompose, route, review, integrate), not the typing. This protects Opus's context while keeping spend low.
 
-Wraps `/deep-execute`, `/glm-execute` (`scripts/claude-headless-exec`), and `/codex-execute` (`scripts/codex-headless-exec`). Read their docs for backend specifics; this skill is the **orchestration layer** on top.
+Unflagged, it delegates **natively to whatever harness you are running in**. Wraps `/deep-execute`, `/glm-execute` (`scripts/claude-headless-exec`), and `/codex-execute` (`scripts/codex-headless-exec`) when an external backend is explicitly requested. Read their docs for backend specifics; this skill is the **orchestration layer** on top.
 
-## The Core Bias — DeepSeek-first, escalate to GLM only when needed
+## The Core Bias — native by default, escalate only when needed
 
-**DeepSeek is the cheapest worker — use it as much as possible.** The way to make it viable even for big work is to **break the job into bounded chunks DeepSeek can hold, do one chunk, check it, then the next.** Reserve GLM for what genuinely needs it.
+**The unflagged tier is native delegation — no external backend at all.** External backends are **explicit opt-ins** (`--deep`, `--glm`, `--sonnet`, `--codex`). When you do go external, DeepSeek is still the cheapest one and still the right first step; the way to make it viable even for big work is to **break the job into bounded chunks DeepSeek can hold, do one chunk, check it, then the next.** Reserve GLM for what genuinely needs it.
 
 ```
-DEFAULT  → DeepSeek   small / bounded / mechanical / self-contained chunks
+DEFAULT  → NATIVE     host-harness native delegation, no flag: in Claude Code a
+                      native Agent subagent; in Codex `codex exec -m
+                      gpt-5.3-codex-spark` (SEPARATE weekly quota from the
+                      gpt-5.6 family → cheapest tier there is)
+ROUTE    → DeepSeek   `--deep` — cheapest EXTERNAL tier; small / bounded /
+                      mechanical / self-contained chunks
 ESCALATE → GLM        ONLY when a chunk truly requires it:
                         • long-horizon / multi-phase that can't be chunked
                         • cross-file STATEFUL refactor needing a held thread
                         • frontend / Svelte design consistency across components
                         • DeepSeek returned the chunk but it FAILED your review
+OPT-IN   → Codex      `--codex` — a first-class EXECUTOR (GPT family) as well as
+                      the cross-family REVIEW lens; see below
+OPT-IN   → Sonnet     `--sonnet` — Anthropic-grade judgment at the 200K tier
 ```
 
-When unsure, **try DeepSeek first** — escalation is cheap, GLM-by-default is not (full heuristic: CLAUDE.md → Multi-Model Execution).
+When unsure, **try the native tier first** (no flag) — escalation native→DeepSeek→GLM is cheap, GLM-by-default is not (full heuristic: CLAUDE.md → Multi-Model Execution).
 
-**Codex is OFF this cost ladder — CODE REVIEW ONLY.** It runs on a limited Codex Plus quota and is NOT a general execution, hardening, or verification worker. Reach for `--codex` **only as the cross-family code-review lens** — a GPT-class second opinion reviewing a diff at a phase gate / Stage 6, where independent-family review catches what Claude / GLM / DeepSeek share blind spots on. Use it deliberately, for a *small number* of high-value review calls when correctness really matters. **Execution, hardening, and gap-fixing work never go to Codex** — those route DeepSeek→GLM; Codex reviews what they produce.
+**Codex is a first-class EXECUTOR *and* the cross-family review lens.** `--codex` can take real execution, hardening, and gap-fixing chunks — dispatch it with `--sandbox workspace-write` when the worker must edit files, `--sandbox read-only` when it only reads and reports findings back for you to apply. Route it **spark-first** (`gpt-5.3-codex-spark`, a separate weekly quota from the gpt-5.6 family → effectively free capacity); reserve the heavier Codex tiers, which run on a limited Codex Plus quota, for work that earns them.
 
-⚠️ **A Codex worker is OpenAI's own agent, NOT Claude Code** — it canNOT run our slash commands internally (`/meta-execute`, `/loop-gap`, etc.) the way GLM/DeepSeek workers can. Hand it a **direct review task** ("review this diff for correctness/regressions and report findings"), never a "run `/command`" instruction; the conductor (you) or a claude-harness worker applies whatever needs our harness.
+It remains **also** the cross-family code-review lens — a GPT-class second opinion reviewing a diff at a phase gate / Stage 6, where independent-family review catches what Claude / GLM / DeepSeek share blind spots on. That role is unchanged; it is simply no longer Codex's *only* role.
+
+⚠️ **A Codex worker is OpenAI's own agent, NOT Claude Code** — it canNOT run our slash commands internally (`/meta-execute`, `/loop-gap`, etc.) the way GLM/DeepSeek workers can. Hand it a **direct task** ("apply X to files A/B", or "review this diff for correctness/regressions and report findings"), never a "run `/command`" instruction — though it *can* be pointed at a procedure file to follow (`/codex-execute --skill|--command`). Anything that genuinely needs our slash-command harness goes to the conductor (you) or a claude-harness worker.
 
 ## The Conductor Loop
 
 You run this loop on the main thread. **Never just fire one giant task at a backend** — decompose, dispatch, verify, repeat.
 
 1. **Decompose** — split the job into the smallest chunks that still make sense as a unit (one file, one phase, one well-scoped transform). Hold the chunk list in a task tracker (you own it). This is what protects your context and keeps DeepSeek on-thread. **If the job is a multi-phase meta-planner plan, the chunk unit is the phase/wave file — see "Multi-phase plans" below; that mode overrides the default chunking.**
-2. **Route** — per chunk, pick the backend with the bias above. Default DeepSeek; mark any chunk that needs GLM and why.
+2. **Route** — per chunk, pick the backend with the bias above. Default native (no flag); mark any chunk that needs an external backend and why.
 3. **Dispatch** — run the chosen backend. For >30s work use `run_in_background: true`; a single self-contained spec per chunk (paths, constraints, exact deliverable, verify hook). Independent chunks → dispatch in parallel. The spec can be a raw task, a file/plan to act on, or an explicit *"run `/<command> <target>`"* instruction (e.g. `/meta-planner`, `/loop-gap`, `/meta-execute`, `/meta-eval`, `/sniff`) — the worker has the full harness. **For any code-writing chunk, include the test-minimalism policy AND the test discipline in the spec** — DeepSeek/GLM/Codex default to over-testing AND to running the whole suite. Tell every worker explicitly: *critical-breakage tests only, do not retrofit existing tests; and PATH-SCOPE every test — run only the named test file (`pytest path/test_x.py -q`), NEVER `pytest <dir>/` or `pytest … -k <expr>` (~18× slower per cycle), NEVER svelte-check/tsc/build/full-suite per task — those run once at phase end* (CLAUDE.md → Testing; meta-dev `execute-charter.md` → Fast Test Doctrine). (Read-only chunks — research, audit, review — don't need it.)
 4. **Round-trip review** — when a chunk returns, read the worker's distilled result (`OUTPUT_FILE`) to confirm `is_error: false`. Then **delegate the review — dispatch `meta-dev:review-agent`** for the chunk (per the agentic-exec-loop protocol: `skills/agentic-exec-loop/references/loop-protocol.md`). Read ONLY its verdict; do NOT read the diff into this context. The verdict is the quality gate, not the worker's self-report.
 5. **Pass / fail — branch on the review-agent verdict:**
@@ -125,7 +135,7 @@ PY
 
 The user's input is: `$ARGUMENTS`
 
-- `--deep` / `--glm` / `--sonnet` / `--codex` — force a backend, skip routing (still chunk + review). `--sonnet` pins each chunk to a separate headless Anthropic Sonnet-200K worker (`claude-headless-exec --backend sonnet`, `claude-sonnet-5`, no `[1m]`) — Anthropic-grade judgment at the 200K price, never a Sonnet `Agent` subagent (an `opus[1m]` session bills those at 1M). `--codex` is the premium / sparing cross-family lens (see Core Bias) — use it deliberately, not for bulk; route its dispatch through `scripts/codex-headless-exec`.
+- `--deep` / `--glm` / `--sonnet` / `--codex` — force a backend, skip routing (still chunk + review). `--sonnet` pins each chunk to a separate headless Anthropic Sonnet-200K worker (`claude-headless-exec --backend sonnet`, `claude-sonnet-5`, no `[1m]`) — Anthropic-grade judgment at the 200K price, never a Sonnet `Agent` subagent (an `opus[1m]` session bills those at 1M). `--codex` is a first-class executor **and** the cross-family review lens (see Core Bias) — route it spark-first and dispatch through `scripts/codex-headless-exec` (`--sandbox workspace-write` when it edits, `--sandbox read-only` when it only reports back).
 - `--effort <level>` — thinking/reasoning effort forwarded to each headless worker: `low|medium|high|xhigh|max`. Applies to `--sonnet`/`--glm` (both default `high`); no-op for `--deep`. Drop to `medium`/`low` to conserve the Max Sonnet cap on bulk chunks; `xhigh` for the hardest work. Omit to use the per-backend default
 - `--repo <name>` — target repo (default: auto-detect from cwd; names from .claude/meta-dev-repos.json)
 - `--readonly` — restrict workers to read-only tools (audits/reviews — route freely, either backend)
@@ -136,7 +146,7 @@ Everything else is the job description. If none is given, ask what to execute.
 
 State briefly, before dispatching:
 - **Job** and its **chunk breakdown** (the ordered list).
-- **Per-chunk backend** (default DeepSeek; flag any GLM chunk + reason).
+- **Per-chunk backend** (default native; name any flagged external backend + reason).
 - **Whether any chunk is a gated code-write** — if so, get "go" first.
 
 ## Step 3: Run the Conductor Loop
@@ -163,14 +173,14 @@ Per the Conductor Loop step 7 — what each backend did, what you reviewed, esca
 
 ## Use it for any meta-dev work — all 6 waterfall stages
 
-This is the intended substrate for the **entire Development Waterfall**, not just execution — farm the heavy lifting to the backends, DeepSeek-first, you reviewing each round-trip. Each stage is just a different worker command / chunk content; the conductor loop is the same.
+This is the intended substrate for the **entire Development Waterfall**, not just execution — farm the heavy lifting to workers, native-first, you reviewing each round-trip. Each stage is just a different worker command / chunk content; the conductor loop is the same.
 
 - **BRAINSTORM** — farm research/exploration chunks (read-only, either backend) — "survey how X works", "list options for Y with tradeoffs". You synthesize the intent.
 - **DESIGN** — farm design-doc drafting (a section per chunk for a big doc; GLM for a cohesive whole). You own the architecture call; workers draft + you review.
 - **PLAN** (`/meta-planner`) — worker runs `/meta-planner <plan>` to restructure into phase files, or farm bounded research/drafting chunks; you assemble + review.
-- **HARDEN** (`/loop-gap`) — farm per-file / per-gap scans to DeepSeek chunks; escalate a subtle whole-plan consistency pass to GLM. Worker can run `/loop-gap <dir>` directly. Hardening is mechanical→complex work — it delegates DeepSeek→GLM, not Codex (review-only; save it for REVIEW below).
-- **EXECUTE** (`/meta-execute`) — for a **multi-phase meta-planner plan, farm one phase/wave file per round** (see "Multi-phase plans" above): one worker per phase, the worker runs `/meta-execute` on that phase, you code-review, then advance. For a flat single-file plan, farm per-task chunks DeepSeek-first, GLM for the stateful ones. Either way — **only once the plan execution is authorized** (the gate holds).
-- **REVIEW & VALIDATE** (`/meta-eval`, code review) — worker runs `/meta-eval <plan>` or a read-only code review over a diff; route freely (read-only, not gated). Cross-backend verification is a feature: have GLM review what DeepSeek built, or vice versa. **This is Codex's one job:** use `--codex` for a **true cross-family CODE REVIEW** (a different model family — GPT — reviewing the diff), the highest-signal verification when correctness really matters.
+- **HARDEN** (`/loop-gap`) — farm per-file / per-gap scans to DeepSeek chunks; escalate a subtle whole-plan consistency pass to GLM. Worker can run `/loop-gap <dir>` directly. Hardening is mechanical→complex work — native-first, then DeepSeek→GLM; `--codex` is also available here as an executor (spark-first), not just for REVIEW below.
+- **EXECUTE** (`/meta-execute`) — for a **multi-phase meta-planner plan, farm one phase/wave file per round** (see "Multi-phase plans" above): one worker per phase, the worker runs `/meta-execute` on that phase, you code-review, then advance. For a flat single-file plan, farm per-task chunks native-first (DeepSeek on `--deep`), GLM for the stateful ones. Either way — **only once the plan execution is authorized** (the gate holds).
+- **REVIEW & VALIDATE** (`/meta-eval`, code review) — worker runs `/meta-eval <plan>` or a read-only code review over a diff; route freely (read-only, not gated). Cross-backend verification is a feature: have GLM review what DeepSeek built, or vice versa. **This is Codex's highest-leverage job (though no longer its only one):** use `--codex` for a **true cross-family CODE REVIEW** (a different model family — GPT — reviewing the diff), the highest-signal verification when correctness really matters.
 
 **Beyond the waterfall:** any standalone op (`/sniff`, `/meta-security`, `/meta-ux`, `/meta-audit`, `/meta-probe`, changelog, version) and any **arbitrary task or bare prompt** routes the same way. If you can describe it as a self-contained chunk with a deliverable, `/auto-execute` can farm it.
 
