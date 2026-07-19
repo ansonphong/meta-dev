@@ -269,6 +269,50 @@ def test_six_hex_colour_is_not_read_as_a_bead():
     assert tasks[9].tid != "#aabb", "a 6-hex colour was mis-parsed as a bead"
 
 
+# ── human-verify tagging: the hyphen gap ─────────────────────────────────────
+
+HUMAN_TAG_FORMS = [
+    ("hyphen-lower", "- [ ] `T6.1` by-eye check of the overlay"),
+    ("hyphen-title", "- [ ] `T6.1` By-Eye check of the overlay"),
+    ("space-lower", "- [ ] `T6.1` by eye check of the overlay"),
+    ("hyphen-by-hand", "- [ ] `T6.1` verify by-hand in the running app"),
+    ("parenthetical", "- [ ] `T6.1` integration verify (by-eye) — full arc"),
+    ("gpu", "- [ ] `T6.1` gpu smoke on the render path"),
+    ("manual", "- [ ] `T6.1` manual pass over the tier row"),
+]
+
+
+@pytest.mark.parametrize(
+    "form_id,line", HUMAN_TAG_FORMS, ids=[f[0] for f in HUMAN_TAG_FORMS]
+)
+def test_human_tag_survives_the_hyphen(form_id, line):
+    """"by-eye" must flag human_verify exactly as "by eye" does.
+
+    ``_TAG_RE`` used ``by\\s+eye``, and ``\\s`` does not match ``-`` — so the
+    HYPHENATED spelling that plans actually use (BY-EYE-GATES.md) fell through
+    and the box parsed as ordinary execution work. ``mutate.py`` only refuses to
+    auto-flip boxes whose ``human_verify`` is set, so those gates were
+    worker-flippable: an automated flip could close a by-eye gate that no human
+    ever ran, and exit 0.
+    """
+    tasks = _by_line(_plan(line))
+    assert tasks[9].human_verify, (
+        "%s did not register as human-verify — this box is auto-flippable"
+        % form_id
+    )
+
+
+def test_ordinary_work_is_not_flagged_human():
+    """The widened tag must not sweep in normal execution boxes."""
+    for line in [
+        "- [ ] `T1.1` add the bulk verb to actions.ts",
+        "- [ ] `T1.2` byte-align the header struct",   # 'by' prefix, not 'by-eye'
+        "- [ ] `T1.3` rebuild the eyedropper icon",     # 'eye' substring, no tag
+    ]:
+        tasks = _by_line(_plan(line))
+        assert not tasks[9].human_verify, "%r wrongly flagged human-verify" % line
+
+
 def test_patch_is_present_in_this_parse_module():
     """Guard against the fix being silently reverted by a plugin update.
 

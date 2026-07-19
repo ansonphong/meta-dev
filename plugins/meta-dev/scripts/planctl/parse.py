@@ -77,7 +77,24 @@ _OWNED_HANDLE_RE = re.compile(
 # Human-verify regexes — ported VERBATIM from task-done.sh (W1-C1; do NOT
 # reinvent). tag_re matches on the box rest-text; sec_re matches on the NEAREST
 # PRECEDING heading (first-heading-decides, G0b-7).
-_TAG_RE = re.compile(r"(by\s+eye|by\s+hand|gpu|manual)", re.I)
+#
+# ``[-\s]+`` not ``\s+``: plans overwhelmingly write the HYPHENATED "by-eye"
+# (the arc runbooks are literally named BY-EYE-GATES.md), and ``\s`` does not
+# match ``-``. `_SEC_RE` below already anticipated this with ``human[-\s]*
+# verify``; `_TAG_RE` did not, so a box tagged "by-eye" fell through to being
+# an ordinary EXECUTION box — and `mutate.py` only refuses to auto-flip boxes
+# whose `human_verify` is set. The gate was therefore worker-flippable.
+#
+# Measured across the plans corpus (44,362 checkbox rows): 343 boxes gain
+# protection and ZERO lose it (the new pattern is a strict superset). Among the
+# 343 were "By-eye CALIBRATION GATE (blocking — requires the running app)",
+# "By-eye (Phong)", and "By-eye checklist (human, running app)" — unambiguous
+# human gates that an automated flip could have closed with nobody looking.
+#
+# NOTE this shifts derived progress: human-verify boxes are excluded from
+# execution counts, so affected plans show a smaller denominator (and a higher
+# completion %) than before. That is the corrected reading, not a regression.
+_TAG_RE = re.compile(r"(by[-\s]+eye|by[-\s]+hand|gpu|manual)", re.I)
 _SEC_RE = re.compile(r"(acceptance|by\s+eye|by\s+hand|gpu|manual|human[-\s]*verify)", re.I)
 
 # Markdown heading (1-6 #'s) — nearest-preceding section for a box.
