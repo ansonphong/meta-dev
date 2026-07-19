@@ -31,8 +31,8 @@ GLYPH = {
     "superseded":    "⌀",
 }
 
-# Drift suffix — appended to the "done" glyph when a done plan still has open
-# execution boxes (design §3.2). Rendered as "✓⚠".
+# Drift suffix — appended to any drift-bearing status glyph so newly introduced
+# canonical statuses cannot silently hide open execution boxes.
 DRIFT_SUFFIX = "⚠"
 
 # Legacy status mapping (for backward-compatible glyph render of old status: values
@@ -43,11 +43,10 @@ LEGACY_GLYPH = {"done": "✓", "blocked": "!", "active": "→", "draft": "◦"}
 def status_glyph(status, drift=False):
     """Render the glyph for a derived status.
 
-    ``done`` with ``drift`` → ``'✓⚠'`` (declared-done-with-open-work). A non-canon
-    status (e.g. legacy ``active``) → falls back to LEGACY_GLYPH, then ``'?'``."""
-    if status == "done" and drift:
-        return "✓⚠"
-    return GLYPH.get(status) or LEGACY_GLYPH.get(status, "?")
+    Any drift-bearing status gets the warning suffix. A non-canon status (e.g.
+    legacy ``active``) → falls back to LEGACY_GLYPH, then ``'?'``."""
+    marker = GLYPH.get(status) or LEGACY_GLYPH.get(status, "?")
+    return marker + DRIFT_SUFFIX if drift else marker
 
 
 # ── display width ────────────────────────────────────────────────────────────

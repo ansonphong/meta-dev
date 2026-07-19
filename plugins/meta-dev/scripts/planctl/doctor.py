@@ -113,7 +113,9 @@ def cmd_doctor(args):
         stale_override = [
             p for (p,) in conn.execute(
                 "SELECT path FROM plans WHERE override IS NOT NULL "
-                "AND override!='' AND stage>=6 ORDER BY path")
+                "AND override!='' AND stage>=6 "
+                "AND (stage_state IS NULL OR stage_state!='active') "
+                "ORDER BY path")
         ]
 
         # Exact smoke headings are intentionally strict. Surface near misses

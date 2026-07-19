@@ -12,7 +12,8 @@ Composes the per-Stop work into ONE cheap pass:
        (C) clean+no-review       → review_missing + MED inbox
        (D) open boxes + drift    → FAIL LOUD (HIGH inbox + event)
        (E) open + executing      → no-op (run alive)
-     Stage-6 done plans are EXACTLY excluded (W1-D2).
+     Stage-6 done plans are excluded; explicit stage-6-active reviews remain
+     eligible until their review gate clears.
   3. Render only DIRTY runbooks — ``sync``'s sha-based ``rebuilt_runbooks``
      UNION self-heal (rollup-vs-rendered-block compare), NOT the
      unconditional ``find … _runbook-*.md`` loop. Budget <1s typical.
@@ -235,15 +236,17 @@ def _lookup_stage5_ts(cache, plan_rel):
 # ── scope resolution (master-vs-dir rule, W1-D5) ───────────────────────────────
 
 def _build_scope_set(conn, root):
-    """Find all stage-5 plans, resolve scopes with the master-vs-dir rule.
+    """Find plans at the DONE gate, resolve scopes with the master-vs-dir rule.
 
     Returns ``[(scope_path, plan_rel), …]`` deduped by scope.
 
     W1-D5: A dir with ``00-master-plan.md`` AND zero phase-file checkboxes →
-    scope = master only; else scope = whole dir. Stage-5 means EXACTLY stage=5
-    (W1-D2 — stage-6 done plans are NOT reprocessed)."""
+    scope = master only; else scope = whole dir. The gate covers stage 5 plus
+    stage >= 6 with an explicit active review. Legacy stage-6 plans with no
+    ``stage_state`` remain finished and are NOT reprocessed."""
     rows = conn.execute(
-        "SELECT path FROM plans WHERE stage=5 "
+        "SELECT path FROM plans WHERE "
+        "(stage=5 OR (stage>=6 AND stage_state='active')) "
         "AND (override IS NULL OR override='')").fetchall()
 
     plan_rel_set = {r[0] for r in rows}
@@ -660,13 +663,14 @@ def cmd_reconcile(args):
 
                 # The claimed-done-but-lied case (the bug this gate exists to
                 # catch) is frontmatter ``status: completed`` WITH open exec
-                # boxes at stage 5. It CANNOT be expressed via derived_status/
-                # drift: derive.derive_plan only yields 'done'/drift at
-                # stage>=6, and the scope set selects stage==5 EXACTLY (W1-D2)
-                # — so both predicates above are unreachable here and (D) would
+                # boxes at stage 5. That legacy stage-5 case CANNOT be expressed
+                # via derived_status/drift: derive.derive_plan only yields drift
+                # at stage>=6, so without the raw frontmatter check (D) would
                 # silently degrade to (E) no-op. The legacy status is not
                 # indexed (I1: never stored as derived), so read it from the
                 # frontmatter, as parse.parse_frontmatter explicitly exposes it.
+                # Explicit stage-6-active plans express the same failure via
+                # their stored drift bit and therefore also fail loudly here.
                 claimed_done = False
                 try:
                     with open(os.path.join(root, plan_rel),

@@ -55,23 +55,21 @@ EMOJI_MISSING = "❌"
 def emoji(status, drift=False):
     """Emoji counterpart of ``glyph`` — same precedence, same non-canon safety.
 
-    ``done`` with ``drift`` → ``'✅⚠️'`` (declared done with open work; the warning
-    must survive into every rendered view). Unknown status → ``'❔'``, never a
-    ``KeyError``."""
-    if status == "done" and drift:
-        return "✅⚠️"
-    return EMOJI.get(status, "❔")
+    Any drift-bearing status gets the warning suffix, so a newly introduced
+    canonical status cannot silently hide drift. Unknown status → ``'❔'``,
+    never a ``KeyError``."""
+    marker = EMOJI.get(status, "❔")
+    return marker + "⚠️" if drift else marker
 
 
 def glyph(status, drift=False):
     """Render the glyph for a derived status.
 
-    ``done`` with ``drift`` → ``'✓⚠'`` (declared-done-with-open-work, rendered
-    loudly in every view). A non-canon status (e.g. a hand-edited bogus override
-    that slipped past parse) → ``'?'`` — NEVER a ``KeyError`` (G0b-6 read-side)."""
-    if status == "done" and drift:
-        return "✓⚠"
-    return GLYPHS.get(status, "?")
+    Any drift-bearing status gets the warning suffix. A non-canon status (e.g.
+    a hand-edited bogus override that slipped past parse) → ``'?'`` — NEVER a
+    ``KeyError`` (G0b-6 read-side)."""
+    marker = GLYPHS.get(status, "?")
+    return marker + "⚠" if drift else marker
 
 
 def pct(done, total):
