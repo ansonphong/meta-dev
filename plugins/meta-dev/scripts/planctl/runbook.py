@@ -523,7 +523,7 @@ def _member_rows(conn, root, rb_rel):
                 "tasks_total": sub.get("tasks_total", 0),
                 "pct": derive.pct(sub.get("tasks_done", 0),
                                   sub.get("tasks_total", 0)),
-                "override": None,
+                "override": None, "smoke": 0, "stage_state": None,
             })
             continue
         on_disk = os.path.isfile(os.path.join(root, child))
@@ -531,7 +531,8 @@ def _member_rows(conn, root, rb_rel):
         # reaches the rendered table. compose_block reads row["drift"]; without
         # it every member renders as clean ✅ and the warning is silently lost.
         prow = conn.execute(
-            "SELECT stage,override,derived_status,tasks_done,tasks_total,drift "
+            "SELECT stage,override,derived_status,tasks_done,tasks_total,drift,"
+            "smoke_total,stage_state "
             "FROM plans WHERE path=?", (child,)).fetchone()
         if prow is None or not on_disk:
             # No index row is not "gone". sync excludes _archive/ and _NOISE
@@ -549,9 +550,10 @@ def _member_rows(conn, root, rb_rel):
                          "drift": False,
                          "tasks_done": otd, "tasks_total": ott,
                          "pct": derive.pct(otd, ott),
-                         "override": ooverride})
+                         "override": ooverride, "smoke": 0,
+                         "stage_state": None})
             continue
-        stage, override, dstatus, td, tt, pdrift = prow
+        stage, override, dstatus, td, tt, pdrift, smoke_total, stage_state = prow
         pdrift = bool(pdrift)
         rows.append({
             "path": child, "kind": "plan", "missing": False, "stage": stage,
@@ -559,6 +561,7 @@ def _member_rows(conn, root, rb_rel):
             "glyph": derive.glyph(dstatus, pdrift),
             "tasks_done": td or 0, "tasks_total": tt or 0,
             "pct": derive.pct(td or 0, tt or 0), "override": override,
+            "smoke": smoke_total or 0, "stage_state": stage_state or None,
         })
     return rows
 
@@ -616,6 +619,12 @@ def compose_block(rb_rel, rollup, member_rows):
         stage = row.get("stage")
         if stage is None:
             stage_cell = "—"
+        elif row.get("stage_state") == "active":
+            stage_cell = "→ %s" % stage
+            if stage >= 6:
+                stage_cell += " (👀)"
+        elif row.get("stage_state") == "done":
+            stage_cell = "✓ done" if stage >= 6 else "✓ %s" % stage
         else:
             stage_cell = "stage %s" % stage
         if row.get("override"):
@@ -635,6 +644,9 @@ def compose_block(rb_rel, rollup, member_rows):
             status_cell = "%s %s" % (
                 derive.emoji(row.get("status"), row.get("drift")),
                 row.get("status") or "?")
+        smoke = row.get("smoke") or 0
+        if smoke > 0:
+            status_cell += " · 👁 %d smoke" % smoke
         lines.append("| %d | %s | %s | %s | %s | [plan](%s) |" % (
             i + 1, name, stage_cell, prog, status_cell,
             _link_to(row["path"], rb_rel)))
