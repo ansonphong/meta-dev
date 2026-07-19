@@ -205,7 +205,6 @@ for p in raw:
         'stage': p.get('stage', 0),
         'stage_state': p.get('stage_state'),
         'smoke': p.get('smoke', 0),
-        'smoke_total': p.get('smoke_total', 0),
         'drift': p.get('drift', False),
         'why': p.get('why', ''),
         'malformed': bool(p.get('malformed', False)),

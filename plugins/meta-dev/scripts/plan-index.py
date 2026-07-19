@@ -337,8 +337,7 @@ def _planctl_data():
                 "derived_status": dstatus,     # NEW — the new render reads this
                 "stage": stage or 0,
                 "stage_state": stage_state,
-                "smoke": smoke_total or 0,
-                "smoke_total": smoke_total or 0,
+                "smoke": smoke_total or 0,   # badge count; never in progress math
                 "drift": bool(drift),
                 "repo": repo or "",
                 "why": why or "",
