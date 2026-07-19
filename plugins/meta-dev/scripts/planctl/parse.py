@@ -34,10 +34,31 @@ _CHECKBOX_RE = re.compile(r"^(\s*)([-*])\s+\[([ xX])\]\s*(.*)$")
 # mis-parsed as ``#aabb``.
 _BEAD_RE = re.compile(r"#([0-9a-fA-F]{4})(?![0-9a-fA-F])(\.(\d+))?")
 
-# Legacy handle: ``T3.2`` / `` `T3.2` `` — accepted as an alias. Lenient like
-# task-done.sh (optional backticks, found anywhere in rest) and consistent with
-# task-stamp.py's `` `T<phase>.<seq>` `` form.
+# Legacy handle: ``T3.2`` / `` `T3.2` `` — accepted as an alias. Used for
+# STRIPPING handle text out of the normalize_rest() fallback, where matching
+# anywhere is correct and harmless.
 _HANDLE_RE = re.compile(r"`?T([A-Za-z0-9]+)\.(\d+)`?")
+
+# ...but IDENTIFYING the handle a box OWNS is a different question, and the
+# lenient form is wrong for it. task-done.sh used to assign a box's handle with
+# a match-anywhere search, so a handle quoted in ANOTHER task's prose could
+# claim the box. It misfired three times in one session (T2.0 flipped T2.1,
+# T1.4 flipped T2.3, and T4.2 reported a false "already [x]" — exit 0! — after
+# anchoring to a "(T4.2)" mention inside T1.4's body). That leniency was ported
+# here verbatim; this is where it stops.
+#
+# A box owns the handle that task-stamp.py anchored at the START of its
+# rest-text, preceded only by a DECORATION zone: an optional bead/stamp id
+# (which may carry dots, e.g. ``#629a.1``) and/or markdown emphasis/backticks.
+# No prose word may precede an owned handle.
+#
+# Calibrated against the full plans/ corpus (44,319 checkbox lines): 4,940 boxes
+# match, and every box that does NOT genuinely owns no handle (``**C.1**``
+# items, grep/sed verify lines, commit steps) — several of which merely MENTION
+# a handle in prose, which is exactly the hijack this prevents.
+_OWNED_HANDLE_RE = re.compile(
+    r"^(?:#[0-9A-Za-z][0-9A-Za-z.\-]*\s+)?[*_~`]{0,3}T([A-Za-z0-9]+)\.(\d+)(?![A-Za-z0-9.])"
+)
 
 # Human-verify regexes — ported VERBATIM from task-done.sh (W1-C1; do NOT
 # reinvent). tag_re matches on the box rest-text; sec_re matches on the NEAREST
@@ -305,7 +326,9 @@ def parse_tasks(text):
         bm = _BEAD_RE.search(rest)
         if bm:
             bead_id = "#" + bm.group(1).lower() + (bm.group(2) or "")
-        hm2 = _HANDLE_RE.search(rest)
+        # ANCHORED, not search(): only the handle this box OWNS may identify it.
+        # A prose mention of another task's handle must never claim the box.
+        hm2 = _OWNED_HANDLE_RE.match(rest)
         if hm2:
             handle_id = "T%s.%s" % (hm2.group(1), hm2.group(2))
 
