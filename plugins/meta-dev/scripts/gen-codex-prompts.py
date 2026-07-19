@@ -7,8 +7,8 @@ procedure — the command markdown stays the single source of truth.
 """
 import argparse, os, pathlib, sys
 
-# The commands worth a top-level slash entry. Deliberately NOT all 67 —
-# a 67-item autocomplete list is noise, not discoverability.
+# The commands worth a top-level slash entry. Deliberately not the full catalog:
+# a full-catalog autocomplete list is noise, not discoverability.
 CURATED = [
     "execute", "dev", "dashboard", "ship", "runbook", "sweep",
     "inbox", "auto-execute", "loop-gap", "probe", "security", "housekeeping",

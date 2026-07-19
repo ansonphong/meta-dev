@@ -4,7 +4,7 @@ description: "Run any meta-dev command from a harness that has no commands surfa
 allowed-tools: [Read, Bash, Glob, Grep]
 ---
 
-# command-router — the 67 commands, from a harness that has none
+# command-router — the command catalog, from a harness that has none
 
 Claude Code auto-discovers `commands/*.md` as slash commands. **Codex does not** —
 the plugin manifest has no `commands` key and Codex has no commands surface, so

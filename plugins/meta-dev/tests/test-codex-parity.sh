@@ -62,7 +62,7 @@ ROUTER="$PLUGIN_ROOT/skills/command-router/SKILL.md"
 if [ -f "$ROUTER" ]; then
   ok "command-router skill present"
 else
-  bad "command-router skill MISSING — Codex has no path to the 67 commands"
+  bad "command-router skill MISSING — Codex has no path to the command catalog"
 fi
 
 # The router tells Codex commands/ is two levels up from the SKILL.md.
@@ -74,7 +74,8 @@ fi
 
 # Every meta-<name> must have a bare <name> twin whose body is the literal
 # one-line redirect promised by the command-pairing invariant.
-TWIN_OUT="$(python3 - "$PLUGIN_ROOT" <<'PY'
+TWIN_VALIDATOR_OK=0
+if TWIN_OUT="$(python3 - "$PLUGIN_ROOT" <<'PY'
 from pathlib import Path
 import sys
 
@@ -103,21 +104,32 @@ print(len(meta_commands))
 print("|".join(missing))
 print("|".join(bad_bodies))
 PY
-)"
-TWIN_COUNT="$(echo "$TWIN_OUT" | sed -n 1p)"
-MISSING_TWIN="$(echo "$TWIN_OUT" | sed -n 2p)"
-BAD_TWIN_BODY="$(echo "$TWIN_OUT" | sed -n 3p)"
-
-if [ -z "$MISSING_TWIN" ]; then
-  ok "every meta-<name> has a bare <name> twin ($TWIN_COUNT pairs)"
+)"; then
+  TWIN_COUNT="$(echo "$TWIN_OUT" | sed -n 1p)"
+  MISSING_TWIN="$(echo "$TWIN_OUT" | sed -n 2p)"
+  BAD_TWIN_BODY="$(echo "$TWIN_OUT" | sed -n 3p)"
+  if [[ "$TWIN_COUNT" =~ ^[1-9][0-9]*$ ]]; then
+    TWIN_VALIDATOR_OK=1
+  else
+    bad "command-twin validator returned malformed output"
+  fi
 else
-  bad "meta-<name> without bare twin: $MISSING_TWIN"
+  twin_validator_rc=$?
+  bad "command-twin validator failed to execute (python3, exit $twin_validator_rc)"
 fi
 
-if [ -z "$BAD_TWIN_BODY" ]; then
-  ok "all bare twin bodies are exact one-line redirects"
-else
-  bad "bare twins with non-redirect bodies: $BAD_TWIN_BODY"
+if [ "$TWIN_VALIDATOR_OK" -eq 1 ]; then
+  if [ -z "$MISSING_TWIN" ]; then
+    ok "every meta-<name> has a bare <name> twin ($TWIN_COUNT pairs)"
+  else
+    bad "meta-<name> without bare twin: $MISSING_TWIN"
+  fi
+
+  if [ -z "$BAD_TWIN_BODY" ]; then
+    ok "all bare twin bodies are exact one-line redirects"
+  else
+    bad "bare twins with non-redirect bodies: $BAD_TWIN_BODY"
+  fi
 fi
 
 echo
