@@ -14,11 +14,13 @@ heal over the disposable read-model:
   * malformed frontmatter (``files.parse_err`` non-null) → listed.
   * stale-override advisory (VC-8): ``override`` present AND ``stage >= 6`` →
     flagged as stale-override drift (the mirror of ``✓⚠``).
+  * noncanonical headings containing "smoke" with plain bullets beneath them →
+    advisory so exact smoke-heading matching is visible rather than mysterious.
   * 9p placement of ``state.db``/``events.jsonl`` → refuse + instruct (I5).
 
 Calls ``claims._sweep_stale`` before the claims/integrity checks. ``--json`` →
 ``{ok, integrity, derive_v, cycles, missing, parse_err, stale_override,
-placement}``.
+  smoke_near_miss, placement}``.
 
 Stdlib only.
 """
@@ -26,7 +28,7 @@ import json
 import os
 import sqlite3
 
-from planctl import claims, db, derive, runbook, statedir, sync
+from planctl import claims, db, derive, parse, runbook, statedir, sync
 
 
 def cmd_doctor(args):
@@ -113,6 +115,60 @@ def cmd_doctor(args):
                 "SELECT path FROM plans WHERE override IS NOT NULL "
                 "AND override!='' AND stage>=6 ORDER BY path")
         ]
+
+        # Exact smoke headings are intentionally strict. Surface near misses
+        # only when they actually contain plain bullets, so ordinary prose/task
+        # headings that merely mention smoke do not generate noise. Section
+        # extent and fence handling mirror parse.parse_smoke.
+        smoke_near_miss = []
+        for (path,) in conn.execute("SELECT path FROM files ORDER BY path"):
+            full_path = os.path.join(root, path)
+            try:
+                with open(full_path, encoding="utf-8", errors="replace") as fh:
+                    text = fh.read()
+            except OSError:
+                continue
+            active = []
+            in_fence = False
+            for line_no, line in enumerate(text.split("\n"), 1):
+                if line.lstrip().startswith(parse._FENCE_PREFIXES):
+                    in_fence = not in_fence
+                    continue
+                if in_fence:
+                    continue
+                heading = parse._HEADING_RE.match(line)
+                if heading:
+                    depth = len(heading.group(1))
+                    for candidate in active:
+                        if depth <= candidate["depth"] and candidate["has_bullet"]:
+                            smoke_near_miss.append({
+                                "path": path,
+                                "line": candidate["line"],
+                                "heading": candidate["heading"],
+                            })
+                    active = [c for c in active if c["depth"] < depth]
+                    heading_text = heading.group(2).strip()
+                    if (
+                        "smoke" in heading_text.casefold()
+                        and not parse._SMOKE_HEAD_RE.match(heading_text)
+                    ):
+                        active.append({
+                            "depth": depth,
+                            "line": line_no,
+                            "heading": heading_text,
+                            "has_bullet": False,
+                        })
+                    continue
+                if parse._SMOKE_BULLET_RE.match(line):
+                    for candidate in active:
+                        candidate["has_bullet"] = True
+            for candidate in active:
+                if candidate["has_bullet"]:
+                    smoke_near_miss.append({
+                        "path": path,
+                        "line": candidate["line"],
+                        "heading": candidate["heading"],
+                    })
     finally:
         if conn is not None:
             conn.close()
@@ -133,6 +189,7 @@ def cmd_doctor(args):
         "missing": missing,
         "parse_err": parse_err_files,
         "stale_override": stale_override,
+        "smoke_near_miss": smoke_near_miss,
         "placement": placement,
     }
     if getattr(args, "json", False):
@@ -163,3 +220,8 @@ def _print_doctor_human(p):
     print("  stale_override: %d%s" % (
         len(p["stale_override"]),
         "" if not p["stale_override"] else " — " + ", ".join(p["stale_override"])))
+    print("  smoke_near_miss: %d%s" % (
+        len(p["smoke_near_miss"]),
+        "" if not p["smoke_near_miss"] else " — " + ", ".join(
+            "%s:%d (%s)" % (item["path"], item["line"], item["heading"])
+            for item in p["smoke_near_miss"])))

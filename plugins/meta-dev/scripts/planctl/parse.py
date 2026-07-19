@@ -304,7 +304,7 @@ class Task:
         self.alias = alias          # legacy 'T3.2' when tid is a '#hex' bead (else None)
         self.line_no = line_no      # 1-indexed
         self.checked = checked      # bool (mark in x/X)
-        self.human_verify = human_verify  # bool (tag_re on rest OR sec_re on nearest heading)
+        self.human_verify = human_verify  # bool (tag/sec/canonical-smoke human gate)
         self.section = section      # nearest preceding heading text
         self.text = text            # rest-text (post-mark; tags preserved)
 
@@ -327,9 +327,9 @@ def parse_tasks(text):
       * a duplicate ``#hex`` bead appears in the file (G0b-4),
       * two untagged boxes collide on the same text-prefix fallback (ambiguous),
       * a duplicate legacy ``T3.2``-only handle appears (ambiguous alias).
-    ``human_verify`` flags boxes whose rest matches ``_TAG_RE`` OR whose nearest
-    preceding heading matches ``_SEC_RE`` (both ported verbatim from
-    ``task-done.sh``). Never raises.
+    ``human_verify`` flags boxes whose rest matches ``_TAG_RE``, whose nearest
+    preceding heading matches ``_SEC_RE``, OR whose nearest heading is a
+    canonical smoke heading. Fenced checkbox examples are ignored. Never raises.
     """
     lines = text.split("\n")
     tasks = []
@@ -339,7 +339,13 @@ def parse_tasks(text):
     seen_handle = {}   # legacy handle tid -> line_no (ambiguous alias)
 
     current_section = ""
+    in_fence = False
     for idx, line in enumerate(lines):
+        if line.lstrip().startswith(_FENCE_PREFIXES):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
         hm = _HEADING_RE.match(line)
         if hm:
             current_section = hm.group(2).strip()
@@ -397,8 +403,13 @@ def parse_tasks(text):
             else:
                 seen_prefix[tid] = idx + 1
 
-        # human_verify: tag on rest OR nearest heading matches sec_re (G0b-7).
-        human = bool(_TAG_RE.search(rest)) or bool(_SEC_RE.search(current_section or ""))
+        # human_verify: tag on rest OR nearest heading matches sec_re (G0b-7)
+        # OR the nearest heading is the canonical structural smoke section.
+        human = (
+            bool(_TAG_RE.search(rest))
+            or bool(_SEC_RE.search(current_section or ""))
+            or bool(_SMOKE_HEAD_RE.match((current_section or "").strip()))
+        )
 
         tasks.append(Task(tid, alias, idx + 1, checked, human, current_section, rest))
 
@@ -437,6 +448,60 @@ def count_split(tasks):
             if t.checked:
                 tasks_done += 1
     return tasks_done, tasks_total, human_open, human_total, raw_done, raw_total
+
+
+# ── smoke track (structural, never counted as execution) ─────────────────────
+# EXACT match on the stripped heading text — NEVER a substring. 47 headings
+# across 29 indexed plans contain "smoke" inside ordinary task headings ("### Task C
+# — Smoke + parent plan (no code)"); a substring sniff would silently reclassify
+# real execution work as non-counting. That is precisely the failure mode
+# _TAG_RE has, and the reason this track exists at all — do not repeat it here.
+#
+# The ONLY accepted heading forms are `Smoke`, `Smoke Test`, `Smoke Tests`
+# (case-insensitive; no emoji, no trailing punctuation, no parenthetical).
+_SMOKE_HEAD_RE = re.compile(r"^smoke(\s+tests?)?$", re.I)
+
+# A plain markdown bullet that is NOT a checkbox. A checkbox under a canonical
+# smoke heading is instead classified HUMAN by parse_tasks above.
+#
+# Marker class is `[-*+]`: CommonMark defines three unordered-list markers.
+# Indent is `^ {0,3}` — only top-level bullets count; four-space Markdown code
+# and nested explanatory sub-bullets are not separate smoke items.
+_SMOKE_BULLET_RE = re.compile(r"^ {0,3}[-*+]\s+(?!\[[ xX]\])\S")
+
+# Fenced code blocks are examples, not live content. Both parse_smoke and
+# parse_tasks share this toggle so illustrated bullets and boxes stay out of the
+# index. The parser intentionally follows the repository's simple prefix rule.
+_FENCE_PREFIXES = ("```", "~~~")
+
+
+def parse_smoke(text) -> int:
+    """Count plain (non-checkbox) bullets under a canonical smoke heading.
+
+    Section extent is depth-aware: it survives deeper headings and ends only at
+    a heading of equal or shallower depth. Fenced examples are ignored. Only
+    top-level bullets with 0-3 leading spaces count.
+    """
+    total = 0
+    smoke_depth = None
+    in_fence = False
+    for line in text.split("\n"):
+        if line.lstrip().startswith(_FENCE_PREFIXES):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
+        h = _HEADING_RE.match(line)
+        if h:
+            depth = len(h.group(1))
+            if _SMOKE_HEAD_RE.match(h.group(2).strip()):
+                smoke_depth = depth
+            elif smoke_depth is not None and depth <= smoke_depth:
+                smoke_depth = None
+            continue
+        if smoke_depth is not None and _SMOKE_BULLET_RE.match(line):
+            total += 1
+    return total
 
 
 # ── file classification ──────────────────────────────────────────────────────
