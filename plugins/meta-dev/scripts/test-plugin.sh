@@ -821,6 +821,11 @@ case "${1:-}" in
   --check-docs-gate) check_docs_gate ;;
   *)
     check_schemas
+    if bash "$PLUGIN_DIR/tests/test-codex-parity.sh"; then
+      PASS=$((PASS+2))
+    else
+      FAIL=$((FAIL+1))
+    fi
     check_templates
     check_scripts
     check_skills
