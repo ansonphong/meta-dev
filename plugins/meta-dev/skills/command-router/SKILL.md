@@ -4,11 +4,11 @@ description: "Run any meta-dev command from a harness that has no commands surfa
 allowed-tools: [Read, Bash, Glob, Grep]
 ---
 
-# command-router — the command catalog, from a harness that has none
+# command-router — every meta-dev command, from a harness that has none
 
 Claude Code auto-discovers `commands/*.md` as slash commands. **Codex does not** —
 the plugin manifest has no `commands` key and Codex has no commands surface, so
-`$meta-dev:` autocompletes against the 16 *skills* only. `$meta-dev:execute`
+`$meta-dev:` autocompletes against the plugin's skills only. `$meta-dev:execute`
 returns "no matches" because `execute` is a command, not a skill.
 
 This skill is the bridge. It does **not** copy any procedure — it points at the

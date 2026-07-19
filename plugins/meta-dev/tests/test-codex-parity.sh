@@ -14,8 +14,8 @@ if PARITY_OUT="$(python3 - "$PLUGIN_ROOT" <<'PY'
 import glob, os, sys, yaml
 root = sys.argv[1]
 bad = []
-skill_files = sorted(glob.glob(os.path.join(root, "skills", "*", "SKILL.md")))
-files = skill_files + sorted(glob.glob(os.path.join(root, "commands", "*.md")))
+files = sorted(glob.glob(os.path.join(root, "skills", "*", "SKILL.md")))
+files += sorted(glob.glob(os.path.join(root, "commands", "*.md")))
 for f in files:
     raw = open(f, encoding="utf-8").read()
     try:
@@ -25,13 +25,11 @@ for f in files:
         bad.append(os.path.relpath(f, root))
 print(len(files))
 print("|".join(bad))
-print(len(skill_files))
 PY
 )"; then
   FRONTMATTER_COUNT="$(echo "$PARITY_OUT" | sed -n 1p)"
   FRONTMATTER_BAD="$(echo "$PARITY_OUT" | sed -n 2p)"
-  SKILL_COUNT="$(echo "$PARITY_OUT" | sed -n 3p)"
-  if [[ "$FRONTMATTER_COUNT" =~ ^[0-9]+$ && "$SKILL_COUNT" =~ ^[0-9]+$ ]]; then
+  if [[ "$FRONTMATTER_COUNT" =~ ^[0-9]+$ ]]; then
     VALIDATOR_OK=1
   else
     bad "strict-YAML validator returned malformed output"
@@ -48,11 +46,22 @@ if [ "$VALIDATOR_OK" -eq 1 ]; then
     bad "invalid skill/command frontmatter — INVISIBLE in Codex: $FRONTMATTER_BAD"
   fi
 
-  if [ "$SKILL_COUNT" -lt 17 ]; then
-    bad "expected >=17 skills, found $SKILL_COUNT (command-router missing?)"
-  else
-    ok "skill count $SKILL_COUNT >= 17"
-  fi
+fi
+
+echo
+echo "=== Codex Parity: plugin manifest ==="
+
+MANIFEST="${CODEX_PARITY_MANIFEST:-$PLUGIN_ROOT/.claude-plugin/plugin.json}"
+if python3 - "$MANIFEST" <<'PY'
+import json, pathlib, sys
+
+manifest = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
+sys.exit(0 if "skills" in manifest else 1)
+PY
+then
+  ok "manifest declares a skills key (command-router is reachable in Codex)"
+else
+  bad "manifest has no skills key — EVERY skill is invisible in Codex"
 fi
 
 echo
