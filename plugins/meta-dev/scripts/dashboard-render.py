@@ -32,8 +32,8 @@ except ImportError:
              "done":"✓","blocked":"!","parked":"‖","superseded":"⌀"}
     LEGACY_GLYPH = {"done":"✓","blocked":"!","active":"→","draft":"◦"}
     def status_glyph(status, drift=False):
-        if status == "done" and drift: return "✓⚠"
-        return GLYPH.get(status) or LEGACY_GLYPH.get(status, "?")
+        marker = GLYPH.get(status) or LEGACY_GLYPH.get(status, "?")
+        return marker + "⚠" if drift else marker
     def _cw(ch):
         o = ord(ch)
         if o == 0x200D or 0xFE00 <= o <= 0xFE0F: return 0
@@ -132,6 +132,49 @@ def plans_body(plans, runbooks=None):
     body = []
     td = tt = 0  # grand totals
 
+    def _stage_tag(p, ds, stg):
+        """Canonical stage-state marker plus the informational smoke badge."""
+        stage_state = p.get("stage_state")
+        if stage_state == "active":
+            tag = f"  → {stg}"
+            if stg >= 6:
+                tag += " (👀)"
+        elif stage_state == "done":
+            tag = "  ✓ done" if stg >= 6 else f"  ✓ {stg}"
+        else:
+            # No stage_state is the legacy path: preserve its old rendering.
+            tag = f"  S{stg}·{ds}"
+
+        override = p.get("override")
+        if override:
+            note = p.get("note", "")
+            note_str = f" — {note}" if note else ""
+            tag = f"  {override}{note_str}"
+
+        smoke = p.get("smoke") or 0
+        if smoke > 0:
+            tag += f"  · 👁 {smoke} smoke"
+        return tag
+
+    # Keep every plan column aligned while reserving enough display cells for
+    # the widest marker/badge. dwidth() counts 👁 and 👀 as two cells.
+    count_w = max(5, max(dwidth(f"{p.get('tasks_done', 0)}/{p.get('tasks_total', 0)}")
+                         for p in plans))
+    glyph_w = max(dwidth(status_glyph(
+        p.get("derived_status") or p.get("status", "draft"),
+        p.get("drift", False),
+    )) for p in plans)
+    state_rows = [p for p in plans
+                  if p.get("stage_state") in ("active", "done")
+                  or (p.get("smoke") or 0) > 0]
+    tag_w = max((dwidth(_stage_tag(
+        p,
+        p.get("derived_status") or p.get("status", "draft"),
+        p.get("stage", 0),
+    )) for p in state_rows), default=0)
+    # Spaces and fixed fields outside the name consume 26 cells.
+    name_w = max(1, min(22, FIELD - glyph_w - count_w - tag_w - 26))
+
     def _append_plan_row(p):
         nonlocal td, tt
         d = p.get("tasks_done", 0)
@@ -142,17 +185,12 @@ def plans_body(plans, runbooks=None):
         drift = p.get("drift", False)
         g = status_glyph(ds, drift)
         stg = p.get("stage", 0)
-        stage_tag = f"  S{stg}·{ds}"
-        override = p.get("override")
-
-        if override:
-            note = p.get("note", "")
-            note_str = f" — {note}" if note else ""
-            stage_tag = f"  {override}{note_str}"
+        stage_tag = _stage_tag(p, ds, stg)
+        count = f"{d}/{t}"
 
         body.append(
-            f"{g} {col(p.get('name', '?'), 22)} {bar(d, t)} "
-            f"{d:>3}/{t:<3} {pct(d, t)}{stage_tag}"
+            f"{col(g, glyph_w)} {col(p.get('name', '?'), name_w)} {bar(d, t)} "
+            f"{col(count, count_w)} {pct(d, t)}{stage_tag}"
         )
 
     def _append_runbook_header(rb_path, member_plans):
@@ -166,7 +204,7 @@ def plans_body(plans, runbooks=None):
 
         body.append(box_rule())
         body.append(
-            f"▸ {col(label, 22)} {bar(md, mt)} {md:>3}/{mt:<3} {pct(md, mt)}"
+            f"▸ {col(label, name_w)} {bar(md, mt)} {col(f'{md}/{mt}', count_w)} {pct(md, mt)}"
             f"  · {rd}/{rt} tasks"
         )
 
@@ -186,7 +224,8 @@ def plans_body(plans, runbooks=None):
     # ── Grand total ────────────────────────────────────────────────────────
     body.append("─" * FIELD)
     body.append(
-        f"   {col('TOTAL', 22)} {bar(td, tt)} {td:>3}/{tt:<3} {pct(td, tt)}"
+        f"{col('', glyph_w)} {col('TOTAL', name_w)} {bar(td, tt)} "
+        f"{td}/{tt} {pct(td, tt)}"
     )
     return body
 
@@ -392,6 +431,16 @@ TEST_DATA = {
          "status": "blocked", "derived_status": "parked", "stage": 3, "why": "",
          "override": "parked", "note": "indefinitely deferred",
          "runbook_group": None, "malformed": False},
+        {"name": "smoke-active", "path": "plans/app/smoke-active/00-master-plan.md",
+         "repo": "app", "tasks_done": 9, "tasks_total": 15,
+         "status": "active", "derived_status": "needs-review", "stage": 6,
+         "stage_state": "active", "smoke": 3, "drift": True, "why": "",
+         "runbook_group": None, "malformed": False},
+        {"name": "stage-done", "path": "plans/app/stage-done/00-master-plan.md",
+         "repo": "app", "tasks_done": 11, "tasks_total": 11,
+         "status": "active", "derived_status": "ready", "stage": 4,
+         "stage_state": "done", "drift": False, "why": "",
+         "runbook_group": None, "malformed": False},
     ],
     "runbooks": [
         {"path": "plans/app/_runbook-commerce.md", "repo": "app",
@@ -399,7 +448,7 @@ TEST_DATA = {
          "effective_stage": 4, "derived_status": "executing",
          "now": "plans/app/payments-v2/00-master-plan.md"},
     ],
-    "counts": {"tracked": 7, "malformed": 0, "archived": 0},
+    "counts": {"tracked": 9, "malformed": 0, "archived": 0},
     "untracked": [],
     "milestones": [
         {"type": "PRODUCT LAUNCH", "label": "Public Beta", "version": "1.1.0-beta.1",
