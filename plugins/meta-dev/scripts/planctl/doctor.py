@@ -42,14 +42,16 @@ def _is_smoke_label(depth, heading_text):
     that merely contains the word buries that signal: a document title
     ("Comprehensive Pipeline Render Smoke Suite — Master Plan") or a task heading
     ("Task 3: Smoke test with the offline preview tool (dry-run)") always has
-    plain bullets somewhere beneath it, so the has-bullet check alone does not
-    discriminate. Two cheap filters do:
+    plain bullets somewhere beneath it, so the has-bullet check alone cannot
+    discriminate. Length can: a label is a few words, a sentence describing work
+    is not, and every observed false positive was long.
 
-      * ``depth > 1`` — an H1 is the document title, never a section label.
-      * short — a label is a few words; a sentence describing work is not.
+    Depth is deliberately NOT a filter. ``parse_smoke`` honours a canonical
+    smoke heading at ANY depth including H1, so excluding H1 here would let an
+    H1 near-miss go unwarned about a section the parser would otherwise have
+    accepted — the advisory must cover exactly what the parser covers.
     """
-    if depth <= 1:
-        return False
+    del depth  # intentionally unused; see above
     return len(heading_text.split()) <= _SMOKE_LABEL_MAX_WORDS
 
 

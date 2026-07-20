@@ -173,25 +173,34 @@ def test_doctor_warns_only_on_near_miss_headings_with_plain_bullets(capsys):
 from planctl import doctor  # noqa: E402
 
 
-def test_near_miss_label_accepts_section_headings():
-    """Short, sub-H1 headings are plausible smoke-section labels."""
+def test_near_miss_label_accepts_short_headings_at_any_depth():
+    """Short headings are plausible smoke-section labels."""
     assert doctor._is_smoke_label(2, "Manual smoke")
     assert doctor._is_smoke_label(3, "7.6 Frontend manual smoke")
     assert doctor._is_smoke_label(2, "Smoke Tests:")
     assert doctor._is_smoke_label(4, "Residual risk / smoke only")
 
 
+def test_near_miss_label_covers_h1_because_parse_smoke_does():
+    """Depth must NOT filter: parse_smoke honours a canonical heading at any
+    depth, so an H1 near-miss names a section the parser would have accepted.
+    Excluding H1 would leave exactly that case unwarned."""
+    assert parse._SMOKE_HEAD_RE.match("Smoke Test")     # parser accepts it...
+    assert parse.parse_smoke("# Smoke Test\n- a\n- b") == 2   # ...even as H1
+    assert doctor._is_smoke_label(1, "Smoke Tests")     # ...so the advisory must too
+
+
 def test_near_miss_label_rejects_titles_and_sentences():
     """The two false-positive families that made the advisory unreadable.
 
     Both always carry plain bullets somewhere beneath them, so the has-bullet
-    check cannot filter them — only depth and length can.
+    check cannot filter them — length is what discriminates. Every observed
+    false positive was long; every genuine label was short.
     """
-    # H1 document title — never a section label, regardless of length.
-    assert not doctor._is_smoke_label(1, "Render Smoke Suite")
     assert not doctor._is_smoke_label(
         1, "Comprehensive Pipeline Render Smoke Suite — Master Plan")
-    # Sub-H1 but a sentence describing work, not labelling a section.
+    assert not doctor._is_smoke_label(
+        1, "Phase 4: Verification — Full Suite, Manual Smoke, Context Sync")
     assert not doctor._is_smoke_label(
         3, "Task 3: Smoke test with the offline preview tool (dry-run)")
     assert not doctor._is_smoke_label(

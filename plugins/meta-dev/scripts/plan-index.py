@@ -433,14 +433,37 @@ def build_entry(rel, info):
     except (ValueError, TypeError):
         stage = stage_raw
 
+    progress = info.get("progress", {"done": 0, "total": 0, "pct": 0})
+
+    # Status is DERIVED, never read from frontmatter. This fallback runs only
+    # when the planctl read-model is unavailable, and it used to publish
+    # fm['status'] verbatim — which almost no plan declares, so a COMPLETED plan
+    # surfaced as '' and every consumer read that as 'draft'. done_for() (the
+    # milestone roll-up) tests status == 'done' directly, so completed plans
+    # silently stopped counting toward their milestone. Derive it with the same
+    # interpreter the primary path uses so the two agree.
+    derived = ""
+    drift = False
+    try:
+        from planctl import derive as _derive
+        derived, drift = _derive.derive_plan(
+            fm, progress.get("done", 0), progress.get("total", 0))
+    except Exception:
+        # Deriving is best-effort here: this path exists precisely because
+        # planctl may be unusable. Fall back to whatever was declared.
+        derived = fm.get("status", "") or ""
+
     entry.update({
-        "status": fm.get("status", ""),
+        "status": derived or fm.get("status", ""),
+        "derived_status": derived,
+        "drift": bool(drift),
         "stage": stage,
+        "stage_state": fm.get("stage_state"),
         "repo": fm.get("repo", ""),
         "why": fm.get("why", "") or "",
         "depends": as_list(fm.get("depends")),
         "blocks": as_list(fm.get("blocks")),
-        "progress": info.get("progress", {"done": 0, "total": 0, "pct": 0}),
+        "progress": progress,
     })
     if missing:
         entry["malformed"] = True
