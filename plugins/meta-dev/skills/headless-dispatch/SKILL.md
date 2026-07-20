@@ -13,8 +13,36 @@ it.
 
     bash <plugin-root>/scripts/codex-doctor.sh
 
-The doctor checks the plugin cache, local tooling, credentials, and the network
-precondition. Continue only when its network egress check passes.
+The doctor checks the plugin cache, local tooling, credentials, and two sandbox
+preconditions — **network egress** and **`.git` writability**. Continue only when
+both pass.
+
+### `.git` writability — the second sandbox precondition
+
+Codex `workspace-write` treats `.git` as a **protected path**: read-only,
+recursively, even inside an otherwise-writable root (upstream default,
+documented under "Protected paths in writable roots"). A worker in that sandbox
+cannot honor COMMIT-ON-RED, so its edits sit unowned until a peer's broad
+`git add` adopts them.
+
+Probe directly with `test -w "$(git rev-parse --absolute-git-dir)"`.
+
+**If it is read-only, fix the sandbox — never the brief.** Telling workers to
+"run no git commands, the conductor commits" is a per-backend exemption written
+into prose; it carries no scope marker and leaks onto backends it never applied
+to (it did exactly that on 2026-07-20, reaching Claude workers that could commit
+fine). Instead:
+
+- **Per-invocation, preferred when you control the launch:**
+  `-c 'sandbox_workspace_write.writable_roots=["<abs>/.git"]'`
+- **Permanent:** add the repo's `.git` to `[sandbox_workspace_write]
+  writable_roots` in `~/.codex/config.toml`. Unlike `network_access = true`,
+  this is **path-scoped** — list specific repos, never a wildcard — so it grants
+  nothing outside the repos you name. Still Phong's call to make.
+
+`codex-headless-exec` already grants this per-run, so a failure here means you
+are on a launch path that bypasses it: **interactive `codex`, a bare
+`codex exec`, or a fresh machine with no global config.**
 
 The direct network probe is:
 
