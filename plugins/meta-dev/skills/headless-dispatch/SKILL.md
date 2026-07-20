@@ -1,6 +1,6 @@
 ---
 name: headless-dispatch
-description: "Dispatch a Claude Code headless worker from a non-Claude harness such as Codex or Grok. Covers the Codex sandbox network precondition, doctor preflight, and shell invocation form. Use when asked to hand a task to a Claude model from Codex."
+description: "Dispatch a Claude Code headless worker from a non-Claude harness such as Codex or Grok. THIS IS THE CODEX ENTRY POINT FOR /fable-execute, /opus-execute, /sonnet-execute, /deep-execute and /glm-execute — those are commands, not skills, so `$meta-dev:fable-execute` will never match; they are all one script and one --backend flag, mapped below. Use when asked to run a task on fable, opus, sonnet, deepseek or glm from Codex, to spawn a headless/background worker, or to hand work off the main thread. Covers the two sandbox preconditions (network egress, .git writability), doctor preflight, and shell invocation form."
 allowed-tools: [Read, Bash, Glob, Grep]
 ---
 
@@ -61,10 +61,33 @@ session cannot grant itself network access. Choose a policy and restart Codex:
 
 Do not attempt to work around the sandbox from the blocked session.
 
-## Backends and flags
+## The `*-execute` commands are one script and one flag
 
-`skills/headless-worker/SKILL.md` covers general headless-execution principles
-only. The authoritative backend, tier, selection, and flag guidance is:
+Claude Code exposes `/fable-execute`, `/opus-execute`, `/sonnet-execute`,
+`/deep-execute` and `/glm-execute` as five slash commands. **They are not five
+things.** Each is a thin wrapper that ends up at the same script with a different
+`--backend`. Codex has no commands surface, so do not go looking for them —
+`$meta-dev:fable-execute` matches nothing. Run the script:
+
+| Claude Code command | `--backend` | Model | Reach for it when |
+|---|---|---|---|
+| `/fable-execute`  | `fable`  | `claude-fable-5`  | hardest tasks — max reasoning, long-horizon coherence |
+| `/opus-execute`   | `opus`   | `claude-opus-4-8` | architecture, hardening, review, security |
+| `/sonnet-execute` | `sonnet` | `claude-sonnet-5` | Anthropic judgment at 200K price |
+| `/deep-execute`   | `deep`   | `deepseek-v4-pro` | cheapest bulk; mechanical bounded edits |
+| `/glm-execute`    | `glm`    | `glm-5.2`         | long-horizon, stateful agentic refactors |
+
+`sonnet`/`opus`/`fable` are **real Anthropic via your ambient `~/.claude` login** —
+no API key. `deep` needs `DEEPSEEK_API_KEY`, `glm` needs `GLM_API_KEY`; the doctor
+reports which are visible. All five are pinned to 200K (never `[1m]`), so a
+headless worker cannot inherit a session's 1M beta and get billed at the premium
+rate.
+
+Two commands are **not** on this script and take their own: `/codex-execute` →
+`codex-headless-exec`, `/grok-execute` → `grok-headless-exec`.
+
+Full flag reference — the authoritative source, prefer it over this table when
+they disagree:
 
     bash <plugin-root>/scripts/claude-headless-exec --help
 
@@ -76,5 +99,20 @@ only. The authoritative backend, tier, selection, and flag guidance is:
       --effort high \
       '<complete, self-contained task spec with acceptance criteria>'
 
+Resolve `<plugin-root>` rather than hand-typing it — the cache path is
+version-pinned and moves on every patch bump:
+
+    PLUGIN_ROOT="$(ls -d ~/.codex/plugins/cache/meta-dev/meta-dev/*/ | sort -V | tail -1)"
+
+`--repo <alias>` takes the lowercase alias (`app`/`www`/`gallery`/`meta`), never a
+directory name. Add `--readonly` when the worker only investigates and reports —
+a read-only worker cannot write, so handing it a code-writing task fails.
+
 The worker shares no context with you: give it a complete, self-contained task
-specification with acceptance criteria.
+specification with acceptance criteria. What comes back is its final text plus a
+**manifest** listing exactly the files it touched.
+
+**The worker commits its own scoped edits** — that is harness law, not a per-task
+choice. Never write "run no git command, the conductor commits" into a worker
+spec; if a worker genuinely cannot commit, that is an executor to fix or a
+routing decision, not prose to add. See the `.git` writability section above.

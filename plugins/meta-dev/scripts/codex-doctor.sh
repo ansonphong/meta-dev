@@ -72,9 +72,24 @@ else warn "version drift: working tree $LOCAL_V vs Codex cache $CACHE_V
          Fix: bump patch, push, then /plugin marketplace update meta-dev"; fi
 
 # 6. Command surface reality check.
+# Codex autocompletes $meta-dev: against SKILLS ONLY. Every commands/*.md is
+# invisible here, and the miss is silent: `$meta-dev:fable-execute` returns "no
+# matches" with no hint that a bridge exists. Spell both routes out, because a
+# dead-end lookup is what sends people hand-rolling a procedure that already
+# exists.
 SKILLS="$(ls -1d "$PLUGIN_ROOT"/skills/*/ 2>/dev/null | wc -l)"
 CMDS="$(ls -1 "$PLUGIN_ROOT"/commands/*.md 2>/dev/null | wc -l)"
-good "$SKILLS skills reachable via \$meta-dev: · $CMDS commands via \$meta-dev:command-router"
+good "$SKILLS skills via \$meta-dev:<skill> · $CMDS commands via \$meta-dev:command-router <name>
+         \$meta-dev:<command> NEVER matches — commands are not a Codex surface."
+
+# 7. Headless dispatch readiness — the single most-asked-for command family.
+if [ -x "$PLUGIN_ROOT/scripts/claude-headless-exec" ]; then
+  good "headless workers ready: claude-headless-exec --backend fable|opus|sonnet|deep|glm
+         /fable-execute and friends are COMMANDS (invisible to Codex) that all
+         resolve to this one script + a --backend flag. Skill: \$meta-dev:headless-dispatch"
+else
+  err "claude-headless-exec missing or not executable in $PLUGIN_ROOT/scripts/"
+fi
 
 echo
 if [ "$ERR" -gt 0 ]; then echo "=== BROKEN: $ERR error(s), $WARN warning(s) ==="; exit 2
