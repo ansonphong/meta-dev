@@ -31,6 +31,28 @@ import sqlite3
 from planctl import claims, db, derive, parse, runbook, statedir, sync
 
 
+_SMOKE_LABEL_MAX_WORDS = 5
+
+
+def _is_smoke_label(depth, heading_text):
+    """True when a 'smoke'-bearing heading plausibly LABELS a smoke section.
+
+    The near-miss advisory exists to catch an author who wrote ``## Smoke Tests:``
+    or ``## Manual smoke`` and silently missed the badge. Matching every heading
+    that merely contains the word buries that signal: a document title
+    ("Comprehensive Pipeline Render Smoke Suite — Master Plan") or a task heading
+    ("Task 3: Smoke test with the offline preview tool (dry-run)") always has
+    plain bullets somewhere beneath it, so the has-bullet check alone does not
+    discriminate. Two cheap filters do:
+
+      * ``depth > 1`` — an H1 is the document title, never a section label.
+      * short — a label is a few words; a sentence describing work is not.
+    """
+    if depth <= 1:
+        return False
+    return len(heading_text.split()) <= _SMOKE_LABEL_MAX_WORDS
+
+
 def cmd_doctor(args):
     """``planctl doctor [--json]`` — integrity sweep + auto-heal."""
     root = statedir.project_root()
@@ -153,6 +175,7 @@ def cmd_doctor(args):
                     if (
                         "smoke" in heading_text.casefold()
                         and not parse._SMOKE_HEAD_RE.match(heading_text)
+                        and _is_smoke_label(depth, heading_text)
                     ):
                         active.append({
                             "depth": depth,

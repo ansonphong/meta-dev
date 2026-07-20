@@ -159,7 +159,40 @@ def test_doctor_warns_only_on_near_miss_headings_with_plain_bullets(capsys):
     payload = json.loads(capsys.readouterr().out)
 
     warnings = payload["smoke_near_miss"]
+    # "Task C — Smoke + parent plan" is deliberately NOT flagged: it is a task
+    # heading that merely contains the word, and that family (e.g. the real
+    # "Task 3: Smoke test with the offline preview tool (dry-run)") is what
+    # drowned this advisory in false positives — 19 warnings of which 16 were
+    # titles or sentences. See doctor._is_smoke_label.
     assert [(w["line"], w["heading"]) for w in warnings] == [
         (6, "Manual smoke"),
-        (10, "Task C — Smoke + parent plan"),
     ]
+
+
+# ── doctor near-miss discrimination (advisory precision) ─────────────────────
+from planctl import doctor  # noqa: E402
+
+
+def test_near_miss_label_accepts_section_headings():
+    """Short, sub-H1 headings are plausible smoke-section labels."""
+    assert doctor._is_smoke_label(2, "Manual smoke")
+    assert doctor._is_smoke_label(3, "7.6 Frontend manual smoke")
+    assert doctor._is_smoke_label(2, "Smoke Tests:")
+    assert doctor._is_smoke_label(4, "Residual risk / smoke only")
+
+
+def test_near_miss_label_rejects_titles_and_sentences():
+    """The two false-positive families that made the advisory unreadable.
+
+    Both always carry plain bullets somewhere beneath them, so the has-bullet
+    check cannot filter them — only depth and length can.
+    """
+    # H1 document title — never a section label, regardless of length.
+    assert not doctor._is_smoke_label(1, "Render Smoke Suite")
+    assert not doctor._is_smoke_label(
+        1, "Comprehensive Pipeline Render Smoke Suite — Master Plan")
+    # Sub-H1 but a sentence describing work, not labelling a section.
+    assert not doctor._is_smoke_label(
+        3, "Task 3: Smoke test with the offline preview tool (dry-run)")
+    assert not doctor._is_smoke_label(
+        2, "Phase A — P0 Backend Criticals (block smoke test)")

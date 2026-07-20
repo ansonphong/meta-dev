@@ -117,8 +117,17 @@ missing = []
 bad_bodies = []
 meta_commands = sorted(commands.glob("meta-*.md"))
 
+# Claude Code ships built-in /compact, /config and /init. A bare twin using one
+# of those names would shadow the built-in rather than redirect to our command,
+# so these three are deliberately meta-only. The pairing invariant is about
+# reachability, and `/meta-compact` is already reachable — inventing `/compact`
+# would break the CLI to satisfy a naming rule.
+BUILTIN_COLLISIONS = {"compact", "config", "init"}
+
 for implementation in meta_commands:
     short = implementation.stem.removeprefix("meta-")
+    if short in BUILTIN_COLLISIONS:
+        continue
     twin = commands / f"{short}.md"
     if not twin.is_file():
         missing.append(short)

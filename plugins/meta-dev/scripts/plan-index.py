@@ -24,7 +24,11 @@ EXCLUDE_BY_NAME = {
 }
 # Directories pruned from the discovery walk entirely (perf + correctness).
 EXCLUDE_DIRS = {"_archive", "_future", "_research", "_dashboard"}
-REQUIRED_KEYS = ("status", "stage", "repo")
+# Declared-truth keys only. `status` is NOT here: it is DERIVED by
+# planctl/derive.py and never typed into frontmatter (stage.py refuses to write
+# it). Requiring it marked 54 of 60 live master plans "malformed" whenever the
+# planctl read-model was unavailable and this fallback ran.
+REQUIRED_KEYS = ("stage", "repo")
 RUNBOOK = "plans/meta-runbook.md"
 
 CHECKBOX = re.compile(r"^\s*[-*]\s*\[([ xX])\]")

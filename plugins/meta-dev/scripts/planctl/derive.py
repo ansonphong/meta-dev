@@ -214,11 +214,18 @@ def _derive_runbook_status(members_done, members_total, tasks_done, tasks_total,
     The authoritative runbook status is computed-on-read in 0e (§4); this gives
     rollup consumers a reasonable status without a second pass. Same precedence
     family as ``derive_plan`` (override-less): all-members-done → done; else
-    leaf-exec-derived."""
+    leaf-exec-derived.
+
+    A campaign is ``done`` ONLY when every member is. The stage>=6 branch below
+    is reachable only when some member is NOT done (the all-done case returns
+    above), so those members are at review stage without having passed it —
+    ``stage_state: active`` on the member side. Rolling that up to ``done``
+    would report a campaign complete while its members are still in review, so
+    it derives ``needs-review`` instead."""
     if members_total > 0 and members_done == members_total:
         return "done", tasks_done < tasks_total
     if effective_stage is not None and effective_stage >= 6:
-        return "done", tasks_done < tasks_total
+        return "needs-review", tasks_done < tasks_total
     if tasks_total > 0 and tasks_done == tasks_total:
         return "needs-review", False
     if tasks_done > 0:

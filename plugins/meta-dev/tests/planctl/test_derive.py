@@ -244,3 +244,34 @@ def test_trailing_comment_stripped_on_scalar_keys():
     assert raw_status == "completed"
     status, drift = derive.derive_plan(fm, 0, 0)
     assert status == "blocked"  # override wins; no bogus 'blocked  # note' value
+
+
+# ── runbook rollup: a member still in review never rolls up to done ───────────
+def _member(done, stage, td, tt, overridden=False):
+    return {"path": "p", "kind": "plan", "done": done, "overridden": overridden,
+            "effective_stage": stage, "tasks_done": td, "tasks_total": tt,
+            "now": None}
+
+
+def test_rollup_stage6_active_member_is_needs_review_not_done():
+    """A campaign is done ONLY when every member is.
+
+    Regression-lock for the rollup half of the stage_state axis: with the
+    member-side fix alone, a stage-6 member carrying ``stage_state: active``
+    derives ``needs-review`` (not done), so it lands in the rollup as
+    ``done=False`` and contributes 6 to the effective_stage min. The old
+    ``effective_stage >= 6 -> done`` shortcut then reported the whole campaign
+    complete while that member was still under review.
+    """
+    r = derive.rollup([_member(True, 6, 3, 3), _member(False, 6, 2, 4)])
+    assert r["members_done"] == 1 and r["members_total"] == 2
+    assert r["effective_stage"] == 6          # the not-done member drags it
+    assert r["status"] == "needs-review"      # was 'done' before the fix
+    assert r["drift"] is True                 # 5/7 exec boxes open
+
+
+def test_rollup_all_members_done_still_done():
+    """The all-done path is untouched — the fix must not make done unreachable."""
+    r = derive.rollup([_member(True, 6, 3, 3), _member(True, 6, 4, 4)])
+    assert r["status"] == "done"
+    assert r["drift"] is False
