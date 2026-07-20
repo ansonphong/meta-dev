@@ -246,6 +246,7 @@ def read_plan_file(rel):
     except Exception:
         fm, present = {}, False
     return {"ok_read": True, "has_fm": present, "fm": fm,
+            "text": text,
             "progress": count_checkboxes(text)}
 
 
@@ -442,23 +443,60 @@ def build_entry(rel, info):
     # milestone roll-up) tests status == 'done' directly, so completed plans
     # silently stopped counting toward their milestone. Derive it with the same
     # interpreter the primary path uses so the two agree.
+    # The counts fed to derive MUST be execution-only. The primary path splits
+    # human-verify boxes ("by eye"/"by hand"/GPU/manual) out before deriving;
+    # feeding it raw checkbox totals instead makes a plan whose code is finished
+    # but whose by-eye gates are open derive 'executing' rather than
+    # 'needs-review' — the exact completed-is-not-done confusion this whole axis
+    # exists to remove. Same parse module as the primary path: one interpreter.
     derived = ""
     drift = False
+    degraded = False
     try:
-        from planctl import derive as _derive
-        derived, drift = _derive.derive_plan(
-            fm, progress.get("done", 0), progress.get("total", 0))
-    except Exception:
-        # Deriving is best-effort here: this path exists precisely because
-        # planctl may be unusable. Fall back to whatever was declared.
-        derived = fm.get("status", "") or ""
+        from planctl import derive as _derive, parse as _parse
+    except ImportError:
+        # planctl genuinely unusable — this fallback's whole reason to exist.
+        degraded = True
+    else:
+        try:
+            text = info.get("text")
+            if text is not None:
+                tasks, _err = _parse.parse_tasks(text)
+                exec_done, exec_total = _parse.count_split(tasks)[:2]
+            else:
+                exec_done = progress.get("done", 0)
+                exec_total = progress.get("total", 0)
+            derived, drift = _derive.derive_plan(fm, exec_done, exec_total)
+        except Exception:
+            # A real derivation bug must stay VISIBLE. Substituting the declared
+            # status here would launder it into a plausible-looking answer — a
+            # stale 'status: done' on a stage-3 0/10 plan would read as done.
+            degraded = True
 
+    if degraded:
+        # We cannot know the status, so do not guess one. Use a declared status
+        # if the plan actually has one, else mark the row unreliable rather than
+        # letting it default to 'draft' and silently drop out of milestone math.
+        declared = str(fm.get("status", "") or "").strip().lower()
+        derived = declared
+        if not declared:
+            entry["malformed"] = True
+
+    stage_state = fm.get("stage_state")
+    if isinstance(stage_state, str):
+        stage_state = stage_state.strip().lower() or None
+
+    # `status` carries the LEGACY 4-word vocabulary in both paths (the primary
+    # path mirrors it via _derive_legacy_status for the old render's GLYPH map
+    # and for --status filtering). Emitting the raw new-vocabulary value here
+    # would make the two paths disagree: 'needs-review' is not a legacy word.
     entry.update({
-        "status": derived or fm.get("status", ""),
+        "status": (_derive_legacy_status(derived, fm.get("override"))
+                   if derived else ""),
         "derived_status": derived,
         "drift": bool(drift),
         "stage": stage,
-        "stage_state": fm.get("stage_state"),
+        "stage_state": stage_state,
         "repo": fm.get("repo", ""),
         "why": fm.get("why", "") or "",
         "depends": as_list(fm.get("depends")),
