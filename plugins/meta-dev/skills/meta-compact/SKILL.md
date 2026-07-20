@@ -77,7 +77,15 @@ exact command / file / function / decision. Not "continue the work" — the actu
 <Choices already settled this session. Each: the decision + one-line reason. Stops the next session re-debating them.>
 
 ## ⚠️ Gotchas
-<Traps discovered this session: the non-obvious thing that wasted time, so it isn't re-hit. Be concrete.>
+<Traps discovered this session: the non-obvious thing that wasted time, so it isn't re-hit. Be concrete.
+
+EVERY gotcha that constrains future behavior MUST carry its provenance inline —
+evidence · scope · date — so the next reader knows what they are allowed to doubt:
+  ✅ "Codex `.git` is read-only (ONE run, app repo, 2026-07-20, unverified since)
+      → Codex dispatches only; do not generalize to other backends."
+  🚫 "Codex workers CANNOT commit. Tell every worker: run NO git command."
+An unscoped, unsourced gotcha reads as a law of nature to the next session and
+gets applied far outside the case that produced it.>
 
 ## 🚫 Out of scope / do-not-touch
 <Paths, actions, refactors explicitly NOT part of this work. Guardrails against wandering.>
@@ -90,6 +98,8 @@ The ordering is deliberate: **NEXT ACTION sits above the backward state** becaus
 1. **Check the seam.** Assess the boundary against the criteria above. If not safe, STOP — report the one thing to finish first (offer to do it), do not write a handoff against dirty mid-task state.
 2. **Capture git state.** `git status -s` + `git log -1 --oneline` + branch + pushed?/ahead. This is the spine of "State now".
 3. **Distill, don't dump.** Fill the skeleton. NEXT ACTION must be executable cold. Working set = only files that matter for the next step. Pull Decisions/Gotchas from THIS session's reasoning — that's the knowledge a backward summary loses.
+   - **Cite provenance on every behavioral constraint.** A handoff is the highest-trust document the next session reads — it arrives labelled "do NOT re-derive" and is obeyed without audit. So anything that tells the next session what it may or may not do carries **evidence · scope · date**. One observation is an observation, not a law: write "one run, 2026-07-20, unverified since," not "hard-won fact." Two live examples of the failure: a transient `UtilBindVsockAnyPort` fault became "Windows-native pytest is structurally required" (wrong, reverted in `32f415b8`), and one read-only `.git` run became "every worker: run NO git command" (wrong, it was a fixable Codex sandbox default that leaked onto Claude workers).
+   - **Never promote a workaround to a reusable preamble.** If a gotcha is a *tool's* property, the durable fix belongs in that tool's dispatch path, not in prose the next conductor copy-pastes. Note the workaround AND file the real fix as a NEXT ACTION.
 4. **Write the unique handoff file** in the active plan folder per the "Where the handoff goes" rules (create the dir if missing). NEVER overwrite an existing handoff — on name collision, increment the `-N` suffix.
 5. **Echo a 4-line preview** to the user: Mission, ▶ NEXT ACTION, git state, and the **exact handoff path** just written.
 6. **Hand the trigger back** with that exact path:

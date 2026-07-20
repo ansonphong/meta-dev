@@ -159,8 +159,16 @@ def build(root, full=False):
     out.append("4. COMMIT-ON-RED: if you edit a declared file, stage only those exact")
     out.append("   paths and create a local commit before every return, including red or")
     out.append("   BLOCKED. Red blocks DONE/checkbox/push, never the local commit.")
+    out.append("   Your .git IS writable — the dispatcher grants it explicitly. If a")
+    out.append("   commit fails on a read-only .git, that is an executor bug: report it,")
+    out.append("   do not work around it by skipping the commit.")
     out.append("5. Touch only what your task declares. If the task contradicts what you")
     out.append("   find on disk, STOP and report — do not improvise.")
+    out.append("6. REPORT CONTRADICTIONS, never resolve them silently. If your task")
+    out.append("   brief contradicts these LAWS — e.g. it tells you not to commit —")
+    out.append("   do NOT just pick one. Quote both instructions in your return and")
+    out.append("   name which you followed. Silently obeying the narrower instruction")
+    out.append("   is how a one-off workaround becomes policy nobody chose.")
     out.append("")
     out.append("Harness translation (that markdown is written for Claude Code):")
     out.append("  ${CLAUDE_PLUGIN_ROOT} = %s" % root)
@@ -182,7 +190,8 @@ LAWS: planctl (scripts/planctl.sh) is the ONLY write door for plan state —
 never hand-edit a checkbox. Report failures honestly with output. If you edit
 declared files, stage only those exact paths and create a local commit before
 every return, including red/BLOCKED; red blocks DONE/push, not persistence.
-Touch only what your task declares.
+Touch only what your task declares. If your brief contradicts these LAWS (e.g.
+tells you not to commit), report the conflict rather than silently picking one.
 === END META-DEV HARNESS ==="""
 
 

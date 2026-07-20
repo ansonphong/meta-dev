@@ -46,6 +46,16 @@
    granularity. A red result keeps its local commit, leaves the handle open and
    the remote untouched, and enters the repair/failure path.
 
+   **Self-commit is universal — never write a "don't commit" exemption into a
+   worker spec.** Every executor in the ladder can commit; where one could not,
+   that was our configuration and it was repaired in the executor (Codex's
+   read-only `.git`, fixed by a `writable_roots` grant in `codex-headless-exec`,
+   2026-07-20). If you believe a backend cannot commit, fix the executor or
+   route the task elsewhere — do not encode it in prose. An uncommitted worker
+   edit is unowned, and on this tree a peer's broad `git add` will adopt it.
+   Correspondingly, a worker whose spec contradicts this must REPORT the
+   conflict in its return rather than silently obeying the narrower instruction.
+
 ## Phase gate — the single Opus checkpoint per phase
 Task commits/checks already accepted by their narrower per-task gates remain in
 history and on the remote. This aggregate gate controls phase completion and

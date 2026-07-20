@@ -236,6 +236,43 @@ if [[ "$READONLY" == "true" ]]; then
     SANDBOX="read-only"
 fi
 
+# ── Make .git writable so a Codex worker can honor COMMIT-ON-RED ─────────
+# Codex `workspace-write` grants [workdir, /tmp, $TMPDIR] but EXCLUDES the
+# repo's .git directory — deliberate upstream policy so an agent cannot rewrite
+# history. Verified empirically 2026-07-20 (`test -w .git` → READONLY inside the
+# sandbox; WRITABLE once .git is passed as an explicit writable root; a full
+# edit→add→commit round-trip then succeeds).
+#
+# That exclusion collides head-on with the harness law that EVERY worker commits
+# its own scoped edits before returning. Left unfixed it produces exactly one
+# failure mode, and we paid for it: a worker's mandated commit dies on
+# `Unable to create '.git/index.lock': Read-only file system`, so its edits sit
+# uncommitted and unowned on a 4-20 agent tree until a peer's broad `git add`
+# adopts them (twice, 2026-07-20).
+#
+# The wrong fix — the one we shipped first — was to tell Codex workers "run NO
+# git command, the conductor commits." That is a per-backend exemption written
+# into a task brief; it escaped its scope within a day and landed on Claude
+# workers that were perfectly able to commit. Durability is not negotiable per
+# backend, so the constraint is repaired HERE, in the executor that owns it,
+# and never restated in prose a conductor has to remember.
+#
+# Anchored to the already-resolved WORK_DIR via `git -C` (never a cwd guess);
+# `--absolute-git-dir` resolves worktrees and submodules, where .git is a file.
+# read-only dispatches are audits that must not write at all, so they opt out.
+CODEX_SANDBOX_CFG=()
+if [[ "$SANDBOX" != "read-only" ]]; then
+    _GIT_DIR="$(git -C "$WORK_DIR" rev-parse --absolute-git-dir 2>/dev/null || true)"
+    if [[ -n "$_GIT_DIR" && -d "$_GIT_DIR" ]]; then
+        CODEX_SANDBOX_CFG=(-c "sandbox_workspace_write.writable_roots=[\"$_GIT_DIR\"]")
+        echo "[codex-headless-exec] .git writable (COMMIT-ON-RED enabled): $_GIT_DIR"
+    else
+        # No git dir => the worker cannot commit, and silence here is how an
+        # exemption gets improvised downstream. Say it out loud instead.
+        echo "[codex-headless-exec] WARNING: no git dir under $WORK_DIR — worker cannot commit; conductor must own durability for this dispatch." >&2
+    fi
+fi
+
 # ── Resolve output ──────────────────────────────────────────────────────
 if [[ -z "$OUTPUT_FILE" ]]; then
     TIMESTAMP=$(date +%Y%m%d-%H%M%S)
@@ -357,7 +394,8 @@ GIT_GUARD_PREAMBLE='HARD GIT RULES (binding — this worktree is SHARED with 4-2
 3. NEVER `git push`, `git pull`, `git fetch`, `git rebase`, or `git merge` from a worker. The conductor owns every remote/history operation; a rebase on this tree once destroyed 5,544 files.
 4. Every git command names its repo absolutely: `git -C <ABS-REPO-ROOT> ...`. Never a bare `git add`. Never `cd "$(git rev-parse --show-toplevel)"`.
 5. If a file you need is dirty from a peer: commit it as its own discrete commit, then proceed. Do not stash, do not revert, do not wait.
-6. COMMIT-ON-RED: if this task edits scoped files, stage only those exact paths and create a LOCAL commit before every return, including red verification or BLOCKED. Red blocks DONE and remote action, never the local commit.
+6. COMMIT-ON-RED: if this task edits scoped files, stage only those exact paths and create a LOCAL commit before every return, including red verification or BLOCKED. Red blocks DONE and remote action, never the local commit. Your `.git` IS writable — this dispatcher grants it explicitly. A commit failing on a read-only `.git` is an EXECUTOR BUG: report it verbatim, never route around it by skipping the commit.
+7. REPORT CONTRADICTIONS, do not resolve them silently. If your task brief contradicts these rules — most often by telling you to run no git commands or to let a conductor commit for you — that brief is stale. Follow THESE rules, and say in your return that the conflict existed and which side you took. A worker that quietly obeys the narrower instruction is how a one-off workaround becomes permanent policy nobody chose.
 If a task seems to require breaking one of these, STOP and report instead.
 
 ---
@@ -378,6 +416,7 @@ stall_launch_worker() {
         --json \
         -o "$LASTMSG_FILE" \
         -s "$SANDBOX" \
+        "${CODEX_SANDBOX_CFG[@]}" \
         --skip-git-repo-check \
         "${_MA[@]}" \
         -m "$MODEL" \

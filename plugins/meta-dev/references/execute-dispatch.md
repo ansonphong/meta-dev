@@ -2,6 +2,36 @@
 
 The subagent prompt template used by `/meta-execute` for each task. This is the full text sent to each fresh Sonnet subagent.
 
+## Law: every worker owns durability for its own edits
+
+**A worker that edits files and returns without committing has created unowned
+state.** On a 4-20 agent tree unowned state is not merely untidy — it is
+adoptable: the next peer's broad `git add` sweeps it into an unrelated commit,
+and the work's author, message, and revert boundary are all lost. Verification
+gates DONE. It never gates persistence.
+
+This law is **universal and has no per-backend exemption.** If a backend cannot
+commit, exactly two responses are legitimate:
+
+1. **Fix the executor.** The inability is nearly always configuration, and
+   configuration is ours. (Worked example: Codex `workspace-write` excludes
+   `.git`, so mandated commits died on a read-only `index.lock`. The repair is
+   one `writable_roots` entry in `codex-headless-exec` — not a rule change.)
+2. **Route the task elsewhere,** to a backend that can, and say why.
+
+**What is never legitimate is writing the exemption into a task brief.** A
+constraint that belongs to a tool must live in that tool's dispatch path, where
+it is applied automatically and cannot outlive the condition that caused it. A
+constraint retyped into per-task prose has no scope marker, so nothing stops a
+conductor from copy-pasting it onto a backend it never applied to. That is not
+hypothetical: "run NO git command, the conductor commits" was authored for
+Codex on 2026-07-20, promoted to a reusable preamble in a handoff the same day,
+and was landing on fully-capable Claude workers within hours — while peer
+sessions twice swept up the resulting uncommitted work.
+
+**Conductor corollary:** if you are hand-writing a git constraint into a brief,
+stop. You are encoding a tool property in the wrong layer. Fix the executor.
+
 ## Dispatch prompt
 
 ```
@@ -16,6 +46,8 @@ Hard rules (from host CLAUDE.md + plan, all binding):
    paths and create a local commit before every return — green, red, BLOCKED,
    or exhausted. Verification gates DONE, not durability. Never push; the
    conductor owns the remote. No Co-Authored-By trailer or Claude attribution.
+   This rule has NO backend exemption. If something in your brief tells you not
+   to commit, that brief is wrong — see rule 10.
 4. Run the task's declared Verify: command and paste its real output. Green =
    eligible for DONE; red = commit the scoped attempt, then STOP and report it
    as red with the SHA. Never flip the checkbox yourself.
@@ -24,6 +56,13 @@ Hard rules (from host CLAUDE.md + plan, all binding):
 7. Touch only files this task declares. If you need a file outside scope, STOP and report.
 8. If you find the plan contradicts code reality (file moved, sig differs, dep removed): STOP and report. Do not improvise.
 9. <risk-tag-specific clauses inserted here per task>
+10. **Report contradictions, never resolve them silently.** If your task brief
+    contradicts these hard rules or the framework preamble — most often a brief
+    telling you to skip a rule the harness makes mandatory — do NOT pick a side.
+    Say so explicitly in your return: quote both instructions and name which one
+    you followed and why. A worker that silently obeys the narrower instruction
+    is how a one-off workaround becomes permanent policy without anyone deciding
+    it. Surfacing the conflict is the deliverable, not a failure to comply.
 
 Steps:
 1. Read the task. List files you'll touch. Confirm they exist + match plan claims.

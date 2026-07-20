@@ -18,6 +18,22 @@ commits already accepted and pushed by earlier narrower gates — it blocks phas
 completion and any new repair push until green. Read-only work and
 contradictions found before editing create no commit.
 
+**The invariant is universal — no backend is exempt.** A worker that edits and
+returns without committing leaves *unowned* state, which on a 4-20 agent tree is
+adoptable: the next peer's broad `git add` absorbs it and the author, message,
+and revert boundary are gone. So when a backend appears unable to commit, the
+only legitimate responses are **fix the executor** (the inability is nearly
+always our own configuration) or **route the task to a backend that can**, and
+say why. Writing the exemption into a task brief is never one of them — a
+constraint that belongs to a tool must live in that tool's dispatch path, where
+it applies automatically and cannot outlive its cause. Retyped into per-task
+prose it carries no scope marker, and a conductor will paste it onto a backend
+it never applied to. Precedent: "run NO git command, the conductor commits" was
+authored for Codex's read-only `.git` on 2026-07-20, canonized in a handoff as a
+reusable preamble, and was reaching fully-capable Claude workers hours later
+while peer sessions twice swept up the uncommitted results. The real fix was one
+`writable_roots` entry in `codex-headless-exec`.
+
 1. **Inline = instant only.** After a subagent returns, run ONLY checks that finish in milliseconds: stub-grep on the committed diff, declared-file existence. These gate acceptance, push, and advancement — never the already-required local commit.
 2. **Commit the code locally**, then **launch the task's `Verify:`/test command async in the background** (`Bash run_in_background`). Track each as its own tracker entry (`🧪 testing <ID> (async)`). On green the conductor pushes and advances state; on red it withholds both and dispatches repair. **Advance to the next independent task immediately** — do not await the test result.
 3. **Tests run in parallel with forward progress.** As each async verify reports: green → mark the task `completed`; red → it's a regression, apply the momentum gate below (background fixer, defer dependents, keep moving).
