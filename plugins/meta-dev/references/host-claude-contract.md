@@ -34,7 +34,13 @@ When a command needs a project-specific value:
 1. **Settings cascade** — `bash scripts/config-get.sh meta_dev.<path>`
 2. **Host CLAUDE.md** — extract the relevant convention
 3. **Safe default** — portable default from the table below
-4. **Ask the user** — surface the ambiguity if all else fails
+4. **Consult Fable** — if the gap is a genuine *judgment call* rather than a
+   missing value, run `scripts/fable-consult.sh` before escalating. Adopted at
+   ≥0.90 with evidence and a falsifier; otherwise it escalates, but carries the
+   recommendation with it. Skill: `fable-consult`
+5. **Ask the user** — surface the ambiguity if all else fails. After step 4 this
+   is never a bare question: lead with Fable's recommendation and its real
+   confidence so the user can approve in one word
 
 ## Safe Defaults
 

@@ -1,6 +1,6 @@
 ---
 name: auto-execute
-argument-hint: <any task, prompt, plan, or meta-dev op> [--deep|--glm|--sonnet|--codex] [--effort <level>] [--repo <name>] [--readonly] [--max-turns <n>]  # --repo names from .claude/meta-dev-repos.json
+argument-hint: <any task, prompt, plan, or meta-dev op> [--deep|--glm|--sonnet|--codex] [--effort <level>] [--repo <name>] [--readonly] [--max-turns <n>] [--autonomous]  # --repo names from .claude/meta-dev-repos.json
 description: "Opus-conducted headless work router for ANY task — brainstorm, design, plan, harden, execute, review/audit, or any arbitrary prompt/plan. Decomposes a job into chunks and farms each NATIVELY to the host harness by default (Claude Code → an Agent subagent; Codex → gpt-5.3-codex-spark on its own weekly quota), with --deep (DeepSeek, cheapest external), --glm (long-horizon), --sonnet, and --codex (first-class executor AND the cross-family review lens) as explicit opt-ins; reviews every round-trip, escalates native→DeepSeek→GLM on failure."
 ---
 
@@ -62,7 +62,8 @@ You run this loop on the main thread. **Never just fire one giant task at a back
 5. **Pass / fail — branch on the review-agent verdict:**
    - **PASS** → integrate, mark the chunk done, go to the next.
    - **CONDITIONAL_PASS** → apply the suggested fixes via one deep Fixer, then advance (no re-review).
-   - **FAIL** → fix inline if trivial, else **re-dispatch — escalating DeepSeek→GLM** (a chunk DeepSeek fumbled is exactly an escalation signal). Fix ladder: deep → glm fixer, max 2 attempts, then surface. Don't loop the same backend on the same failure twice.
+   - **FAIL** → fix inline if trivial, else **re-dispatch — escalating DeepSeek→GLM** (a chunk DeepSeek fumbled is exactly an escalation signal). Fix ladder: deep → glm fixer, max 2 attempts, then **consult Fable before surfacing** (`scripts/fable-consult.sh` — two failures on the same thing is a hard challenge, and surfacing costs the user a round-trip). Don't loop the same backend on the same failure twice.
+   - **Judgment call, any point in the loop** → before you stop to ask the user anything — a design trade-off, an under-specified chunk, which of two structures to build — run `scripts/fable-consult.sh --question "<the decision>"`. Adopt at exit `0`; on any other exit escalate **carrying Fable's recommendation as the lead option** with its confidence reported exactly as returned. Safety-class decisions (destructive/deploy/security/money/schema/cross-repo) skip the consult and always reach the user. Skill: `fable-consult`.
 6. **Context watchdog — compact at a wave seam when OVER.** Between chunk batches (a committed seam), run the gauge and read only `CONTEXT_VERDICT`:
 
    ```bash

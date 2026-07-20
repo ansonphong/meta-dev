@@ -211,3 +211,37 @@ Default = no pause between green tasks. Only pause when:
 - Same task failed twice
 - Plan contradiction surfaced
 - `git fetch` shows new origin/master commits AND `--stop-on-drift` set
+
+**Under `--autonomous`, every pause gate above is OFF** (the flag implies
+`--no-pause`) — the user is asleep and a pause is just a stall until morning.
+Risk-tagged work still *verifies* synchronously per Verify Posture #5; it simply
+does not wait for a person. The Failure Posture matrix and the TRUE BLOCKER list
+are unchanged: a blocker parks THAT subject and the run continues elsewhere,
+landing in the Autonomous Run Report rather than in a prompt. Full contract and
+the hard floor: `references/autonomous-mode.md`.
+
+## Escalation — consult Fable before you wake the human
+
+When the run is about to stop and ask the user a **judgment call** — an
+architecture choice, an under-specified plan, a design trade-off, implementation
+taste, a bug whose next move is unclear — route it through the `fable-consult`
+skill FIRST:
+
+```bash
+bash ${CLAUDE_PLUGIN_ROOT}/scripts/fable-consult.sh \
+  --question "<the decision>" --plan <plan-path> [--autonomous]
+# 0 ADOPT · 10 escalate (low confidence) · 11 escalate (veto class)
+# 12 DEFER (REVIEW-ME) · 2 error → escalate. FAIL CLOSED.
+```
+
+Fable's verdict is adopted only at ≥0.90 **and** only when it carries `file:line`
+evidence plus a concrete falsifier — a bare confidence number is not a
+measurement and the script caps one that lacks its backing. Below the bar, you
+still escalate, but the escalation now leads with Fable's recommendation so the
+user can approve in one word. Report the confidence **exactly as returned**.
+
+This never applies to safety-class decisions — destructive, deploy, security,
+money-path, schema, cross-repo contract, spend-or-send, scope expansion. Those
+are on the veto list and always reach a person. Nor to tree state, which is never
+a judgment call at all: commit and charge on. Contract, calibration rationale and
+the full veto list: `skills/fable-consult/SKILL.md`.

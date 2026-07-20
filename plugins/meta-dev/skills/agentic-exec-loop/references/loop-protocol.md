@@ -83,6 +83,14 @@ new fixer pushes; a FAIL never rewrites or unchecks earlier accepted tasks.
      commits scoped edits before return → re-Review (step 3).
    - Attempt 2 (still FAIL): Fixer on the tier's **escalation** backend; it
      locally commits scoped edits before return → re-Review.
+   - Attempt 3 — **consult Fable before surfacing.** Two failures on the same
+     thing is the definition of a hard challenge, and surfacing it costs the
+     user a round-trip (a whole night, under `--autonomous`). Run
+     `scripts/fable-consult.sh --question "<what is failing and why the two
+     fixes did not work>" --plan <plan>` with the failure output in the packet.
+     Exit `0` (≥0.90 with evidence + falsifier) → apply its recommendation as
+     one final scoped fixer attempt, then re-Review. Any other exit → surface,
+     carrying Fable's recommendation into the dossier. Never loop this rung.
    - Still FAIL → ensure the fixer's scoped edits are locally committed, write
      the failure dossier to the inbox (repair-loop convention), and surface the
      one-line `summary`. Leave ledger/phase state, remote, and advancement

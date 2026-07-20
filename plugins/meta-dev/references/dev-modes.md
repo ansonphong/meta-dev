@@ -8,6 +8,19 @@ At startup, `/meta-dev` detects the mode:
 - **Cruise (autopilot):** `--cruise` flag OR keyword detection in subject ("autopilot", "cruise", "auto", "walk", "unattended") OR Accept Edits permission mode
 - **Interactive:** Default. Stage-by-stage with user confirmation between stages.
 - **Probe-triggered:** Subject contains probe keywords ("why", "stuck", "loop", "keep failing", "wrong", "investigate", "debug")
+- **Autonomous:** `--autonomous` anywhere in the arguments (or prose meaning it — "overnight", "while I sleep", "run to the end unattended"). **Supersedes cruise**: it sets cruise, `--gate none`, `--no-pause`, and turns the Fable consult on. Never ask the user to also pass `--cruise`, and never treat the two as conflicting.
+
+**`--autonomous` — run to the end, do not wake the user.** It IS the explicit
+Stage-5 permission, exactly as `--to 6` or a spoken "go" is. Every ambiguity
+resolves toward *keep going and report in the morning*: judgment calls route to
+`fable-consult` instead of the user, and gates needing human eyes are **deferred
+into an end-of-run punch list** rather than asked mid-run. It buys *unattended*,
+never *unsafe* — the hard floor (guard denies, git bans, no deploy/publish/real
+migration, the consult veto list, human-verify boxes left UNCHECKED, TRUE
+BLOCKERs still halting the affected subject) is untouched. The flag is detected
+by the `on-stage-prompt.sh` UserPromptSubmit hook on the raw prompt, so it works
+on every command without per-command parsing. Full contract, punch list and the
+required Autonomous Run Report: `references/autonomous-mode.md`.
 
 **Independent flag — `--codex` (cross-family gap-scan).** Orthogonal to the mode above; combines with any of them. When present, `/meta-dev` inserts **Stage 4.5: Codex Gap-Scan Pass** between HARDEN (Stage 4) and EXECUTE (Stage 5) — a read-only cross-family (GPT) audit of the hardened plan, with findings fed back to GLM/DeepSeek to integrate. Full procedure: `references/dev-swarms.md` → "Stage 4.5". OFF by default; absent the flag the waterfall runs Stage 4 → Stage 5 unchanged. The pass is entirely pre-execution and does not relax the Stage-5 gate.
 
@@ -114,9 +127,14 @@ When given multiple subjects (comma-separated or quoted list):
 
 ## Important Rules (Safety Invariants)
 
-These hold in ALL modes — interactive, cruise, probe, and quick-fix bypass.
+These hold in ALL modes — interactive, cruise, probe, quick-fix bypass, **and
+`--autonomous`**. Autonomous mode suppresses *prompts*, never *invariants*: it
+was given permission to run unattended, not permission to do things the user
+cannot undo in the morning. See `references/autonomous-mode.md` → "The hard
+floor" for the enumerated list.
 
 1. **NEVER write code before Stage 5.** Stages 1-4 (brainstorm, design, plan, harden) are pure documentation/planning. No source files are touched until Execute. (The quick-fix bypass is the only path that reaches Stage 5 early — and only because it has *no* planning stages to write code ahead of.)
 2. **The default stop is Stage 4 — execution requires explicit user permission. This is the safety boundary.** `/meta-dev` defaults to halting after hardening with a runnable, reviewed plan; it does NOT auto-execute unless the user explicitly authorizes Stage 5 (via `--to 5`/`--to 6`, cruise/autopilot, or a direct GO).
    - **Cruise mode defaults its gate to `none`**, which removes per-stage prompts. That makes restating this Stage-5/Stage-4 boundary MORE important, not less: invoking cruise (or `--to 6`) IS the explicit permission to cross into execution. Absent that explicit signal, stop at Stage 4.
+   - **`--autonomous` is likewise the explicit permission** — it means "run to the end", which is unambiguous authorization to cross Stage 5. It does not weaken the boundary; it satisfies it.
 3. **Plans NEVER go in source or doc directories.** ALL plans, designs, and hardening artifacts live under the configured `plans_root` (`bash scripts/config-get.sh meta_dev.paths.plans_root`). NEVER write them into source trees, `docs/`, or any child/sub-repo. This is non-negotiable across every stage.

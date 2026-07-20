@@ -16,6 +16,8 @@ Fable 5 is a **general ambient-Anthropic worker** with a specific edge: it's the
 
 **It authenticates via your ambient `~/.claude` login** — no API key, no third-party endpoint. Billing is against your normal Claude subscription/login, same as any local run.
 
+**Fable's other job — the escalation advisor.** Because it is the top of the ladder, Fable is also who the harness asks *before* it asks Phong. Any run about to stop on a judgment call routes through the `fable-consult` skill first (`scripts/fable-consult.sh`), which pins this same backend read-only at `--effort xhigh`, and adopts the answer only at ≥0.90 confidence backed by `file:line` evidence and a stated falsifier. That path is always on under `--autonomous`. If you are hand-dispatching a hard *decision* rather than a task, prefer `fable-consult` over `/fable-execute` — you get the veto list, the calibration caps, the consult caps, and the decision log for free.
+
 ## When to Use
 
 Reach for `/fable-execute` when the task is **the hardest kind** and wants the strongest ambient-Anthropic reasoning, off the main thread:

@@ -184,5 +184,6 @@ ALWAYS end with this structured dashboard. Use `references/execute-report-card.m
 | `--no-pause` | Disable auto-pause on money-path/release-stability |
 | `--stop-on-drift` | Halt on new origin/master commits |
 | `--dry-run` | Parse + risk-tag + print, don't dispatch |
+| `--autonomous` | **Run to the end unattended — the user is asleep.** Implies `--no-pause` and every pause gate off; judgment calls route to `fable-consult` instead of to the user; human-eyes gates defer to an end-of-run punch list. Does NOT relax the hard floor (guard denies, git bans, no deploy/publish/real migration, veto list, human-verify boxes stay unchecked, TRUE BLOCKERs still park the subject). Close with the Autonomous Run Report. See `references/autonomous-mode.md` |
 
 Config: `bash scripts/config-get.sh` for models/filesystem sections.

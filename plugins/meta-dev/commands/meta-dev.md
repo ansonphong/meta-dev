@@ -1,7 +1,7 @@
 ---
 name: meta-dev
 description: Universal development lifecycle orchestrator — pushes any subject through the 6-stage waterfall using agent swarms
-argument-hint: <subject | plan-path | "idea one" "idea two" ...> [--from <stage>] [--to <stage>] [--gate all|exec|none] [--codex]
+argument-hint: <subject | plan-path | "idea one" "idea two" ...> [--from <stage>] [--to <stage>] [--gate all|exec|none] [--codex] [--autonomous]
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, TaskCreate, TaskUpdate]
 model: opus
 ---
@@ -12,7 +12,9 @@ model: opus
 
 ## Mode Detection
 
-Read `references/dev-modes.md`. Detect: cruise (--cruise flag, keyword, or Accept Edits), interactive (default), or probe-trigger (investigative keywords).
+Read `references/dev-modes.md`. Detect: **autonomous** (`--autonomous`, or prose meaning it), cruise (--cruise flag, keyword, or Accept Edits), interactive (default), or probe-trigger (investigative keywords).
+
+**`--autonomous` supersedes cruise and needs no explanation from the user** — it means "run to the end, I'm asleep." It IS the Stage-5 permission, implies `--gate none` + `--no-pause`, routes judgment calls to `fable-consult` rather than to the user, and defers every human-eyes gate into an end-of-run punch list. The hard floor still holds. Close with the Autonomous Run Report. Contract: `references/autonomous-mode.md`.
 
 **Quick-fix bypass:** Before detecting mode, triage triviality (see `references/dev-modes.md` → "Quick-Fix Waterfall Bypass"). Trivial work (≤~3 files, no new behavior) skips Stages 1-4 and goes straight to Stage 5; non-trivial (>3 files OR new behavior) runs the full pipeline. When in doubt, treat as non-trivial.
 
