@@ -139,3 +139,31 @@ def test_undeclared_status_is_flagged_not_guessed_when_derivation_fails(monkeypa
     e = pi.build_entry("p", info)
     assert e.get("malformed") is True, "undeciderable row must be visible"
     assert e["derived_status"] == ""
+
+
+def test_stale_declared_status_is_flagged_when_derivation_raises(monkeypatch):
+    """Codex's exact input: a stage-3, 0/1 plan declaring `status: done`.
+
+    Marking malformed only when NO status is declared exempts precisely the rows
+    most able to mislead — a stale hand-typed status published as fact with no
+    flag. Any row we could not derive is unreliable, declared status or not.
+    """
+    pi = _plan_index()
+    text = "---\nstage: 3\nrepo: app\nstatus: done\n---\n- [ ] `T1` a\n"
+
+    from planctl import derive as real_derive
+
+    def _boom(*a, **kw):
+        raise RuntimeError("simulated derivation bug")
+
+    monkeypatch.setattr(real_derive, "derive_plan", _boom)
+    info = {"ok_read": True,
+            "fm": {"stage": 3, "repo": "app", "status": "done"},
+            "text": text, "progress": {"done": 0, "total": 1}}
+    e = pi.build_entry("p", info)
+    assert e.get("malformed") is True, "underivable row must be flagged"
+    # done_for() tests status == 'done' and never consults malformed, so an
+    # unreliable row must not publish 'done' at all — otherwise it still counts
+    # toward its milestone and the flag is a signal nobody reads.
+    assert e["status"] != "done"
+    assert e["derived_status"] == ""

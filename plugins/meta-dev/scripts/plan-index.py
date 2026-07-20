@@ -474,13 +474,19 @@ def build_entry(rel, info):
             degraded = True
 
     if degraded:
-        # We cannot know the status, so do not guess one. Use a declared status
-        # if the plan actually has one, else mark the row unreliable rather than
-        # letting it default to 'draft' and silently drop out of milestone math.
-        declared = str(fm.get("status", "") or "").strip().lower()
-        derived = declared
-        if not declared:
-            entry["malformed"] = True
+        # We could not derive, so the row is unreliable — say so, ALWAYS.
+        # Marking malformed only when no status is declared would exempt exactly
+        # the rows most able to mislead: 17 of 528 candidates still carry a
+        # hand-typed status, and a stale `status: done` on a stage-3 0/10 plan
+        # would then be published as done with no flag. A declared status is a
+        # display hint of last resort here, never evidence.
+        # Publish NO status at all. done_for() tests status == 'done' and does
+        # not consult `malformed`, so echoing a declared 'done' here would still
+        # count the row toward its milestone — the flag would be a signal no
+        # consumer reads. Between a row that wrongly reads complete and one that
+        # reads unknown, only the first hides open work.
+        entry["malformed"] = True
+        derived = ""
 
     stage_state = fm.get("stage_state")
     if isinstance(stage_state, str):
