@@ -15,6 +15,8 @@ After pushing, the user reloads with `/plugin marketplace update meta-dev` + `/p
 
 ## Structure
 
+> **Path confidence — read before searching.** Everything editable lives **one level down** under `plugins/meta-dev/`. The meta-dev repo root holds only `plugins/` and `.claude-plugin/` — there is **no** `commands/`, `agents/`, `skills/`, or `scripts/` at the root. So a command is `plugins/meta-dev/commands/<name>.md`, a skill is `plugins/meta-dev/skills/<name>/SKILL.md`, a script is `plugins/meta-dev/scripts/<name>`. Don't `find`/`grep` for these — the path is known.
+
 ```
 meta-dev/
 ├── .claude-plugin/marketplace.json    # Marketplace catalog
@@ -29,6 +31,19 @@ meta-dev/
 │   ├── templates/                     # Bootstrap files for /meta-init
 │   └── references/                    # Plugin-level docs
 ```
+
+## Codex Tier Quick-Reference
+
+`/codex-execute --tier <t>` maps to a model + a default reasoning effort (override with `--effort`). Effort scale: `none | low | medium | high | xhigh | max`. **Spark bills to a SEPARATE weekly quota** from the shared `gpt-5.6` pool — route mechanical work to it first (it's effectively free capacity).
+
+| Tier | Model | Default effort | Use for |
+| --- | --- | --- | --- |
+| `spark` | `gpt-5.3-codex-spark` | `low` | Bulk mechanical *code*: renames, boilerplate, lint/format, syntax triage. Free relative to the 5.6 pool. |
+| `luna` | `gpt-5.6-luna` | `low` | Efficient high-volume; generalist prose/analysis lookups. |
+| `terra` | `gpt-5.6-terra` | `medium` | Balanced default: normal bug fix, known-scope feature, standard diff review. |
+| `sol` | `gpt-5.6-sol` | `high` | Flagship reasoning: ambiguous root cause, cross-module behavior, security, architecture, migrations. |
+
+Source of truth: `plugins/meta-dev/scripts/codex-headless-exec` (tier→model map) + `plugins/meta-dev/commands/codex-execute.md` (routing doctrine). `gpt-5.6-codex` is deliberately absent — rejected by the ChatGPT-account API.
 
 ## Principles
 
