@@ -124,40 +124,9 @@ Archive the plan (unless manual gates remain — e.g., GPU acceptance, in-app ve
 
 ### 8. Render execution report card
 
-ALWAYS end with this structured dashboard. Use `references/execute-report-card.md` for the exact layout. The report MUST include every section below — no sprawl, no stream-of-consciousness narration.
+ALWAYS end with this structured dashboard. The report MUST include every section listed in the reference — no sprawl, no stream-of-consciousness narration.
 
-```
-╔══════════════════════════════════════════════════════════════════╗
-║         📋 /meta-execute — EXECUTION REPORT CARD               ║
-╚══════════════════════════════════════════════════════════════════╝
-
-  Plan:         <plan-title>
-  Path:         <plan-path>
-  Status:       EXECUTED + REVIEWED (or EXECUTED · awaiting manual gate)
-  Duration:     <elapsed>
-
-  ── Tasks ──
-  ✅ <done>/<total> completed · <failed> failed · <deferred> deferred
-
-  ── Commits (on <repo> master) ──
-  <short-sha>  <description>                    <verify-result>
-
-  ── Code Review ──
-  ✅ CLEAN — 0 findings (or)
-  ⚠️  <N> findings fixed · 0 remaining (or)
-  ❌ <N> findings surfaced — see Follow-ups
-
-  ── Acceptance ──
-  <test-suite> <pass>/<total> · <other-gates>
-
-  ── Plan Location ──
-  ✅ Archived: plans/<repo>/_archive/<name>/  (or)
-  📍 Active:   plans/<repo>/<name>/  (reason: <manual gate pending>)
-
-  ── Follow-ups ──
-  • <item> — <action needed> — <who>
-  • (empty if none)
-```
+**Layout:** `references/execute-report-card.md` (sections + content) → `references/status-cards.md` (the card chassis, glyphs, and `CARD_W`). The template is deliberately NOT repeated here: this command used to carry its own copy, which drifted to a 68-col border and a header glyph its own spec forbade. One definition, referenced.
 
 **Rules for the report card:**
 - Every section is mandatory. If a section has no content, write "(none)" — never omit.

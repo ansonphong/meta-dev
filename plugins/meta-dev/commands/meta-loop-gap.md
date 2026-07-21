@@ -802,42 +802,7 @@ After completing the scan, check for recurring gap patterns:
 
 ALWAYS end the run with this structured dashboard — the loop-gap analogue of the `/meta-execute` report card. It makes the hardening outcome obvious at a glance: which files were hardened, what was committed, whether the plan reached **NO GAPS REMAINING** (the Stage 4 exit criteria), and what (if anything) is left. Use `references/loopgap-report-card.md` for the exact layout. Render it ONCE, at the very end — not per wave, not per iteration.
 
-```
-╔══════════════════════════════════════════════════════════════════════╗
-║           /meta-loop-gap — GAP SCAN REPORT CARD                    ║
-╚══════════════════════════════════════════════════════════════════════╝
-
-  Scope:        <scope-name>
-  Path:         <plan-dir | target path>
-  Mode:         plan | project | code | feature
-  Status:       HARDENED — NO GAPS REMAINING  (or "GAPS REMAIN — <N> unresolved")
-  Duration:     <iterations · agents · tokens>
-
-  ── Scan ──
-  <N> files · <budget> budget · fixes:<inline|deep|glm|opus|sonnet|haiku|fable> · waves W0+W1+W2+W3 · <I> iteration(s)
-
-  ── Gaps ──
-  ✅ <fixed>/<found> fixed   <flagged> flagged   <remaining> remaining
-     severity:  <H> high · <M> med · <L> low
-     category:  <top categories by count>
-
-  ── Files Hardened ──
-  <file>                                        <K> fixed
-
-  ── Commits (on <repo> master, all pushed) ──
-  <short-sha>  <one-line description>                    <K gaps>
-
-  ── Review Gate ──
-  ✅ Wave 3 review CLEAN — fixes verified, no scope creep
-
-  ── Remaining Gaps ──
-  • <file:line> — <category> — sev:<H> conf:<X.XX> — <why unresolved>
-  • (none)
-
-  ── Follow-ups ──
-  • <item> — <action> — <owner>
-  • (none)
-```
+**Layout:** `references/loopgap-report-card.md` (sections + content) → `references/status-cards.md` (the card chassis, glyphs, and `CARD_W`). The template is deliberately NOT repeated here — one definition, referenced.
 
 **Rules for the report card:**
 - Every section is mandatory. If a section has no content, write "(none)" — never omit.
