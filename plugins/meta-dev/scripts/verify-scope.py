@@ -231,6 +231,11 @@ def classify(command: str, allowed_paths: Sequence[str]) -> Classification:
     classified: list[Classification] = []
     for segment in segments:
         initial = _classify_segment(segment)
+        if initial.category == "focused" and not _references_allowed_path(segment, allowed_paths):
+            initial = Classification(
+                "unscoped",
+                "named test file is outside the task's allowed paths",
+            )
         if initial.category == "unscoped" and _is_scoped_check(segment, allowed_paths):
             initial = Classification("scoped_check", "check explicitly references an allowed path")
         classified.append(initial)

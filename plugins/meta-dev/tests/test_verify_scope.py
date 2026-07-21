@@ -23,18 +23,36 @@ def run_classifier(command: str, *allowed_paths: str) -> tuple[subprocess.Comple
 
 
 @pytest.mark.parametrize(
-    ("command", "expected"),
+    ("command", "allowed_path", "expected"),
     [
-        ("pytest plugins/meta-dev/tests/test_verify_scope.py -q", "focused"),
-        ("python3 -m pytest plugins/meta-dev/tests/test_verify_scope.py::test_focused -q", "focused"),
-        ("npx vitest run src/lib/widget.test.ts", "focused"),
-        ("pnpm exec jest frontend/widget.spec.js", "focused"),
+        (
+            "pytest plugins/meta-dev/tests/test_verify_scope.py -q",
+            "plugins/meta-dev/tests/test_verify_scope.py",
+            "focused",
+        ),
+        (
+            "python3 -m pytest plugins/meta-dev/tests/test_verify_scope.py::test_focused -q",
+            "plugins/meta-dev/tests/test_verify_scope.py",
+            "focused",
+        ),
+        ("npx vitest run src/lib/widget.test.ts", "src/lib/widget.test.ts", "focused"),
+        ("pnpm exec jest frontend/widget.spec.js", "frontend/widget.spec.js", "focused"),
     ],
 )
-def test_explicit_test_files_are_focused(command: str, expected: str):
-    result, payload = run_classifier(command)
+def test_explicit_test_files_are_focused(command: str, allowed_path: str, expected: str):
+    result, payload = run_classifier(command, allowed_path)
     assert result.returncode == 0
     assert payload["class"] == expected
+
+
+def test_named_test_file_outside_allowed_paths_is_unscoped():
+    result, payload = run_classifier(
+        "pytest plugins/meta-dev/tests/test_verify_scope.py -q",
+        "plugins/meta-dev/tests/test_other_feature.py",
+    )
+    assert result.returncode == 0
+    assert payload["class"] == "unscoped"
+    assert "outside" in payload["reason"]
 
 
 @pytest.mark.parametrize(
