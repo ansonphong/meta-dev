@@ -41,6 +41,7 @@ import os
 import re
 
 from planctl import db, derive, events, mutate, parse, statedir
+from planctl.render_lib import bar_frac, mark
 
 # ── the path-guarded recursive descent CTE ────────────────────────────────────
 # Walks membership DOWNWARD from a root, accumulating the path of nodes so a
@@ -210,7 +211,7 @@ def _child_result_from_plan(conn, path):
     No index row is NOT the same as "gone" — sync deliberately excludes
     ``_archive/`` (R7/W2C-3: archived is never parsed/derived/counted) and
     ``_NOISE`` names like ``design.md``. Treating either as MISSING made the
-    runbook scream ``✗ MISSING`` at files sitting right there on disk. So when
+    runbook scream ``❓ MISSING`` at files sitting right there on disk. So when
     there is no row, ASK THE DISK:
 
       * absent            → ``missing``  — genuinely gone, render loud (debt)
@@ -443,11 +444,11 @@ _STAGE_NAME = {
 }
 
 
-def _bar(frac, width=4):
-    """Block-fill bar mirroring ``frac`` (0..1)."""
-    width = max(4, width)
-    filled = min(width, round(frac * width))
-    return "▰" * filled + "▱" * (width - filled)
+# Progress-cell width for the member table. The bar itself is
+# ``render_lib.bar_frac`` — the ONE █/░ implementation shared by every surface.
+# The retired local ``_bar`` was a third glyph pair (``▰▱``) that existed only
+# because the width differed; width is a parameter, not a new bar.
+_TABLE_BAR_W = 4
 
 
 # Repo-root buckets under plans/ — never the identity of a plan, just its repo.
@@ -484,7 +485,7 @@ def _member_label(path, kind, missing=False, offindex=None):
     ``offindex`` members (archived / plain docs) are real files, so they get a
     real name with a quiet suffix — never the MISSING treatment."""
     if missing:
-        return "%s MISSING `%s`" % (derive.EMOJI_MISSING, path)
+        return "%s MISSING `%s`" % (mark("missing"), path)
     base = path.rsplit("/", 1)[-1]
     stem = base[:-3] if base.endswith(".md") else base
     parent = os.path.basename(os.path.dirname(path))
@@ -546,7 +547,8 @@ def _member_rows(conn, root, rb_rel):
                          "offindex": None if is_missing else okind,
                          "stage": None,
                          "status": ostatus,
-                         "glyph": "✗" if is_missing else derive.glyph(ostatus, False),
+                         "glyph": (mark("missing") if is_missing
+                                   else derive.glyph(ostatus, False)),
                          "drift": False,
                          "tasks_done": otd, "tasks_total": ott,
                          "pct": derive.pct(otd, ott),
@@ -582,33 +584,41 @@ def compose_block(rb_rel, rollup, member_rows):
     empty = members_total == 0
 
     def _glyph_for(row):
+        """One glyph per member, from the ONE status vocabulary (no ``✗``/``!``
+        one-offs — see references/status-cards.md)."""
         if row.get("missing"):
-            return "✗"
+            return mark("missing")
         if row.get("override"):
-            return "!"
-        g = row.get("glyph") or "?"
-        return g
+            return mark("blocked")
+        return row.get("glyph") or mark(None)
 
     chain = " → ".join(
         "**%s** %s" % (os.path.basename(os.path.dirname(row["path"])) or row["path"],
                        _glyph_for(row))
         for row in member_rows) or "—"
 
+    # The Stage-6 terminal of the chain is a destination, not a live status:
+    # reached (✅) or still queued (⏸). The retired ``⬜`` was a tenth glyph.
+    stage6_mark = mark("done") if status == "done" else mark("draft")
+
     lines = []
     lines.append("")
     lines.append("### Execution order & package progress")
     lines.append("")
-    lines.append("> %s → **Stage 6** ⬜" % chain)
+    lines.append("> %s → **Stage 6** %s" % (chain, stage6_mark))
     lines.append("")
 
     if empty:
         lines.append("**Members:** 0/0  ·  **Progress:** —  (empty runbook)")
     else:
         pct = derive.pct(tasks_done, tasks_total)
+        # Glyph + the STATUS WORD, never glyph-only: the runbook DONE-gate in
+        # scripts/test-plugin.sh greps this block for the literal words ``done``
+        # / ``EXECUTING`` (case-insensitively) to prove the reconcile ran.
         lines.append("**Members done:** %d / %d  ·  **Tasks:** %d/%d (%d%%)  "
                      "·  **%s %s**" % (
                          members_done, members_total, tasks_done, tasks_total, pct,
-                         derive.emoji(status, r.get("drift")), status or "?"))
+                         mark(status, r.get("drift")), status or "?"))
     lines.append("")
 
     lines.append("| # | Plan | Stage | Progress | Status | → |")
@@ -628,21 +638,26 @@ def compose_block(rb_rel, rollup, member_rows):
         else:
             stage_cell = "stage %s" % stage
         if row.get("override"):
-            stage_cell += " ⛔ %s" % row["override"]
+            stage_cell += " %s %s" % (mark("blocked"), row["override"])
         if row.get("tasks_total") and not row.get("missing"):
-            prog = "`%s` %d%%" % (_bar(row["pct"] / 100.0 if row["pct"] else 0),
-                                  row["pct"])
+            # bar_frac takes a FRACTION — row["pct"] is a percentage.
+            prog = "`%s` %d%%" % (
+                bar_frac((row["pct"] / 100.0) if row["pct"] else 0,
+                         _TABLE_BAR_W),
+                row["pct"])
         else:
             prog = "—"
         if row.get("missing"):
-            status_cell = "%s MISSING" % derive.EMOJI_MISSING
+            status_cell = "%s MISSING" % mark("missing")
         elif row.get("offindex") == "archived":
             status_cell = "📦 archived"
         elif row.get("offindex") == "doc":
             status_cell = "📄 doc"
         else:
+            # glyph + SPACE + the status WORD. Never collapse to glyph-only —
+            # the DONE-gate test greps this cell for ``done`` / ``EXECUTING``.
             status_cell = "%s %s" % (
-                derive.emoji(row.get("status"), row.get("drift")),
+                mark(row.get("status"), row.get("drift")),
                 row.get("status") or "?")
         smoke = row.get("smoke") or 0
         if smoke > 0:

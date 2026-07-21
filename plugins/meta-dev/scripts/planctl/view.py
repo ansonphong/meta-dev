@@ -8,13 +8,14 @@ scoped to ONE runbook path:
   * Rollup header — campaign name, members bar, recursive task bar, effective
     stage, derived glyph.
   * Member table — one row per DIRECT member; nested runbooks as INDENTED
-    sub-groups with their own rollup rows; ``✗ MISSING`` loud for dead paths.
+    sub-groups with their own rollup rows; ``❓ MISSING`` loud for dead paths.
   * ``Now:`` pointer — leaf plan from ``compute_rollup``\'s ``now``.
   * Queues — blocked (override + note) and needs-review members.
   * Claims — live claims overlapping any member scope.
   * ``--json`` — same data structured (rollup + member rows + queues + claims).
 
-Sync-first (I4). Every line ≤74 display cells. Stdlib only.
+Sync-first (I4). Renders on the open-right CARD chassis — one standard, shared
+with every other meta-dev surface (see references/status-cards.md). Stdlib only.
 """
 import json
 import os
@@ -22,9 +23,9 @@ import time
 
 from planctl import db, derive, runbook, statedir, sync
 from planctl.render_lib import (
-    BOX_W, FIELD, BAR_W,
-    box_top, box_bottom, box_sep, box_row, box_rule,
-    bar, pct, status_glyph, GLYPH, dwidth, fit, col,
+    CARD_FIELD,
+    card_top, card_bottom, card_sep, card_row,
+    bar, pct, mark, dwidth, fit,
 )
 
 # ── stage display names ────────────────────────────────────────────────────────
@@ -81,7 +82,7 @@ def _build_member_rows(conn, root, rb_rel, depth=0, _seen=None):
     depth+1, so the renderer just iterates the flat list.
 
     ``_seen`` mirrors ``compute_rollup``'s ``_visited`` — a hand-edited
-    membership cycle renders a loud ✗ CYCLE row instead of recursing forever."""
+    membership cycle renders a loud ❓ CYCLE row instead of recursing forever."""
     if _seen is None:
         _seen = set()
     _seen.add(rb_rel)
@@ -91,7 +92,7 @@ def _build_member_rows(conn, root, rb_rel, depth=0, _seen=None):
         if kind == "runbook":
             if child in _seen:
                 rows.append({"type": "plan", "path": child, "missing": True,
-                             "indent": depth, "glyph": "✗",
+                             "indent": depth, "glyph": mark("missing"),
                              "status": "cycle", "stage": None,
                              "tasks_done": 0, "tasks_total": 0, "pct_val": 0})
                 continue
@@ -118,11 +119,12 @@ def _build_member_rows(conn, root, rb_rel, depth=0, _seen=None):
             if info is None or not on_disk:
                 rows.append({"type": "plan", "path": child, "missing": True,
                              "indent": depth,
-                             "glyph": "✗", "status": None, "stage": None,
+                             "glyph": mark("missing"), "status": None,
+                             "stage": None,
                              "tasks_done": 0, "tasks_total": 0, "pct_val": 0,
                              "override": None, "note": None})
             else:
-                g = status_glyph(info["status"], False)
+                g = mark(info["status"], False)
                 rows.append({"type": "plan", "path": child, "missing": False,
                              "indent": depth,
                              "glyph": g, "status": info["status"],
@@ -173,7 +175,7 @@ def cmd_runbook_boxed(args):
             pi = _plan_info(conn, now_path)
             if pi:
                 now_info = {"path": now_path,
-                            "glyph": status_glyph(pi["status"], False),
+                            "glyph": mark(pi["status"], False),
                             "stage": pi["stage"]}
 
         # ── Queues ──
@@ -234,10 +236,10 @@ def _jsonable_member(mr):
 
 # ── render: one-level member rows → box lines ──────────────────────────────────
 def _render_member_table(member_rows):
-    """Render a flat member-row list into box-safe lines (each ≤FIELD cells).
+    """Render a flat member-row list into card-safe lines (each ≤CARD_FIELD cells).
 
     Handles plan rows and nested_runbook_header rows. Each row carries its own
-    ``indent`` level. The caller collects lines and passes them to ``box_row()``."""
+    ``indent`` level. The caller collects lines and passes them to ``card_row()``."""
     lines = []
     for mr in member_rows:
         indent = mr.get("indent", 0)
@@ -260,27 +262,36 @@ def _short_path(path):
 
 
 def _render_nested_header(mr, indent):
-    """One indented line for a nested runbook header with its rollup."""
+    """One indented line for a nested runbook header with its rollup.
+
+    Same column arithmetic as ``_render_plan_row`` (glyph first, name flexes,
+    bar/pct/tail fixed) so a nested header lines up with the plan rows beneath
+    it and, like them, always fits inside CARD_FIELD."""
     prefix = "  " * indent
-    name = _short_path(mr["path"])
     md = mr.get("members_done", 0)
     mt = mr.get("members_total", 0)
     td = mr.get("tasks_done", 0)
     tt = mr.get("tasks_total", 0)
     es = mr.get("effective_stage")
-    glyph = status_glyph(mr.get("status"), mr.get("drift"))
+    glyph = mark(mr.get("status"), mr.get("drift"))
 
     if mr.get("missing"):
-        return "%s✗ MISSING nested runbook: %s" % (prefix, mr["path"])
+        return "%s%s MISSING nested runbook: %s" % (
+            prefix, mark("missing"), mr["path"])
 
-    if mt > 0:
-        return ("%s▸ %s  Members: %d/%d  %s  %s  ·  Tasks: %d/%d (%d%%)  "
-                "stage %s  %s" % (
-                    prefix, name, md, mt, bar(md, mt), pct(md, mt),
-                    td, tt, derive.pct(td, tt),
-                    es if es is not None else "?", glyph))
-    else:
-        return "%s▸ %s  (empty runbook)" % (prefix, name)
+    name = "▸ " + _short_path(mr["path"])
+    if mt <= 0:
+        return "%s%s  %s  (empty runbook)" % (prefix, glyph, name)
+
+    bar_str = bar(td, tt)
+    pct_str = pct(td, tt)
+    tail = "  members %d/%d  stage %s" % (
+        md, mt, es if es is not None else "?")
+    fixed = (len(prefix) + dwidth(glyph) + 4
+             + dwidth(bar_str) + dwidth(pct_str) + dwidth(tail))
+    name_w = max(4, CARD_FIELD - fixed)
+    return "%s%s  %s%s %s%s" % (
+        prefix, glyph, fit(name, name_w), bar_str, pct_str, tail)
 
 
 def _render_plan_row(mr, indent):
@@ -292,7 +303,7 @@ def _render_plan_row(mr, indent):
     prefix = "  " * indent
     if mr.get("missing"):
         name = _short_path(mr["path"])
-        return "%s✗  MISSING: %s" % (prefix, name)
+        return "%s%s  MISSING: %s" % (prefix, mark("missing"), name)
 
     glyph = mr["glyph"]
     name = _short_path(mr["path"])
@@ -309,24 +320,40 @@ def _render_plan_row(mr, indent):
     override_str = ""
     if override:
         note_tail = (" — " + note) if note else ""
-        override_str = "  ⛔ %s%s" % (override, note_tail)
+        override_str = "  %s %s%s" % (mark("blocked"), override, note_tail)
 
-    # Fixed-width parts: prefix N*2, glyph 1, separators 4 ("  " + " " + " "),
-    # bar 18, pct ≤4, stage 7-9, override variable
+    # Fixed-width parts: prefix N*2, glyph (dwidth — an emoji is 2 cells),
+    # separators 4 ("  " + " " + " "), bar 18, pct ≤4, stage 7-9, override
+    # variable. The budget is CARD_FIELD (= CARD_W - 2), NOT the retired
+    # FIELD (= BOX_W - 4): the open-right chassis reserves only the "│ "
+    # prefix, so the text field is 2 cells WIDER than the old boxed one.
     fixed = (len(prefix) + dwidth(glyph) + 4
              + dwidth(bar_str) + dwidth(pct_str) + dwidth(stage_str)
              + dwidth(override_str))
-    name_w = max(4, FIELD - fixed)
+    name_w = max(4, CARD_FIELD - fixed)
     name_fitted = fit(name, name_w)
 
     return "%s%s  %s%s %s %s%s" % (
         prefix, glyph, name_fitted, bar_str, pct_str, stage_str, override_str)
 
 
-# ── full box render ────────────────────────────────────────────────────────────
+# ── full card render ───────────────────────────────────────────────────────────
+def _crow(text):
+    """``card_row`` that keeps the old box's truncation guarantee.
+
+    The open-right chassis has no right border to pad to, so ``card_row`` never
+    truncates — but a long override note would then wrap and visually break the
+    card. Clamp to CARD_FIELD first (``card_row`` rstrips the padding away)."""
+    return card_row(fit(text, CARD_FIELD) if dwidth(text) > CARD_FIELD else text)
+
+
 def _print_boxed_view(rb_rel, rollup, member_rows, now_info, blocked,
                       needs_review, claims):
-    """Render the complete per-campaign box to stdout."""
+    """Render the complete per-campaign card to stdout.
+
+    Open-right chassis: ``card_top`` heads the card with the campaign name,
+    ``card_sep`` labels each section (so the old title-row + ``box_rule()`` pair
+    collapses into one divider), and no row is padded to a right border."""
     name = (rb_rel.rstrip("/").rsplit("/", 1)[-1]
             if "/" in rb_rel else rb_rel)
 
@@ -337,109 +364,88 @@ def _print_boxed_view(rb_rel, rollup, member_rows, now_info, blocked,
     eff_stage = rollup.get("effective_stage")
     status = rollup.get("status")
     drift = rollup.get("drift")
-    glyph = status_glyph(status, drift) if status else "◦"
+    glyph = mark(status, drift) if status else mark("draft")
 
-    out = []
-
-    # ── Top border + name ──
-    out.append(box_top())
-    # Right-align the glyph by fitting name to FIELD - 2 (leave room for glyph)
-    name_col = FIELD - 3
-    out.append(box_row(fit(name, name_col) + "  " + glyph))
+    out = [card_top(name.upper())]
 
     # ── Rollup summary ──
     if members_total == 0:
-        out.append(box_row("Members: 0/0  —  (empty runbook)"))
+        out.append(_crow("%s  Members: 0/0  ·  (empty runbook)" % glyph))
     else:
         mpct = pct(members_done, members_total)
         tpct_val = derive.pct(tasks_done, tasks_total)
-        summary = ("Members: %d/%d  %s  %s  ·  Tasks: %d/%d (%d%%)" % (
-            members_done, members_total, bar(members_done, members_total),
-            mpct, tasks_done, tasks_total, tpct_val))
-        out.append(box_row(summary))
+        out.append(_crow(
+            "%s  Members: %d/%d  %s %s  ·  Tasks: %d/%d (%d%%)" % (
+                glyph, members_done, members_total,
+                bar(members_done, members_total), mpct,
+                tasks_done, tasks_total, tpct_val)))
         sn = _STAGE_NAME.get(eff_stage or 0, "?")
-        out.append(box_row("Effective stage: %s (%s)  ·  %s %s" % (
-            eff_stage if eff_stage is not None else "—", sn, glyph,
-            status or "?")))
-    out.append(box_sep())
+        out.append(_crow("Effective stage: %s (%s)  ·  %s" % (
+            eff_stage if eff_stage is not None else "—", sn, status or "?")))
 
     # ── Members ──
-    out.append(box_row("MEMBERS (%d)" % members_total))
-    out.append(box_rule())
+    out.append(card_sep("Members (%d)" % members_total))
     if not member_rows:
-        out.append(box_row("  (no members)"))
+        out.append(_crow("(no members)"))
     else:
-        member_lines = _render_member_table(member_rows)
-        for ml in member_lines:
-            out.append(box_row(ml))
-    out.append(box_sep())
+        for ml in _render_member_table(member_rows):
+            out.append(_crow(ml))
 
     # ── Now ──
-    out.append(box_row("NOW"))
-    out.append(box_rule())
+    out.append(card_sep("Now"))
     if now_info:
-        now_line = "  %s  %s  stage %s" % (
+        out.append(_crow("%s  %s  stage %s" % (
             now_info["glyph"], now_info["path"],
-            now_info.get("stage") or "?")
-        out.append(box_row(now_line))
+            now_info.get("stage") or "?")))
+    elif members_total == 0:
+        out.append(_crow("— (empty runbook)"))
     else:
-        if members_total == 0:
-            out.append(box_row("  — (empty runbook)"))
-        else:
-            out.append(box_row("  — all done"))
-    out.append(box_sep())
+        out.append(_crow("— all done"))
 
     # ── Blocked ──
-    out.append(box_row("BLOCKED (%d)" % len(blocked)))
-    out.append(box_rule())
+    out.append(card_sep("Blocked (%d)" % len(blocked)))
     if not blocked:
-        out.append(box_row("  —"))
+        out.append(_crow("—"))
     else:
         for b in blocked:
             note_str = (" — " + b["note"]) if b.get("note") else ""
-            bline = "  !  %s  %s%s" % (b["path"], b.get("override") or "blocked",
-                                       note_str)
-            out.append(box_row(bline))
-    out.append(box_sep())
+            out.append(_crow("%s  %s  %s%s" % (
+                mark("blocked"), b["path"],
+                b.get("override") or "blocked", note_str)))
 
     # ── Needs review ──
-    out.append(box_row("NEEDS REVIEW (%d)" % len(needs_review)))
-    out.append(box_rule())
+    out.append(card_sep("Needs review (%d)" % len(needs_review)))
     if not needs_review:
-        out.append(box_row("  —"))
+        out.append(_crow("—"))
     else:
         for nr in needs_review:
-            nline = "  ⊙  %s  stage %s" % (nr["path"], nr.get("stage") or "?")
-            out.append(box_row(nline))
-    out.append(box_sep())
+            out.append(_crow("%s  %s  stage %s" % (
+                mark("needs-review"), nr["path"], nr.get("stage") or "?")))
 
     # ── Claims ──
-    out.append(box_row("LIVE CLAIMS (%d)" % len(claims)))
-    out.append(box_rule())
+    out.append(card_sep("Live claims (%d)" % len(claims)))
     if not claims:
-        out.append(box_row("  —"))
+        out.append(_crow("—"))
     else:
         for c in claims:
-            cline = "  %s  session=%s  pid=%s" % (
-                c["scope"], c["session"], c.get("pid", "?"))
-            out.append(box_row(cline))
-    out.append(box_bottom())
+            out.append(_crow("%s  session=%s  pid=%s" % (
+                c["scope"], c["session"], c.get("pid", "?"))))
+    out.append(card_bottom())
 
     print("\n".join(out))
 
 
 def _print_minimal_box(rb_rel, rollup):
-    """Minimal box for a non-runbook path."""
+    """Minimal card for a non-runbook path."""
     name = os.path.basename(rb_rel) or rb_rel
     r = rollup or {}
-    print(box_top())
-    print(box_row(fit(name.upper(), FIELD - 4) + "    "))
-    print(box_sep())
-    print(box_row("Not a runbook — no members to display."))
+    out = [card_top(name.upper()),
+           _crow("Not a runbook — no members to display.")]
     td = r.get("tasks_done") or 0
     tt = r.get("tasks_total") or 0
     if tt:
-        print(box_row("Plan tasks: %d/%d  %s  %s" % (
+        out.append(_crow("Plan tasks: %d/%d  %s  %s" % (
             td, tt, bar(td, tt), pct(td, tt))))
-    print(box_row("Use 'planctl status %s' for plan-level details." % rb_rel))
-    print(box_bottom())
+    out.append(_crow("Use 'planctl status %s' for plan-level details." % rb_rel))
+    out.append(card_bottom())
+    print("\n".join(out))
