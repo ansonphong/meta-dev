@@ -3,7 +3,7 @@ import json
 import os
 from types import SimpleNamespace
 
-from planctl import db, derive, events, reconcile, render_lib, stage
+from planctl import db, derive, events, reconcile, stage
 
 
 def test_derive_glyph_shows_needs_review_drift():
@@ -20,12 +20,6 @@ def test_derive_emoji_is_an_alias_of_glyph():
     assert derive.emoji("done", drift=True) == "✅⚠️"
     for status in derive.PLAN_STATUSES + derive.OVERRIDES:
         assert derive.emoji(status) == derive.glyph(status)
-
-
-def test_render_lib_glyph_shows_needs_review_drift():
-    assert render_lib.status_glyph("needs-review", drift=True) == "⊙⚠"
-    assert render_lib.status_glyph("needs-review", drift=False) == "⊙"
-    assert render_lib.status_glyph("done", drift=True) == "✓⚠"
 
 
 def _write_plan(root, rel, checked):

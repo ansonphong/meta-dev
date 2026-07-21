@@ -1,53 +1,14 @@
 #!/usr/bin/env python3
-"""Shared render components for the global dashboard + boxed runbook view.
+"""Shared render components for the global dashboard + runbook card view.
 
 Display-width aware (emoji render as 2 terminal cells but count as 1 codepoint
-in len()), box primitives, progress bars, and the canonical glyph map — ONE
+in len()), card primitives, progress bars, and the canonical glyph map — ONE
 source so the two views never diverge. Imported by dashboard-render.py (global
-view, 2a) and the 2b boxed-view renderer.
+view, 2a) and the 2b card-view renderer.
 
 Stdlib only.
 """
 import unicodedata
-
-# ── layout constants ──────────────────────────────────────────────────────────
-BOX_W = 74            # total visible width including both borders
-FIELD = BOX_W - 4     # text field inside "│ … │"
-BAR_W = 18
-
-# ── canonical glyph map (design §3.2, §3.6) ───────────────────────────────────
-# Status markers use geometric/symbol glyphs, NOT emoji. Emoji are spec-width-2
-# but many renderers (incl. inline markdown) draw them at 1 cell, which shifts
-# every box border. These glyphs are width-1-stable, so the rounded boxes stay
-# aligned everywhere.
-GLYPH = {
-    "draft":         "◦",
-    "ready":         "▹",
-    "executing":     "→",
-    "needs-review":  "⊙",
-    "done":          "✓",
-    "blocked":       "!",
-    "parked":        "‖",
-    "superseded":    "⌀",
-}
-
-# Drift suffix — appended to any drift-bearing status glyph so newly introduced
-# canonical statuses cannot silently hide open execution boxes.
-DRIFT_SUFFIX = "⚠"
-
-# Legacy status mapping (for backward-compatible glyph render of old status: values
-# that may still appear during the M1 transition).
-LEGACY_GLYPH = {"done": "✓", "blocked": "!", "active": "→", "draft": "◦"}
-
-
-def status_glyph(status, drift=False):
-    """Render the glyph for a derived status.
-
-    Any drift-bearing status gets the warning suffix. A non-canon status (e.g.
-    legacy ``active``) → falls back to LEGACY_GLYPH, then ``'?'``."""
-    marker = GLYPH.get(status) or LEGACY_GLYPH.get(status, "?")
-    return marker + DRIFT_SUFFIX if drift else marker
-
 
 # ══ CARD STANDARD ════════════════════════════════════════════════════════════
 # The open-right card chassis. See references/status-cards.md for the doctrine.
@@ -59,6 +20,7 @@ def status_glyph(status, drift=False):
 
 CARD_W = 74               # total visible width of the top/bottom rules
 CARD_FIELD = CARD_W - 2   # open-right: only the "│ " prefix is reserved
+BAR_W = 18
 BAR_FILL, BAR_EMPTY = "█", "░"
 
 # ── the ONE status vocabulary ────────────────────────────────────────────────
@@ -229,35 +191,6 @@ def fit(s, w):
 def col(s, n):
     """Convenience: ``fit(s, n)``."""
     return fit(s, n)
-
-
-# ── box primitives ───────────────────────────────────────────────────────────
-def box_top():
-    return "╭" + "─" * (BOX_W - 2) + "╮"
-
-
-def box_bottom():
-    return "╰" + "─" * (BOX_W - 2) + "╯"
-
-
-def box_sep():
-    return "├" + "─" * (BOX_W - 2) + "┤"
-
-
-def box_row(text=""):
-    return "│ " + fit(text, FIELD) + " │"
-
-
-def box_rule():
-    return "│ " + "─" * FIELD + " │"
-
-
-def panel(title, body):
-    """Build a rounded box panel: top border, title, separator, body lines, bottom."""
-    out = [box_top(), box_row(title.upper()), box_sep()]
-    out += [box_row(line) for line in body] if body else [box_row("(empty)")]
-    out.append(box_bottom())
-    return out
 
 
 # ── progress bar ─────────────────────────────────────────────────────────────
