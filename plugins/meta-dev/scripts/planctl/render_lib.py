@@ -49,6 +49,107 @@ def status_glyph(status, drift=False):
     return marker + DRIFT_SUFFIX if drift else marker
 
 
+# ══ CARD STANDARD ════════════════════════════════════════════════════════════
+# The open-right card chassis. See references/status-cards.md for the doctrine.
+#
+# Why open-right: emoji are double-width, so ANY right-hand border drifts and can
+# never be reliably aligned. Dropping that border is what makes emoji safe in
+# every card — it is load-bearing, not decoration. The older rounded box below
+# (BOX_W/box_*/panel) had to ban emoji precisely because it kept a right border.
+
+CARD_W = 74               # total visible width of the top/bottom rules
+CARD_FIELD = CARD_W - 2   # open-right: only the "│ " prefix is reserved
+BAR_FILL, BAR_EMPTY = "█", "░"
+
+# ── the ONE status vocabulary ────────────────────────────────────────────────
+# Replaces derive.GLYPHS, derive.EMOJI, render_lib.GLYPH, the dashboard inline
+# fallback, and overlord's status_icon/verdict_icon. status -> (glyph, label).
+STATUS = {
+    "done":         ("✅", "done"),
+    "executing":    ("🔄", "running"),
+    "draft":        ("⏸",  "queued"),
+    "ready":        ("⏸",  "queued"),
+    "needs-review": ("⏳", "awaiting verdict"),
+    "gated":        ("🔒", "human gate"),
+    "blocked":      ("⛔", "blocked"),
+    "parked":       ("⏺",  "paused"),
+    "superseded":   ("🚫", "superseded"),
+    "missing":      ("❓", "missing"),
+}
+DRIFT = "⚠️"     # suffix, never a status of its own
+UNKNOWN = "❔"
+
+
+def mark(status, drift=False):
+    """Glyph for a status. Unknown status → UNKNOWN, never a KeyError."""
+    g = STATUS.get(status, (UNKNOWN, "unknown"))[0]
+    return g + DRIFT if drift else g
+
+
+def label(status):
+    """Human word for a status. Unknown → ``'unknown'``."""
+    return STATUS.get(status, (UNKNOWN, "unknown"))[1]
+
+
+# ── open-right chassis ───────────────────────────────────────────────────────
+def card_top(title="", w=CARD_W):
+    """``┌─ TITLE ────…`` — rule length uses dwidth() so an emoji in the title
+    still yields exactly *w* cells."""
+    if not title:
+        return "┌" + "─" * (w - 1)
+    head = "┌─ " + title + " "
+    return head + "─" * max(0, w - dwidth(head))
+
+
+def card_sep(label=None, w=CARD_W):
+    """``├─ LABEL ───…`` section divider, or a plain rule when *label* is None."""
+    if not label:
+        return "├" + "─" * (w - 1)
+    head = "├─ " + label + " "
+    return head + "─" * max(0, w - dwidth(head))
+
+
+def card_bottom(w=CARD_W):
+    return "└" + "─" * (w - 1)
+
+
+def card_row(text="", indent=0):
+    """A card row. Always rstrip()ed — with no right border there is nothing to
+    pad to, and trailing whitespace is what markdown renderers and copy/paste
+    silently eat."""
+    return ("│ " + " " * indent + text).rstrip()
+
+
+def card_rule():
+    """An in-card horizontal rule."""
+    return "│ " + "─" * CARD_FIELD
+
+
+def cols(cells, widths):
+    """Join *cells* into an aligned row. Every cell EXCEPT the last is fit() to
+    its width; the last is left free, so a wide glyph there costs nothing."""
+    if not cells:
+        return ""
+    out = [fit(str(c), w) for c, w in zip(cells[:-1], widths)]
+    out.append(str(cells[-1]))
+    return " ".join(out)
+
+
+def card(title, sections):
+    """Build a full card. *sections* = ``[(label|None, [lines]), …]``.
+
+    The first section's label is omitted (the title already heads the card)."""
+    out = [card_top(title)]
+    for i, (lbl, lines) in enumerate(sections):
+        if lbl and i > 0:
+            out.append(card_sep(lbl))
+        elif i > 0:
+            out.append(card_sep())
+        out += [card_row(ln) for ln in lines] if lines else [card_row("(empty)")]
+    out.append(card_bottom())
+    return out
+
+
 # ── display width ────────────────────────────────────────────────────────────
 def _cw(ch):
     """Terminal cell width of one codepoint (0 for combining/ZWJ/variation
@@ -123,12 +224,24 @@ def panel(title, body):
 
 
 # ── progress bar ─────────────────────────────────────────────────────────────
-def bar(d, t):
-    """Filled-block progress bar of width ``BAR_W``. 0 total → all empty."""
+def bar(d, t, width=BAR_W):
+    """Filled-block progress bar. 0 total → all empty.
+
+    *width* is a parameter so the three historical bars (18-cell dashboard,
+    10-cell overlord, 4-cell ``▰▱`` runbook) collapse onto ONE implementation
+    and one pair of glyphs."""
+    if width <= 0:
+        return ""
     if t <= 0:
-        return "░" * BAR_W
-    f = max(0, min(BAR_W, round(BAR_W * d / t)))
-    return "█" * f + "░" * (BAR_W - f)
+        return BAR_EMPTY * width
+    f = max(0, min(width, round(width * d / t)))
+    return BAR_FILL * f + BAR_EMPTY * (width - f)
+
+
+def bar_frac(frac, width=BAR_W):
+    """Bar from an already-computed fraction in [0,1] — for call sites that hold
+    a percentage rather than a (done, total) pair."""
+    return bar(round(max(0.0, min(1.0, frac)) * 1000), 1000, width)
 
 
 def pct(d, t):
