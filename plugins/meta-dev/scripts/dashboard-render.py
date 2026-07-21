@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
-"""Dashboard renderer. Reads JSON from stdin, prints a boxed control-plane view.
+"""Dashboard renderer. Reads JSON from stdin, prints the control-plane cards.
 
-Display-width aware: emoji render as 2 terminal cells but count as 1 codepoint
-in len(), so every pad/truncate uses dwidth() instead of len() — that is what
-keeps the rounded box borders aligned. Shared render primitives imported from
-planctl.render_lib (one source for global + boxed views, 2a/2b).
+Uses the ONE card standard — the open-right chassis defined in
+references/status-cards.md and implemented in planctl.render_lib. Display-width
+aware: emoji render as 2 terminal cells but count as 1 codepoint in len(), so
+every pad/truncate uses dwidth() instead of len().
 
-Phase 2a: runbook-aware — campaign members grouped under runbook headers with
-rollup bars; derived glyphs (⊙ needs-review, ▹ ready, ✓⚠ drift); override
-notes (‖ parked, ⌀ superseded).
+Runbook-aware: campaign members grouped under runbook headers with rollup bars;
+canonical status glyphs via mark(); override notes.
 """
 import json
 import os
@@ -22,12 +21,22 @@ from datetime import datetime
 # to import it. A missing module must fail loudly.
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from planctl.render_lib import (
-    BOX_W, FIELD, BAR_W,
-    GLYPH, status_glyph,
+    CARD_FIELD,
+    mark,
     dwidth, fit, col,
-    box_top, box_bottom, box_sep, box_row, box_rule, panel,
+    card,
     bar, pct,
 )
+
+
+# ── row helper ────────────────────────────────────────────────────────────────
+def _clip(s):
+    """Keep a composed row inside the open-right field.
+
+    The chassis has no right border to truncate against, so a row that overruns
+    CARD_FIELD would simply spill past the card's rules. fit() truncates with
+    ``…``; the rstrip() drops fit()'s tail padding (no row ever ends in space)."""
+    return (s if dwidth(s) <= CARD_FIELD else fit(s, CARD_FIELD)).rstrip()
 
 
 # ── plan name helper ──────────────────────────────────────────────────────────
@@ -64,7 +73,7 @@ def _runbook_label(path):
 
 # ── sections ─────────────────────────────────────────────────────────────────
 def plans_body(plans, runbooks=None):
-    """Build the Plans panel body, runbook-aware.
+    """Build the Plans card body, runbook-aware.
 
     Plans are grouped by ``runbook_group``. Ungrouped plans appear first,
     then each runbook group with a header row + rollup bar. Plans show
@@ -120,7 +129,7 @@ def plans_body(plans, runbooks=None):
     # the widest marker/badge. dwidth() counts 👁 and 👀 as two cells.
     count_w = max(5, max(dwidth(f"{p.get('tasks_done', 0)}/{p.get('tasks_total', 0)}")
                          for p in plans))
-    glyph_w = max(dwidth(status_glyph(
+    glyph_w = max(dwidth(mark(
         p.get("derived_status") or p.get("status", "draft"),
         p.get("drift", False),
     )) for p in plans)
@@ -132,8 +141,10 @@ def plans_body(plans, runbooks=None):
         p.get("derived_status") or p.get("status", "draft"),
         p.get("stage", 0),
     )) for p in state_rows), default=0)
-    # Spaces and fixed fields outside the name consume 26 cells.
-    name_w = max(1, min(22, FIELD - glyph_w - count_w - tag_w - 26))
+    # Outside the name a row spends: 4 join spaces + BAR_W(18) bar + 4-cell pct
+    # = 26 cells, on top of glyph_w / count_w / tag_w. The open-right field is
+    # CARD_FIELD (CARD_W - 2), two cells wider than the retired box field.
+    name_w = max(1, min(24, CARD_FIELD - glyph_w - count_w - tag_w - 26))
 
     def _append_plan_row(p):
         nonlocal td, tt
@@ -143,15 +154,15 @@ def plans_body(plans, runbooks=None):
 
         ds = p.get("derived_status") or p.get("status", "draft")
         drift = p.get("drift", False)
-        g = status_glyph(ds, drift)
+        g = mark(ds, drift)
         stg = p.get("stage", 0)
         stage_tag = _stage_tag(p, ds, stg)
         count = f"{d}/{t}"
 
-        body.append(
+        body.append(_clip(
             f"{col(g, glyph_w)} {col(p.get('name', '?'), name_w)} {bar(d, t)} "
             f"{col(count, count_w)} {pct(d, t)}{stage_tag}"
-        )
+        ))
 
     def _append_runbook_header(rb_path, member_plans):
         """Header row + rollup bar for a runbook group."""
@@ -162,11 +173,11 @@ def plans_body(plans, runbooks=None):
         rt = rb.get("tasks_total", 0)
         label = _runbook_label(rb_path)
 
-        body.append(box_rule())
-        body.append(
-            f"▸ {col(label, name_w)} {bar(md, mt)} {col(f'{md}/{mt}', count_w)} {pct(md, mt)}"
-            f"  · {rd}/{rt} tasks"
-        )
+        body.append("─" * CARD_FIELD)
+        body.append(_clip(
+            f"{col('▸', glyph_w)} {col(label, name_w)} {bar(md, mt)} "
+            f"{col(f'{md}/{mt}', count_w)} {pct(md, mt)}  · {rd}/{rt} tasks"
+        ))
 
     # ── Ungrouped plans first ──────────────────────────────────────────────
     for p in ungrouped:
@@ -182,7 +193,7 @@ def plans_body(plans, runbooks=None):
             _append_plan_row(p)
 
     # ── Grand total ────────────────────────────────────────────────────────
-    body.append("─" * FIELD)
+    body.append("─" * CARD_FIELD)
     body.append(
         f"{col('', glyph_w)} {col('TOTAL', name_w)} {bar(td, tt)} "
         f"{td}/{tt} {pct(td, tt)}"
@@ -196,14 +207,14 @@ def milestones_body(ms):
     body = []
     for i, m in enumerate(ms):
         if i:
-            body.append("─" * FIELD)
+            body.append("─" * CARD_FIELD)
         typ = m.get("type", "MILESTONE")
         lbl = m.get("label", "")
         ver = m.get("version", "")
         tgt = m.get("target", "")
         d = m.get("plans_done", 0)
         t = m.get("plans_total", 0)
-        body.append(col(f"{typ} · {lbl}", FIELD))
+        body.append(col(f"{typ} · {lbl}", CARD_FIELD))
         meta = f"{bar(d, t)} {d}/{t} done"
         if ver:
             meta += f"   v{ver}"
@@ -244,11 +255,11 @@ def commits_body(commits, expanded=False):
     for c in commits:
         sha = (c.get("sha", "?") or "?")[:8]
         msg = c.get("msg", "?")
-        body.append(f"{sha:<8} {col(msg, FIELD - 9)}")
+        body.append(f"{sha:<8} {col(msg, CARD_FIELD - 9)}")
         if expanded:
             ago = c.get("ago", "")
             if ago and ago != "—":
-                body.append(f"{'':<8} {col(ago, FIELD - 9)}")
+                body.append(f"{'':<8} {col(ago, CARD_FIELD - 9)}")
     return body
 
 
@@ -263,17 +274,17 @@ def focus_body(f):
     d = f.get("progress", {}) or {}
     done, total = d.get("done", 0), d.get("total", 0)
     body = [
-        col(f.get("name", "?"), FIELD),
+        col(f.get("name", "?"), CARD_FIELD),
         f"status {f.get('status', '?')}   ·   stage {f.get('stage', '?')}"
         f"   ·   repo {f.get('repo', '—') or '—'}",
         f"{bar(done, total)} {done:>3}/{total:<3} {pct(done, total)}",
     ]
     why = f.get("why", "")
     if why:
-        body.append(col("why: " + why, FIELD))
+        body.append(col("why: " + why, CARD_FIELD))
     secs = f.get("sections", [])
     if secs:
-        body.append("─" * FIELD)
+        body.append("─" * CARD_FIELD)
         for s in secs:
             sd, st = s.get("done", 0), s.get("total", 0)
             body.append(f"{col(s.get('title', '?'), 30)} {bar(sd, st)} {sd:>3}/{st:<3} {pct(sd, st)}")
@@ -281,7 +292,7 @@ def focus_body(f):
 
 
 # ── render ───────────────────────────────────────────────────────────────────
-def _plans_panel(data):
+def _plans_card(data):
     counts = data.get("counts", {}) or {}
     tracked = counts.get("tracked", len(data.get("plans", [])))
     title = f"Plans · {tracked} tracked"
@@ -293,51 +304,51 @@ def _plans_panel(data):
         extra.append(f"{len(untr)} untracked")
     if extra:
         title += " · " + " · ".join(extra)
-    return panel(title, plans_body(data.get("plans", []), data.get("runbooks", [])))
+    return card(title, [(None, plans_body(data.get("plans", []), data.get("runbooks", [])))])
 
 
 def render_section(sec, data):
     """Render one named section to a list of lines, or None to skip it."""
     if sec == "plans":
-        return _plans_panel(data)
+        return _plans_card(data)
     if sec == "focus":
         f = data.get("focus")
         if not f:
             return None
-        return panel("Plan Focus", focus_body(f))
+        return card("Plan Focus", [(None, focus_body(f))])
     if sec == "milestones":
-        return panel("Milestones", milestones_body(data.get("milestones", [])))
+        return card("Milestones", [(None, milestones_body(data.get("milestones", [])))])
     if sec == "sessions":
-        return panel("Active Sessions", sessions_body(data.get("active_sessions", [])))
+        return card("Active Sessions", [(None, sessions_body(data.get("active_sessions", [])))])
     if sec == "inbox":
-        return panel("Inbox", inbox_body(data.get("inbox", {})))
+        return card("Inbox", [(None, inbox_body(data.get("inbox", {})))])
     if sec == "sweep":
         sweep = data.get("sweep_log", [])
         if not sweep:
             return None
-        return panel("Sweep Log · 24h", [f"✓ {s}" for s in sweep])
+        return card("Sweep Log · 24h", [(None, [f"{mark('done')} {s}" for s in sweep])])
     if sec == "commits":
         commits = data.get("recent_commits", [])
         title = "Recent Commits"
         if data.get("commits_expanded"):
             title += f" · {len(commits)}"
-        return panel(title, commits_body(commits, data.get("commits_expanded", False)))
+        return card(title, [(None, commits_body(commits, data.get("commits_expanded", False)))])
     return None
 
 
-# Default panel order when the data carries no explicit `sections` (e.g. --test).
+# Default card order when the data carries no explicit `sections` (e.g. --test).
 DEFAULT_SECTIONS = ["plans", "milestones", "sessions", "inbox", "sweep", "commits"]
 
 
 def render(data):
     L = []
-    L.append(f"🎛  Control Plane — {data.get('project', 'meta-dev')}")
-    L.append("")
+    # The Control Plane header IS a card title now — never a bare line above a box.
+    head = [datetime.now().strftime("%Y-%m-%d %H:%M:%S")]
     scope = data.get("scope")
     if scope:
         kind = data.get("scope_kind") or "scope"
-        L.append(f"   scope: {scope}  ({kind})")
-    L.append("   " + datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+        head.insert(0, f"scope: {scope}  ({kind})")
+    L += card(f"🎛 Control Plane — {data.get('project', 'meta-dev')}", [(None, head)])
     L.append("")
 
     for sec in (data.get("sections") or DEFAULT_SECTIONS):

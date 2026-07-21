@@ -1,102 +1,156 @@
 #!/usr/bin/env python3
-"""Render Overlord Dashboard from plan parse + git log + verdicts JSON."""
+"""Render the Overlord dashboard from plan parse + git log + verdicts JSON.
+
+One card, CARD_W wide, on the shared open-right chassis — see
+references/status-cards.md. This renderer used to be box-free at 100 cols with
+its own emoji set and its own 10-wide bar; both are gone. Glyphs come from
+render_lib.mark()/label() (the ONE vocabulary) and the bar from render_lib.bar()
+(width is a parameter, not a second implementation).
+"""
 import json
+import os
 import sys
 from datetime import datetime
 
+# ── shared render primitives — ONE source (planctl.render_lib) ────────────────
+# planctl/ is a sibling package inside scripts/, so scripts/ is what goes on the
+# path. There is deliberately NO try/except fallback: a silent inline copy is
+# exactly how renderers drift from render_lib while appearing to import it. A
+# missing module must fail loudly.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from planctl.render_lib import (
+    CARD_FIELD,
+    mark, label,
+    dwidth, fit, cols, card,
+    bar, pct,
+)
 
-def render_bar(done: int, total: int, width: int = 10) -> str:
-    if total == 0:
-        return "░" * width
-    filled = round(done / total * width)
-    return "█" * filled + "░" * (width - filled)
+BAR_CELLS = 10          # overlord's historical bar width, now just a parameter
+NAME_W = 18             # phase-name column — narrowed from 20 to fit CARD_W
+SHA_W, TASK_W = 10, 24  # commit table columns
+
+# ── local vocabulary → the ONE status vocabulary ──────────────────────────────
+# Overlord speaks its own phase/verdict words. These tables translate them into
+# canonical statuses; the glyphs themselves live only in render_lib.STATUS.
+PHASE_STATUS = {
+    "done": "done",
+    "in_flight": "executing",
+    "pending": "ready",
+    "blocked": "blocked",
+    "gated": "gated",
+}
+VERDICT_STATUS = {
+    "pass": "done",
+    "pending": "needs-review",
+    "failed": "blocked",
+}
 
 
-def status_icon(status: str) -> str:
-    return {"done": "✅", "in_flight": "\U0001f7e1", "pending": "⬜", "blocked": "\U0001f534", "gated": "⏸"}.get(status, "⬜")
+def _clip(s):
+    """Keep a composed row inside the open-right field (no right border to
+    truncate against). rstrip() drops fit()'s tail padding."""
+    return (s if dwidth(s) <= CARD_FIELD else fit(s, CARD_FIELD)).rstrip()
 
 
-def verdict_icon(verdict: str) -> str:
-    return {"pass": "✅", "drift": "\U0001f7e1", "pending": "⏳", "failed": "\U0001f534"}.get(verdict, "❓")
+def phase_mark(status):
+    """Glyph for a phase status. Unknown → render_lib's UNKNOWN, never a guess."""
+    return mark(PHASE_STATUS.get(status, status))
 
 
+def verdict_mark(verdict):
+    """Glyph for a review verdict. ``drift`` is a passing verdict carrying the
+    canonical drift suffix — not a status of its own."""
+    if verdict == "drift":
+        return mark("done", drift=True)
+    return mark(VERDICT_STATUS.get(verdict, verdict))
+
+
+# ── sections ─────────────────────────────────────────────────────────────────
+def progress_body(phases):
+    rows, td, tt = [], 0, 0
+    for ph in phases:
+        d = ph.get("done", 0)
+        t = ph.get("total", 0)
+        td += d
+        tt += t
+        rows.append(_clip(cols(
+            [ph.get("name", "?"), bar(d, t, BAR_CELLS), f"{d}/{t}",
+             phase_mark(ph.get("status", "pending"))],
+            [NAME_W, BAR_CELLS, 7],
+        )))
+    rows.append("─" * CARD_FIELD)
+    rows.append(_clip(cols(
+        ["TOTAL", bar(td, tt, BAR_CELLS), f"{td}/{tt}", pct(td, tt)],
+        [NAME_W, BAR_CELLS, 7],
+    )))
+    return rows
+
+
+def commits_body(commits):
+    rows = [
+        cols(["Commit", "Task", "Verdict"], [SHA_W, TASK_W]),
+        cols(["─" * SHA_W, "─" * TASK_W, "─" * 28], [SHA_W, TASK_W]),
+    ]
+    for c in commits[:10]:
+        verdict = c.get("verdict", "pending")
+        note = c.get("note", "") or label(VERDICT_STATUS.get(verdict, verdict))
+        rows.append(_clip(cols(
+            [c.get("sha", "")[:8], c.get("task", ""),
+             f"{verdict_mark(verdict)} {note}"],
+            [SHA_W, TASK_W],
+        )))
+    return rows
+
+
+def findings_body(findings):
+    rows = []
+    for i, f in enumerate(findings[:20], 1):
+        rows.append(_clip(f"{mark('blocked')} {i}. [{f.get('severity', '?')}] "
+                          f"{f.get('description', '')}"))
+        tail = " — ".join(x for x in (f.get("ref", ""), f.get("action", "")) if x)
+        if tail:
+            rows.append(_clip(f"      {tail}"))
+    return rows
+
+
+def next_body(next_up, next_tick):
+    rows = []
+    if next_up:
+        rows.append(_clip(f"Up next:    {next_up.get('id', '?')} "
+                          f"({next_up.get('title', '?')})"))
+        rows.append(_clip(f"Checkpoint: {next_up.get('checkpoint', '?')}"))
+    if next_tick:
+        rows.append(_clip(f"Tick {next_tick.get('n', '?')} in "
+                          f"{next_tick.get('in', '?')}. {next_tick.get('plan', '')}"))
+    return rows
+
+
+# ── render ───────────────────────────────────────────────────────────────────
 def render(data: dict) -> str:
-    lines = []
     plan_slug = data.get("plan_slug", "unknown")
-    tick_n = data.get("tick_n", 0)
     date = data.get("date", datetime.now().strftime("%Y-%m-%d"))
     poll = data.get("poll_interval", "event-driven")
     executor = data.get("executor_label", "Sonnet")
 
-    lines.append(f"\U0001f6df️ Overlord Dashboard — {plan_slug}")
-    lines.append(f"Tick {tick_n} · {date} · poll: {poll} · executor: {executor}")
-    lines.append("")
+    sections = [(None, [_clip(
+        f"Tick {data.get('tick_n', 0)} · {date} · poll: {poll} · executor: {executor}"
+    )])]
+    sections.append(("Progress", progress_body(data.get("phases", []))))
 
-    # Progress bars
-    lines.append("Progress")
-    lines.append("")
-    total_done = 0
-    total_tasks = 0
-    for phase in data.get("phases", []):
-        name = phase.get("name", "?")
-        done = phase.get("done", 0)
-        total = phase.get("total", 0)
-        status = phase.get("status", "pending")
-        bar = render_bar(done, total)
-        icon = status_icon(status)
-        lines.append(f"  {name:<20} {bar} {done}/{total}  {icon}")
-        total_done += done
-        total_tasks += total
-
-    pct = round(total_done / total_tasks * 100) if total_tasks > 0 else 0
-    lines.append(f"  {'─' * 45}")
-    lines.append(f"  {'TOTAL':<20} {render_bar(total_done, total_tasks)} {total_done}/{total_tasks}  {pct}%")
-    lines.append("")
-
-    # Commit verdict table
     commits = data.get("commits", [])
     if commits:
-        lines.append(f"Last {len(commits)} commits ({executor} trail)")
-        lines.append("")
-        lines.append(f"  {'Commit':<10} {'Task':<24} {'Verdict':<32}")
-        lines.append(f"  {'─' * 10} {'─' * 24} {'─' * 32}")
-        for c in commits[:10]:
-            sha = c.get("sha", "")[:8]
-            task = c.get("task", "")[:22]
-            verdict = c.get("verdict", "pending")
-            note = c.get("note", "")[:28]
-            icon = verdict_icon(verdict)
-            lines.append(f"  {sha:<10} {task:<24} {icon} {note}")
-        lines.append("")
+        sections.append((f"Commits · last {len(commits)} ({executor} trail)",
+                         commits_body(commits)))
 
-    # Findings
     findings = data.get("findings", [])
     if findings:
-        lines.append(f"\U0001f534 Findings ({len(findings)})")
-        lines.append("")
-        for i, f in enumerate(findings[:20], 1):
-            sev = f.get("severity", "?")
-            desc = f.get("description", "")
-            ref = f.get("ref", "")
-            action = f.get("action", "")
-            lines.append(f"  {i}. [{sev}] {desc} — {ref} — {action}")
-        lines.append("")
+        sections.append((f"Findings · {len(findings)}", findings_body(findings)))
 
-    # Next checkpoint
-    next_up = data.get("next_up", {})
-    if next_up:
-        lines.append(f"Next checkpoint")
-        lines.append("")
-        lines.append(f"  Up next: {next_up.get('id', '?')} ({next_up.get('title', '?')})")
-        lines.append(f"  Checkpoint: {next_up.get('checkpoint', '?')}")
-        lines.append("")
+    nxt = next_body(data.get("next_up", {}), data.get("next_tick", {}))
+    if nxt:
+        sections.append(("Next", nxt))
 
-    # Next tick
-    next_tick = data.get("next_tick", {})
-    if next_tick:
-        lines.append(f"Tick {next_tick.get('n', '?')} in {next_tick.get('in', '?')}. {next_tick.get('plan', '')}")
-
-    return "\n".join(lines)
+    return "\n".join(card(f"Overlord Dashboard — {plan_slug}", sections))
 
 
 if __name__ == "__main__":
