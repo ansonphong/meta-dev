@@ -131,11 +131,11 @@ def test_rule3_beats_rule5():
 
 
 def test_drift_row():
-    """stage6 with open EXEC boxes -> done + drift (rendered '✓⚠')."""
+    """stage6 with open EXEC boxes -> done + drift (rendered '✅⚠️')."""
     status, drift = _derive(6, 3, 5)
     assert status == "done"
     assert drift is True
-    assert derive.glyph("done", drift=True) == "✓⚠"
+    assert derive.glyph("done", drift=True) == "✅⚠️"
 
 
 def test_override_suppresses_drift():
@@ -162,17 +162,20 @@ def test_exec_total_zero_derives_ready_indefinitely():
 
 # ── glyph + pct helpers ───────────────────────────────────────────────────────
 def test_glyph_map_closed_vocabulary():
-    assert derive.glyph("draft") == "◦"
-    assert derive.glyph("ready") == "▹"
-    assert derive.glyph("executing") == "→"
-    assert derive.glyph("needs-review") == "⊙"
-    assert derive.glyph("done") == "✓"
-    assert derive.glyph("blocked") == "!"
-    assert derive.glyph("parked") == "‖"
-    assert derive.glyph("superseded") == "⌀"
-    assert derive.glyph("done", drift=True) == "✓⚠"
-    # non-canon (bogus override that slipped past parse) -> '?', never KeyError
-    assert derive.glyph("bogus") == "?"
+    # ONE vocabulary — see references/status-cards.md. draft and ready
+    # deliberately share a glyph: the distinction matters to derive(), not to
+    # someone scanning a card.
+    assert derive.glyph("draft") == "⏸"
+    assert derive.glyph("ready") == "⏸"
+    assert derive.glyph("executing") == "🔄"
+    assert derive.glyph("needs-review") == "⏳"
+    assert derive.glyph("done") == "✅"
+    assert derive.glyph("blocked") == "⛔"
+    assert derive.glyph("parked") == "⏺"
+    assert derive.glyph("superseded") == "🚫"
+    assert derive.glyph("done", drift=True) == "✅⚠️"
+    # non-canon (bogus override that slipped past parse) -> '❔', never KeyError
+    assert derive.glyph("bogus") == "❔"
     with pytest.raises(KeyError):
         derive.GLYPHS["bogus"]  # the raw map still KeyErrors; glyph() is the safe door
 
@@ -221,7 +224,7 @@ def test_parse_then_derive_completed_not_done_regression():
 
     status, drift = derive.derive_plan(fm, td, tt)
     assert (status, drift) == ("needs-review", False)
-    assert derive.glyph(status, drift) == "⊙"
+    assert derive.glyph(status, drift) == "⏳"
 
 
 def test_trailing_comment_stripped_on_scalar_keys():

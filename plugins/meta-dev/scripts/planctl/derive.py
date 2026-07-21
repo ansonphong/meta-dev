@@ -22,54 +22,38 @@ DERIVE_V = 2
 PLAN_STATUSES = ("draft", "ready", "executing", "needs-review", "done")
 OVERRIDES = ("blocked", "parked", "superseded")
 
-# Glyph map (design §3.2). Non-canon status → '?' via glyph() (never KeyError).
-GLYPHS = {
-    "draft": "◦",
-    "ready": "▹",
-    "executing": "→",
-    "needs-review": "⊙",
-    "done": "✓",
-    "blocked": "!",
-    "parked": "‖",
-    "superseded": "⌀",
-}
+# ── status vocabulary — ONE map, owned by render_lib ─────────────────────────
+# There used to be two: width-1 GLYPHS for terminal box views and EMOJI for
+# rendered markdown, because emoji are double-width and broke the fixed-cell
+# layouts. The open-right card chassis has no right border to break, so the
+# split no longer buys anything and the two have collapsed into one.
+#
+# render_lib is a leaf (stdlib only, imports nothing from planctl), so this
+# import cannot create a cycle. See references/status-cards.md.
+from planctl.render_lib import STATUS as _STATUS, DRIFT as _DRIFT, UNKNOWN as _UNKNOWN
 
-
-# Emoji vocabulary for RENDERED-MARKDOWN surfaces (the runbook progress block),
-# where colour makes a 30-row table scannable at a glance. The GLYPHS above stay
-# the vocabulary for terminal/box views: emoji are double-width and would break
-# the fixed-cell layouts.
-EMOJI = {
-    "draft": "📝",
-    "ready": "▶️",
-    "executing": "🔄",
-    "needs-review": "👀",
-    "done": "✅",
-    "blocked": "⛔",
-    "parked": "⏸️",
-    "superseded": "🚫",
-}
-EMOJI_MISSING = "❌"
+# Real dicts, not proxies: the raw map is contractually allowed to KeyError on a
+# non-canon status (test_derive.py) — glyph()/emoji() are the safe doors.
+GLYPHS = {k: v[0] for k, v in _STATUS.items()}
+EMOJI = dict(GLYPHS)
+EMOJI_MISSING = _STATUS["missing"][0]
 
 
 def emoji(status, drift=False):
-    """Emoji counterpart of ``glyph`` — same precedence, same non-canon safety.
-
-    Any drift-bearing status gets the warning suffix, so a newly introduced
-    canonical status cannot silently hide drift. Unknown status → ``'❔'``,
-    never a ``KeyError``."""
-    marker = EMOJI.get(status, "❔")
-    return marker + "⚠️" if drift else marker
+    """Alias of ``glyph`` — one vocabulary, kept as a separate name so existing
+    call sites (runbook.py, view.py) compile unchanged."""
+    return glyph(status, drift)
 
 
 def glyph(status, drift=False):
     """Render the glyph for a derived status.
 
-    Any drift-bearing status gets the warning suffix. A non-canon status (e.g.
-    a hand-edited bogus override that slipped past parse) → ``'?'`` — NEVER a
+    Any drift-bearing status gets the warning suffix, so a newly introduced
+    canonical status cannot silently hide drift. A non-canon status (e.g. a
+    hand-edited bogus override that slipped past parse) → ``'❔'`` — NEVER a
     ``KeyError`` (G0b-6 read-side)."""
-    marker = GLYPHS.get(status, "?")
-    return marker + "⚠" if drift else marker
+    marker = GLYPHS.get(status, _UNKNOWN)
+    return marker + _DRIFT if drift else marker
 
 
 def pct(done, total):

@@ -7,15 +7,19 @@ from planctl import db, derive, events, reconcile, render_lib, stage
 
 
 def test_derive_glyph_shows_needs_review_drift():
-    assert derive.glyph("needs-review", drift=True) == "⊙⚠"
-    assert derive.glyph("needs-review", drift=False) == "⊙"
-    assert derive.glyph("done", drift=True) == "✓⚠"
+    assert derive.glyph("needs-review", drift=True) == "⏳⚠️"
+    assert derive.glyph("needs-review", drift=False) == "⏳"
+    assert derive.glyph("done", drift=True) == "✅⚠️"
 
 
-def test_derive_emoji_shows_needs_review_drift():
-    assert derive.emoji("needs-review", drift=True) == "👀⚠️"
-    assert derive.emoji("needs-review", drift=False) == "👀"
+def test_derive_emoji_is_an_alias_of_glyph():
+    """glyph and emoji were two vocabularies; the open-right chassis collapsed
+    them into one, so emoji() is now an alias kept for call-site compatibility."""
+    assert derive.emoji("needs-review", drift=True) == "⏳⚠️"
+    assert derive.emoji("needs-review", drift=False) == "⏳"
     assert derive.emoji("done", drift=True) == "✅⚠️"
+    for status in derive.PLAN_STATUSES + derive.OVERRIDES:
+        assert derive.emoji(status) == derive.glyph(status)
 
 
 def test_render_lib_glyph_shows_needs_review_drift():
