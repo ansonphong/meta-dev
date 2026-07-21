@@ -11,63 +11,23 @@ rollup bars; derived glyphs (⊙ needs-review, ▹ ready, ✓⚠ drift); overrid
 notes (‖ parked, ⌀ superseded).
 """
 import json
+import os
 import sys
 from datetime import datetime
 
-# ── shared render primitives (phase 2a — one source, 2a+2b) ──────────────────
-sys.path.insert(0, __import__('os').path.dirname(__import__('os').path.dirname(__import__('os').path.abspath(__file__))))
-try:
-    from planctl.render_lib import (
-        BOX_W, FIELD, BAR_W,
-        GLYPH, status_glyph,
-        dwidth, fit, col,
-        box_top, box_bottom, box_sep, box_row, box_rule, panel,
-        bar, pct,
-    )
-except ImportError:
-    # Fallback: inline copies (render_lib absent — pre-M0 or standalone)
-    import unicodedata
-    BOX_W = 74; FIELD = BOX_W - 4; BAR_W = 18
-    GLYPH = {"draft":"◦","ready":"▹","executing":"→","needs-review":"⊙",
-             "done":"✓","blocked":"!","parked":"‖","superseded":"⌀"}
-    LEGACY_GLYPH = {"done":"✓","blocked":"!","active":"→","draft":"◦"}
-    def status_glyph(status, drift=False):
-        marker = GLYPH.get(status) or LEGACY_GLYPH.get(status, "?")
-        return marker + "⚠" if drift else marker
-    def _cw(ch):
-        o = ord(ch)
-        if o == 0x200D or 0xFE00 <= o <= 0xFE0F: return 0
-        if unicodedata.combining(ch): return 0
-        if 0x1F000 <= o <= 0x1FAFF: return 2
-        if unicodedata.east_asian_width(ch) in ("W","F"): return 2
-        return 1
-    def dwidth(s): return sum(_cw(c) for c in s)
-    def fit(s, w):
-        if dwidth(s) > w:
-            out, cur = "", 0
-            for ch in s:
-                cw = _cw(ch)
-                if cur + cw > w - 1: break
-                out += ch; cur += cw
-            out += "…"; cur += 1
-            return out + " " * (w - cur)
-        return s + " " * (w - dwidth(s))
-    def col(s, n): return fit(s, n)
-    def box_top(): return "╭" + "─" * (BOX_W - 2) + "╮"
-    def box_bottom(): return "╰" + "─" * (BOX_W - 2) + "╯"
-    def box_sep(): return "├" + "─" * (BOX_W - 2) + "┤"
-    def box_row(text=""): return "│ " + fit(text, FIELD) + " │"
-    def box_rule(): return "│ " + "─" * FIELD + " │"
-    def panel(title, body_lines):
-        out = [box_top(), box_row(title.upper()), box_sep()]
-        out += [box_row(line) for line in body_lines] if body_lines else [box_row("(empty)")]
-        out.append(box_bottom()); return out
-    def bar(d, t):
-        if t <= 0: return "░" * BAR_W
-        f = max(0, min(BAR_W, round(BAR_W * d / t)))
-        return "█" * f + "░" * (BAR_W - f)
-    def pct(d, t):
-        return f"{int(100 * d / t):>3d}%" if t > 0 else "  —"
+# ── shared render primitives — ONE source (planctl.render_lib) ────────────────
+# planctl/ is a sibling package inside scripts/, so scripts/ is what goes on the
+# path. There is deliberately NO try/except fallback: a silent inline copy is
+# exactly how this renderer drifted from render_lib for months while appearing
+# to import it. A missing module must fail loudly.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from planctl.render_lib import (
+    BOX_W, FIELD, BAR_W,
+    GLYPH, status_glyph,
+    dwidth, fit, col,
+    box_top, box_bottom, box_sep, box_row, box_rule, panel,
+    bar, pct,
+)
 
 
 # ── plan name helper ──────────────────────────────────────────────────────────
