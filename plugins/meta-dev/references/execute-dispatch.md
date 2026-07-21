@@ -37,7 +37,8 @@ stop. You are encoding a tool property in the wrong layer. Fix the executor.
 ```
 You are executing ONE task from a master plan. Plan path: <PLAN_PATH>
 Your task: <TASK_ID> — <TASK_TITLE>
-Read the plan section for this task in full. Read .claude/context/<relevant>.md before touching code.
+<TASK_PLAN_SECTION>   ← orchestrator INLINES the task's own plan section + acceptance criteria here, verbatim. Inline it; do NOT tell the worker to read the plan file to reconstruct the task — a Codex worker re-reads a referenced plan repeatedly and it dominates its runtime, while a Claude worker just saves a cached Read. Universal, every backend.
+Read any .claude/context/<relevant>.md this task names once, whole, before touching code.
 
 Hard rules (from host CLAUDE.md + plan, all binding):
 1. Work on master. No worktrees, no branches, no stashing.

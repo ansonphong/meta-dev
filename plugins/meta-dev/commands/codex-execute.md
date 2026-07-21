@@ -14,6 +14,10 @@ Codex cannot invoke a slash command, but it can **follow** any procedure file on
 
 **Route Spark-first** (see Step 2 — Spark bills to a separate quota, so it is effectively free capacity). The runner's fallback default is `gpt-5.6-terra`/`medium`, but you should be *choosing* a tier every time, not inheriting that. State the selected tier and effort before dispatching. An explicit `--tier`, `--effort`, or `--model` from the user always wins.
 
+## Test discipline — keep every test cycle cheap
+
+When the task runs tests, **path-scope, always.** Run only the named test file — `pytest path/to/test_x.py -q` (add `-m "not slow and not gpu and not integration"` if the suite marks them). NEVER bare `pytest`, `pytest <dir>/`, or `pytest -k <expr>` alone (they collect the whole tree first). NEVER `svelte-check`, `tsc --noEmit`, `npm run build`, or the full suite in an inner cycle. Confirm green once; don't re-run a passing test. (Codex is its own harness, so it can't read the meta-dev charter internally — this clause IS the rule for codex runs. The dispatcher also injects it into every headless run; this section is the conductor-facing copy.)
+
 ## Step 1: Parse Arguments
 
 The user's input is `$ARGUMENTS`.
@@ -93,6 +97,8 @@ Before running, summarize:
 - **Repo / work dir:** detected or supplied repo.
 - **Task:** direct bounded instruction with success criteria and relevant paths.
 - **Sandbox:** read-only or workspace-write, with the reason.
+
+**Inline the task — do not reference it.** Put the acceptance criteria and the relevant plan/design excerpt directly in the task text you pass with `--`. Do not point Codex at a plan file to reconstruct what to do: it will re-read that file repeatedly and the re-reads dominate the run. Paste the ~30–60 lines that matter — far cheaper than a dozen re-reads of the whole file.
 
 If the task writes, confirm the requested scope is authorized. If it is destructive or writes outside the repo, obtain explicit confirmation.
 

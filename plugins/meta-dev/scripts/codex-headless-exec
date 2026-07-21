@@ -388,6 +388,16 @@ fi
 PROMPT="${DELEGATION_PREAMBLE}
 ${PROMPT}"
 
+WORK_DISCIPLINE_PREAMBLE='WORK DISCIPLINE (binding — a Codex run is slow mostly from RE-READING, not from testing):
+1. READ WIDE, ONCE. The first time you open a file, read it WHOLE (`nl -ba <path>` or `cat <path>`) — never a narrow `sed -n A,Bp` window you will have to re-open. A short peek falls out of context and you fetch it again; that re-fetch is the single biggest cost of a Codex run (measured: ~half of all reads re-open a file already read this run; plan/spec files are the worst).
+2. DO NOT RE-READ TO REMEMBER. Once a file is read, its content is in your context — re-scan your own context, do not re-open the file. Re-open ONLY to see a change you just made or one another agent just made. Read a task/plan section once, keep it, act on it.
+3. CHEAP TEST CYCLES. Path-scope every test: `pytest path/to/test_x.py -q` (add `-m "not slow and not gpu and not integration"` if the suite marks them). NEVER bare `pytest`, `pytest <dir>/`, or `pytest -k <expr>` alone as the selector — they collect the whole tree every cycle. NEVER `svelte-check`, `tsc --noEmit`, `npm run build`, or a full suite in an inner cycle; those run ONCE at phase end. One green is green — do not re-run a passing test.
+
+---
+
+'
+PROMPT="${WORK_DISCIPLINE_PREAMBLE}${PROMPT}"
+
 GIT_GUARD_PREAMBLE='HARD GIT RULES (binding — this worktree is SHARED with 4-20 concurrent agents):
 1. NEVER `git add -A`, `git add .`, or `git add <dir>/`. Stage ONLY explicit file paths you personally edited. A broad add sweeps up other agents in-flight work.
 2. NEVER `git stash`, `git stash pop`, or `git stash drop`. These are worktree-GLOBAL and rip out every peer agent uncommitted work at once.
