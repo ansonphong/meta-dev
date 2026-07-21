@@ -89,23 +89,32 @@ recommendation as the lead option. Full contract and the calibration guard:
 
 ## Autonomous Run Report — the deliverable
 
-An autonomous run's real output is what the user reads over coffee. Close every
-`--autonomous` run with:
+An autonomous run's real output is what the user reads over coffee.
+
+> **Card format:** open-right chassis, 9-glyph vocabulary, `CARD_W = 74` —
+> see [`status-cards.md`](status-cards.md). The row labels below are what is
+> specific to this report.
+
+Close every `--autonomous` run with:
 
 ```
-╔══════════════════════════════════════════════════════════════╗
-║  AUTONOMOUS RUN REPORT — <subject>          <start> → <end>  ║
-╚══════════════════════════════════════════════════════════════╝
-
-  LANDED     <n> tasks · <n> commits · <plans touched>
-  DECIDED    <n> Fable consults — adopted <n>, deferred <n>
-             ▸ <question> → <decision> (0.94)
-  PARKED     <n> subjects halted
-             ▸ <subject> — <why> · <what would unblock>
-  YOUR EYES  <n> deferred gates
-             ▸ [ ] <by-eye item>
-             ▸ [ ] REVIEW-ME: <taste call Fable made reversibly>
-  RESIDUAL   <the honest risk statement>
+┌─ AUTONOMOUS RUN REPORT — <subject> ─────────────────────────────────────
+│ <start> → <end>
+├─ LANDED ────────────────────────────────────────────────────────────────
+│ ✅  <n> tasks · <n> commits · <plans touched>
+├─ DECIDED ───────────────────────────────────────────────────────────────
+│ ✅  <n> Fable consults — adopted <n>, deferred <n>
+│ ▸ <question> → <decision> (0.94)
+├─ PARKED ────────────────────────────────────────────────────────────────
+│ ⏺  <n> subjects halted
+│ ▸ <subject> — <why> · <what would unblock>
+├─ YOUR EYES ─────────────────────────────────────────────────────────────
+│ 🔒  <n> deferred gates
+│ ▸ [ ] <by-eye item>
+│ ▸ [ ] REVIEW-ME: <taste call Fable made reversibly>
+├─ RESIDUAL ──────────────────────────────────────────────────────────────
+│ <the honest risk statement>
+└─────────────────────────────────────────────────────────────────────────
 ```
 
 Report what actually happened. A red test says red, a skipped step says

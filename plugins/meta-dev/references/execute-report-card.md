@@ -2,50 +2,36 @@
 
 The structured dashboard rendered by `/meta-execute` at completion. Follow this spec exactly — no sprawl, no conversational narration, no design-doc re-cap.
 
+> **Card format:** open-right chassis, 9-glyph vocabulary, `CARD_W = 74` —
+> see [`status-cards.md`](status-cards.md). This file defines only the
+> *content* of the card.
+
 ## Design Principles
 
 - **Concise, not chatty.** The user walked away and came back. They want the score, not the play-by-play.
 - **Every section mandatory.** If a section has no content, write "(none)" — never omit.
-- **No emoji inside box borders.** Same rule as `dashboard-layout.md` — emoji are width-2 but many renderers draw them at 1 cell, misaligning borders. Confine emoji to the header line outside the box.
-- **Width budget:** 74 columns (matches dashboard). Content lines indent 2 spaces inside the box.
 
-## Layout
+## Sections, in order
+
+Header rows (no section label): `Plan` · `Path` · `Status` · `Duration`.
+Then, as `├─ Label ─…` sections: **Tasks** · **Commits** · **Code Review** ·
+**Acceptance** · **Plan Location** · **Follow-ups**.
 
 ```
-╔══════════════════════════════════════════════════════════════════════╗
-║           /meta-execute — EXECUTION REPORT CARD                     ║
-╚══════════════════════════════════════════════════════════════════════╝
-
-  Plan:         <plan-title>
-  Path:         <plan-path>
-  Status:       EXECUTED + REVIEWED   (or "EXECUTED · awaiting manual gate")
-  Duration:     <elapsed — e.g. 29m · 7 tasks · 90.5k tokens>
-
-  ── Tasks ──
-  ✅ <done>/<total> completed   <failed> failed   <deferred> deferred
-
-  ── Commits (on <repo> master, all pushed) ──
-  <short-sha>  <one-line description>                    <verify result>
-  <short-sha>  <one-line description>                    <verify result>
-
-  ── Code Review ──
-  ✅ CLEAN — 0 findings (requesting-code-review)
-  (or)
-  ⚠️  <N> findings — all fixed · 0 remaining
-  (or)
-  ❌ <N> findings surfaced to user — see Follow-ups
-
-  ── Acceptance ──
-  pytest <pass>/<total>   vitest <pass>/<total>   check: <state>
-
-  ── Plan Location ──
-  ✅ Archived: plans/<repo>/_archive/<name>/
-  (or)
-  📍 Active:   plans/<repo>/<name>/   (reason: <manual gate>)
-
-  ── Follow-ups ──
-  • <item> — <action> — <owner>
-  • (empty list = "(none)")
+┌─ /meta-execute — EXECUTION REPORT ──────────────────────────────────────
+│ Plan:      <plan-title>
+│ Status:    EXECUTED + REVIEWED
+├─ Tasks ─────────────────────────────────────────────────────────────────
+│ ✅  6/6 completed · 0 failed · 0 deferred
+├─ Commits (on <repo> master, all pushed) ────────────────────────────────
+│ 930e8b015  facetPick→tilePick                            6/6 pass
+├─ Code Review ───────────────────────────────────────────────────────────
+│ ✅  CLEAN — 0 findings (requesting-code-review)
+├─ Plan Location ─────────────────────────────────────────────────────────
+│ ✅  Archived: plans/app/_archive/<name>/
+├─ Follow-ups ────────────────────────────────────────────────────────────
+│ • (none)
+└─────────────────────────────────────────────────────────────────────────
 ```
 
 ## Section Rules
@@ -74,8 +60,8 @@ Verify result examples: `6/6 pass`, `check clean`, `sync-verified ✓`, `12/12 p
 
 Always state which skill was used: `(requesting-code-review)`. Verdict on one line:
 - `✅ CLEAN — 0 findings`
-- `⚠️ <N> findings fixed · 0 remaining`
-- `❌ <N> findings surfaced — see Follow-ups`
+- `✅⚠️ <N> findings fixed · 0 remaining`
+- `⛔ <N> findings surfaced — see Follow-ups`
 
 ### Acceptance
 
@@ -85,7 +71,7 @@ Test suite results. Format: `<runner> <pass>/<total>`. Include lint/check state.
 
 Answer "where does the plan live NOW?":
 - If archived: `✅ Archived: plans/<repo>/_archive/<name>/`
-- If active: `📍 Active: plans/<repo>/<name>/ (reason: <specific gate>)`
+- If active: `🔒 Active: plans/<repo>/<name>/ (reason: <specific gate>)`
 
 Reasons must be specific: "manual GPU acceptance pending", "awaiting user verification of X in-app", "deploy gate not yet triggered". Never use vague reasons.
 

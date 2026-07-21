@@ -31,6 +31,10 @@ plans/meta-runbook.md          META runbook — global cross-repo ledger (one en
 
 ## Boxed view layout
 
+> **Card format:** open-right chassis, 9-glyph vocabulary, `CARD_W = 74` —
+> see [`status-cards.md`](status-cards.md). This section defines only the
+> *content* of the boxed view.
+
 - Rollup header: members done/total, tasks done/total with bar, derived status glyph.
 - Member table: # · Plan · Stage · Progress (bar + %) · Status (glyph + word) · → (link).
 - Nested runbooks render as indented sub-groups with their own rollups.

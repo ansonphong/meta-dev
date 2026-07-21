@@ -2,40 +2,14 @@
 
 Layout rules for `dashboard-render.py` (the `/meta-dashboard` control plane).
 
-## Why no emoji inside the boxes
+> **Card format:** open-right chassis, 9-glyph vocabulary, `CARD_W = 74` —
+> see [`status-cards.md`](status-cards.md). This file defines only the
+> *content* of the dashboard: where its data comes from, its arguments, and
+> how it is rendered inline.
 
-Emoji are spec-width-2 but many renderers — including inline markdown and some
-terminals — draw them at 1 cell. Box-drawing borders are always 1 cell, so any
-emoji inside a bordered row shifts that row's right border out of alignment.
-(That misalignment is why earlier versions fell back to flat, box-free text.)
+Dashboard-specific content notes:
 
-`dashboard-render.py` therefore confines real emoji to the header line (outside
-every box) and uses only **width-1-stable** glyphs inside boxes: ASCII,
-box-drawing characters, geometric status dots, and the progress-bar blocks.
-`dwidth()` in the renderer computes display width (emoji = 2, combining/ZWJ/VS =
-0, else 1) so all padding stays exact.
-
-## Status Glyphs (in-box)
-
-Keyed on the plan-index status enum (`dashboard-render.py` `GLYPH`):
-
-| Glyph | Meaning | status key |
-|-------|---------|------------|
-| ✓ | Done / shipped | `done` |
-| → | Active / in-flight | `active` |
-| ! | Blocked | `blocked` |
-| ◦ | Draft / queued | `draft` |
-
-`overlord-render.py` is a separate renderer and keeps its own emoji glyph set
-(✅ 🟡 ⬜ 🔴 ⏸); it is not bound by this in-box rule.
-
-## Box & Progress Rules
-
-- Box style: rounded single-line (`╭ ╮ ╰ ╯ │ ─ ├ ┤`), `BOX_W = 74` cells wide.
-- Each content row is `│ ` + field(`BOX_W - 4`) + ` │`; `panel()` adds the
-  title row + separator.
-- Progress bar: `BAR_W = 18`. Filled `█` (U+2588), empty `░` (U+2591);
-  filled = round(BAR_W · done / total).
+- Progress bar width is `BAR_W = 18` (passed to `render_lib.bar()`).
 - Ratio `done/total` then percentage right-aligned to 3 digits + `%`.
 - PLANS closes with a rule line and a `TOTAL` rollup across all shown plans.
 

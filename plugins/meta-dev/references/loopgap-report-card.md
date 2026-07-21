@@ -2,58 +2,37 @@
 
 The structured dashboard rendered by `/meta-loop-gap` at completion. Mirrors `execute-report-card.md` so a hardening pass reads like an execution pass. Follow this spec exactly — no sprawl, no per-wave narration, no re-cap of the plan/design.
 
+> **Card format:** open-right chassis, 9-glyph vocabulary, `CARD_W = 74` —
+> see [`status-cards.md`](status-cards.md). This file defines only the
+> *content* of the card.
+
 ## Design Principles
 
 - **Concise, not chatty.** The user walked away and came back. They want the verdict — what got hardened, what was committed, what (if anything) is left — not the play-by-play of 40 agents.
 - **Every section mandatory.** If a section has no content, write "(none)" — never omit.
-- **No emoji inside the box border.** Same rule as `dashboard-layout.md` / `execute-report-card.md` — emoji are width-2 but many renderers draw them at 1 cell, misaligning borders. Confine emoji to the header line outside the box; ✅/⚠️/❌ in indented content lines below the box are fine.
-- **Width budget:** 74 columns (matches dashboard + execute report card). Content lines indent 2 spaces.
 - **One report card per run.** It appears once, at the very end — after the loop converges (single-iteration) or after the final iteration (multi-iteration). No incremental card per wave or per iteration.
 
-## Layout
+## Sections, in order
+
+Header rows (no section label): `Scope` · `Path` · `Mode` · `Status` ·
+`Duration`. Then, as `├─ Label ─…` sections: **Scan** · **Gaps** ·
+**Files Hardened** · **Commits** · **Review Gate** · **Remaining Gaps** ·
+**Follow-ups**.
 
 ```
-╔══════════════════════════════════════════════════════════════════════╗
-║           /meta-loop-gap — GAP SCAN REPORT CARD                    ║
-╚══════════════════════════════════════════════════════════════════════╝
-
-  Scope:        <scope-name>
-  Path:         <plan-dir | target path>
-  Mode:         plan | project | code | feature
-  Status:       HARDENED — NO GAPS REMAINING
-                (or "GAPS REMAIN — <N> unresolved")
-  Duration:     <elapsed — e.g. 3 iterations · 42 agents · 88k tokens>
-
-  ── Scan ──
-  <N> files · <budget> budget · waves W0+W1+W2+W3 · <I> iteration(s)
-
-  ── Gaps ──
-  ✅ <fixed>/<found> fixed   <flagged> flagged   <remaining> remaining
-     severity:  <H> high · <M> med · <L> low
-     category:  <top 3 categories by count, e.g. contract_schema×4, stub×2>
-
-  ── Files Hardened ──
-  <file>                                        <K> fixed
-  <file>                                        <K> fixed
-
-  ── Commits (on <repo> master, all pushed) ──
-  <short-sha>  <one-line description>                    <K gaps>
-  <short-sha>  <one-line description>                    <K gaps>
-
-  ── Review Gate ──
-  ✅ Wave 3 review CLEAN — fixes verified, no scope creep
-  (or)
-  ⚠️  <N> review issues — all resolved
-  (or)
-  ⏸  Wave 3 not run (budget: <low|medium>)
-
-  ── Remaining Gaps ──
-  • <file:line> — <category> — sev:<H> conf:<X.XX> — <why unresolved>
-  • (none)
-
-  ── Follow-ups ──
-  • <item> — <action> — <owner>
-  • (none)
+┌─ /meta-loop-gap — GAP SCAN REPORT ──────────────────────────────────────
+│ Scope:     <scope-name>
+│ Mode:      plan | project | code | feature
+│ Status:    HARDENED — NO GAPS REMAINING
+├─ Scan ──────────────────────────────────────────────────────────────────
+│ 34 files · high budget · fixes:deep · waves W0+W1+W2+W3 · 2 iteration(s)
+├─ Gaps ──────────────────────────────────────────────────────────────────
+│ ✅  11/11 fixed · 0 flagged · 0 remaining
+├─ Review Gate ───────────────────────────────────────────────────────────
+│ ✅  Wave 3 review CLEAN — fixes verified, no scope creep
+├─ Remaining Gaps ────────────────────────────────────────────────────────
+│ • (none)
+└─────────────────────────────────────────────────────────────────────────
 ```
 
 ## Section Rules
@@ -73,7 +52,20 @@ One line each.
 
 ### Scan
 
-File count, budget tier (`low`/`medium`/`high`), which waves actually ran, iteration count. If a wave was skipped by budget, omit it from the list (e.g. `waves W0+W1` for a low-budget run).
+One line, fields in this order:
+
+```
+<N> files · <budget> budget · fixes:<inline|deep|glm|opus|sonnet|haiku|fable> · waves W0+W1+W2+W3 · <I> iteration(s)
+```
+
+- **files** — file count scanned.
+- **budget** — budget tier (`low`/`medium`/`high`).
+- **`fixes:`** — **MANDATORY** — the backend that applied the fixes, one of
+  `inline | deep | glm | opus | sonnet | haiku | fable`. This is the routing
+  record for the run; never drop it.
+- **waves** — which waves actually ran. If a wave was skipped by budget, omit it
+  from the list (e.g. `waves W0+W1` for a low-budget run).
+- **iteration(s)** — loop iteration count.
 
 ### Gaps
 
@@ -91,7 +83,7 @@ Table: short SHA (9 chars), one-line description (truncate to ~46 chars with `�
 
 State the Wave 3 outcome:
 - `✅ Wave 3 review CLEAN — fixes verified, no scope creep` — Opus review agent (3a) passed
-- `⚠️ <N> review issues — all resolved` — review found issues with the fixes, now resolved
+- `✅⚠️ <N> review issues — all resolved` — review found issues with the fixes, now resolved
 - `⏸ Wave 3 not run (budget: <tier>)` — Wave 3 skipped (low budget, or medium budget with prior gaps ≥ 3)
 
 ### Remaining Gaps
