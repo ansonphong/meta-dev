@@ -30,7 +30,7 @@ For cheap bulk/mechanical work, still prefer `/deep-execute` (DeepSeek); for lon
 
 ## Test discipline — keep every test cycle cheap
 
-When the task runs tests, **path-scope, always.** Run only the named test file — `pytest path/to/test_x.py -q` — never bare `pytest`, `pytest <dir>/`, or `-k <expr>` (they collect the whole tree first). NEVER `svelte-check`, `tsc --noEmit`, `npm run build`, or the full suite in an inner cycle. Confirm green once; don't re-run a passing test.
+When the task runs tests, **focus-scope, always.** Run only the named test file/node. NEVER bare/directory pytest, `-k` without a file, package-wide npm/Vitest/Jest, `npm run check`, `svelte-check`, project-wide `tsc`, a build, or a full suite—not per task and not at phase end. Those belong to CI/ship or a separate explicit request. One green is green; never rerun it. Unrelated/unchanged `BASELINE_RED` never blocks optimistic momentum.
 
 ## Step 1: Parse Arguments
 

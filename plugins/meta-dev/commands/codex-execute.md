@@ -16,7 +16,7 @@ Codex cannot invoke a slash command, but it can **follow** any procedure file on
 
 ## Test discipline — keep every test cycle cheap
 
-When the task runs tests, **path-scope, always.** Run only the named test file — `pytest path/to/test_x.py -q` (add `-m "not slow and not gpu and not integration"` if the suite marks them). NEVER bare `pytest`, `pytest <dir>/`, or `pytest -k <expr>` alone (they collect the whole tree first). NEVER `svelte-check`, `tsc --noEmit`, `npm run build`, or the full suite in an inner cycle. Confirm green once; don't re-run a passing test. (Codex is its own harness, so it can't read the meta-dev charter internally — this clause IS the rule for codex runs. The dispatcher also injects it into every headless run; this section is the conductor-facing copy.)
+When the task runs tests, **focus-scope, always.** Run only the named test file/node — `pytest path/to/test_x.py -q` (add `-m "not slow and not gpu and not integration"` if the suite marks them). NEVER bare/directory pytest, `pytest -k` without a file, package-wide npm/Vitest/Jest, `npm run check`, `svelte-check`, project-wide `tsc`, a build, or a full suite—not per task and not at phase end. Those belong to CI/ship or a separate explicit user request. One green is green; worker and conductor never repeat it. Classify results as `FOCUSED_PASS`, causally proven `TASK_RED`, unrelated/unchanged `BASELINE_RED`, `INFRA_RED`, or `BROAD_VERIFY_OMITTED`. Only `TASK_RED` repairs/defer its direct branch; optimistic momentum continues everywhere else. (Codex cannot rely on reading the charter internally, so this clause IS the rule for Codex runs; the dispatcher also injects it.)
 
 ## Step 1: Parse Arguments
 
