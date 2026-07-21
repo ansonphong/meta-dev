@@ -21,6 +21,14 @@ Judgment checks that can't be scripted deterministically. Invoked by `/meta-plan
 
 6. **Checker completeness** — Does every Verify-After command test what it claims to test? No verification commands that always pass.
 
+7. **Focused verification** — Does every automated Verify-After name one test
+file/node or explicitly scoped declared-file check? Reject bare/directory pytest,
+`-k` without a file, package-wide npm/Vitest/Jest, `npm run check`,
+`svelte-check`, project-wide `tsc`, builds, and full suites anywhere in the
+execution plan, including phase-end acceptance. Broad release checks belong to
+CI/ship, not `/meta-execute`. Critical-risk tasks must name a focused verifier
+or an explicit human gate.
+
 ## Output Format
 
 ```markdown
@@ -42,6 +50,9 @@ Judgment checks that can't be scripted deterministically. Invoked by `/meta-plan
 - [ finding ]
 
 ### Verification Soundness
+- [ finding ]
+
+### Verification Scope
 - [ finding ]
 
 ## Summary

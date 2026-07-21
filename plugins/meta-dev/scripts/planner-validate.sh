@@ -11,6 +11,8 @@ set -uo pipefail
 PLAN_DIR="${1:-.}"
 WARNINGS=0
 ERRORS=0
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+VERIFY_SCOPE="$SCRIPT_DIR/verify-scope.py"
 
 yellow() { echo -e "\033[33mWARN: $1\033[0m"; WARNINGS=$((WARNINGS+1)); }
 red() { echo -e "\033[31mERR: $1\033[0m"; ERRORS=$((ERRORS+1)); }
@@ -106,21 +108,54 @@ for f in "$PLAN_DIR"/*phase*.md; do
   fi
 done
 
-# Check 7: Verify hooks must be path-scoped — flag the slow `-k`/bare-dir/broad-gate antipatterns
-# `pytest -k <expr>` and `pytest <dir>/` collect the WHOLE tree (~18x slower per cycle);
-# svelte-check/tsc/build per task belong only in an end-of-phase Acceptance Gate.
+# Check 7: automated Verify hooks must be focused. Broad commands are not
+# deferred to a phase gate; they are forbidden throughout /meta-execute and
+# belong to CI/ship or a separate explicit user request.
 for f in "$PLAN_DIR"/*phase*.md; do
   [ -f "$f" ] || continue
   body=$(sed '/^```/,/^```/d' "$f")
   if printf '%s' "$body" | grep -qE 'pytest[^`]*-k '; then
-    yellow "$(basename "$f"): a Verify hook uses 'pytest -k' — path-scope instead (name the test file); -k collects all files first (~18x tax)"
+    red "$(basename "$f"): a Verify hook uses 'pytest -k' — name the exact test file/node"
   fi
   if printf '%s' "$body" | grep -qE 'pytest +[^ ]*/ +-q|pytest +[A-Za-z_./-]*/ *$'; then
-    yellow "$(basename "$f"): a Verify hook runs pytest on a directory — name the test file(s) instead for fast collection"
+    red "$(basename "$f"): a Verify hook runs pytest on a directory — name the exact test file/node"
   fi
-  if printf '%s' "$body" | grep -qiE 'svelte-check|tsc --noEmit|npm run build'; then
-    yellow "$(basename "$f"): a per-task Verify hook runs svelte-check/tsc/build — move these to a single '## Acceptance Gate (phase end)' section, not per task"
+  if printf '%s' "$body" | grep -qiE 'npm run check|pnpm (run )?check|yarn (run )?check|svelte-check|tsc( --noEmit)?|npm run build|pnpm (run )?build|yarn (run )?build'; then
+    red "$(basename "$f"): execution plan contains a broad check/typecheck/build — replace it with a named test file or declared-file check; do not move it to phase end"
   fi
+
+  # Extract backticked commands inside Verify-After blocks. Each command is
+  # classified by the same helper /meta-execute calls before dispatch. Path
+  # tokens in the command are the validator's allowed-path candidates; the
+  # judgment pass separately confirms they are declared task paths.
+  verify_body=$(awk '
+    /Verify-After:/ { in_verify=1; next }
+    in_verify && /^#/ { in_verify=0 }
+    in_verify { print }
+  ' "$f")
+  while IFS= read -r quoted; do
+    [ -n "$quoted" ] || continue
+    cmd=${quoted#\`}; cmd=${cmd%\`}
+    allowed_args=()
+    while IFS= read -r candidate; do
+      [ -n "$candidate" ] || continue
+      allowed_args+=(--allowed-path "$candidate")
+    done < <(printf '%s\n' "$cmd" | grep -oE '[A-Za-z0-9_./+-]+\.(py|sh|ts|tsx|js|jsx|svelte|md|json)(::[A-Za-z0-9_./:+-]+)?' | sed 's/::.*//' || true)
+    if [ "${#allowed_args[@]}" -eq 0 ]; then
+      allowed_args=(--allowed-path "__no_declared_path__")
+    fi
+    if ! scope_json=$(python3 "$VERIFY_SCOPE" --command "$cmd" "${allowed_args[@]}"); then
+      red "$(basename "$f"): verify-scope classifier failed for: $cmd"
+      continue
+    fi
+    scope_class=$(python3 -c 'import json,sys; print(json.load(sys.stdin)["class"])' <<< "$scope_json")
+    case "$scope_class" in
+      focused|scoped_check|manual) ;;
+      broad) red "$(basename "$f"): broad Verify command is forbidden in execution: $cmd" ;;
+      unscoped) red "$(basename "$f"): Verify command is not focused on a named test/declared path: $cmd" ;;
+      *) red "$(basename "$f"): unknown Verify classification '$scope_class': $cmd" ;;
+    esac
+  done < <(printf '%s\n' "$verify_body" | grep -oE '`[^`]+`' || true)
 done
 
 echo "=== planner-validate: $ERRORS errors, $WARNINGS warnings ==="
