@@ -69,6 +69,35 @@ def test_card_row_indent():
     assert R.card_row("x", indent=4) == "│     x"
 
 
+def test_card_rule_is_not_double_wrapped_as_a_body_line():
+    """card() wraps body lines with card_row(); an already-prefixed line like
+    card_rule() must pass through, or it emits '│ │ ────'. Two independent
+    renderer migrations hit this, so the guard lives in card(), not in callers."""
+    lines = R.card("X", [(None, ["row", R.card_rule(), "row2"])])
+    assert not any(ln.startswith("│ │") for ln in lines), lines
+
+
+# ── clip: the open-right chassis has no border to truncate against ───────────
+def test_clip_truncates_to_field_width():
+    long = "x" * 200
+    assert R.dwidth(R.clip(long)) <= R.CARD_FIELD
+
+
+def test_clip_leaves_short_strings_alone_and_rstrips():
+    assert R.clip("short") == "short"
+    assert R.clip("short   ") == "short"
+
+
+def test_clip_is_emoji_safe():
+    """Truncation must count display cells, not codepoints."""
+    assert R.dwidth(R.clip("✅" * 100, 20)) <= 20
+
+
+def test_clipped_row_never_exceeds_the_card():
+    row = R.card_row(R.clip("parked — indefinitely deferred " * 10))
+    assert R.dwidth(row) <= R.CARD_W
+
+
 # ── columns: last cell is free ───────────────────────────────────────────────
 def test_cols_fits_all_but_the_last_cell():
     """The last cell is deliberately unpadded so a wide glyph there costs

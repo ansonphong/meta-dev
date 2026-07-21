@@ -121,8 +121,22 @@ def card_row(text="", indent=0):
 
 
 def card_rule():
-    """An in-card horizontal rule."""
+    """A standalone in-card horizontal rule (already prefixed).
+
+    Safe to pass as a body line to ``card()`` too — it detects the prefix and
+    will not wrap it twice."""
     return "│ " + "─" * CARD_FIELD
+
+
+def clip(s, w=CARD_FIELD):
+    """Truncate *s* to *w* display cells, rstripped.
+
+    The open-right chassis has no right border to truncate against, so a long
+    row silently spills past the card instead of being cut. Renderers that used
+    to rely on the old ``box_row`` clipping need this. It lives here, once —
+    three copies of it in three renderers is the duplication this standard
+    exists to remove."""
+    return (fit(s, w) if dwidth(s) > w else s).rstrip()
 
 
 def cols(cells, widths):
@@ -145,7 +159,11 @@ def card(title, sections):
             out.append(card_sep(lbl))
         elif i > 0:
             out.append(card_sep())
-        out += [card_row(ln) for ln in lines] if lines else [card_row("(empty)")]
+        # A line that is already prefixed (e.g. card_rule()) must not be wrapped
+        # twice — doing so emits "│ │ ────". Guarding here rather than trusting
+        # every caller to remember, because two independent migrations hit it.
+        out += ([ln if ln.startswith("│") else card_row(ln) for ln in lines]
+                if lines else [card_row("(empty)")])
     out.append(card_bottom())
     return out
 
