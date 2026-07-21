@@ -41,6 +41,25 @@ Gates are non-negotiable; a failing step halts the pipeline. Exit tiers: `1` rec
 
 Never skip pre-flight · gates non-negotiable · one release at a time (lockfile) · commit before release · rollback guidance mandatory on failure · channels sequenced unless `--hotfix`.
 
+## Report card
+
+ALWAYS end with a ship report card. Chassis, glyphs, and `CARD_W` come from `references/status-cards.md` — never restate them here. One row per pipeline step, so a failed release shows exactly which gate stopped it:
+
+```
+┌─ /meta-ship — RELEASE REPORT ───────────────────────────────────────────
+│ ✅  0  lock acquired                       app · v2.4.1 → v2.4.2
+│ ✅  1  pre-flight                          12/12 checks
+│ ✅  2  version bump                        stable channel
+│ ✅  3  build + deploy                      4m12s
+│ ⛔  4  post-deploy verification            health FAILED — rolled back
+│ ⏸   5  canary                              not reached
+├─ Rollback ──────────────────────────────────────────────────────────────
+│ 🔒  Rolled back to v2.4.1 — confirm before re-running
+└─────────────────────────────────────────────────────────────────────────
+```
+
+State the exit tier on failure (`1` → `--resume`, `2` → `--reset <version>`, `3` → fix & re-run) and the rollback taken. Never render a green card while any gate is red.
+
 ## Integration
 
 After meta-dev Stage 6 passes (grade ≥ B), meta-dev offers "Ship to production? (invokes /meta-ship)". Recurring post-deploy failures patch `## Learned Patterns` in `references/ship-pipeline.md` via canary Step 6.
