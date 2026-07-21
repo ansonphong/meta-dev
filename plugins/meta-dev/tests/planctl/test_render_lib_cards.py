@@ -43,6 +43,16 @@ def test_emoji_in_title_does_not_shorten_the_rule():
     assert R.dwidth(R.card_sep("🔄 Running")) == R.CARD_W
 
 
+def test_long_titles_are_clipped_without_trailing_whitespace():
+    for title in ("x" * 80, R.DRIFT * 80):
+        top = R.card_top(title)
+        sep = R.card_sep(title)
+        assert R.dwidth(top) == R.CARD_W
+        assert not top.endswith(" ")
+        assert R.dwidth(sep) == R.CARD_W
+        assert not sep.endswith(" ")
+
+
 # ── no trailing whitespace, ever ─────────────────────────────────────────────
 def test_card_row_never_has_trailing_whitespace():
     for text in ["", "short", "  padded  ", "trailing tabs\t\t"]:
@@ -131,6 +141,12 @@ def test_drift_is_a_suffix_not_a_status():
     assert "drift" not in R.STATUS
 
 
+def test_vs16_emoji_presentation_pairs_are_two_cells():
+    assert R.dwidth(R.DRIFT) == 2
+    assert R.dwidth(R.mark("done", drift=True)) == 4
+    assert R.dwidth(R.card_top("✅ DONE " + R.DRIFT)) == R.CARD_W
+
+
 def test_queued_states_share_a_glyph():
     """draft and ready both read as 'queued' — a deliberate collapse."""
     assert R.mark("draft") == R.mark("ready") == "⏸"
@@ -158,3 +174,11 @@ def test_bar_frac_matches_bar():
     assert R.bar_frac(0.5, 10) == R.bar(1, 2, 10)
     assert R.bar_frac(0.0, 10) == R.BAR_EMPTY * 10
     assert R.bar_frac(1.0, 10) == R.BAR_FILL * 10
+
+
+def test_bar_frac_rounds_fill_directly_from_fraction():
+    for frac, width in ((0.1251, 4), (1 / 36, 18), (1 / 12, 18)):
+        expected_fill = round(width * frac)
+        expected = (R.BAR_FILL * expected_fill
+                    + R.BAR_EMPTY * (width - expected_fill))
+        assert R.bar_frac(frac, width) == expected

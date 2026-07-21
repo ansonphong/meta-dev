@@ -97,6 +97,9 @@ def card_top(title="", w=CARD_W):
     still yields exactly *w* cells."""
     if not title:
         return "┌" + "─" * (w - 1)
+    # Keep one rule cell after the title so even a clipped heading cannot end in
+    # the wrapper's literal space.  The title budget is display-width aware.
+    title = clip(title, max(0, w - dwidth("┌─  ") - 1))
     head = "┌─ " + title + " "
     return head + "─" * max(0, w - dwidth(head))
 
@@ -105,6 +108,7 @@ def card_sep(label=None, w=CARD_W):
     """``├─ LABEL ───…`` section divider, or a plain rule when *label* is None."""
     if not label:
         return "├" + "─" * (w - 1)
+    label = clip(label, max(0, w - dwidth("├─  ") - 1))
     head = "├─ " + label + " "
     return head + "─" * max(0, w - dwidth(head))
 
@@ -185,8 +189,17 @@ def _cw(ch):
 
 
 def dwidth(s):
-    """Display width of a string (sum of terminal cell widths)."""
-    return sum(_cw(c) for c in s)
+    """Display width, treating a VS16 emoji-presentation pair as two cells."""
+    width = 0
+    i = 0
+    while i < len(s):
+        if i + 1 < len(s) and s[i + 1] == "\ufe0f":
+            width += 2
+            i += 2
+        else:
+            width += _cw(s[i])
+            i += 1
+    return width
 
 
 def fit(s, w):
@@ -195,11 +208,17 @@ def fit(s, w):
     Truncation appends ``"…"`` (1 cell) so the field stays exactly *w* cells wide."""
     if dwidth(s) > w:
         out, cur = "", 0
-        for ch in s:
-            cw = _cw(ch)
+        i = 0
+        while i < len(s):
+            if i + 1 < len(s) and s[i + 1] == "\ufe0f":
+                chunk, cw = s[i:i + 2], 2
+                i += 2
+            else:
+                chunk, cw = s[i], _cw(s[i])
+                i += 1
             if cur + cw > w - 1:
                 break
-            out += ch
+            out += chunk
             cur += cw
         out += "…"
         cur += 1
@@ -259,7 +278,11 @@ def bar(d, t, width=BAR_W):
 def bar_frac(frac, width=BAR_W):
     """Bar from an already-computed fraction in [0,1] — for call sites that hold
     a percentage rather than a (done, total) pair."""
-    return bar(round(max(0.0, min(1.0, frac)) * 1000), 1000, width)
+    if width <= 0:
+        return ""
+    frac = max(0.0, min(1.0, frac))
+    f = max(0, min(width, round(width * frac)))
+    return BAR_FILL * f + BAR_EMPTY * (width - f)
 
 
 def pct(d, t):

@@ -57,7 +57,7 @@ Two consequences that are enforced by test
   pad to, and trailing spaces are silently eaten by markdown renderers and
   copy/paste. `card_row()` always `rstrip()`s.
 
-## The vocabulary — 9 states
+## The vocabulary — 10 status keys, 9 distinct glyphs
 
 | Glyph | Status | Reads as |
 |---|---|---|
@@ -73,12 +73,13 @@ Two consequences that are enforced by test
 
 `⚠️` is a **suffix**, not a status — appended to any drift-bearing glyph
 (`✅⚠️`) so a newly introduced status cannot silently hide drift.
-Unknown status → `❔`, never a `KeyError`.
+Unknown status → `❔` (`UNKNOWN`), never a `KeyError`. This is the safe fallback
+from `mark()`, not a status in `STATUS`, and it is not retired.
 
 `draft` and `ready` deliberately collapse to one glyph: the distinction matters
 to `derive.py`, not to someone scanning a card.
 
-**Retired — do not reintroduce:** `✓ ✔ ▹ ⊙ ‖ ⌀ ◦ ◌ ▸ → ! ✗ ❌ 🟡 🔴 ⬜ 📝 ▶️ 👀 ❔`
+**Retired — do not reintroduce:** `✓ ✔ ▹ ⊙ ‖ ⌀ ◦ ◌ ▸ → ! ✗ ❌ 🟡 🔴 ⬜ 📝 ▶️ 👀`
 as *status markers*. (`→` survives only as a prose arrow, never a status.)
 
 ## Width

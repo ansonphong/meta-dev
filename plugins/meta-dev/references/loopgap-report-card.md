@@ -28,10 +28,16 @@ Header rows (no section label): `Scope` · `Path` · `Mode` · `Status` ·
 │ 34 files · high budget · fixes:deep · waves W0+W1+W2+W3 · 2 iteration(s)
 ├─ Gaps ──────────────────────────────────────────────────────────────────
 │ ✅  11/11 fixed · 0 flagged · 0 remaining
+├─ Files Hardened ─────────────────────────────────────────────────────────
+│ plans/app/example.md · 11 gaps fixed
+├─ Commits ────────────────────────────────────────────────────────────────
+│ 930e8b015  harden example plan                         11 gaps fixed
 ├─ Review Gate ───────────────────────────────────────────────────────────
 │ ✅  Wave 3 review CLEAN — fixes verified, no scope creep
 ├─ Remaining Gaps ────────────────────────────────────────────────────────
 │ • (none)
+├─ Follow-ups ────────────────────────────────────────────────────────────
+│ • Ready for /meta-execute <plan> — run execution — you
 └─────────────────────────────────────────────────────────────────────────
 ```
 

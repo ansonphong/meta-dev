@@ -27,6 +27,8 @@ Then, as `├─ Label ─…` sections: **Tasks** · **Commits** · **Code Revi
 │ 930e8b015  facetPick→tilePick                            6/6 pass
 ├─ Code Review ───────────────────────────────────────────────────────────
 │ ✅  CLEAN — 0 findings (requesting-code-review)
+├─ Acceptance ────────────────────────────────────────────────────────────
+│ pytest 24/24 · lint clean
 ├─ Plan Location ─────────────────────────────────────────────────────────
 │ ✅  Archived: plans/app/_archive/<name>/
 ├─ Follow-ups ────────────────────────────────────────────────────────────
