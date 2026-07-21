@@ -589,7 +589,7 @@ def compose_block(rb_rel, rollup, member_rows):
         if row.get("missing"):
             return mark("missing")
         if row.get("override"):
-            return mark("blocked")
+            return mark(row["override"])
         return row.get("glyph") or mark(None)
 
     chain = " → ".join(
@@ -638,7 +638,7 @@ def compose_block(rb_rel, rollup, member_rows):
         else:
             stage_cell = "stage %s" % stage
         if row.get("override"):
-            stage_cell += " %s %s" % (mark("blocked"), row["override"])
+            stage_cell += " %s %s" % (mark(row["override"]), row["override"])
         if row.get("tasks_total") and not row.get("missing"):
             # bar_frac takes a FRACTION — row["pct"] is a percentage.
             prog = "`%s` %d%%" % (

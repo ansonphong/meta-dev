@@ -21,7 +21,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from planctl.render_lib import (
     CARD_FIELD,
     mark, label,
-    dwidth, fit, cols, card,
+    cols, card, clip,
     bar, pct,
 )
 
@@ -45,13 +45,6 @@ VERDICT_STATUS = {
     "failed": "blocked",
 }
 
-
-def _clip(s):
-    """Keep a composed row inside the open-right field (no right border to
-    truncate against). rstrip() drops fit()'s tail padding."""
-    return (s if dwidth(s) <= CARD_FIELD else fit(s, CARD_FIELD)).rstrip()
-
-
 def phase_mark(status):
     """Glyph for a phase status. Unknown → render_lib's UNKNOWN, never a guess."""
     return mark(PHASE_STATUS.get(status, status))
@@ -73,13 +66,13 @@ def progress_body(phases):
         t = ph.get("total", 0)
         td += d
         tt += t
-        rows.append(_clip(cols(
+        rows.append(clip(cols(
             [ph.get("name", "?"), bar(d, t, BAR_CELLS), f"{d}/{t}",
              phase_mark(ph.get("status", "pending"))],
             [NAME_W, BAR_CELLS, 7],
         )))
     rows.append("─" * CARD_FIELD)
-    rows.append(_clip(cols(
+    rows.append(clip(cols(
         ["TOTAL", bar(td, tt, BAR_CELLS), f"{td}/{tt}", pct(td, tt)],
         [NAME_W, BAR_CELLS, 7],
     )))
@@ -94,7 +87,7 @@ def commits_body(commits):
     for c in commits[:10]:
         verdict = c.get("verdict", "pending")
         note = c.get("note", "") or label(VERDICT_STATUS.get(verdict, verdict))
-        rows.append(_clip(cols(
+        rows.append(clip(cols(
             [c.get("sha", "")[:8], c.get("task", ""),
              f"{verdict_mark(verdict)} {note}"],
             [SHA_W, TASK_W],
@@ -105,22 +98,22 @@ def commits_body(commits):
 def findings_body(findings):
     rows = []
     for i, f in enumerate(findings[:20], 1):
-        rows.append(_clip(f"{mark('blocked')} {i}. [{f.get('severity', '?')}] "
+        rows.append(clip(f"{mark('blocked')} {i}. [{f.get('severity', '?')}] "
                           f"{f.get('description', '')}"))
         tail = " — ".join(x for x in (f.get("ref", ""), f.get("action", "")) if x)
         if tail:
-            rows.append(_clip(f"      {tail}"))
+            rows.append(clip(f"      {tail}"))
     return rows
 
 
 def next_body(next_up, next_tick):
     rows = []
     if next_up:
-        rows.append(_clip(f"Up next:    {next_up.get('id', '?')} "
+        rows.append(clip(f"Up next:    {next_up.get('id', '?')} "
                           f"({next_up.get('title', '?')})"))
-        rows.append(_clip(f"Checkpoint: {next_up.get('checkpoint', '?')}"))
+        rows.append(clip(f"Checkpoint: {next_up.get('checkpoint', '?')}"))
     if next_tick:
-        rows.append(_clip(f"Tick {next_tick.get('n', '?')} in "
+        rows.append(clip(f"Tick {next_tick.get('n', '?')} in "
                           f"{next_tick.get('in', '?')}. {next_tick.get('plan', '')}"))
     return rows
 
@@ -132,7 +125,7 @@ def render(data: dict) -> str:
     poll = data.get("poll_interval", "event-driven")
     executor = data.get("executor_label", "Sonnet")
 
-    sections = [(None, [_clip(
+    sections = [(None, [clip(
         f"Tick {data.get('tick_n', 0)} · {date} · poll: {poll} · executor: {executor}"
     )])]
     sections.append(("Progress", progress_body(data.get("phases", []))))

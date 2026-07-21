@@ -23,20 +23,10 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from planctl.render_lib import (
     CARD_FIELD,
     mark,
-    dwidth, fit, col,
+    dwidth, col, clip,
     card,
     bar, pct,
 )
-
-
-# ── row helper ────────────────────────────────────────────────────────────────
-def _clip(s):
-    """Keep a composed row inside the open-right field.
-
-    The chassis has no right border to truncate against, so a row that overruns
-    CARD_FIELD would simply spill past the card's rules. fit() truncates with
-    ``…``; the rstrip() drops fit()'s tail padding (no row ever ends in space)."""
-    return (s if dwidth(s) <= CARD_FIELD else fit(s, CARD_FIELD)).rstrip()
 
 
 # ── plan name helper ──────────────────────────────────────────────────────────
@@ -159,7 +149,7 @@ def plans_body(plans, runbooks=None):
         stage_tag = _stage_tag(p, ds, stg)
         count = f"{d}/{t}"
 
-        body.append(_clip(
+        body.append(clip(
             f"{col(g, glyph_w)} {col(p.get('name', '?'), name_w)} {bar(d, t)} "
             f"{col(count, count_w)} {pct(d, t)}{stage_tag}"
         ))
@@ -174,7 +164,7 @@ def plans_body(plans, runbooks=None):
         label = _runbook_label(rb_path)
 
         body.append("─" * CARD_FIELD)
-        body.append(_clip(
+        body.append(clip(
             f"{col('▸', glyph_w)} {col(label, name_w)} {bar(md, mt)} "
             f"{col(f'{md}/{mt}', count_w)} {pct(md, mt)}  · {rd}/{rt} tasks"
         ))

@@ -25,7 +25,7 @@ from planctl import db, derive, runbook, statedir, sync
 from planctl.render_lib import (
     CARD_FIELD,
     card_top, card_bottom, card_sep, card_row,
-    bar, pct, mark, dwidth, fit,
+    bar, pct, mark, dwidth, fit, clip,
 )
 
 # ── stage display names ────────────────────────────────────────────────────────
@@ -320,7 +320,7 @@ def _render_plan_row(mr, indent):
     override_str = ""
     if override:
         note_tail = (" — " + note) if note else ""
-        override_str = "  %s %s%s" % (mark("blocked"), override, note_tail)
+        override_str = "  %s %s%s" % (mark(override), override, note_tail)
 
     # Fixed-width parts: prefix N*2, glyph (dwidth — an emoji is 2 cells),
     # separators 4 ("  " + " " + " "), bar 18, pct ≤4, stage 7-9, override
@@ -335,16 +335,6 @@ def _render_plan_row(mr, indent):
 
     return "%s%s  %s%s %s %s%s" % (
         prefix, glyph, name_fitted, bar_str, pct_str, stage_str, override_str)
-
-
-# ── full card render ───────────────────────────────────────────────────────────
-def _crow(text):
-    """``card_row`` that keeps the old box's truncation guarantee.
-
-    The open-right chassis has no right border to pad to, so ``card_row`` never
-    truncates — but a long override note would then wrap and visually break the
-    card. Clamp to CARD_FIELD first (``card_row`` rstrips the padding away)."""
-    return card_row(fit(text, CARD_FIELD) if dwidth(text) > CARD_FIELD else text)
 
 
 def _print_boxed_view(rb_rel, rollup, member_rows, now_info, blocked,
@@ -370,65 +360,65 @@ def _print_boxed_view(rb_rel, rollup, member_rows, now_info, blocked,
 
     # ── Rollup summary ──
     if members_total == 0:
-        out.append(_crow("%s  Members: 0/0  ·  (empty runbook)" % glyph))
+        out.append(card_row(clip("%s  Members: 0/0  ·  (empty runbook)" % glyph)))
     else:
         mpct = pct(members_done, members_total)
         tpct_val = derive.pct(tasks_done, tasks_total)
-        out.append(_crow(
+        out.append(card_row(clip(
             "%s  Members: %d/%d  %s %s  ·  Tasks: %d/%d (%d%%)" % (
                 glyph, members_done, members_total,
                 bar(members_done, members_total), mpct,
-                tasks_done, tasks_total, tpct_val)))
+                tasks_done, tasks_total, tpct_val))))
         sn = _STAGE_NAME.get(eff_stage or 0, "?")
-        out.append(_crow("Effective stage: %s (%s)  ·  %s" % (
+        out.append(card_row(clip("Effective stage: %s (%s)  ·  %s" % (
             eff_stage if eff_stage is not None else "—", sn, status or "?")))
 
     # ── Members ──
     out.append(card_sep("Members (%d)" % members_total))
     if not member_rows:
-        out.append(_crow("(no members)"))
+        out.append(card_row(clip("(no members)")))
     else:
         for ml in _render_member_table(member_rows):
-            out.append(_crow(ml))
+            out.append(card_row(clip(ml)))
 
     # ── Now ──
     out.append(card_sep("Now"))
     if now_info:
-        out.append(_crow("%s  %s  stage %s" % (
+        out.append(card_row(clip("%s  %s  stage %s" % (
             now_info["glyph"], now_info["path"],
-            now_info.get("stage") or "?")))
+            now_info.get("stage") or "?"))))
     elif members_total == 0:
-        out.append(_crow("— (empty runbook)"))
+        out.append(card_row(clip("— (empty runbook)")))
     else:
-        out.append(_crow("— all done"))
+        out.append(card_row(clip("— all done")))
 
     # ── Blocked ──
     out.append(card_sep("Blocked (%d)" % len(blocked)))
     if not blocked:
-        out.append(_crow("—"))
+        out.append(card_row(clip("—")))
     else:
         for b in blocked:
             note_str = (" — " + b["note"]) if b.get("note") else ""
-            out.append(_crow("%s  %s  %s%s" % (
-                mark("blocked"), b["path"],
-                b.get("override") or "blocked", note_str)))
+            override = b.get("override") or "blocked"
+            out.append(card_row(clip("%s  %s  %s%s" % (
+                mark(override), b["path"], override, note_str))))
 
     # ── Needs review ──
     out.append(card_sep("Needs review (%d)" % len(needs_review)))
     if not needs_review:
-        out.append(_crow("—"))
+        out.append(card_row(clip("—")))
     else:
         for nr in needs_review:
-            out.append(_crow("%s  %s  stage %s" % (
+            out.append(card_row(clip("%s  %s  stage %s" % (
                 mark("needs-review"), nr["path"], nr.get("stage") or "?")))
 
     # ── Claims ──
     out.append(card_sep("Live claims (%d)" % len(claims)))
     if not claims:
-        out.append(_crow("—"))
+        out.append(card_row(clip("—")))
     else:
         for c in claims:
-            out.append(_crow("%s  session=%s  pid=%s" % (
+            out.append(card_row(clip("%s  session=%s  pid=%s" % (
                 c["scope"], c["session"], c.get("pid", "?"))))
     out.append(card_bottom())
 
@@ -440,12 +430,12 @@ def _print_minimal_box(rb_rel, rollup):
     name = os.path.basename(rb_rel) or rb_rel
     r = rollup or {}
     out = [card_top(name.upper()),
-           _crow("Not a runbook — no members to display.")]
+           card_row(clip("Not a runbook — no members to display."))]
     td = r.get("tasks_done") or 0
     tt = r.get("tasks_total") or 0
     if tt:
-        out.append(_crow("Plan tasks: %d/%d  %s  %s" % (
+        out.append(card_row(clip("Plan tasks: %d/%d  %s  %s" % (
             td, tt, bar(td, tt), pct(td, tt))))
-    out.append(_crow("Use 'planctl status %s' for plan-level details." % rb_rel))
+    out.append(card_row(clip("Use 'planctl status %s' for plan-level details." % rb_rel)))
     out.append(card_bottom())
     print("\n".join(out))

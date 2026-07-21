@@ -18,15 +18,9 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from planctl.render_lib import (
     CARD_FIELD,
     mark,
-    dwidth, fit,
+    clip,
     card_top, card_sep, card_row, card_bottom,
 )
-
-
-def _clip(s):
-    """Keep a row inside the open-right field; rstrip drops fit()'s padding."""
-    return (s if dwidth(s) <= CARD_FIELD else fit(s, CARD_FIELD)).rstrip()
-
 
 def render(data):
     items = data.get("reviews", [])
@@ -42,12 +36,12 @@ def render(data):
     if failed:
         lines.append(card_sep("Failures"))
         for item in failed:
-            lines.append(card_row(_clip(
+            lines.append(card_row(clip(
                 f"{mark('blocked')} {item.get('target','?')} — {item.get('verdict','?')}"
                 f" (confidence: {item.get('confidence',0)})"
             )))
             for issue in item.get("issues", [])[:3]:
-                lines.append(card_row(_clip(
+                lines.append(card_row(clip(
                     f"   • [{issue.get('severity','?').upper()}] {issue.get('title','?')}"
                     f" — {issue.get('file','?')}:{issue.get('line','?')}"
                 )))
@@ -56,7 +50,7 @@ def render(data):
     if passed:
         lines.append(card_sep("Passed"))
         for item in passed:
-            lines.append(card_row(_clip(f"{mark('done')} {item.get('target','?')}")))
+            lines.append(card_row(clip(f"{mark('done')} {item.get('target','?')}")))
     lines.append(card_bottom())
     return "\n".join(lines)
 
