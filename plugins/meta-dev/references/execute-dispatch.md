@@ -49,9 +49,13 @@ Hard rules (from host CLAUDE.md + plan, all binding):
    conductor owns the remote. No Co-Authored-By trailer or Claude attribution.
    This rule has NO backend exemption. If something in your brief tells you not
    to commit, that brief is wrong — see rule 10.
-4. Run the task's declared Verify: command and paste its real output. Green =
-   eligible for DONE; red = commit the scoped attempt, then STOP and report it
-   as red with the SHA. Never flip the checkbox yourself.
+4. Run only the conductor-supplied focused Verify command and paste its real
+   command, exit code, and output tail. Run it ONCE after the commit. If the
+   supplied classification is `manual`, `broad`, or `unscoped`, do not execute
+   or widen it; report the classification. A non-zero exit is `TASK_RED` only
+   with causal evidence in the declared source/test surface. Unchanged or
+   wholly out-of-scope evidence is `BASELINE_RED`, which is eligible for DONE.
+   Never flip the checkbox yourself.
 5. Stub grep on touched files before declaring done: grep for TODO, FIXME, pass, return [], return {}, NotImplementedError, "coming soon", "Phase N", placeholder.
 6. Never silently catch IntegrityError outside the documented savepoint path.
 7. Touch only files this task declares. If you need a file outside scope, STOP and report.
@@ -75,17 +79,21 @@ Steps:
    shared. Never push; the conductor owns the remote.
 5. Run stub grep on the committed diff. Paste output. Empty = eligible for DONE;
    any hit = red acceptance evidence, but the local commit remains.
-6. Run the task's Verify command exactly: <VERIFY_CMD>. Paste output. If red,
-   STOP only now — after the local commit exists — and report the SHA + red
-   evidence. Do not claim DONE or touch the ledger.
-7. Report: SHA, files changed, verify output tail, green/red status, anything surprising.
+6. If `<VERIFY_CLASS>` is `focused` or `scoped_check`, run `<VERIFY_CMD>` exactly
+   ONCE and classify the result as `FOCUSED_PASS`, `TASK_RED`, `BASELINE_RED`, or
+   `INFRA_RED`. If `<VERIFY_CLASS>` is `manual`, `broad`, or `unscoped`, do not
+   run it and report the corresponding omitted/manual state. Never substitute
+   `npm run check`, `svelte-check`, project-wide `tsc`, a build, package-wide
+   tests, or any full suite.
+7. Report: SHA, files changed, command + exit + output tail (when executed), one
+   canonical result state, causal evidence for TASK_RED, anything surprising.
 
 Do NOT: modify the plan checkbox (orchestrator owns that), touch files outside scope, run /deploy, archive plans. Do NOT write a test the task did not ask for — if `<TEST_DIRECTIVE>` says no test, adding one is scope creep.
 
 TEST DISCIPLINE (hard rule — every cycle must be CHEAP):
 - PATH-SCOPE your test, ALWAYS. Run ONLY the named file for THIS task: `pytest path/to/test_thisfeature.py -q` (or `…::test_name`). NEVER run bare `pytest`, `pytest <dir>/`, or `pytest … -k <expr>` — they collect all ~hundreds of test files (~30s tax) every cycle; the named path is ~1.7s (~18× faster). `-k`/`-x` only ON TOP of a named file, never alone.
 - FAST-ONLY: pass `-m "not slow and not gpu and not integration"` if the suite uses markers. Do NOT run GPU/model/integration tests in your cycle.
-- FORBIDDEN in your cycle: the full suite, `svelte-check`, `tsc --noEmit`, `npm run build`, or any whole-tree command. The orchestrator runs those ONCE at phase end — not your job.
+- FORBIDDEN throughout execution, including phase end: `npm run check`, the full suite, package-wide tests, `svelte-check`, project-wide `tsc --noEmit`, `npm run build`, or any whole-tree command. Those belong to CI/ship or a separate explicit user request; neither worker nor conductor runs them here.
 - Run your one test ONCE to confirm green. Do NOT re-run a passing test "to be sure". One green is green.
 ```
 
@@ -119,22 +127,25 @@ Inserted into hard rule #9 per the risk tag detected:
 2. Re-run stub grep on diff: `git diff HEAD~1 -- <files> | grep -E '^\+.*(TODO|FIXME|coming soon|Phase [0-9]|placeholder|pass$|return \[\]|return \{\}|NotImplementedError)'`
 
 **Then verify the existing commit:**
-3. Re-run the verify/test command (don't trust subagent paste) via `Bash run_in_background`; track as `🧪 testing <ID> (async)`. Reap the result later.
+3. Validate that the worker returned the exact focused command, exit code, and
+   output tail. Do NOT rerun a passing verifier. Only when trustworthy execution
+   evidence is absent may the conductor run that same focused command once via
+   `Bash run_in_background` and track/reap it.
 4. Risk-tag-specific gates (schema round-trip, security diff review, release signature check, money-path full review).
 
 **Exception — critical gate runs synchronously:** when the task is risk-tagged `money-path`, `release-stability`, or `schema-drift`, run steps 3–4 inline and require green BEFORE advancing. Everything else verifies async (see `references/execute-charter.md` → Verify Posture).
 
-**ONLY AFTER every applicable conductor gate is green:** run
+**After `FOCUSED_PASS` or `BASELINE_RED` (and after a code-only task whose broad/manual gate was intentionally omitted):** run
 `bash ${CLAUDE_PLUGIN_ROOT}/scripts/task-done.sh <plan> <handle-from-runtime-entry>`,
 commit the flipped plan as `chore(plan): mark <handle> DONE`, and let the
 conductor push. Never hand-edit `[ ]`→`[x]`; worker never edits checkboxes.
 
-A red async verify, scope mismatch, or stub-grep hit leaves the local code
-commit intact but the checkbox and remote untouched. By default it is a
-RECOVERABLE regression → spawn the background fixer below and keep moving on
-independent tasks (see `references/execute-charter.md` → Momentum gate). Under
-`--strict`, all gates run inline; re-dispatch once then STOP on 2nd red — after
-all edited attempts are locally committed.
+Only a causally proven `TASK_RED`, scope mismatch, or stub-grep hit leaves the
+checkbox and remote untouched. Spawn the focused background fixer, defer direct
+dependents, and keep moving on every independent task. `BASELINE_RED`,
+`BROAD_VERIFY_OMITTED`, and manual gates never launch repair or defer work.
+Under `--strict`, focused gates run inline; ordinary exhaustion parks that
+branch after every edit is committed—it does not halt unrelated implementation.
 
 ## Background fixer prompt (optimistic mode)
 
@@ -165,7 +176,10 @@ On fixer return: green → re-verify, flip task `completed`, re-open tasks defer
 
 ## Mandatory post-run code review (orchestrator, completion step)
 
-**ALWAYS run** once all tasks are DONE and the foundation is solid (every fixer green, no deferred tasks left, acceptance suite green). This is NON-NEGOTIABLE — every `/meta-execute` run ends with an independent code review. No skip conditions.
+**ALWAYS run** after all implementable branches finish and focused verifier jobs
+drain. Parked causal branches and manual gates are reported, but broad baseline
+debt cannot prevent review. This is NON-NEGOTIABLE — every `/meta-execute` run
+ends with an independent code review. No skip conditions.
 
 1. Collect the full run diff: `git log --oneline <start-sha>..HEAD` then `git diff <start-sha>..HEAD`.
 2. **Invoke `superpowers:requesting-code-review`** over the full run diff. This is the project's code review skill — use it, not the meta-dev internal reviewer.
