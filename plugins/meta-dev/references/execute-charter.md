@@ -2,21 +2,29 @@
 
 ## Execution Posture — Optimistic Momentum (default)
 
-`/meta-execute` is **optimistic by default**: assume each task passes and keep dispatching forward. Do NOT stall the whole run waiting for every verify to go green. When something breaks, repair it *asynchronously* and keep advancing on independent work — then circle back to solidify the foundation before completion. `--strict` restores the serial gate (one green before the next, every red is a hard STOP).
+`/meta-execute` is **optimistic by default**: prove the changed behavior with the
+smallest focused check, accept that evidence once, and keep dispatching forward.
+Failures park only the causally implicated branch while independent work keeps
+moving. There is no phase-end or end-of-run whole-suite acceptance gate.
+`--strict` serializes focused verification only; it never authorizes broad
+checks and it does not turn an ordinary branch-local red into a whole-run STOP.
 
-## Verify Posture — Async Tests (default)
+## Verify Posture — Focused Causal Evidence (default)
 
-**The per-task verify gate must never block the run.** Tests are the slow part; waiting on them inline serializes the whole plan behind the test suite. Instead:
+**The task's declared focused verify is the complete acceptance surface.** Run
+only the named file, node, contract, grep, or equally narrow command that can
+causally prove the task. Ordinary focused verifies may run asynchronously;
+critical focused verifies run synchronously. In either case, the result affects
+only the smallest implicated branch.
 
 **COMMIT-ON-RED INVARIANT.** Persistence and acceptance are separate. Any
 implementation worker or fixer that changed declared files stages only those
 exact paths and creates a local commit before every return, including red,
-BLOCKED, strict-mode STOP, failed review, or exhausted repair. Red blocks DONE,
-the current gate's next checkbox/push/advancement action; it never blocks the
-local commit. A later aggregate phase/review failure does not rewrite task
-commits already accepted and pushed by earlier narrower gates — it blocks phase
-completion and any new repair push until green. Read-only work and
-contradictions found before editing create no commit.
+BLOCKED, strict-mode return, failed review, or exhausted repair. `TASK_RED`
+blocks acceptance only for its implicated branch; `BASELINE_RED` and
+`INFRA_RED` never block the local commit. A later review does not rewrite task
+commits already accepted by focused evidence. Read-only work and contradictions
+found before editing create no commit.
 
 **The invariant is universal — no backend is exempt.** A worker that edits and
 returns without committing leaves *unowned* state, which on a 4-20 agent tree is
@@ -34,14 +42,42 @@ reusable preamble, and was reaching fully-capable Claude workers hours later
 while peer sessions twice swept up the uncommitted results. The real fix was one
 `writable_roots` entry in `codex-headless-exec`.
 
-1. **Inline = instant only.** After a subagent returns, run ONLY checks that finish in milliseconds: stub-grep on the committed diff, declared-file existence. These gate acceptance, push, and advancement — never the already-required local commit.
-2. **Commit the code locally**, then **launch the task's `Verify:`/test command async in the background** (`Bash run_in_background`). Track each as its own tracker entry (`🧪 testing <ID> (async)`). On green the conductor pushes and advances state; on red it withholds both and dispatches repair. **Advance to the next independent task immediately** — do not await the test result.
-3. **Tests run in parallel with forward progress.** As each async verify reports: green → mark the task `completed`; red → it's a regression, apply the momentum gate below (background fixer, defer dependents, keep moving).
-4. **No full baseline suite per task.** The expensive whole-suite run is *clustered* to the solidify step at completion — run once, not once-per-task.
-5. **Critical gate (the only synchronous verify).** If a task is risk-tagged `money-path`, `release-stability`, or `schema-drift`, create the scoped local commit, then run its verify **synchronously and require green before pushing or advancing** — these are too costly to discover late. Everything else verifies async.
-6. **Solidify drains the queue.** Completion blocks until every async test job has reported and the full acceptance suite is green. An acceptance failure is surfaced only after every scoped edit is locally committed; it may leave state open, never loose edits. Optimism defers the wait; it never skips it.
+1. **Inline = instant only.** After a worker returns, run only focused checks
+   declared by the task or instant integrity checks on its committed diff. A
+   broad command is not an additional confidence gate.
+2. **Commit, then verify.** Launch the task's focused `Verify:` command async
+   and advance immediately to ready work. Track it as `testing <ID>`. The
+   critical focused checks named below remain synchronous.
+3. **Classify before acting.** Every result enters exactly one canonical state:
+   - **`FOCUSED_PASS`** — the declared focused check is green. Complete and
+     release the task; one green is green and is never rerun.
+   - **`TASK_RED`** — causal evidence ties the failure to the task's touched
+     paths or named focused test paths. Repair only the smallest implicated
+     branch and its direct dependents.
+   - **`BASELINE_RED`** — the failure is unchanged from the task's pre-state or
+     wholly outside its declared task/test paths. Complete and release the
+     task; never fix, defer, or block on this result.
+   - **`INFRA_RED`** — the runner, tool, service, or environment failed rather
+     than the code. Retry the infrastructure once, then report it without
+     blaming or repairing code; continue all work supported by a committed
+     usable artifact.
+   - **`BROAD_VERIFY_OMITTED`** — a suite, build, typecheck, slow/GPU/integration
+     sweep, or other check broader than the task contract. It is never run,
+     fixed, deferred, or treated as blocked by `/meta-execute`.
+4. **Readiness comes from artifacts.** A dependency becomes ready when the
+   producer has committed a usable artifact with the evidence its contract
+   requires. Checkbox ceremony records that fact; it does not create readiness.
+5. **Critical focused gate.** `money-path`, `release-stability`, `schema-drift`,
+   auth/crypto, payment/value-transfer, migration, and critical contract work
+   still run their declared focused verification synchronously. Critical means
+   focused and blocking for its causal branch, never broad.
+6. **Drain focused jobs only.** Completion waits only for launched focused jobs
+   and branch-local repair dispositions. `BROAD_VERIFY_OMITTED` is not a debt to
+   run later.
 
-`--strict` disables all of this: every verify runs inline and blocks, every red is a hard STOP, no background fixers, no async tests.
+`--strict` changes scheduling, not scope: it serializes the same focused checks.
+It never runs a broad check, retries a green, repairs `BASELINE_RED`, or turns
+ordinary fixer exhaustion into a whole-run STOP.
 
 ## Test Policy — Critical-Only (default)
 
@@ -58,27 +94,39 @@ while peer sessions twice swept up the uncommitted results. The real fix was one
 The single biggest execution cost is slow test cycles. Measured on a real run: `pytest backend/tests/ -k "headline or refresh"` = **30s** (it collects all 233 files, THEN deselects — `-k` filters *after* collection), versus `pytest backend/tests/test_base_node.py` = **1.7s**. That's an **~18× tax paid on every red→green cycle.** These rules make every cycle cheap; they apply to ALL backends (the main thread, and every GLM/DeepSeek/Codex worker).
 
 1. **PATH-SCOPE ALWAYS — `-k` is BANNED as the primary selector.** Name the file(s) or node: `pytest path/to/test_thisfeature.py -q` (or `…::test_name`). NEVER run bare `pytest`, `pytest <dir>/`, or `pytest … -k <expr>` in a per-task cycle — they all collect the whole tree and pay the full collection tax every time. Path-scope first; you may add `-k`/`-x` *on top of* a named file to narrow further, never as the only selector.
-2. **FAST-ONLY in the inner loop — defer slow/GPU/integration.** The loop runs only fast, pure-logic unit tests. Default selector `-m "not slow and not gpu and not integration"`. GPU/model-loading/integration tests (the ones that actually take minutes-to-hours in a diffusion app) are deferred to the **one** end-of-phase acceptance gate or a deliberate manual/CI run — NEVER per task, NEVER on "one line changed".
-3. **NO broad commands per task.** `svelte-check`, `tsc --noEmit`, `npm run build`, and any full-suite run are FORBIDDEN in a per-task cycle. They run **exactly once**, at the end-of-phase acceptance gate. Per task you run only that task's single path-scoped test.
+2. **FAST-ONLY in the execution loop.** Run only fast, pure-logic focused
+   tests. Slow/GPU/integration sweeps are `BROAD_VERIFY_OMITTED`; a separately
+   authorized manual or CI workflow may own them, but `/meta-execute` does not
+   defer them as execution debt.
+3. **NO broad commands.** `svelte-check`, `tsc --noEmit`, broad builds, and
+   suite/directory runs are never added as phase or completion gates. Per task,
+   run only its single focused contract.
 4. **Optimistic + async (per Verify Posture above).** Launch the one path-scoped test in the background, advance immediately, circle back only if it actually goes red. Never wait on a green test. Never re-run a passing test "to be sure" — one green is green.
-5. **SECURE — speed never skips the security gate.** Critical-breakage and security-critical tasks (`money-path`, `release-stability`, `schema-drift`, auth/crypto verification, payment/value transfer, DB migration) STILL verify **synchronously and block** before advancing (per Verify Posture #5). Fast ≠ unverified: the optimization removes redundant whole-suite collection, not the gates that protect correctness and security. The final acceptance gate (full suite, slow+GPU markers included) still runs once before completion — optimism defers the heavy verification to one place, it never deletes it.
+5. **SECURE — keep the critical focused gate.** Critical-breakage and
+   security-critical tasks still verify their named contract synchronously.
+   Speed removes unrelated collection, never the focused evidence that protects
+   correctness and security.
 
-**Momentum gate.** When a task `T` returns red / regressed, classify:
+**Momentum gate.** Classification is causal, not exit-code-shaped. A red line is
+not a regression until evidence connects it to the changed task/test paths.
 
-- **TRUE BLOCKER → halt the whole run, surface.** Only these:
-  1. **Plan ↔ code contradiction** — the plan no longer matches reality; nothing downstream can be trusted.
-  2. **money-path / release-stability regression** — too costly to defer.
-  3. **Schema drift** — DB-state divergence compounds across later tasks.
-  4. **A background fixer that failed twice** on the same regression.
-- **RECOVERABLE → momentum.** Everything else (ordinary red verify, stub-grep hit, subsystem test failure).
+**On `TASK_RED`:**
+1. Spawn a background fixer scoped strictly to the causal failure, `T`'s
+   declared files, and only the direct dependents needed to reproduce it. The
+   fixer commits every edited attempt before returning.
+2. Park only `T`'s smallest causal branch. Independent tasks — including later
+   phases with usable committed inputs — keep dispatching.
+3. A focused pass releases the branch. Ordinary fixer exhaustion writes the
+   dossier and leaves that branch parked; it never stops unrelated work.
 
-**On a recoverable regression:**
-1. Spawn a **background fixer** scoped strictly to `T`'s declared files + failure output (see `references/execute-dispatch.md` → Background fixer prompt). It locally commits every edited attempt before returning; green permits the conductor to push, red remains committed but unaccepted. Track it as its own task-tracker entry.
-2. Mark `T` `blocked` (NOT completed) with activeForm `Repairing <T> (async)`.
-3. **Dependency-aware advance.** Remaining tasks that depend on `T` (declared dep, shared file, or same subsystem foundation) → `deferred`, hold. Tasks independent of `T` (disjoint files + different subsystem) → keep dispatching.
-4. Fixer reports green → flip `T` `completed`, re-open tasks deferred solely on `T`.
+**Whole-run STOP is exceptional.** Stop only for an execution guard or safety
+gate, a global plan↔code contradiction, genuine schema divergence, or a critical
+contract whose unusable artifact makes the run globally unsafe. Ordinary red,
+stub hits, infrastructure failure, and fixer exhaustion are branch-local.
 
-**Solidify before completion.** Run is NOT done until every fixer resolved green, every `deferred`/`blocked` task executed, and the full acceptance suite is green.
+**Focused completion.** The run is accounted for when every branch is released
+or explicitly parked with evidence and every launched focused job is drained.
+There is no broad acceptance sweep to make the focused results "more green."
 
 **Conflict safety.** Fixers touch only the failed task's files; dependents (overlapping files) are `deferred`, so the main loop advances only disjoint-file work — no parallel-commit collision. The conductor owns remote synchronization and uses only the repository's permitted fast-forward flow; genuine conflict → surface.
 
@@ -117,7 +165,7 @@ The single biggest execution cost is slow test cycles. Measured on a real run: `
 - **Escalate to the user ONLY for genuine ambiguity in WHAT they want — never for tree state.** Tree state is YOUR problem, and the answer is always the same: **commit it and charge on.**
 - **Claim is an optional advisory hint, NEVER a gate.** `claude-headless-exec --claim <plan-dir>` records a coarse directory reservation in planctl's `claims` table (via the `worker-claim.sh` shim → `planctl claim`; the old `plans/_dashboard/.worker-locks/` + `worker-claims.jsonl` litter is retired). It must **never abort or block a dispatch** — prefer `--claim-warn` (warn, proceed). An unclaimed tree, or an overlapping claim, is **not** a reason to refuse work. If the registry is going unused, it is dead weight, not a safety mechanism.
 - **The touched-file manifest is audit + recovery, not normal commit ownership.** Each worker writes `<output>.manifest.jsonl`; the conductor checks that manifest against the worker's commit. If a broken/legacy worker returns dirty, the conductor recovers by staging precisely those manifest paths and making the local commit before any other action — never by scanning `git status`/`git diff`. `git add -A` / `.` / `<dir/>` remains blocked. Sanctioned single-session directory adds (plan archival) prefix `META_ALLOW_DIR_ADD=1`.
-- **Workers COMMIT THEIR OWN WORK — one coherent commit per task attempt** (policy change 2026-07-19; supersedes the old commit-free rule). Before every return after editing, stage the exact files you touched by full path and commit them, even when verification is red. Modular commits beat one end-of-run conductor sweep: history reads as coherent units, and attempted work is durable the moment the worker stops. Flip the ledger handle only after a green result, so the ledger never runs ahead of acceptance.
+- **Workers COMMIT THEIR OWN WORK — one coherent commit per task attempt** (policy change 2026-07-19; supersedes the old commit-free rule). Before every return after editing, stage the exact files you touched by full path and commit them, even when verification is red. Modular commits beat one end-of-run conductor sweep: history reads as coherent units, and attempted work is durable the moment the worker stops. Flip the ledger handle only after a releasable focused outcome (`FOCUSED_PASS` or `BASELINE_RED`), so the ledger never runs ahead of acceptance.
 - **What the worker git-guard hook still DENIES** (it was never really about `commit`): tree-wide staging — `git add -A|.|-u|<dir>/` and `git commit -a` — which sweeps a concurrent session's in-flight lines into your commit (incident 2026-07-05); every destroyer of uncommitted peer work — `stash/checkout/switch/restore/reset/clean`; every shared-history rewrite — `rebase/merge/cherry-pick/revert/am/commit --amend`; and the remote — `push/pull/fetch` (the conductor owns the remote). `git add <explicit paths>`, `git commit`, and all read-only git are ALLOWED.
 - **Stage by name, never by scan.** Use the worker's own touched-file list — `git -C <abs-repo-root> add path/a.ts path/b.svelte` — never a `git status`/`git diff` sweep, which picks up peer edits in a shared tree.
 - **The exit code is honest.** A worker that reports `is_error:false` exits 0 (the wrapper reconciles the raw process code and no longer lets the EXIT trap force a 1). Trust the exit code together with the `is_error` field.
@@ -135,9 +183,12 @@ Before dispatching a subagent for a task:
 2. Optionally mark in-flight: Edit the plan line to insert `CLAIMED` prose (this is **not** the flip). Example: `` - [ ] `T4.2` CLAIMED Add Tile wiring ``.
 3. Commit the claim: `chore(plan): claim <handle>` (or Task ID if unstamped legacy).
 
-### State 2: DONE (immediately after green verify) — `planctl check` (via `task-done`), never Edit
+### State 2: DONE (after a releasable focused outcome) — `planctl check` (via `task-done`), never Edit
 
-**The instant a task's verify returns green** (async or sync), the **conductor** flips the box before anything else:
+**The instant a task reaches `FOCUSED_PASS` or `BASELINE_RED`**, the
+**conductor** releases it and flips the box before anything else. `INFRA_RED` is
+reported after its one retry and does not trigger code repair; artifact
+usability, not checkbox state, decides whether its dependents are ready.
 
 ```bash
 bash ${CLAUDE_PLUGIN_ROOT}/scripts/task-done.sh <plan-path> <handle-from-runtime-entry>
@@ -152,7 +203,8 @@ git add -- <plan-path> && git commit -m "chore(plan): mark <handle> DONE"
 - Human-tagged boxes (`by eye` / `by hand` / `gpu` / `manual`, or under an Acceptance/Human-verify heading) refuse without `--human`.
 - **Never** hand-edit `[ ]`→`[x]`. That is the hole this primitive closes.
 
-Only THEN advance to the next task.
+The flip records acceptance; it is not a prerequisite for dispatching a
+dependent whose committed usable artifact is already ready.
 
 ### State 3: Verify (before report card)
 
@@ -190,33 +242,34 @@ Parse the plan, run risk-tagging, print the full task inventory with risk labels
 
 ## Failure Posture Matrix
 
-Default = optimistic momentum. `--strict` column = the serial-gate fallback.
+Default = optimistic momentum. `--strict` serializes focused verification only.
 
 | Situation | Default (momentum) | `--strict` |
 |-----------|--------------------|-----------|
-| Red verify (recoverable) | Background fixer + defer dependents, keep moving | Re-dispatch once; STOP on 2nd red |
-| Stub grep hit | Background fixer (recoverable) | STOP |
-| Background fixer fails twice | Escalate to TRUE BLOCKER — STOP, surface | n/a |
-| Plan <-> code contradiction | TRUE BLOCKER — STOP. Never improvise | STOP |
-| Schema drift unexpected | TRUE BLOCKER — STOP. Show `alembic check` | STOP |
-| money-path / release-stability regression | TRUE BLOCKER — STOP. Surface diff | STOP |
-| Test baseline regresses outside touched files | Background fixer scoped to side-effected files; escalate if root cause ambiguous/cross-subsystem | STOP |
+| `FOCUSED_PASS` | Complete/release; never rerun | Same, before next focused verify |
+| `TASK_RED` | Repair smallest causal branch; independent work continues | Same repair, scheduled serially |
+| `BASELINE_RED` | Complete/release; never fix or block | Same |
+| `INFRA_RED` | Retry infra once, report, continue usable branches | Same |
+| `BROAD_VERIFY_OMITTED` | Never run/fix/defer/block | Same |
+| Ordinary fixer exhaustion | Park that branch; independent work continues | Same |
+| Global plan <-> code contradiction | Whole-run STOP; never improvise | Same |
+| Genuine schema divergence / unusable critical contract | Whole-run STOP with causal evidence | Same |
 | Parallel session pushed to origin/master | If local HEAD can fast-forward, review then merge `--ff-only`; otherwise halt and surface divergence. Never rebase | same |
 
 ## Pause Gates
 
-Default = no pause between green tasks. Only pause when:
+Default = no pause between releasable focused outcomes. Only pause when:
 - `--pause-before=<task-id>` matched
 - Risk tag is `money-path` or `release-stability` (auto-pause unless `--no-pause`)
-- Same task failed twice
-- Plan contradiction surfaced
+- Global plan contradiction surfaced
+- Genuine schema divergence or a globally unusable critical contract
 - `git fetch` shows new origin/master commits AND `--stop-on-drift` set
 
 **Under `--autonomous`, every pause gate above is OFF** (the flag implies
 `--no-pause`) — the user is asleep and a pause is just a stall until morning.
 Risk-tagged work still *verifies* synchronously per Verify Posture #5; it simply
-does not wait for a person. The Failure Posture matrix and the TRUE BLOCKER list
-are unchanged: a blocker parks THAT subject and the run continues elsewhere,
+does not wait for a person. The Failure Posture matrix and whole-run STOP list
+are unchanged: a branch-local blocker parks THAT subject and the run continues elsewhere,
 landing in the Autonomous Run Report rather than in a prompt. Full contract and
 the hard floor: `references/autonomous-mode.md`.
 

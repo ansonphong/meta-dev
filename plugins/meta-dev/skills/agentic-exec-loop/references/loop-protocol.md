@@ -1,5 +1,8 @@
 # Loop Protocol — execute → review → fix (phase-gated)
 
+The governing posture is **optimistic momentum**: focused causal evidence
+releases usable artifacts once, while failure containment follows branches.
+
 ## Roles
 - **Conductor** (main thread, Opus): dispatches, reads ONE verdict line per
   phase + each worker's one-line result. NEVER reads a diff, OUTPUT_FILE.raw,
@@ -25,26 +28,45 @@
   exposure and is the correct default worker.
   Output → OUTPUT_FILE; conductor reads only the distilled `result`.
 - **Reviewer**: Agent subagent, agentType `meta-dev:review-agent` (Opus). Given
-  {phase_spec, phase_pre_sha, phase_verify_cmds}, it computes its OWN
+  {phase_spec, phase_pre_sha, focused_outcomes}, it computes its OWN
   `git diff <phase_pre_sha>..HEAD` and returns the verdict JSON below.
 - **Fixer**: a headless worker fed the reviewer's `issues`.
 
 ## Per-task work (worker self-manages — no Opus per task)
 1. At phase start record `PHASE_PRE_SHA=$(git rev-parse HEAD)`.
 2. For EACH task in the phase: dispatch a FRESH worker (new headless process,
-   clean context) with the task spec INCLUDING its `Verify:` command. The
-   worker runs its own verify hook and self-fixes locally. If it changed any
+   clean context) with the task spec INCLUDING its focused `Verify:` command.
+   The worker runs that hook once and self-fixes locally only when causal
+   evidence makes the result `TASK_RED`. If it changed any
    declared file, it stages those exact paths and creates a local commit before
-   every return — green, red, BLOCKED, or exhausted. Red gates acceptance, not
-   persistence. Conductor reads only the one-line `result`; only after green it
-   pushes and flips that task via
+   every return — green, red, BLOCKED, or exhausted. A task result has exactly
+   one state: `FOCUSED_PASS`, `TASK_RED`, `BASELINE_RED`, `INFRA_RED`, or
+   `BROAD_VERIFY_OMITTED`. Conductor reads only the one-line `result`.
+
+   - `FOCUSED_PASS`: release and flip immediately; one green is never rerun.
+   - `TASK_RED`: retain the commit and repair only the smallest causal branch
+     and its direct dependents. Independent work continues.
+   - `BASELINE_RED`: unchanged from pre-state or wholly outside declared
+     task/test paths; release and flip, never fix or block.
+   - `INFRA_RED`: retry infrastructure once, then report without blaming or
+     repairing code; continue branches supported by a committed usable artifact.
+   - `BROAD_VERIFY_OMITTED`: never run, fix, defer, or block on a broad check.
+
+   For a releasable outcome the conductor pushes and flips that task via
    `bash ${CLAUDE_PLUGIN_ROOT}/scripts/task-done.sh <plan> <handle>` (shim over
    `planctl check` — the unified state layer's single write door) using the
    handle the conductor **already bound on the runtime task entry at dispatch**
    (not parsed from the worker). Worker never Edits a checkbox. Conductor
    commits the flipped plan file per task (momentum). No Opus review at this
-   granularity. A red result keeps its local commit, leaves the handle open and
-   the remote untouched, and enters the repair/failure path.
+   granularity. Checkbox state records acceptance but does not create dependency
+   readiness: dependents become ready from committed usable artifacts plus the
+   focused evidence their contracts require.
+
+   `--strict` serializes these focused checks only. It never authorizes a broad
+   suite/build/typecheck, reruns a green, repairs `BASELINE_RED`, or converts an
+   ordinary branch-local failure into a whole-run STOP. Critical focused
+   verification (schema, money/release stability, security, critical contracts)
+   remains synchronous under every scheduling mode.
 
    **Self-commit is universal — never write a "don't commit" exemption into a
    worker spec.** Every executor in the ladder can commit; where one could not,
@@ -56,10 +78,11 @@
    Correspondingly, a worker whose spec contradicts this must REPORT the
    conflict in its return rather than silently obeying the narrower instruction.
 
-## Phase gate — the single Opus checkpoint per phase
+## Phase gate — the single Opus code-review checkpoint per phase
 Task commits/checks already accepted by their narrower per-task gates remain in
-history and on the remote. This aggregate gate controls phase completion and
-new fixer pushes; a FAIL never rewrites or unchecks earlier accepted tasks.
+history and on the remote. This is a diff review, not an aggregate test gate. It
+never runs a full suite or replays a passing focused verify; phase-end broad
+verification is `BROAD_VERIFY_OMITTED`.
 
 3. At phase end dispatch the Reviewer. Verdict JSON (review-agent's real shape):
    `{ "verdict": "PASS | CONDITIONAL_PASS | FAIL", "confidence": 0-1,
@@ -71,30 +94,37 @@ new fixer pushes; a FAIL never rewrites or unchecks earlier accepted tasks.
      DONE-gate — the `on-run-complete.sh` Stop hook stamps the plan DONE only
      when a pass is on record, so emit one per phase PASS:
      `NOW=$(date -u +%FT%TZ); bash ${CLAUDE_PLUGIN_ROOT}/scripts/planctl.sh review "$PLAN_REL" pass --by "conductor"`.
-   - **CONDITIONAL_PASS** → apply the `suggested_fix`es via one Fixer on the
+   - **CONDITIONAL_PASS** → apply causally supported `suggested_fix`es via one Fixer on the
      active tier's primary backend (see Tier mapping). The fixer exact-path
-     commits its scoped edits before returning on either result; advance only
-     on green (no re-review needed for minor issues).
-   - **FAIL** → Fix ladder (step 5).
-5. **Fix ladder** (max 2 worker attempts, then surface) — backends per the
+     commits its scoped edits before returning on either result. Release the
+     repaired branch on its focused pass; otherwise park that branch and keep
+     independent work moving (no re-review needed for minor issues).
+   - **FAIL** → partition issues by causal branch, then use the Fix ladder
+     (step 5) on each implicated branch. Previously accepted branches stay live.
+5. **Branch-local fix ladder** (max 2 worker attempts, then disposition) — backends per the
    **active tier** (see Tier mapping), never looping the same backend twice on
    the same failure:
    - Attempt 1: Fixer on the tier's **primary** backend fed `issues`; it locally
      commits scoped edits before return → re-Review (step 3).
    - Attempt 2 (still FAIL): Fixer on the tier's **escalation** backend; it
      locally commits scoped edits before return → re-Review.
-   - Attempt 3 — **consult Fable before surfacing.** Two failures on the same
-     thing is the definition of a hard challenge, and surfacing it costs the
-     user a round-trip (a whole night, under `--autonomous`). Run
+   - Attempt 3 — **consult Fable before parking or surfacing.** Two failures on
+     the same thing is the definition of a hard challenge. Run
      `scripts/fable-consult.sh --question "<what is failing and why the two
      fixes did not work>" --plan <plan>` with the failure output in the packet.
      Exit `0` (≥0.90 with evidence + falsifier) → apply its recommendation as
      one final scoped fixer attempt, then re-Review. Any other exit → surface,
      carrying Fable's recommendation into the dossier. Never loop this rung.
    - Still FAIL → ensure the fixer's scoped edits are locally committed, write
-     the failure dossier to the inbox (repair-loop convention), and surface the
-     one-line `summary`. Leave ledger/phase state, remote, and advancement
-     untouched; the red commits remain as durable repair evidence. Stop.
+     the failure dossier to the inbox (repair-loop convention), and park only
+     the implicated branch and its direct dependents. Continue every independent
+     branch; the red commits remain durable repair evidence.
+
+   Whole-run STOP is reserved for an execution guard/safety gate, a global
+   plan↔code contradiction, genuine schema divergence, or a critical unusable
+   contract that makes all remaining execution unsafe. Ordinary review issues,
+   `TASK_RED`, `BASELINE_RED`, `INFRA_RED`, and fixer exhaustion never stop the
+   whole run.
 
 ## Runbook dashboard sync — re-render the owning runbook at every phase gate (NON-NEGOTIABLE for runbook members)
 The campaign-runbook `🎯 LIVE EXECUTION DASHBOARD` is a **pull-based** artifact —
@@ -133,17 +163,16 @@ fi
 - Single-phase plans (no `## Phase N`) have only the end seam → the render fires
   once at end-of-plan; still strictly better than never.
 
-## Stalled worker — a halt is a PAUSE, never a silent pass
+## Stalled worker — classify as infrastructure, never code
 Every headless backend (`claude-headless-exec`, `codex-headless-exec`) runs a
 **liveness watchdog**: if a worker's RAW event-stream goes silent for `STALL_SECS`
 (default 5 min) it is killed and **auto-reset** up to `STALL_MAX_RESETS` (default 3).
-If it stalls through the whole budget the script **HALTS with exit 125** and a
-`[STALLED — … Run PAUSED for review]` result line. The conductor MUST treat that
-as a **pause**, not a task pass and not a fix-ladder FAIL: do NOT advance the phase,
-do NOT re-dispatch on the fix ladder (the worker was wedged, not wrong). Surface
-the one-line STALLED notice + the partial `$RAW_FILE` path and STOP for the user.
-A non-stall FAIL (exit ≠ 125, real verdict) still flows through the normal fix
-ladder below.
+If it stalls through the watchdog budget the script exits 125. Classify that as
+`INFRA_RED`, not `TASK_RED`: perform at most one conductor-level infrastructure
+retry, then report the one-line STALLED notice + partial `$RAW_FILE` without
+blaming or repairing code. Continue independent work and any dependent work
+supported by an already committed usable artifact. A non-stall red requires
+causal classification before it can enter the branch-local fix ladder.
 
 ## Context watchdog — pause-and-compact at a seam (conductor-run, NON-NEGOTIABLE on long runs)
 A long playbook (many phases) accretes context in the orchestrating Opus thread
