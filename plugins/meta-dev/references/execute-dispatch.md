@@ -172,7 +172,11 @@ Hard rules (binding):
   the local commit. Do not fake a pass.
 ```
 
-On fixer return: green → re-verify, flip task `completed`, re-open tasks deferred on it. BLOCKED/red first return → re-dispatch once. Red twice → escalate to TRUE BLOCKER, surface. Concurrent fixer pool cap: 3 (queue beyond).
+On fixer return: green → accept the focused result, flip task `completed`, and
+re-open tasks deferred on it. `TASK_RED` first return → re-dispatch once. Red
+twice → park that causal branch, finish every independent task, and surface the
+branch in the final report; do not halt the whole run. Concurrent fixer pool
+cap: 3 (queue beyond).
 
 ## Mandatory post-run code review (orchestrator, completion step)
 
