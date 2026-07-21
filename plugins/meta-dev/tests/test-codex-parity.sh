@@ -187,11 +187,11 @@ required = {
         "3. **COMMIT-ON-RED:**",
         "4. **COMMIT-ON-RED:**",
         "blocks DONE/push, not",
-        "ONLY AFTER every applicable conductor gate is green",
+        "After `FOCUSED_PASS` or `BASELINE_RED`",
     ],
     "references/execute-charter.md": [
         "**COMMIT-ON-RED INVARIANT.**",
-        "later aggregate phase/review failure",
+        "A later review does not rewrite task",
     ],
     "commands/meta-execute.md": [
         "including on red verification",
@@ -244,7 +244,7 @@ for rel, markers in forbidden.items():
 dispatch = texts.get("references/execute-dispatch.md", "")
 commit_step = dispatch.find("4. **COMMIT-ON-RED:**")
 stub_step = dispatch.find("5. Run stub grep on the committed diff")
-verify_step = dispatch.find("6. Run the task's Verify command exactly")
+verify_step = dispatch.find("6. If `<VERIFY_CLASS>` is `focused` or `scoped_check`")
 if (
     commit_step < 0
     or stub_step < 0
@@ -257,7 +257,7 @@ if (
 
 audit_gate = dispatch.find("FIRST — audit the worker's existing local commit")
 conductor_verify = dispatch.find("Then verify the existing commit")
-accept_gate = dispatch.find("ONLY AFTER every applicable conductor gate is green")
+accept_gate = dispatch.find("After `FOCUSED_PASS` or `BASELINE_RED`")
 if (
     audit_gate < 0
     or conductor_verify < 0
@@ -276,6 +276,64 @@ PY
   ok "all implementation-worker paths commit scoped edits before red/BLOCKED return"
 else
   bad "worker commit-on-red contract drifted: $COMMIT_CONTRACT_DETAIL"
+fi
+
+echo
+echo "=== Codex Parity: focused optimistic momentum ==="
+
+if MOMENTUM_DETAIL="$(python3 - "$PLUGIN_ROOT" <<'PY'
+from pathlib import Path
+import sys
+
+root = Path(sys.argv[1])
+required = {
+    "commands/meta-execute.md": [
+        "Optimistic momentum is the default control flow",
+        "BROAD_VERIFY_OMITTED",
+        "MUST NOT rerun a passing verifier",
+    ],
+    "commands/codex-execute.md": [
+        "FOCUSED_PASS",
+        "TASK_RED",
+        "BASELINE_RED",
+        "INFRA_RED",
+        "BROAD_VERIFY_OMITTED",
+        "not at phase end",
+    ],
+    "scripts/codex-headless-exec": [
+        "FOCUSED VERIFICATION ONLY",
+        "OPTIMISTIC MOMENTUM",
+        "BASELINE_RED",
+        "BROAD_VERIFY_OMITTED",
+        "not at phase end",
+    ],
+}
+forbidden = {
+    "commands/meta-execute.md": ["full acceptance suite once", "Gate: all green before proceeding"],
+    "commands/codex-execute.md": ["full suite in an inner cycle"],
+    "scripts/codex-headless-exec": ["those run ONCE at phase end"],
+}
+issues = []
+texts = {}
+for rel, markers in required.items():
+    text = (root / rel).read_text(encoding="utf-8")
+    texts[rel] = text
+    for marker in markers:
+        if marker not in text:
+            issues.append(f"{rel}: missing {marker!r}")
+for rel, markers in forbidden.items():
+    text = texts.get(rel) or (root / rel).read_text(encoding="utf-8")
+    for marker in markers:
+        if marker in text:
+            issues.append(f"{rel}: stale contradiction {marker!r}")
+if issues:
+    print(" | ".join(issues))
+    raise SystemExit(1)
+PY
+)"; then
+  ok "native + headless Codex enforce focused tests, one green, and BASELINE_RED momentum"
+else
+  bad "Codex focused-momentum contract drifted: $MOMENTUM_DETAIL"
 fi
 
 echo
