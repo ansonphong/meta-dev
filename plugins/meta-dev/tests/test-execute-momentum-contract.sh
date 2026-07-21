@@ -124,6 +124,17 @@ assert classify(
     "frontend/tests/test_folder_nav.py",
 ) == "focused"
 
+declared_commands = [
+    "pytest frontend/tests/test_folder_nav.py::test_wrap -q",
+    "npm run check",
+]
+executable_commands = [
+    command
+    for command in declared_commands
+    if classify(command, "frontend/tests/test_folder_nav.py") in {"focused", "scoped_check"}
+]
+assert executable_commands == ["pytest frontend/tests/test_folder_nav.py::test_wrap -q"]
+
 # Reproduce the failed run's dependency graph. T1's focused check passes; T2's
 # only red evidence is unchanged/outside its surface. Both are accepted, so all
 # downstream tasks become runnable. The broad gate never enters the run list.
@@ -142,12 +153,53 @@ accepted = {
 assert accepted == {"T1", "T2"}
 assert all(dep in accepted for dep in tasks["T3"]["deps"])
 assert all(dep in accepted for dep in tasks["T5"]["deps"])
-assert "npm run check" not in []
+accepted.add("T3")
+assert all(dep in accepted for dep in tasks["T4"]["deps"])
+assert "npm run check" not in executable_commands
 PY
 )"; then
-  ok "unrelated npm-check debt releases T1/T2 and makes T3/T5 dispatchable"
+  ok "unrelated npm-check debt releases T1/T2 and makes T3–T5 dispatchable"
 else
   bad "folder-nav regression failed: $DETAIL"
+fi
+
+echo
+echo "=== Execute momentum: planner rejects broad gates ==="
+if DETAIL="$(python3 - "$PLUGIN_ROOT" <<'PY'
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
+
+root = Path(sys.argv[1])
+validator = root / "scripts" / "planner-validate.sh"
+
+def validate(command: str) -> subprocess.CompletedProcess[str]:
+    with tempfile.TemporaryDirectory() as tmp:
+        phase = Path(tmp) / "phase-1-test.md"
+        phase.write_text(
+            "### Task 1.1: focused verification\n\n"
+            "Verify-After:\n\n"
+            f"- [ ] `{command}`\n",
+            encoding="utf-8",
+        )
+        return subprocess.run(
+            ["bash", str(validator), tmp],
+            capture_output=True,
+            text=True,
+        )
+
+focused = validate("pytest tests/test_folder_nav.py::test_wrap -q")
+assert focused.returncode == 0, focused.stdout + focused.stderr
+
+broad = validate("npm run check")
+assert broad.returncode == 2, broad.stdout + broad.stderr
+assert "broad" in broad.stdout.lower(), broad.stdout
+PY
+)"; then
+  ok "planner accepts a named test and rejects npm run check as an execution gate"
+else
+  bad "planner scope validation failed: $DETAIL"
 fi
 
 echo
