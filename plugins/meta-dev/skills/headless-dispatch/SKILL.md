@@ -73,13 +73,13 @@ things.** Each is a thin wrapper that ends up at the same script with a differen
 |---|---|---|---|
 | `/fable-execute`  | `fable`  | `claude-fable-5`  | hardest tasks — max reasoning, long-horizon coherence |
 | `/opus-execute`   | `opus`   | `claude-opus-5`   | architecture, hardening, review, security |
-| `/sonnet-execute` | `sonnet` | `claude-sonnet-5` | Anthropic judgment at 200K price |
+| `/sonnet-execute` | `sonnet` | `claude-sonnet-5` | Anthropic judgment, off-thread |
 | `/deep-execute`   | `deep`   | `deepseek-v4-pro` | cheapest bulk; mechanical bounded edits |
 | `/glm-execute`    | `glm`    | `glm-5.2`         | long-horizon, stateful agentic refactors |
 
 `sonnet`/`opus`/`fable` are **real Anthropic via your ambient `~/.claude` login** —
 no API key. `deep` needs `DEEPSEEK_API_KEY`, `glm` needs `GLM_API_KEY`; the doctor
-reports which are visible. All five are pinned to 200K (never `[1m]`), so a
+reports which are visible. All five pin a bare model ID (no `[1m]` — a no-op on first-party, where the 5-family is always 1M), so a
 headless worker cannot inherit a session's 1M beta and get billed at the premium
 rate.
 

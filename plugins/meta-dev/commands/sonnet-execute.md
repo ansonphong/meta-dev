@@ -1,32 +1,36 @@
 ---
 name: sonnet-execute
 argument-hint: <task description> [--repo <name>] [--readonly] [--model <model>] [--effort <level>]  # --repo names from .claude/meta-dev-repos.json
-description: Execute a task via headless Anthropic Sonnet Claude Code — spawns a SEPARATE Claude Code process pinned to the 200K Sonnet variant (NOT 1M), so it is never billed at the 1M rate the way a Sonnet subagent dispatched from an opus[1m] session would be.
+description: Execute a task via headless Anthropic Sonnet 5 Claude Code — spawns a SEPARATE Claude Code process off the main thread, so Anthropic-grade Sonnet judgment runs without consuming the conductor's context window. Sonnet 5 is 1M-context on the first-party API.
 ---
 
-# /sonnet-execute — Anthropic Sonnet (200K) Headless Execution
+# /sonnet-execute — Anthropic Sonnet 5 Headless Execution
 
-Spawn a headless Claude Code worker on the **real Anthropic backend**, pinned to the **standard 200K Sonnet** model, to execute a task and report back. You stay on your current backend (Opus) for orchestration; Sonnet does the work in an **isolated process**.
+Spawn a headless Claude Code worker on the **real Anthropic backend**, pinned to **Sonnet 5**, to execute a task and report back. You stay on your current backend (Opus) for orchestration; Sonnet does the work in an **isolated process**.
 
 Uses `scripts/claude-headless-exec --backend sonnet` under the hood.
 
-## Why this exists — the 1M billing trap
+## Why this exists — keep the conductor's context lean
 
 When the orchestrating session runs `opus[1m]`, the `[1m]` flag turns on the **1M context beta for the whole session**. A Sonnet **subagent** dispatched via the Agent/Task tool runs *inside* that session beta, so it goes out as **Sonnet-1M** and is billed at the premium long-context tier.
 
-`/sonnet-execute` sidesteps the inherited beta: it launches a **fresh `claude -p` process** with `--model claude-sonnet-5` (**no `[1m]` suffix**) and a scrubbed env, so the session-wide 1M beta is not inherited. ⚠️ **Corrected 2026-07-25:** this does NOT yield a 200K window — a bare `--model claude-sonnet-5` measures `contextWindow=1000000`. On the 4.7+/5 generation there is no bare-ID 200K variant, and per Anthropic's migration guide these models bill at standard pricing with no long-context premium. Treat the win as context hygiene, not a cheaper window. Your Opus thread keeps running `opus[1m]` untouched.
+`/sonnet-execute` launches a **fresh `claude -p` process** with `--model claude-sonnet-5` and a scrubbed env. Your Opus thread keeps running untouched, and — the actual point — the worker's reads, tool churn and intermediate reasoning never enter the conductor's context; only a distilled result comes back.
 
-**It authenticates via your ambient `~/.claude` login** — no API key, no third-party endpoint. Billing is against your normal Claude subscription/login, same as any local run, just at the 200K tier.
+> **There is no 200K/1M tradeoff to manage here (verified 2026-07-25).** Claude Code's own docs: *"On the Anthropic API, Sonnet 5 always runs with the 1M context window. There is no 200K variant, no `[1m]` suffix to select, and no usage credits required on any plan."* Measured to confirm: `--model claude-sonnet-5` and `--model 'claude-sonnet-5[1m]'` both report `contextWindow=1000000`, so the suffix is a **no-op** on first-party — don't add it. 1M bills at standard rates with **no premium above 200K**. This command is about context hygiene and model-tier choice, not billing avoidance.
+>
+> The one place `[1m]` still matters: **Bedrock / Google Cloud / Microsoft Foundry**, where a model ID *without* `[1m]` uses 200K. We run first-party via the ambient login, so it does not apply.
+
+**It authenticates via your ambient `~/.claude` login** — no API key, no third-party endpoint. Billing is against your normal Claude subscription/login, same as any local run.
 
 ## When to Use
 
-Reach for `/sonnet-execute` when you want **Anthropic-grade Sonnet judgment** off the main thread but **must not pay the 1M rate**:
+Reach for `/sonnet-execute` when you want **Anthropic-grade Sonnet judgment** off the main thread:
 - Frontend / Svelte work needing design consistency (where DeepSeek/GLM fall short)
 - Stateful multi-file refactors that want Anthropic reasoning, not headless-backend quality
 - Reviews/audits where you want a Sonnet lens but cheaply (`--readonly`)
 - Any time you'd normally spawn a Sonnet subagent from an `opus[1m]` session — use this instead to avoid the 1M bill
 
-For cheap bulk/mechanical work, still prefer `/deep-execute` (DeepSeek); for long-horizon agentic work prefer `/glm-execute` (GLM). `/sonnet-execute` is the **Anthropic-quality, 200K-priced** middle option.
+For cheap bulk/mechanical work, still prefer `/deep-execute` (DeepSeek); for long-horizon agentic work prefer `/glm-execute` (GLM). `/sonnet-execute` is the **Anthropic-quality** middle option (Sonnet 5 is $3/$15 per MTok, and $2/$10 through 2026-08-31 under introductory pricing).
 
 ## Test discipline — keep every test cycle cheap
 
@@ -40,7 +44,7 @@ Parse these optional flags:
 - `--repo <name>` — target repo (default: auto-detect from cwd; names from .claude/meta-dev-repos.json)
 - `--readonly` — restrict to read-only tools (review/analysis tasks)
 - `--claim <plan-dir>` — **concurrency safety (shared tree):** claim this plan directory before dispatch. The wrapper ABORTS if another live session holds an overlapping scope, and auto-releases on exit. Use whenever the worker edits `plans/**`. (`--claim-warn` warns instead of aborting.) See `references/execute-charter.md` → Concurrency Safety.
-- `--model <model>` — override default model (default: `claude-sonnet-5` — the 200K variant; **do not add `[1m]`**)
+- `--model <model>` — override default model (default: `claude-sonnet-5`). **Don't add `[1m]`** — it is a no-op on first-party API, where Sonnet 5 is always 1M
 - `--effort <level>` — thinking/reasoning effort: `low|medium|high|xhigh|max` (**default: `high`** — Anthropic's own Sonnet 5 default; drop to `medium`/`low` to conserve the Max Sonnet cap on bulk work)
 - `--max-turns <n>` — cap agent turns (default: unset — worker runs to completion)
 
@@ -49,7 +53,7 @@ Everything else is the task description. If no task description is provided, ask
 ## Step 2: Confirm the Plan
 
 Summarize what will be executed:
-- **Backend:** Anthropic Sonnet — `claude-sonnet-5` (200K, ambient login)
+- **Backend:** Anthropic Sonnet — `claude-sonnet-5` (1M context, ambient login)
 - **Effort:** high (or the `--effort` value)
 - **Repo:** (detected or specified)
 - **Task:** (the task description)
@@ -95,4 +99,4 @@ When execution completes:
 
 - Default tools: Read,Write,Edit,Bash,Grep,Glob. `--readonly` restricts to Read,Bash,Grep.
 - The worker's changes are NOT automatically committed — remind the user to review and commit.
-- **No API key needed** — `--backend sonnet` uses your ambient `~/.claude` login; billed to your normal plan at the **200K** tier (never 1M).
+- **No API key needed** — `--backend sonnet` uses your ambient `~/.claude` login; billed to your normal plan at standard rates (1M carries no premium above 200K).

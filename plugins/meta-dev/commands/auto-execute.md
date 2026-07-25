@@ -34,7 +34,7 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/config-get.sh" meta_dev.ladder.pool
 
 Task-shape → backend routing, the stay-native rules, and the foreign-harness caveats live in **`references/work-ladder.md`**. Read it once at the start of the run; it is the only place this order is defined.
 
-Beyond the pool, `--sonnet` (Anthropic-grade judgment at the 200K tier) and the other single-backend flags remain available as explicit opt-ins.
+Beyond the pool, `--sonnet` (Anthropic-grade judgment off the main thread) and the other single-backend flags remain available as explicit opt-ins.
 
 When unsure, **try the native tier first** (no flag) — escalating one rung is cheap; opening at the most expensive tier is not.
 
@@ -129,7 +129,7 @@ PY
 
 The user's input is: `$ARGUMENTS`
 
-- `--deep` / `--glm` / `--sonnet` / `--codex` — force a backend, skip routing (still chunk + review). `--sonnet` pins each chunk to a separate headless Anthropic Sonnet-200K worker (`claude-headless-exec --backend sonnet`, `claude-sonnet-5`, no `[1m]`) — Anthropic-grade judgment at the 200K price, never a Sonnet `Agent` subagent (an `opus[1m]` session bills those at 1M). `--codex` is a first-class executor **and** the cross-family review lens (see Core Bias) — route it spark-first and dispatch through `scripts/codex-headless-exec` (`--sandbox workspace-write` when it edits, `--sandbox read-only` when it only reports back).
+- `--deep` / `--glm` / `--sonnet` / `--codex` — force a backend, skip routing (still chunk + review). `--sonnet` pins each chunk to a separate headless Anthropic Sonnet 5 worker (`claude-headless-exec --backend sonnet`, `claude-sonnet-5`) — Anthropic-grade judgment in its own process, so the chunk's context churn never lands in the conductor's window. `--codex` is a first-class executor **and** the cross-family review lens (see Core Bias) — route it spark-first and dispatch through `scripts/codex-headless-exec` (`--sandbox workspace-write` when it edits, `--sandbox read-only` when it only reports back).
 - `--effort <level>` — thinking/reasoning effort forwarded to each headless worker: `low|medium|high|xhigh|max`. Applies to `--sonnet`/`--glm`/`--grok` (Anthropic + GLM default `high`). **`--deep` has no effort knob** — the runner warns and drops the level rather than forwarding it. Drop to `medium`/`low` to conserve the Max Sonnet cap on bulk chunks; `xhigh` for the hardest work. Omit to use the per-backend default
 - `--repo <name>` — target repo (default: auto-detect from cwd; names from .claude/meta-dev-repos.json)
 - `--readonly` — restrict workers to read-only tools (audits/reviews — route freely, either backend)

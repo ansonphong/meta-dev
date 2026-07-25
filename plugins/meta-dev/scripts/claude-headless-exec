@@ -26,9 +26,17 @@
 # Backend defaults:
 #   deep   → deepseek-v4-pro (opus/sonnet), deepseek-v4-flash (haiku)
 #   glm    → glm-5.2 (opus/sonnet/subagent), glm-4.5 (haiku) — routed via local beta-strip proxy
-#   sonnet → claude-sonnet-5 (NO [1m]); REAL Anthropic via ambient login
-#   opus   → claude-opus-5   (NO [1m]); REAL Anthropic via ambient login
-#   fable  → claude-fable-5  (NO [1m]); REAL Anthropic via ambient login — top-tier reasoning
+#   sonnet → claude-sonnet-5; REAL Anthropic via ambient login (1M context)
+#   opus   → claude-opus-5;   REAL Anthropic via ambient login (1M context)
+#   fable  → claude-fable-5;  REAL Anthropic via ambient login (1M) — top-tier reasoning
+#
+# On the FIRST-PARTY Anthropic API the 5-family is 1M by default: there is no
+# 200K variant and no [1m] suffix to select. Verified 2026-07-25 — bare and
+# [1m] forms both report contextWindow=1000000, and Claude Code's docs state
+# "Sonnet 5 always runs with the 1M context window ... no [1m] suffix to
+# select". 1M bills at standard rates with no premium above 200K, so DON'T add
+# [1m] here — it is a no-op. It matters only on Bedrock / Google Cloud /
+# Microsoft Foundry, where a model ID without it falls back to 200K.
 #
 # Prerequisites:
 #   - DEEPSEEK_API_KEY env var (for --backend deep)
@@ -72,33 +80,26 @@ BACKEND_EFFORT[glm]="high"                            # DECIDED high: unpooled/e
 BACKEND_LABEL[glm]="GLM"
 
 # sonnet → REAL Anthropic backend via your ambient ~/.claude login (NOT a 3rd
-# party). No base URL, no API key — just pin the Sonnet model, no [1m] suffix.
-# What this DOES buy: a fresh `claude -p` with a scrubbed env does not inherit
-# the parent session's [1m] beta, and it keeps the conductor's own context lean.
-# What it does NOT buy (corrected 2026-07-25): a 200K window. Measured — a bare
-# `--model claude-sonnet-5` reports contextWindow=1000000. Same for
-# claude-opus-5, claude-opus-4-8 and claude-fable-5. On the 4.7+/5 generation
-# there is no bare-ID 200K variant; per Anthropic's migration guide these models
-# carry a 1M window at standard pricing with no long-context premium, so there
-# is no 1M surcharge left to dodge.
+# party). No base URL, no API key — just pin the Sonnet model. What this buys is
+# CONTEXT ECONOMY: the worker's reads and tool churn stay in its own window and
+# only a distilled result returns, so the conductor's context is preserved.
+# It does NOT buy a smaller billed window — see the 1M note in the header.
 BACKEND_BASE_URL[sonnet]=""                          # ambient — no override
 BACKEND_AUTH_KEY_ENV[sonnet]=""                      # ambient login — no key
 BACKEND_OPUS_MODEL[sonnet]="claude-sonnet-5"         # n/a (sonnet backend never runs opus)
-BACKEND_SONNET_MODEL[sonnet]="claude-sonnet-5"       # Sonnet 5, 200K variant — NO [1m] suffix
+BACKEND_SONNET_MODEL[sonnet]="claude-sonnet-5"       # Sonnet 5 (1M on first-party; no suffix needed)
 BACKEND_HAIKU_MODEL[sonnet]="claude-haiku-4-5-20251001"
-BACKEND_SUBAGENT_MODEL[sonnet]="claude-sonnet-5"     # its own subagents stay 200K too
+BACKEND_SUBAGENT_MODEL[sonnet]="claude-sonnet-5"     # its own subagents stay on Sonnet 5 too
 BACKEND_EFFORT[sonnet]="high"                        # DECIDED high: Anthropic's own API default, and the quality/token sweet spot for a bulk per-task code writer under a cap. xhigh is Anthropic's pick for the HARDEST coding/agentic work — reach for it per-task via --effort, not as the fleet default. Sweep down to medium/low on mechanical batches.
 BACKEND_LABEL[sonnet]="Sonnet-5"
 
 # opus → REAL Anthropic backend via the ambient ~/.claude login (same shape as
-# sonnet, one tier up). Pin claude-opus-5 with NO [1m] suffix: a fresh
-# `claude -p` process with a scrubbed env does not inherit the parent session's
-# [1m] beta. Reach for it when a task needs top-tier Anthropic reasoning off the
-# main thread — the durable win is context hygiene (the conductor's window stays
-# lean), NOT a smaller billed window; see the correction in the sonnet block.
+# sonnet, one tier up). Pin claude-opus-5. Reach for it when a task needs
+# top-tier Anthropic reasoning off the main thread — the win is context hygiene
+# (the conductor's window stays lean), not a smaller billed window.
 BACKEND_BASE_URL[opus]=""                            # ambient — no override
 BACKEND_AUTH_KEY_ENV[opus]=""                        # ambient login — no key
-BACKEND_OPUS_MODEL[opus]="claude-opus-5"             # Opus 5 — NO [1m] suffix (see the 200K correction above)
+BACKEND_OPUS_MODEL[opus]="claude-opus-5"             # Opus 5 (1M on first-party; no suffix needed)
 BACKEND_SONNET_MODEL[opus]="claude-opus-5"           # primary/default slot (read at model resolution)
 BACKEND_HAIKU_MODEL[opus]="claude-haiku-4-5-20251001"
 BACKEND_SUBAGENT_MODEL[opus]="claude-opus-5"         # its own subagents stay on Opus 5 too
@@ -106,8 +107,7 @@ BACKEND_EFFORT[opus]="high"                          # DECIDED high: same reason
 BACKEND_LABEL[opus]="Opus-5"
 
 # fable → REAL Anthropic backend via the ambient ~/.claude login. Pin
-# claude-fable-5 (NO [1m]); a fresh scrubbed `claude -p` process → standard tier,
-# never the inherited 1M beta. Fable 5 is the top of the ambient ladder — reach
+# claude-fable-5. Fable 5 is the top of the ambient ladder — reach
 # for it on the HARDEST, most-complex tasks that demand extreme reasoning and
 # long-horizon coherence, off the main thread.
 BACKEND_BASE_URL[fable]=""                           # ambient — no override
@@ -498,8 +498,8 @@ if [[ -z "${BACKEND_BASE_URL[$BACKEND]}" ]]; then
     # ~/.claude login. An empty base URL is the marker: do NOT set a base URL or
     # auth token. Scrub any inherited 3rd-party routing (e.g. if this runs from a
     # shell that was pointed at deep/glm) so the model can't be proxied off to the
-    # wrong backend. With the pinned model (no [1m]) this is the standard 200K
-    # tier — never billed at the 1M rate a subagent would inherit.
+    # wrong backend. The pinned 5-family model runs 1M at standard rates (no
+    # premium above 200K), so there is no billing tier to manage here.
     ENV_UNSET=(-u ANTHROPIC_BASE_URL -u ANTHROPIC_AUTH_TOKEN -u ANTHROPIC_API_KEY)
 else
     # deep / glm route through a 3rd-party Anthropic-compatible endpoint.

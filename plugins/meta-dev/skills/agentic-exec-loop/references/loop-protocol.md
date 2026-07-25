@@ -13,7 +13,7 @@ releases usable artifacts once, while failure containment follows branches.
   `codex exec -m gpt-5.3-codex-spark -c model_reasoning_effort=low --sandbox workspace-write '<bounded task>'`
   (Spark bills to a **separate weekly quota** from the gpt-5.6 family → cheapest
   tier available). Everything else is an **explicit opt-in** headless process:
-  DeepSeek `--backend deep`, GLM `--backend glm`, or Anthropic Sonnet-200K
+  DeepSeek `--backend deep`, GLM `--backend glm`, or Anthropic Sonnet 5
   `--backend sonnet` via ${CLAUDE_PLUGIN_ROOT}/scripts/claude-headless-exec;
   Codex `--codex` via ${CLAUDE_PLUGIN_ROOT}/scripts/codex-headless-exec (no
   --backend) — Codex is a first-class executor, not review-only.
@@ -21,8 +21,10 @@ releases usable artifacts once, while failure containment follows branches.
   `claude-sonnet-5` (no `[1m]`). **The 1M caveat is conditional, not a blanket
   ban on native subagents:** ONLY when the conductor session is itself running
   the 1M beta (`opus[1m]`) does an Anthropic-model `Agent` subagent inherit that
-  beta and bill at the 1M rate — in that case route Sonnet work through
-  `--backend sonnet`, whose process carries no such beta → standard 200K tier.
+  session's betas — route Sonnet work through `--backend sonnet`, a separate
+  `claude -p` process, so the worker's context churn stays out of yours. (The
+  5-family is 1M at standard rates either way; this is context economy, not a
+  billing tier — see `claude-headless-exec`'s header note.)
   Nothing in the loop auto-detects the session tier, so confirm it before
   applying the caveat; on a non-1M session the native subagent has no 1M
   exposure and is the correct default worker.
@@ -271,15 +273,15 @@ escalation target is whatever the pool says, not a hardcoded pair.
 - `--grok`: Worker=grok — independent frontier reasoning and the third review family (xAI).
 - `--glm`: Worker=glm. **Available, not pooled** — reachable only by this explicit flag.
 - **GLM concurrency cap (critical):** the Z.AI account allows only ~3 concurrent `glm-5.2` requests total, shared across every live GLM session (interactive + worker). The conductor MUST **serialize `--glm` workers — never dispatch two in parallel**; parallel GLM fan-out deterministically oversubscribes the ceiling and both workers 529-loop. Before each GLM dispatch, count active Z.AI-pointed procs (the pre-flight in `commands/glm-execute.md`); if the ceiling is saturated, queue rather than spawn. The beta-strip proxy retries `[1305]` for ~2 min, so a single serialized worker survives bursty contention — but serialization is what prevents the self-inflicted steady-state saturation that retry alone cannot out-wait.
-- `--sonnet`: Worker=sonnet (Anthropic 200K via `--backend sonnet`), Fix ladder
+- `--sonnet`: Worker=sonnet (Anthropic Sonnet 5 via `--backend sonnet`), Fix ladder
   sonnet→next pooled rung. EVERY sonnet step — per-task execution AND the attempt-1 fixer —
   runs through `claude-headless-exec --backend sonnet` (a separate `claude -p`,
-  200K, no `[1m]`); never an Anthropic-model `Agent` subagent **when the
+  Sonnet 5); never an Anthropic-model `Agent` subagent **when the
   conductor session is running `opus[1m]`** — it would bill those at the 1M
   rate. Opus reviews the phase diff;
   attempt-2 escalation is another headless worker one rung along the pool (still
   no 1M exposure) before surfacing. Reach for `--sonnet` when you want Anthropic-grade Sonnet judgment
-  off the main thread at the 200K price.
+  off the main thread without spending the conductor's context on it.
 - `--codex`: a **first-class per-task execution worker** (via
   `codex-headless-exec`) — and still the cross-family
   CODE-REVIEW lens at the phase gate (an alternative/additional GPT-vs-Claude

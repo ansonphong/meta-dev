@@ -26,7 +26,7 @@ When routing through a Sonnet-class Anthropic-compatible backend:
 1. **Env vars must be complete.** Missing ANTHROPIC_AUTH_TOKEN → 401. Wrong ANTHROPIC_BASE_URL → model not found error.
 2. **Tool call format.** Some shims translate OpenAI tool format to Anthropic format. If headless worker gets "unexpected field" errors, the shim translation might have changed — check shim version.
 3. **Model routing.** In a typical project env:
-   - `claude-opus-4-7` → maps to Sonnet-tier reasoning
+   - `claude-opus-5` → maps to Opus-tier reasoning
    - `claude-sonnet-5` → maps to Sonnet (default)
    - `claude-haiku-4-5` → maps to Haiku-tier (lightweight)
 4. **No vision.** Some Sonnet-class backends do not support image inputs. Avoid `Read` on images in headless workers unless confirmed.

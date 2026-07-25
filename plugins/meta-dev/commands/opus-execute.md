@@ -1,25 +1,28 @@
 ---
 name: opus-execute
 argument-hint: <task description> [--repo <name>] [--readonly] [--model <model>] [--effort <level>]  # --repo names from .claude/meta-dev-repos.json
-description: Execute a task via headless Anthropic Opus Claude Code — spawns a SEPARATE Claude Code process pinned to the 200K Opus variant (NOT 1M), so top-tier Anthropic reasoning runs OFF the main thread (keeps the conductor's context lean) and is never billed at the 1M rate an Opus subagent from an opus[1m] session would incur.
+description: Execute a task via headless Anthropic Opus 5 Claude Code — spawns a SEPARATE Claude Code process so top-tier Anthropic reasoning runs OFF the main thread and the conductor's context window stays lean. Opus 5 is 1M-context on the first-party API.
 ---
 
-# /opus-execute — Anthropic Opus (200K) Headless Execution
+# /opus-execute — Anthropic Opus 5 Headless Execution
 
-Spawn a headless Claude Code worker on the **real Anthropic backend**, pinned to the **standard 200K Opus** model, to execute a task and report back. You stay on your current backend for orchestration; the worker does the hard reasoning in an **isolated process** — so the heaviest Opus-grade work happens without bloating the conductor's context window.
+Spawn a headless Claude Code worker on the **real Anthropic backend**, pinned to **Opus 5**, to execute a task and report back. You stay on your current backend for orchestration; the worker does the hard reasoning in an **isolated process** — so the heaviest Opus-grade work happens without bloating the conductor's context window.
 
 Uses `scripts/claude-headless-exec --backend opus` under the hood.
 
-## Why this exists — the 1M billing trap + context economy
+## Why this exists — context economy
 
 Two wins, one mechanism:
 
-1. **Don't inherit the session's `[1m]` beta.** When the orchestrating session runs `opus[1m]`, that flag turns on the 1M context beta **session-wide**, and an Opus subagent dispatched via the Agent/Task tool runs *inside* it. `/opus-execute` launches a **fresh `claude -p` process** with `--model claude-opus-5` (**no `[1m]` suffix**) and a scrubbed env, so it does not inherit that beta. Your main thread keeps running untouched.
+1. **Keep the conductor's context lean.** The worker runs in its own context window and returns only a distilled result — the main thread never absorbs the intermediate reasoning, files read, or tool churn. This is the delegation doctrine with Opus-grade judgment.
 
-   ⚠️ **Corrected 2026-07-25 — this no longer buys a 200K window.** Measured: a bare `--model claude-opus-5` reports `contextWindow=1000000`, as do `claude-opus-4-8`, `claude-sonnet-5` and `claude-fable-5`. There is no bare-ID 200K variant on the 4.7+/5 generation, and per Anthropic's migration guide these models carry a 1M window at standard pricing with **no long-context premium** — so there is no 1M surcharge left to dodge. The durable win is win #2 below, not billing.
-2. **Keep the conductor lean.** The worker runs in its own context window and returns a distilled result — the main thread never absorbs the intermediate reasoning, files read, or tool churn. This is the subagent-first doctrine with Opus-grade judgment.
+   > **No 200K/1M tradeoff to manage (verified 2026-07-25).** This command used to claim it pinned a "200K variant" to dodge a 1M premium. That is false on this model generation. Measured: `claude-opus-5`, `claude-opus-4-8`, `claude-sonnet-5` and `claude-fable-5` all report `contextWindow=1000000`, and `claude-opus-5[1m]` reports the same — the suffix is a **no-op** on first-party, so don't add it. Claude Code's docs confirm the plan side: *"On Max, Team, and Enterprise plans … Opus is automatically upgraded to 1M context with no additional configuration"*, and *"The 1M context window uses standard model pricing with no premium for tokens beyond 200K."* There is nothing to dodge.
+   >
+   > `[1m]` only matters on **Bedrock / Google Cloud / Microsoft Foundry**, where a model ID without it uses 200K. We run first-party via the ambient login.
 
-**It authenticates via your ambient `~/.claude` login** — no API key, no third-party endpoint. Billing is against your normal Claude subscription/login, same as any local run, just at the 200K tier.
+2. **Top-tier Anthropic reasoning, off-thread.** Opus-grade judgment on a bounded task without spending the conductor's window on it.
+
+**It authenticates via your ambient `~/.claude` login** — no API key, no third-party endpoint. Billing is against your normal Claude subscription/login, same as any local run.
 
 ## When to Use
 
@@ -28,7 +31,7 @@ Reach for `/opus-execute` when a task genuinely needs **top-tier Anthropic reaso
 - Any time you'd spawn an Opus subagent from an `opus[1m]` session — use this instead to avoid the 1M bill
 - Architecture / design / security passes where Sonnet's lens isn't enough but you don't want to burn the main window
 
-For cheap bulk/mechanical work, prefer `/deep-execute` (DeepSeek); for long-horizon agentic work `/glm-execute` (GLM); for **Anthropic-quality at 200K price without needing Opus depth**, `/sonnet-execute`. `/opus-execute` is the **top-tier-Anthropic, 200K-priced, off-thread** option; for the very hardest reasoning + long-horizon coherence, `/fable-execute`.
+For cheap bulk/mechanical work, prefer `/deep-execute` (DeepSeek); for long-horizon agentic work `/glm-execute` (GLM); for **Anthropic quality without needing Opus depth**, `/sonnet-execute`. `/opus-execute` is the **top-tier-Anthropic, 200K-priced, off-thread** option; for the very hardest reasoning + long-horizon coherence, `/fable-execute`.
 
 ## Test discipline — keep every test cycle cheap
 
@@ -97,4 +100,4 @@ When execution completes:
 
 - Default tools: Read,Write,Edit,Bash,Grep,Glob. `--readonly` restricts to Read,Bash,Grep.
 - The worker's changes are NOT automatically committed — remind the user to review and commit.
-- **No API key needed** — `--backend opus` uses your ambient `~/.claude` login; billed to your normal plan at the **200K** tier (never 1M).
+- **No API key needed** — `--backend opus` uses your ambient `~/.claude` login; billed to your normal plan at standard rates (1M carries no premium above 200K).
