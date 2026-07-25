@@ -70,6 +70,14 @@
       "medium_risk": "review_after",
       "high_risk": "gate_before_execute"
     },
+    "ladder": {
+      "pool": [
+        "deep",
+        "grok",
+        "codex"
+      ],
+      "native_only_when_required": true
+    },
     "paths": {
       "plans_root": "plans",
       "plan_subdirs": [],

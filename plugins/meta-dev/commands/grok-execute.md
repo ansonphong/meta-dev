@@ -21,9 +21,9 @@ Consequence: **give Grok a direct task, never a "run `/command`" instruction.** 
 Grok occupies a unique slot: it is **both** a general execution tier **and** a cross-family reviewer.
 
 - **As an executor:** Grok 4.5 is a frontier-tier model that **can write files** (like Codex under `--sandbox workspace-write`) — so it can do real bounded implementation work (fixes, refactors, scaffolding), not just read-and-report. Use it like `/deep-execute` or `/glm-execute` for a self-contained task where an independent strong model is wanted.
-- **As a reviewer:** Point it (read-only via `--readonly`) at a diff, the changed files, or a specific finding. An xAI-family model reviewing Claude/GLM/DeepSeek/OpenAI output is a **third independent family** — it catches failure modes that same-family review (and even the OpenAI/Codex lens) miss. That independent-family lens is the entire value of Grok-as-reviewer.
+- **As a reviewer:** Point it (read-only via `--readonly`) at a diff, the changed files, or a specific finding. An xAI-family model reviewing Claude/DeepSeek/OpenAI output is a **third independent family** — it catches failure modes that same-family review (and even the OpenAI/Codex lens) miss. That independent-family lens is the entire value of Grok-as-reviewer.
 
-**Where it sits on the work ladder:** DeepSeek (cheap/mechanical) → GLM (complex/stateful) remain the execution farm; Grok is a **higher-cost frontier option** for tasks that earn it (hard reasoning, a wanted second family) — not a bulk farm. Treat its quota/budget with the same deliberation as Codex, not the fan-out freedom of DeepSeek.
+**Where it sits on the work ladder:** Grok is in the default pool (`meta_dev.ladder.pool` = `deep`, `grok`, `codex`) as the **frontier-reasoning / third-family** rung — reach for it on tasks that earn it (hard reasoning, a wanted independent family), not for bulk. Treat its quota with the same deliberation as Codex, not the fan-out freedom of DeepSeek. Full routing table: `references/work-ladder.md`.
 
 ## Test discipline — keep every test cycle cheap
 

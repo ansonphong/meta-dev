@@ -340,6 +340,38 @@
             }
           }
         },
+        "ladder": {
+          "type": "object",
+          "description": "The work ladder: which delegation backends may be auto-selected, and in what order they escalate. Doctrine + task-shape routing table: references/work-ladder.md. Explicit flags (--deep/--glm/--codex/--grok/--sonnet/--opus/--fable) always win over this and can reach a backend that is not pooled.",
+          "properties": {
+            "pool": {
+              "type": "array",
+              "description": "Auto-selectable delegation backends, ordered cheapest-first. This order IS the escalation order on a failed review. A backend absent from this array is still reachable by explicit flag but is never auto-selected.",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "deep",
+                  "glm",
+                  "codex",
+                  "grok",
+                  "sonnet",
+                  "opus",
+                  "fable"
+                ]
+              },
+              "default": [
+                "deep",
+                "grok",
+                "codex"
+              ]
+            },
+            "native_only_when_required": {
+              "type": "boolean",
+              "description": "true: delegate by default, and run natively in the host harness only when the task genuinely requires it (needs our slash commands or project skills, needs vision, or needs tight interactive back-and-forth). false: prefer native execution and delegate only on explicit flag.",
+              "default": true
+            }
+          }
+        },
         "paths": {
           "type": "object",
           "properties": {

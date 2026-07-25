@@ -139,8 +139,8 @@ plans/app/UNIFIED-EDITING-CANVAS/16-TOOLBAR/followup-1/00-design.md
 ## Delegation (per CLAUDE.md ladder)
 
 Authoring a runbook's narrative + topo-sort + wave strategy is campaign-design judgment → **Opus** (the
-main thread). Driving members through HARDEN/EXECUTE delegates **DeepSeek → GLM** exactly as `/meta-dev`
-does; code review at gates → **Codex** (the cross-family lens; it can also execute). The runbook is the conductor's score; the
+main thread). Driving members through HARDEN/EXECUTE delegates along the **work ladder**
+(`references/work-ladder.md`) exactly as `/meta-dev` does; code review at gates → **Codex** or **Grok** (cross-family lenses; both also execute). The runbook is the conductor's score; the
 headless backends play it.
 
 References: `references/runbook-template.md` (skeleton + frontmatter schema + dashboard contract).
