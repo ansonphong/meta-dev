@@ -1,7 +1,7 @@
 ---
 name: meta-execute
 description: Subagent-driven plan execution — optimistic momentum (fix regressions async, keep moving), mandatory post-run code review, verify+commit+push between, auto-archive on completion (never deploys)
-argument-hint: <plan-path> [--inline] [--strict] [--deep] [--glm] [--sonnet] [--codex] [--effort <level>] [--deploy] [--pause-before=<task-id>]
+argument-hint: <plan-path> [--inline] [--strict] [--deep] [--grok] [--codex] [--sonnet] [--glm] [--effort <level>] [--deploy] [--pause-before=<task-id>]
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, TaskCreate, TaskUpdate]
 model: opus
 ---
@@ -32,11 +32,11 @@ Read `references/execute-charter.md` before dispatching. Execution posture (opti
 
 ## Flow
 
-### Worker tier (`--deep`/`--glm`/`--sonnet`/`--codex`)
+### Worker tier (`--deep`/`--grok`/`--codex`/`--sonnet`/`--glm`)
 
 When a tier flag is present, run the **agentic-exec-loop** (skill: agentic-exec-loop, references/loop-protocol.md) instead of the native executor:
 
-- Execute each task via a fresh headless worker — `${CLAUDE_PLUGIN_ROOT}/scripts/claude-headless-exec --backend deep|glm|sonnet [--effort <level>] --repo <plan-repo> -- <task spec incl. its Verify: command>`, or `${CLAUDE_PLUGIN_ROOT}/scripts/codex-headless-exec` for `--codex` / `${CLAUDE_PLUGIN_ROOT}/scripts/grok-headless-exec` for `--grok` (neither takes `--backend`; both emit the identical `OUTPUT_FILE` contract). If `--effort <level>` was passed to `/meta-execute`, forward it to every `claude-headless-exec` dispatch (sonnet/glm; no-op for deep); otherwise the script's per-backend default applies (sonnet=high, glm=high). The worker self-verifies. **`--sonnet` runs each task on a SEPARATE `claude -p` pinned to `claude-sonnet-5` (200K, no `[1m]`) via the ambient login — NEVER an Anthropic-model `Agent` subagent, which an `opus[1m]` conductor would bill at the 1M rate.**
+- Execute each task via a fresh headless worker — `${CLAUDE_PLUGIN_ROOT}/scripts/claude-headless-exec --backend deep|glm|sonnet [--effort <level>] --repo <plan-repo> -- <task spec incl. its Verify: command>`, or `${CLAUDE_PLUGIN_ROOT}/scripts/codex-headless-exec` for `--codex` / `${CLAUDE_PLUGIN_ROOT}/scripts/grok-headless-exec` for `--grok` (neither takes `--backend`; both emit the identical `OUTPUT_FILE` contract). If `--effort <level>` was passed to `/meta-execute`, forward it to every `claude-headless-exec` dispatch; otherwise the script's per-backend default applies (sonnet/opus/glm/fable = `high`). **`deep` has no effort knob** — the runner warns and drops the level rather than forwarding it, so don't bother passing `--effort` with `--deep`. The worker self-verifies. **`--sonnet` runs each task on a SEPARATE `claude -p` pinned to `claude-sonnet-5` (200K, no `[1m]`) via the ambient login — NEVER an Anthropic-model `Agent` subagent, which an `opus[1m]` conductor would bill at the 1M rate.**
 - KEEP the per-task checkbox flip + per-task commit (unchanged).
 - At each `## Phase N` boundary (or once at end for phase-less plans), dispatch `meta-dev:review-agent` over `git diff <phase_pre_sha>..HEAD`; branch on PASS/CONDITIONAL_PASS/FAIL per the protocol; run the fix-ladder on FAIL (next rung of `meta_dev.ladder.pool`).
 - The conductor holds only the task list + per-phase verdict; it never reads diffs.
@@ -45,7 +45,7 @@ When a tier flag is present, run the **agentic-exec-loop** (skill: agentic-exec-
 
 If you (the orchestrating session) dispatch a worker expected to idle past ~4 min, keep your prompt cache warm per loop-protocol's cache-keepalive (270s) — session practice, not command automation.
 
-**Bare invocation (no tier flag) = NATIVE TO THE HOST HARNESS** — steps 1–8 below, Step 6 unchanged. No external process is spawned: in Claude Code that means native `Agent`/Task subagents; in Codex it means native delegation via `codex exec`. `--deep`/`--glm`/`--sonnet`/`--codex` are **explicit opt-ins** that force a specific backend — none of them is the default.
+**Bare invocation (no tier flag) = NATIVE TO THE HOST HARNESS** — steps 1–8 below, Step 6 unchanged. No external process is spawned: in Claude Code that means native `Agent`/Task subagents; in Codex it means native delegation via `codex exec`. `--deep`/`--grok`/`--codex`/`--sonnet`/`--glm` are **explicit opt-ins** that force a specific backend — none of them is the default.
 
 ### 1. Resolve plan path + parse task inventory
 
@@ -101,7 +101,7 @@ Drain every in-flight **focused** verifier. Finish or park causally red branches
 
 ### 6. Mandatory post-run code review
 
-**Default path:** end-of-run `superpowers:requesting-code-review` over `git diff <start>..HEAD`. **Tier-flag path (`--deep`/`--glm`/`--sonnet`/`--codex`):** the closing review is satisfied by the per-phase `meta-dev:review-agent` passes (always the **Opus** reviewer, regardless of which backend executed the tasks) — the final phase review IS the closing review (no separate end-of-run review). Either way, a run NEVER ends unreviewed. Route findings:
+**Default path:** end-of-run review by the **`meta-dev:review-agent`** Opus subagent over `git diff <start>..HEAD` (it computes its own diff — the conductor never reads it). Do **not** use `superpowers:requesting-code-review`; it is superseded (see the host `CLAUDE.md` → Superpowers & Plan Mode). **Tier-flag path (`--deep`/`--grok`/`--codex`/`--sonnet`/`--glm`):** the closing review is satisfied by the per-phase `meta-dev:review-agent` passes (always the **Opus** reviewer, regardless of which backend executed the tasks) — the final phase review IS the closing review (no separate end-of-run review). Either way, a run NEVER ends unreviewed. Route findings:
 
 - **Trivial/mechanical** (lint, format, missing annotation) → fix inline and
   exact-path local commit; re-run the affected verification and code review;

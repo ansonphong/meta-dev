@@ -186,7 +186,7 @@ debt cannot prevent review. This is NON-NEGOTIABLE — every `/meta-execute` run
 ends with an independent code review. No skip conditions.
 
 1. Collect the full run diff: `git log --oneline <start-sha>..HEAD` then `git diff <start-sha>..HEAD`.
-2. **Invoke `superpowers:requesting-code-review`** over the full run diff. This is the project's code review skill — use it, not the meta-dev internal reviewer.
+2. **Dispatch the `meta-dev:review-agent` Opus subagent** over the full run diff — it computes its own diff and returns a structured verdict, so the conductor never reads the diff itself. (This replaces `superpowers:requesting-code-review`, which is superseded — host `CLAUDE.md` → Superpowers & Plan Mode. `review-agent` also reports unfiltered findings, where the superpowers path and `feature-dev:code-reviewer` filter by severity and silently drop real ones.)
 3. Route findings per the review's verdict:
    - **Trivial/mechanical** (lint, format, missing annotation) → fix inline and
      exact-path local commit, then re-run the affected verification and code

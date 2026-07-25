@@ -59,7 +59,7 @@ BACKEND_OPUS_MODEL[deep]="deepseek-v4-pro"
 BACKEND_SONNET_MODEL[deep]="deepseek-v4-pro"
 BACKEND_HAIKU_MODEL[deep]="deepseek-v4-flash"
 BACKEND_SUBAGENT_MODEL[deep]="deepseek-v4-pro"
-BACKEND_EFFORT[deep]=""                               # backend has no effort knob
+BACKEND_EFFORT[deep]=""                               # DECIDED: no effort knob on this backend — see the resolve block, which warns rather than forwarding
 BACKEND_LABEL[deep]="DeepSeek"
 
 BACKEND_BASE_URL[glm]="https://api.z.ai/api/anthropic"   # real upstream; worker talks to the local beta-strip proxy (see GLM_PROXY block below)
@@ -68,7 +68,7 @@ BACKEND_OPUS_MODEL[glm]="glm-5.2"        # NO [1m]: Z.AI returns [1211] Unknown 
 BACKEND_SONNET_MODEL[glm]="glm-5.2"
 BACKEND_HAIKU_MODEL[glm]="glm-4.5"       # glm-4.7-flashx needs a prepaid pkg (empty -> [1113]); glm-4.5 is the funded fallback. Revert to flashx after recharging Z.AI.
 BACKEND_SUBAGENT_MODEL[glm]="glm-5.2"
-BACKEND_EFFORT[glm]="high"                            # GLM runs at high effort by default
+BACKEND_EFFORT[glm]="high"                            # DECIDED high: unpooled/explicit-only backend, reached deliberately for stateful work — no reason to under-think it
 BACKEND_LABEL[glm]="GLM"
 
 # sonnet → REAL Anthropic backend via your ambient ~/.claude login (NOT a 3rd
@@ -82,7 +82,7 @@ BACKEND_OPUS_MODEL[sonnet]="claude-sonnet-5"         # n/a (sonnet backend never
 BACKEND_SONNET_MODEL[sonnet]="claude-sonnet-5"       # Sonnet 5, 200K variant — NO [1m] suffix
 BACKEND_HAIKU_MODEL[sonnet]="claude-haiku-4-5-20251001"
 BACKEND_SUBAGENT_MODEL[sonnet]="claude-sonnet-5"     # its own subagents stay 200K too
-BACKEND_EFFORT[sonnet]="high"                        # Sonnet 5 thinks at HIGH (Anthropic's own default) — override --effort medium/low to conserve the Sonnet cap
+BACKEND_EFFORT[sonnet]="high"                        # DECIDED high: Anthropic's own API default, and the quality/token sweet spot for a bulk per-task code writer under a cap. xhigh is Anthropic's pick for the HARDEST coding/agentic work — reach for it per-task via --effort, not as the fleet default. Sweep down to medium/low on mechanical batches.
 BACKEND_LABEL[sonnet]="Sonnet-200K"
 
 # opus → REAL Anthropic backend via the ambient ~/.claude login (same shape as
@@ -97,7 +97,7 @@ BACKEND_OPUS_MODEL[opus]="claude-opus-4-8"           # Opus 4.8, 200K variant �
 BACKEND_SONNET_MODEL[opus]="claude-opus-4-8"         # primary/default slot (read at model resolution)
 BACKEND_HAIKU_MODEL[opus]="claude-haiku-4-5-20251001"
 BACKEND_SUBAGENT_MODEL[opus]="claude-opus-4-8"       # its own subagents stay 200K Opus too
-BACKEND_EFFORT[opus]="high"                          # Opus thinks at HIGH by default; drop --effort medium/low to conserve the Opus cap
+BACKEND_EFFORT[opus]="high"                          # DECIDED high: same reasoning as sonnet, and Opus is already the expensive tier — --effort xhigh for a genuinely hard one-off, medium/low to conserve the Opus cap
 BACKEND_LABEL[opus]="Opus-200K"
 
 # fable → REAL Anthropic backend via the ambient ~/.claude login. Pin
@@ -111,7 +111,7 @@ BACKEND_OPUS_MODEL[fable]="claude-fable-5"           # n/a slot — Fable everyw
 BACKEND_SONNET_MODEL[fable]="claude-fable-5"         # primary/default slot (read at model resolution)
 BACKEND_HAIKU_MODEL[fable]="claude-haiku-4-5-20251001"
 BACKEND_SUBAGENT_MODEL[fable]="claude-fable-5"       # its own subagents stay Fable too
-BACKEND_EFFORT[fable]="high"                          # hardest-task tier → HIGH effort by default
+BACKEND_EFFORT[fable]="high"                          # DECIDED high: Fable thinks hard intrinsically (thinking is always on and cannot be disabled), so high is already deep — raise to xhigh/max only for the brutal ones
 BACKEND_LABEL[fable]="Fable-5"
 
 # ── Defaults ────────────────────────────────────────────────────────────
@@ -119,6 +119,7 @@ BACKEND=""
 REPO=""
 MODEL=""
 EFFORT=""    # thinking/reasoning effort; resolved from per-backend default unless --effort given
+EFFORT_EXPLICIT=0   # 1 when the caller passed --effort (so a no-knob backend can warn instead of silently dropping it)
 TIMEOUT=""   # resolved after parse (all backends → 7200000 = 120 min) unless --timeout given
 TOOLS="Read,Write,Edit,Bash,Grep,Glob"
 OUTPUT_FORMAT="stream-json"   # streams events → RAW file GROWS incrementally so the
@@ -222,6 +223,7 @@ while [[ $# -gt 0 ]]; do
             ;;
         --effort)
             EFFORT="$2"
+            EFFORT_EXPLICIT=1
             shift 2
             ;;
         --timeout)
@@ -351,8 +353,18 @@ if [[ -z "$MODEL" ]]; then
 fi
 
 # ── Resolve effort (per-backend default unless --effort given) ───────────
-# sonnet → high, glm → high, deep → none. --effort overrides for any backend.
-if [[ -z "$EFFORT" ]]; then
+# Per-backend defaults live in the BACKEND_EFFORT table above — that table is the
+# SINGLE definition point for effort in this harness; don't add a second one.
+# A backend whose BACKEND_EFFORT is EMPTY has declared "no effort knob": we do
+# NOT forward an effort level to it, and if the caller asked for one we say so
+# instead of dropping it silently (the old behaviour contradicted the docs,
+# which promised --effort was a no-op for deep while the script forwarded it).
+if [[ -z "${BACKEND_EFFORT[$BACKEND]}" ]]; then
+    if [[ "$EFFORT_EXPLICIT" == "1" ]]; then
+        echo "[WARN] --effort '$EFFORT' ignored: backend '$BACKEND' has no effort knob (BACKEND_EFFORT is empty for it). Dropping it rather than forwarding a level the backend does not honour." >&2
+    fi
+    EFFORT=""
+elif [[ -z "$EFFORT" ]]; then
     EFFORT="${BACKEND_EFFORT[$BACKEND]}"
 fi
 if [[ -n "$EFFORT" && ! "$EFFORT" =~ ^(low|medium|high|xhigh|max)$ ]]; then
@@ -492,8 +504,13 @@ else
     )
 fi
 
-# Thinking/reasoning effort — resolved per-backend (sonnet=high, glm=high)
+# Thinking/reasoning effort — resolved per-backend above (see BACKEND_EFFORT)
 # or overridden with --effort. Empty means "leave the CLI default alone".
+# NOTE: this is process-wide, so it also covers the worker's Haiku-tier calls
+# (ANTHROPIC_DEFAULT_HAIKU_MODEL). That is safe — Claude Code gates effort
+# per-model and drops it for Haiku 4.5, verified 2026-07-24 (a haiku-4-5 run
+# with CLAUDE_CODE_EFFORT_LEVEL=high returned api_error_status:null / success).
+# The *API* output_config.effort param does reject Haiku 4.5; the env var does not.
 if [[ -n "$EFFORT" ]]; then
     ENV_VARS+=(
         "CLAUDE_CODE_EFFORT_LEVEL=${EFFORT}"

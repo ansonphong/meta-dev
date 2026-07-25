@@ -99,7 +99,7 @@ check_skills() {
     skill_name=$(basename "$skill_dir")
     skill_file="$skill_dir/SKILL.md"
     if [ -f "$skill_file" ]; then
-      if check_skill_frontmatter "$skill_file" 2>&1; then
+      if check_skill_frontmatter "$skill_file" >/dev/null 2>&1; then
         PASS=$((PASS+1)); green "  PASS skill: $skill_name"
       else
         FAIL=$((FAIL+1)); red "  FAIL skill: $skill_name"
@@ -112,7 +112,13 @@ check_skills() {
       refs=$(grep -oE '[a-zA-Z0-9_.-]*/?references/[a-zA-Z0-9_/.-]*\.md' "$skill_file" 2>/dev/null || true)
       for ref in $refs; do
         case "$ref" in
-          references/*) ref_path="$skill_dir/$ref" ;;
+          references/*) ref_path="$skill_dir/$ref"
+                        # A bare references/x.md normally means THIS skill's own
+                        # references dir — but plugin-level references/ is an
+                        # equally legitimate home (meta-dev/CLAUDE.md: "references/
+                        # — Plugin-level docs"), and skills do cite those. Fall
+                        # back there before declaring the reference missing.
+                        [ -f "$ref_path" ] || ref_path="$PLUGIN_DIR/$ref" ;;
           *)            ref_path="$PLUGIN_DIR/skills/$ref" ;;
         esac
         if [ ! -f "$ref_path" ]; then
@@ -129,7 +135,7 @@ check_command_frontmatter() {
 import os
 # Heavy procedure-commands carry their full spec in the command body by design
 # (massively-parallel agent swarms, wave protocols). Thin-delegate commands stay <=50.
-HEAVY = {'meta-dev', 'meta-loop-gap', 'meta-probe', 'meta-visual-critique', 'meta-planner', 'meta-execute', 'housekeeping', 'deep-execute', 'glm-execute', 'sonnet-execute', 'opus-execute', 'fable-execute', 'codex-execute', 'grok-execute', 'auto-execute'}
+HEAVY = {'meta-dev', 'meta-loop-gap', 'meta-probe', 'meta-visual-critique', 'meta-planner', 'meta-execute', 'meta-ship', 'housekeeping', 'deep-execute', 'glm-execute', 'sonnet-execute', 'opus-execute', 'fable-execute', 'codex-execute', 'grok-execute', 'auto-execute'}
 name = os.path.basename('$cmd_file')[:-3]
 with open('$cmd_file') as f:
     content = f.read()
@@ -151,12 +157,15 @@ check_commands() {
   echo "=== Command Validation ==="
   for cmd_file in "$PLUGIN_DIR"/commands/*.md; do
     cmd_name=$(basename "$cmd_file" .md)
-    if check_command_frontmatter "$cmd_file" 2>&1; then
+    # NOTE: capture with `|| true`. Under `set -e` a bare `err=$(failing_cmd)`
+    # aborts the entire suite, which let ONE failing command mask every
+    # alphabetically-later one. Probe quietly so a traceback can't leak either.
+    local err
+    if err=$(check_command_frontmatter "$cmd_file" 2>&1); then
       PASS=$((PASS+1)); green "  PASS command: $cmd_name"
     else
-      local err
-      err=$(check_command_frontmatter "$cmd_file" 2>&1)
-      FAIL=$((FAIL+1)); red "  FAIL command: $cmd_name — $err"
+      err=$(echo "$err" | grep -oE '(AssertionError|Error): .*' | head -1 || echo "$err" | tail -1)
+      FAIL=$((FAIL+1)); red "  FAIL command: $cmd_name — ${err:-check failed}"
     fi
   done
 }
@@ -182,7 +191,7 @@ check_agents() {
   for agent_file in "$PLUGIN_DIR"/agents/*.md; do
     [ -f "$agent_file" ] || continue
     agent_name=$(basename "$agent_file" .md)
-    if check_agent_frontmatter "$agent_file" 2>&1; then
+    if check_agent_frontmatter "$agent_file" >/dev/null 2>&1; then
       PASS=$((PASS+1)); green "  PASS agent: $agent_name"
     else
       FAIL=$((FAIL+1)); red "  FAIL agent: $agent_name"
