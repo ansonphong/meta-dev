@@ -14,7 +14,9 @@ Uses `scripts/claude-headless-exec --backend opus` under the hood.
 
 Two wins, one mechanism:
 
-1. **Dodge the 1M bill.** When the orchestrating session runs `opus[1m]`, the `[1m]` flag turns on the **1M context beta for the whole session**. An Opus **subagent** dispatched via the Agent/Task tool runs *inside* that beta, so it goes out as **Opus-1M** and is billed at the premium long-context tier. `/opus-execute` launches a **fresh `claude -p` process** with `--model claude-opus-4-8` (**no `[1m]` suffix**) and a scrubbed env → no 1M beta → standard **200K** Opus pricing. Your main thread keeps running untouched.
+1. **Don't inherit the session's `[1m]` beta.** When the orchestrating session runs `opus[1m]`, that flag turns on the 1M context beta **session-wide**, and an Opus subagent dispatched via the Agent/Task tool runs *inside* it. `/opus-execute` launches a **fresh `claude -p` process** with `--model claude-opus-5` (**no `[1m]` suffix**) and a scrubbed env, so it does not inherit that beta. Your main thread keeps running untouched.
+
+   ⚠️ **Corrected 2026-07-25 — this no longer buys a 200K window.** Measured: a bare `--model claude-opus-5` reports `contextWindow=1000000`, as do `claude-opus-4-8`, `claude-sonnet-5` and `claude-fable-5`. There is no bare-ID 200K variant on the 4.7+/5 generation, and per Anthropic's migration guide these models carry a 1M window at standard pricing with **no long-context premium** — so there is no 1M surcharge left to dodge. The durable win is win #2 below, not billing.
 2. **Keep the conductor lean.** The worker runs in its own context window and returns a distilled result — the main thread never absorbs the intermediate reasoning, files read, or tool churn. This is the subagent-first doctrine with Opus-grade judgment.
 
 **It authenticates via your ambient `~/.claude` login** — no API key, no third-party endpoint. Billing is against your normal Claude subscription/login, same as any local run, just at the 200K tier.
@@ -40,7 +42,7 @@ Parse these optional flags:
 - `--repo <name>` — target repo (default: auto-detect from cwd; names from .claude/meta-dev-repos.json)
 - `--readonly` — restrict to read-only tools (review/analysis tasks)
 - `--claim <plan-dir>` — **concurrency safety (shared tree):** claim this plan directory before dispatch. The wrapper ABORTS if another live session holds an overlapping scope, and auto-releases on exit. Use whenever the worker edits `plans/**`. (`--claim-warn` warns instead of aborting.) See `references/execute-charter.md` → Concurrency Safety.
-- `--model <model>` — override default model (default: `claude-opus-4-8` — the 200K variant; **do not add `[1m]`**)
+- `--model <model>` — override default model (default: `claude-opus-5`; **do not add `[1m]`** — that opts the worker into the session-wide beta this command exists to avoid)
 - `--effort <level>` — thinking/reasoning effort: `low|medium|high|xhigh|max` (**default: `high`**; drop to `medium`/`low` to conserve the Opus cap on lighter work)
 - `--max-turns <n>` — cap agent turns (default: unset — worker runs to completion)
 
@@ -49,7 +51,7 @@ Everything else is the task description. If no task description is provided, ask
 ## Step 2: Confirm the Plan
 
 Summarize what will be executed:
-- **Backend:** Anthropic Opus — `claude-opus-4-8` (200K, ambient login)
+- **Backend:** Anthropic Opus — `claude-opus-5` (ambient login)
 - **Effort:** high (or the `--effort` value)
 - **Repo:** (detected or specified)
 - **Task:** (the task description)

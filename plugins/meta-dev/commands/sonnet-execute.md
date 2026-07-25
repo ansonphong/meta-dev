@@ -14,7 +14,7 @@ Uses `scripts/claude-headless-exec --backend sonnet` under the hood.
 
 When the orchestrating session runs `opus[1m]`, the `[1m]` flag turns on the **1M context beta for the whole session**. A Sonnet **subagent** dispatched via the Agent/Task tool runs *inside* that session beta, so it goes out as **Sonnet-1M** and is billed at the premium long-context tier.
 
-`/sonnet-execute` sidesteps that entirely: it launches a **fresh `claude -p` process** with `--model claude-sonnet-5` (**no `[1m]` suffix**) and a scrubbed env. No 1M beta is active → standard **200K** Sonnet pricing. Your Opus thread keeps running `opus[1m]` untouched.
+`/sonnet-execute` sidesteps the inherited beta: it launches a **fresh `claude -p` process** with `--model claude-sonnet-5` (**no `[1m]` suffix**) and a scrubbed env, so the session-wide 1M beta is not inherited. ⚠️ **Corrected 2026-07-25:** this does NOT yield a 200K window — a bare `--model claude-sonnet-5` measures `contextWindow=1000000`. On the 4.7+/5 generation there is no bare-ID 200K variant, and per Anthropic's migration guide these models bill at standard pricing with no long-context premium. Treat the win as context hygiene, not a cheaper window. Your Opus thread keeps running `opus[1m]` untouched.
 
 **It authenticates via your ambient `~/.claude` login** — no API key, no third-party endpoint. Billing is against your normal Claude subscription/login, same as any local run, just at the 200K tier.
 

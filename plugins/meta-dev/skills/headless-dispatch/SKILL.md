@@ -72,7 +72,7 @@ things.** Each is a thin wrapper that ends up at the same script with a differen
 | Claude Code command | `--backend` | Model | Reach for it when |
 |---|---|---|---|
 | `/fable-execute`  | `fable`  | `claude-fable-5`  | hardest tasks — max reasoning, long-horizon coherence |
-| `/opus-execute`   | `opus`   | `claude-opus-4-8` | architecture, hardening, review, security |
+| `/opus-execute`   | `opus`   | `claude-opus-5`   | architecture, hardening, review, security |
 | `/sonnet-execute` | `sonnet` | `claude-sonnet-5` | Anthropic judgment at 200K price |
 | `/deep-execute`   | `deep`   | `deepseek-v4-pro` | cheapest bulk; mechanical bounded edits |
 | `/glm-execute`    | `glm`    | `glm-5.2`         | long-horizon, stateful agentic refactors |
