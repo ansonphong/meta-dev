@@ -209,6 +209,16 @@ def _contains_expansion(token: str) -> bool:
     return PARAM_EXPANSION in token or COMMAND_SUBSTITUTION in token
 
 
+def _contains_runtime_expansion(token: str) -> bool:
+    """Recognize dynamic shell syntax even after outer quote removal."""
+    if _contains_expansion(token) or "`" in token or "$(" in token:
+        return True
+    return re.search(
+        r"\$\{|\$(?:[A-Za-z_][A-Za-z0-9_]*|[0-9@*#?$!\-])",
+        token,
+    ) is not None
+
+
 def _is_assignment(token: str) -> bool:
     name, separator, _ = token.partition("=")
     return bool(separator and name and (name[0].isalpha() or name[0] == "_")
@@ -282,10 +292,15 @@ def _git_command(tokens: list[str]) -> list[str] | None:
     if executable in {"bash", "dash", "ksh", "sh", "zsh"}:
         for arg_index, token in enumerate(tokens[index + 1 :], index + 1):
             if token == "-c" or (token.startswith("-") and "c" in token[1:]):
-                if arg_index + 1 < len(tokens) and _contains_expansion(tokens[arg_index + 1]):
+                if (
+                    arg_index + 1 < len(tokens)
+                    and _contains_runtime_expansion(tokens[arg_index + 1])
+                ):
                     raise ValueError("dynamic shell command cannot be inspected safely")
                 break
-    elif executable == "eval" and any(_contains_expansion(token) for token in tokens[index + 1 :]):
+    elif executable == "eval" and any(
+        _contains_runtime_expansion(token) for token in tokens[index + 1 :]
+    ):
         raise ValueError("dynamic shell command cannot be inspected safely")
     if not _is_git_executable(tokens[index]):
         if any(_is_git_executable(token) or re.search(r"\bgit\s", token) for token in tokens):
@@ -322,6 +337,8 @@ def _explicit_paths(paths: list[str], *, action: str, directory: str) -> None:
     if not paths:
         raise ValueError(f"git {action} requires explicit file paths after --")
     for path in paths:
+        if _contains_runtime_expansion(path):
+            raise ValueError(f"git {action} cannot use shell expansion in path {path!r}")
         if path in {".", "..", "*"} or path.endswith("/"):
             raise ValueError(f"git {action} cannot use broad path {path!r}")
         if any(char in path for char in "*?["):

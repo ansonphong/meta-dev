@@ -92,6 +92,28 @@ class GitPolicyTests(unittest.TestCase):
         self.assert_denied('bash -c "$possibly_git_command"')
         self.assert_denied('eval "$possibly_git_command"')
 
+    def test_rejects_dynamic_shell_programs_after_outer_quote_removal(self) -> None:
+        for command in (
+            'g=git; maybe="$g -C /work/repo add -A"; export maybe; bash -c \'$maybe\'',
+            "bash -c 'echo $(date +%s)'",
+            "bash -c 'echo `date +%s`'",
+            "eval '$possibly_git_command'",
+        ):
+            with self.subTest(command=command):
+                self.assert_denied(command)
+
+    def test_rejects_dynamic_mutating_git_pathspecs(self) -> None:
+        for command in (
+            'path=.; git -C /work/repo add -- "$path"',
+            "git -C /work/repo add -- '$(printf src/a.py)'",
+            "git -C /work/repo add -- '`printf src/a.py`'",
+            'paths=plans/; git -C /work/repo commit --only -m unsafe -- "$paths"',
+            "git -C /work/repo commit --only -m safe -- '$(printf src/a.py)'",
+            "git -C /work/repo commit --only -m safe -- '`printf src/a.py`'",
+        ):
+            with self.subTest(command=command):
+                self.assert_denied(command)
+
     def test_allows_safe_expansions_outside_executable_position(self) -> None:
         for command in (
             'echo "$HOME"',
@@ -143,6 +165,27 @@ class GitPolicyTests(unittest.TestCase):
         output = json.loads(result.stdout)
         self.assertEqual(output["hookSpecificOutput"]["hookEventName"], "PreToolUse")
         self.assertEqual(output["hookSpecificOutput"]["permissionDecision"], "deny")
+
+    def test_codex_adapter_production_cmd_denies_dynamic_git_bypasses(self) -> None:
+        env = os.environ.copy()
+        env["PLUGIN_ROOT"] = str(ROOT)
+        commands = (
+            'g=git; maybe="$g -C /work/repo add -A"; export maybe; bash -c \'$maybe\'',
+            'path=.; git -C /work/repo add -- "$path"',
+            'paths=plans/; git -C /work/repo commit --only -m unsafe -- "$paths"',
+        )
+        for command in commands:
+            with self.subTest(command=command):
+                payload = json.loads(json.dumps(PRODUCTION_CODEX_BASH))
+                payload["tool_input"]["cmd"] = command
+                result = subprocess.run(
+                    [sys.executable, str(ADAPTER_PATH)], input=json.dumps(payload),
+                    text=True, capture_output=True, env=env, check=True,
+                )
+                output = json.loads(result.stdout)
+                self.assertEqual(
+                    output["hookSpecificOutput"]["permissionDecision"], "deny",
+                )
 
     def test_codex_adapter_normalizes_production_cmd_for_legacy_destructive_guard(self) -> None:
         payload = json.loads(json.dumps(PRODUCTION_CODEX_BASH))
