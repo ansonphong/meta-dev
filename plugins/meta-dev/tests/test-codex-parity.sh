@@ -121,12 +121,14 @@ missing = []
 bad_bodies = []
 meta_commands = sorted(commands.glob("meta-*.md"))
 
-# Claude Code ships built-in /compact, /config and /init. A bare twin using one
-# of those names would shadow the built-in rather than redirect to our command,
-# so these three are deliberately meta-only. The pairing invariant is about
+# Claude Code ships built-in /compact, /config, /init and /goal. A bare twin
+# using one of those names would shadow the built-in rather than redirect to our
+# command, so these are deliberately meta-only. The pairing invariant is about
 # reachability, and `/meta-compact` is already reachable — inventing `/compact`
-# would break the CLI to satisfy a naming rule.
-BUILTIN_COLLISIONS = {"compact", "config", "init"}
+# would break the CLI to satisfy a naming rule. `/goal` is the sharpest case:
+# `/meta-goal` exists precisely to FEED the built-in `/goal`, so shadowing it
+# would break the very command this one is built to serve.
+BUILTIN_COLLISIONS = {"compact", "config", "init", "goal"}
 
 for implementation in meta_commands:
     short = implementation.stem.removeprefix("meta-")
