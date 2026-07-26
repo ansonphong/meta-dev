@@ -117,8 +117,15 @@ via `card_sep()`.
 ```
 
 **3. Next Steps card** — the mandatory end-of-response capstone. One `NOW` row.
+**Always preceded by a plain-English `▶ NEXT` sentence and a `Plan:` path**, both
+outside the chassis — `▶` is retired as a status glyph, and prose is what makes
+the instruction readable without decoding the rows. The card summarizes; the
+line instructs. Content spec: the project's Next Steps reference.
 
 ```
+▶ **NEXT — you:** say **"go"** and I'll execute the plan — 8 tasks. Nothing runs until you do.
+   **Plan:** `plans/app/2026-07-21-variation-purge.md`
+
 ┌─ NEXT STEPS ────────────────────────────────────────────────────────────
 │ 🔄  Codex SOL crash-sim (xhigh)                running
 │ ✅  Ledger updated — findings + 6 invariants   committed

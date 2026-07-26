@@ -64,7 +64,7 @@ You run this loop on the main thread. **Never just fire one giant task at a back
    ```
 
    `OK`/`UNKNOWN` → continue to the next wave. `OVER` → don't start the next wave: invoke `/meta-compact` (forward handoff whose ▶ NEXT ACTION is "resume at the next wave/chunk"), surface the `/compact read …` trigger, and STOP for the user to compact. Resume continues the loop. Threshold: `--threshold N` or env `META_DEV_CONTEXT_THRESHOLD`. This is the same watchdog the per-phase loop uses (agentic-exec-loop → "Context watchdog"); it keeps long jobs ahead of the harness's blunt hard auto-compact.
-7. **Integrate & report** — once all chunks pass, summarize what landed, what was reviewed, residual risk. Close with the Next Steps Dashboard.
+7. **Integrate & report** — once all chunks pass, summarize what landed, what was reviewed, residual risk. Close with the Next Steps Dashboard: a plain-English `▶ NEXT` sentence, the `Plan:` path spelled out in full, then the card.
 
 ## Multi-phase plans — one phase/wave per round (meta-planner plans)
 
