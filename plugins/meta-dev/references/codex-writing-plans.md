@@ -7,7 +7,7 @@ plan ledger, focused-test policy, shared-worktree git rules, and GPT-5.6.
 ## Contents
 
 1. Planning boundary
-2. Plan size and storage
+2. Plan size, storage, and target
 3. Required investigation
 4. Single-file plan structure
 5. Task contract
@@ -36,7 +36,7 @@ a fresh worker:
 
 Do not make the executor repeat the planner's discovery work.
 
-## 2. Plan size and storage
+## 2. Plan size, storage, and target
 
 Use one dated Markdown file for ordinary medium-sized work:
 
@@ -62,6 +62,17 @@ Storage rules:
 - Do not write `status:`. Plan state is derived.
 - A single-file plan contains task headings but no Markdown checkbox rows.
 - In a multi-phase plan, `00-master-plan.md` is the sole checkbox ledger.
+
+Plan target:
+
+```yaml
+target: lean | standard | explicit    # optional; absent means `standard`
+```
+
+`target` scales authoring depth to the capability of the executing agent.
+`references/plan-targets.md` is the ONE definition of the tiers, the tier-to-backend
+mapping, the capability ordering, and the blast-radius override. Read it and set the
+field; do not restate the table in the plan or in this document.
 
 ## 3. Required investigation
 
@@ -111,6 +122,10 @@ Each task must produce one coherent, reviewable, independently verifiable
 change. Fold scaffolding, config, and docs into the task whose deliverable needs
 them.
 
+**Objective, Files, Acceptance, and Commit are invariant across every target.**
+Context depth, Work sketch depth, and Verify-After detail scale by target per
+`references/plan-targets.md`.
+
 Every task includes:
 
 - **Objective:** the concrete state produced by this task.
@@ -156,6 +171,11 @@ The following make a plan invalid:
 - broad verification such as a whole repository test, build, or type check when
   a focused command exists;
 - line-number-only anchors. Prefer symbols because line numbers drift.
+
+The expected-result ban binds **whenever a command is given**. At `target: lean` a
+task may instead state an acceptance condition and let the executing agent choose the
+command — that is not a placeholder, and it is the only tier where omitting the
+command is permitted. Every other entry above applies at every tier.
 
 Unknowns that genuinely cannot be resolved during planning are named decisions
 with an owner and a blocking condition, not hidden placeholders.
