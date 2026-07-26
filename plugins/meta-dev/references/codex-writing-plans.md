@@ -103,7 +103,9 @@ Render these sections in this order:
 5. `Tech Stack`: only technologies that affect the implementation.
 6. `Global Constraints`: exact project-wide rules that every task inherits.
 7. `Codebase Ground Truth`: inspected revision, current behavior, symbols,
-   callers, data flow, and non-obvious constraints.
+   callers, data flow, and non-obvious constraints. Record **anchors, not frozen
+   content** — the symbol name plus the invariant that matters, never pasted file
+   bodies or signature dumps, which are stale the moment the tree moves (LP-007).
 8. `Decisions`: locked choices with rationale.
 9. `Non-Goals`.
 10. `File Structure`: every create/modify/delete/move path and responsibility.
@@ -171,6 +173,8 @@ The following make a plan invalid:
 - broad verification such as a whole repository test, build, or type check when
   a focused command exists;
 - line-number-only anchors. Prefer symbols because line numbers drift.
+- pasted file contents or signature dumps presented as ground truth. Record the
+  symbol and the invariant; everything frozen drifts, not just line numbers.
 
 The expected-result ban binds **whenever a command is given**. At `target: lean` a
 task may instead state an acceptance condition and let the executing agent choose the

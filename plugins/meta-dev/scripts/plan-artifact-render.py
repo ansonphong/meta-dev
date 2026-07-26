@@ -593,7 +593,7 @@ def slugify(value: str) -> str:
 
 
 def render_phase(phase: dict[str, Any]) -> str:
-    lines = [f"# Phase {phase['id']}: {phase['title']}", "", "## Codebase Snapshot", "", phase["summary"], ""]
+    lines = [f"# Phase {phase['id']}: {phase['title']}", "", "## Codebase Anchors", "", phase["summary"], ""]
     for task in phase["tasks"]:
         lines += render_task_details_v10(task)
     return "\n".join(lines)
