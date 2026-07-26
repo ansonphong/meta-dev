@@ -397,6 +397,26 @@ def _validate_remote(args: list[str]) -> None:
     raise ValueError("git remote is allowed only for listing or get-url <name>")
 
 
+def _validate_push(directory: str | None, args: list[str]) -> None:
+    """Allow an ordinary rooted push; refuse every history-destroying form.
+
+    The conductor pushes (CLAUDE.md), so push must work. What is refused is the
+    subset that can destroy a peer's published work: any force variant, remote
+    branch deletion, and the bulk refspec forms that move refs nobody named.
+    """
+    if directory is None:
+        raise ValueError("git push must use git -C <absolute-repository>")
+    for arg in args:
+        if arg in {"-f", "--force", "--force-with-lease", "--force-if-includes"}:
+            raise ValueError("git push --force is forbidden — it destroys published peer commits")
+        if arg.startswith("--force"):
+            raise ValueError(f"git push {arg} is forbidden — no force variant is allowed")
+        if arg in {"-d", "--delete", "--mirror", "--prune", "--all"}:
+            raise ValueError(f"git push {arg} is forbidden — it can delete or bulk-move remote refs")
+        if arg.startswith("+"):
+            raise ValueError(f"git push forced refspec {arg!r} is forbidden — '+' means force")
+
+
 def _validate_git(argv: list[str]) -> None:
     subcommand, directory, args = _parse_git(argv)
     if subcommand in DENIED_SUBCOMMANDS:
@@ -408,6 +428,8 @@ def _validate_git(argv: list[str]) -> None:
     elif subcommand in {"pull", "merge"}:
         if directory is None or args != ["--ff-only"]:
             raise ValueError(f"git {subcommand} is allowed only as git -C <absolute> {subcommand} --ff-only")
+    elif subcommand == "push":
+        _validate_push(directory, args)
     elif subcommand == "branch":
         _validate_branch(args)
     elif subcommand == "config":
@@ -421,7 +443,16 @@ def _validate_git(argv: list[str]) -> None:
         if directory is None:
             raise ValueError(f"git {subcommand} must use git -C <absolute-repository>")
     else:
-        raise ValueError(f"git {subcommand} is not allowed by the shared-worktree policy")
+        # Deny-by-default fallthrough: this subcommand is UNRECOGNIZED, not
+        # deliberately banned. Say so — the old wording read as a considered
+        # policy decision and sent a debugging session hunting for a ban that
+        # was never written (2026-07-26: `git push` was refused here purely
+        # because nobody had added it, and the message hid that).
+        raise ValueError(
+            f"git {subcommand} is unrecognized by the shared-worktree policy "
+            f"(deny-by-default). If it is legitimate, add a branch for it in "
+            f"scripts/lib/git_policy.py — it was omitted, not forbidden."
+        )
 
 
 def validate_shell(command: str) -> Decision:
