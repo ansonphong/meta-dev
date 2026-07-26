@@ -1,7 +1,7 @@
 ---
 name: meta-loop-gap
 description: Four-Wave Gap Scanner — scans plans OR source code, finds bugs, fixes them directly
-argument-hint: <plan-dir | feature:name | code-path | project> [--budget auto|low|medium|high] [--iterations N] [--scan-model haiku|sonnet|opus|fable] [--fix-backend deep|glm|opus|sonnet|haiku|fable|inline] [--deep|--glm|--opus|--sonnet|--haiku|--fable]
+argument-hint: <plan-dir | feature:name | code-path | project> [--budget auto|low|medium|high] [--target lean|standard|explicit] [--iterations N] [--scan-model haiku|sonnet|opus|fable] [--fix-backend deep|glm|opus|sonnet|haiku|fable|inline] [--deep|--glm|--opus|--sonnet|--haiku|--fable]
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, TaskCreate, TaskUpdate]
 model: opus
 ---
@@ -49,6 +49,22 @@ When scanning a **plan** (the HARDEN stage, 4/6), keep `/meta-dashboard` in sync
 - **Wave 2 escalates per-file, not globally.** A file gets a Wave 2 (Sonnet/Opus) per-file agent ONLY if: **(a)** Wave 0/1 reported ≥1 gap in it, **OR (b)** it changed since the last scan (`git diff` vs the prior `loop-gap.md` `git_sha`), **OR (c)** it is opus-tier (200+ lines / cross-module / complex logic — the high-bug-density files). Clean, unchanged, simple files skip Wave 2. The **semantic + role agents still always spawn** (Data Flow, Behavioral Claim, Mental Dry Run, etc.) — they run on the Context Index, not per-file, so they remain the cross-cutting safety net regardless of which files escalated.
 - **Wave 3 runs ONLY if Wave 2 left an unresolved high-severity gap.** A clean Wave 2 means the cheap waves already converged — Opus holistic review would add cost without signal. (Reviews on Opus by default, or the forced `--scan-model` when set.)
 - **First scan vs re-scan:** no prior `loop-gap.md` (virgin plan) → treat ALL files as changed → first pass gets full breadth. On re-scan, only changed + flagged + complex files escalate → re-hardening a green plan costs a fraction of the first pass.
+
+**Plan target** (default: read from the plan; absent means `standard`) — scan mode only.
+
+> ⚠️ **Naming.** In this document "target files / target set / target repo / target paths" and the `target:` key in `.loop-gap-config.md` all mean **the thing being scanned**. The authoring depth tier is ALWAYS written as **`plan target`**, and its flag is `--target`. Never write the bare word "target" for the tier here.
+
+Read `target:` from the plan's frontmatter. `--target` overrides it but may only **raise** depth, never lower it below what the plan declares. **`references/plan-targets.md` is the ONE definition of the tiers** — read it, don't restate it.
+
+| Plan target | Plan-mode categories | Wave 2 fan-out |
+|-------------|----------------------|----------------|
+| `lean` | cats 1-7 + 12 + 13 + 15-18 + 34 | semantic + role agents only; per-file agents only for flagged files |
+| **`standard`** (default) | cats 1-24 + 34 — today's behavior | today's `auto` behavior |
+| `explicit` | all cats 1-24 + 34, no content-based pruning | full per-file fan-out |
+
+**Cats 12 (Verification Soundness) and 13 (Execution Context) stay in the lean set and are never traded for speed** — they fail *silently*, and cat 13 guards the monorepo cwd class the host CLAUDE.md calls the #1 repeated mistake.
+
+**Plan target and `--budget` are orthogonal and BOTH apply** — plan target gates *which categories fire*, `--budget` gates *which files escalate*. Same composition as `--scan-model` vs `--fix-backend`. Category gating is **reduction only**: no category is ever deleted from this document, and `explicit` still fires all 25.
 
 **Iterations** (default `1`): Multi-iteration uses progressive depth — early iterations run Wave 0+1 only, promoting to deeper waves as gap count drops below 10 → below 3 → zero. (Under `auto`, the per-file escalation gating above applies *within* each iteration too.)
 
@@ -503,7 +519,7 @@ Each agent's prompt MUST include:
 1. Its primary file — read in full
 2. The merged Context Index (NOT raw files) — including Reactive State Map, Architecture Registry, Contract Registry
 3. Wave 0 tool results (skip checks tools already covered)
-4. **Only the gap categories that can actually fire on this file.** Start from the mode set (plan mode: cats 1-24 + 34; code/feature mode: cats 15-34 + applicable plan cats if hybrid), then **prune to what the plan/code actually contains**: no endpoints → drop the contract/API-drift cats (7, 7a-e, 30); pure-frontend with no async/shared state → drop concurrency/race (28); no data-model/schema change → drop migration (21); no loops/pipelines/accumulators in the code blocks → drop value-correctness (23); no multi-step smoke tests → drop verification-reachability (24). Carrying dead categories just bloats the prompt — give each agent only the lenses that can fire on its file.
+4. **Only the gap categories that can actually fire on this file.** Prune in THREE stated passes, in this order: **(i) mode** — plan mode: cats 1-24 + 34; code/feature mode: cats 15-34 + applicable plan cats if hybrid. **(ii) plan target** — apply the Step 0 plan-target table (`lean` narrows to cats 1-7 + 12 + 13 + 15-18 + 34; `standard` keeps the mode set; `explicit` keeps the mode set and skips pass iii entirely). **(iii) content** — **prune to what the plan/code actually contains**: no endpoints → drop the contract/API-drift cats (7, 7a-e, 30); pure-frontend with no async/shared state → drop concurrency/race (28); no data-model/schema change → drop migration (21); no loops/pipelines/accumulators in the code blocks → drop value-correctness (23); no multi-step smoke tests → drop verification-reachability (24). Carrying dead categories just bloats the prompt — give each agent only the lenses that can fire on its file.
 5. **Semantic verification mandate:** For every behavioral claim ("always/locked/forced/only") → check Reactive State Map mutation paths. For every UI component change → check for dead-end state combos. For every scope limiter → trace all data paths in Context Index. For every implementation mapping → check Architecture Registry. For every function call → check GUARDS in Codebase Signatures. **For every code block with a loop/pipeline** → trace variable values through iterations and verify return/response uses the correct (cumulative vs. last-iteration) value (cat 23). **For every multi-step verification procedure** → simulate state after each step and verify next step is reachable (cat 24).
 6. Instructions: **Fix-backend override (checked FIRST):** if the run's resolved fix backend (Step 0) is NOT `inline`, this agent — in ALL modes — REPORTS gaps in the structured format only and applies NO edits; the Fix Dispatch step applies them via the chosen backend. The mode-specific fixing rules below apply ONLY under the default `inline` backend. **Plan mode:** fix own file only, report cross-file gaps, preserve checkboxes, no new tasks, no deletions. **Code/feature mode:** fix source code in own file directly (conf ≥ 0.8), report cross-file gaps, never delete public functions without consumer verification, produce at least 1 adversarial scenario. **Stub detection (ALL modes):** Check for category 33 patterns in every file. A route handler that returns hardcoded data when a service function exists for real data is ALWAYS a bug. A component showing "coming soon" or "Phase N" text in production is ALWAYS a bug. Report these at sev:HIGH conf:0.95 regardless of mode.
 
@@ -641,7 +657,10 @@ If the Contract Registry lists N endpoints, spawn N Haiku agents — one per end
 
 **Cross-phase Dependency Checker** (sonnet, one per phase boundary) — For each pair of adjacent phases (phase 1→2, 2→3, etc.), spawn an agent that verifies: does phase N's output satisfy phase N+1's preconditions? Are there ordering assumptions that could break? This catches integration seams between phases that per-file agents miss because each only sees one phase.
 
-#### Wave 2 agent count examples:
+#### Wave 2 agent count examples — the `standard` plan-target baseline:
+
+These counts describe **`target: standard`**. At `lean`, drop the per-file agents for unflagged files (typically ~40-60% fewer). At `explicit`, every file gets its own agent with no content-based pruning.
+
 - Small plan (3 phases, 3 endpoints, 0 unaccounted consumers): 3 file + 3 role + 7 semantic + 1 journey + 3 endpoint + 2 cross-phase = **19 agents**
 - Medium plan (6 phases, 5 endpoints, 2 unaccounted consumers): 6 file + 3 role + 7 semantic + 1 journey + 5 endpoint + 5 cross-phase + 2 consumer = **29 agents**
 - Large plan (10 phases, 8 endpoints, 4 unaccounted consumers): 10 file + 3 role + 7 semantic + 1 journey + 8 endpoint + 9 cross-phase + 4 consumer = **42 agents**
