@@ -46,7 +46,7 @@ assert codex["interface"] == {
     "category": "Productivity",
     "capabilities": ["Write"],
     "defaultPrompt": [
-        "Plan a scoped change with meta-dev.",
+        "Write a self-contained implementation plan for a fresh agent and save it under plans/<repo>/.",
         "Execute an approved plan task with focused verification.",
         "Review my current change and report a verdict.",
     ],
@@ -54,7 +54,7 @@ assert codex["interface"] == {
 
 expected = {
     "dev": ("references/workflows/protocol.md", "workflow-skills/waterfall-tracking/SKILL.md", "commands/meta-dev.md"),
-    "plan": ("workflow-skills/dod-contract/SKILL.md", "commands/meta-planner.md", "schemas/plan-artifact.schema.json", "scripts/plan-artifact-render.py"),
+    "plan": ("references/codex-writing-plans.md", "workflow-skills/dod-contract/SKILL.md", "commands/meta-planner.md", "schemas/plan-artifact.schema.json", "scripts/plan-artifact-render.py"),
     "harden": ("references/workflows/protocol.md", "workflow-skills/plan-validation/SKILL.md", "commands/meta-loop-gap.md"),
     "execute": ("references/workflows/protocol.md", "workflow-skills/agentic-exec-loop/SKILL.md", "references/execute-dispatch.md"),
     "review": ("references/workflows/protocol.md", "workflow-skills/code-review-protocol/SKILL.md", "references/execute-charter.md"),
@@ -149,9 +149,20 @@ for marker in ("def main()", "PreToolUse", "PostToolUse", "SessionStart", "UserP
     assert marker in adapter_text, f"Codex adapter missing {marker}"
 
 plan_schema = load_json(require_file("schemas/plan-artifact.schema.json"))
-assert plan_schema["properties"]["version"]["const"] == "1.0"
+assert plan_schema["properties"]["version"]["enum"] == ["1.0", "1.1"]
 renderer = require_file("scripts/plan-artifact-render.py").read_text(encoding="utf-8")
-assert 'VERSION = "1.0"' in renderer and "--validate" in renderer
+assert 'VERSIONS = {"1.0", "1.1"}' in renderer and "--validate" in renderer
+plan_skill = require_file("skills/plan/SKILL.md").read_text(encoding="utf-8")
+assert "version `1.1`, `single-file`" in plan_skill
+assert "Do not implement the plan" in plan_skill
+plan_contract = require_file("references/codex-writing-plans.md").read_text(encoding="utf-8")
+for marker in (
+    "skilled implementation agent that has no conversation history",
+    "plans/<repo>/YYYY-MM-DD-descriptive-kebab-case.md",
+    "No-placeholder rule",
+    "Fresh-agent test",
+):
+    assert marker in plan_contract, f"Codex writing-plans bridge missing {marker!r}"
 
 portability = require_file("tests/test_runtime_portability.py").read_text(encoding="utf-8")
 for marker in (

@@ -8,8 +8,11 @@ import subprocess
 import sys
 from pathlib import Path
 
+import jsonschema
+
 
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "plan-artifact-render.py"
+SCHEMA = Path(__file__).resolve().parents[1] / "schemas" / "plan-artifact.schema.json"
 
 
 def task(handle: str, title: str, path: str) -> dict:
@@ -58,6 +61,106 @@ def base_ir(layout: str) -> dict:
     return ir
 
 
+def rich_ir() -> dict:
+    return {
+        "version": "1.1",
+        "layout": "single-file",
+        "artifact_path": "plans/app/2026-07-25-prompt-controls.md",
+        "title": "Prompt Controls",
+        "slug": "prompt-controls",
+        "repo": "app",
+        "stage": 3,
+        "context": ["app/.claude/context/prompt-system.md"],
+        "docs": [],
+        "depends": [],
+        "blocks": [],
+        "why": "Give a fresh worker enough verified context to implement safely.",
+        "goal": "Add one processor-aware prompt cutoff without changing existing automatic outcomes.",
+        "architecture": "Keep processor metadata authoritative and resolve the nullable setting at the shared interpolation boundary.",
+        "tech_stack": ["Python/Pydantic backend", "Svelte 5 frontend"],
+        "global_constraints": ["Preserve existing processor defaults.", "Use focused verification only."],
+        "codebase_snapshot": {
+            "revision": "app@abc1234; relevant files clean",
+            "current_behavior": ["The persisted field uses 0.01 as both a value and a sentinel."],
+            "anchors": ["backend/prompt.py::interpolate_prompts reads min_weight_threshold."],
+            "data_flow": ["Saved config -> processor schema -> interpolate_prompts -> prompt weights."],
+        },
+        "decisions": ["Represent Auto as null; explicit 0.01 remains literal."],
+        "non_goals": ["Do not add unrelated sampler controls."],
+        "files": [
+            {
+                "path": "app/backend/prompt.py",
+                "action": "modify",
+                "purpose": "Resolve the automatic threshold at the shared boundary.",
+            }
+        ],
+        "tasks": [
+            {
+                "handle": "T1.1",
+                "title": "Define the nullable cutoff contract",
+                "objective": "Make null mean Auto while preserving explicit numeric values.",
+                "context": [
+                    "InterpolationSettings currently defaults min_weight_threshold to 0.01.",
+                    "interpolate_prompts is the only shared resolution boundary.",
+                ],
+                "test": True,
+                "dependencies": [],
+                "files": [
+                    {
+                        "path": "backend/prompt.py",
+                        "action": "modify",
+                        "purpose": "Resolve null against the processor default.",
+                        "anchors": ["interpolate_prompts", "min_weight_threshold: float | None"],
+                    },
+                    {
+                        "path": "backend/tests/test_prompt.py",
+                        "action": "modify",
+                        "purpose": "Lock Auto and explicit-value behavior.",
+                        "anchors": ["test_interpolation_threshold"],
+                    },
+                ],
+                "interfaces": {
+                    "consumes": ["min_weight_threshold: float | None"],
+                    "produces": ["effective_threshold: float"],
+                },
+                "steps": [
+                    "Extend test_interpolation_threshold with null/0.15 and explicit-0.01/0.15-default cases.",
+                    "Change interpolate_prompts so only None selects the processor default; never use truthiness.",
+                ],
+                "acceptance": ["Null resolves to the processor default and numeric zero remains literal."],
+                "verify_before": [
+                    {
+                        "command": "python3 -m pytest backend/tests/test_prompt.py::test_interpolation_threshold -q",
+                        "scope": "focused",
+                        "expected": "FAIL because null is not yet resolved.",
+                    }
+                ],
+                "verify_after": [
+                    {
+                        "command": "python3 -m pytest backend/tests/test_prompt.py::test_interpolation_threshold -q",
+                        "scope": "focused",
+                        "expected": "PASS with the Auto and explicit-value cases.",
+                    }
+                ],
+                "commit": {
+                    "repo_root": "/workspace/app",
+                    "message": "feat: add processor-aware prompt cutoff",
+                    "files": ["backend/prompt.py", "backend/tests/test_prompt.py"],
+                },
+            }
+        ],
+        "acceptance": ["A fresh worker can execute the task without conversation history."],
+        "failure_modes": [
+            {
+                "failure": "Processor metadata is absent",
+                "handling": "Use the documented compatibility default and do not crash.",
+            }
+        ],
+        "blast_radius": ["Prompt interpolation only; no persistence schema outside the named field."],
+        "rollback": ["Revert the nullable field and shared resolver in one path-scoped commit."],
+    }
+
+
 def run_renderer(tmp_path: Path, ir: dict, *, validate: bool = False, force: bool = False) -> subprocess.CompletedProcess[str]:
     source = tmp_path / "artifact.json"
     source.write_text(json.dumps(ir), encoding="utf-8")
@@ -70,7 +173,9 @@ def run_renderer(tmp_path: Path, ir: dict, *, validate: bool = False, force: boo
 
 
 def test_multi_phase_golden_artifact_has_one_checkbox_ledger(tmp_path: Path):
-    result = run_renderer(tmp_path, base_ir("multi-phase"))
+    ir = base_ir("multi-phase")
+    jsonschema.validate(ir, json.loads(SCHEMA.read_text(encoding="utf-8")))
+    result = run_renderer(tmp_path, ir)
 
     assert result.returncode == 0, result.stderr
     plan_dir = tmp_path / "plans/meta/renderer-contract"
@@ -143,7 +248,9 @@ Existing planner output has host-specific drift.
 
 
 def test_single_file_golden_artifact_is_compact_and_has_no_status(tmp_path: Path):
-    result = run_renderer(tmp_path, base_ir("single-file"))
+    ir = base_ir("single-file")
+    jsonschema.validate(ir, json.loads(SCHEMA.read_text(encoding="utf-8")))
+    result = run_renderer(tmp_path, ir)
 
     assert result.returncode == 0, result.stderr
     artifact = (tmp_path / "plans/meta/renderer-contract.md").read_text(encoding="utf-8")
@@ -195,6 +302,75 @@ Existing planner output has host-specific drift.
 """
     assert "status:" not in artifact
     assert not (tmp_path / "plans/meta/renderer-contract").exists()
+
+
+def test_v11_single_file_is_execution_grade_and_checkbox_free(tmp_path: Path):
+    ir = rich_ir()
+    schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
+    jsonschema.validate(ir, schema)
+
+    result = run_renderer(tmp_path, ir)
+
+    assert result.returncode == 0, result.stderr
+    artifact = (tmp_path / ir["artifact_path"]).read_text(encoding="utf-8")
+    for heading in (
+        "## Outcome",
+        "## Architecture",
+        "## Codebase Ground Truth",
+        "## Decisions",
+        "## Non-Goals",
+        "## Implementation Tasks",
+        "## Failure Modes",
+        "## Blast Radius",
+        "## Rollback",
+        "## Execution Handoff",
+    ):
+        assert heading in artifact
+    assert "backend/prompt.py::interpolate_prompts" in artifact
+    assert "min_weight_threshold: float \\| None" in artifact
+    assert "Expected: FAIL because null is not yet resolved." in artifact
+    assert "git -C /workspace/app commit --only -m 'feat: add processor-aware prompt cutoff' -- backend/prompt.py backend/tests/test_prompt.py" in artifact
+    assert "status:" not in artifact
+    assert "- [ ]" not in artifact
+    assert "- [x]" not in artifact
+
+
+def test_v11_rejects_thin_or_misplaced_plans_without_writing(tmp_path: Path):
+    cases = []
+
+    undated = rich_ir()
+    undated["artifact_path"] = "plans/app/prompt-controls.md"
+    cases.append((undated, "YYYY-MM-DD"))
+
+    mismatched = rich_ir()
+    mismatched["artifact_path"] = "plans/app/2026-07-25-other-slug.md"
+    cases.append((mismatched, "must match IR.slug"))
+
+    placeholder = rich_ir()
+    placeholder["tasks"][0]["steps"][1] = "Add appropriate error handling."
+    cases.append((placeholder, "placeholder language"))
+
+    no_red = rich_ir()
+    no_red["tasks"][0]["verify_before"] = []
+    cases.append((no_red, "at least 1 item"))
+
+    thin = rich_ir()
+    thin["tasks"][0]["steps"] = ["Change it."]
+    cases.append((thin, "at least 2 item"))
+
+    relative_root = rich_ir()
+    relative_root["tasks"][0]["commit"]["repo_root"] = "app"
+    cases.append((relative_root, "absolute host path"))
+
+    incomplete_commit = rich_ir()
+    incomplete_commit["tasks"][0]["commit"]["files"] = ["backend/prompt.py"]
+    cases.append((incomplete_commit, "exactly match"))
+
+    for ir, expected in cases:
+        result = run_renderer(tmp_path, ir, validate=True)
+        assert result.returncode == 2
+        assert expected in result.stderr
+    assert not (tmp_path / "plans").exists()
 
 
 def test_invalid_ir_writes_no_partial_artifact(tmp_path: Path):

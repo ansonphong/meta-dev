@@ -48,6 +48,19 @@ $meta-dev:dashboard  $meta-dev:runbook    $meta-dev:diagnose
 $meta-dev:ops
 ```
 
+For a normal implementation plan, invoke the native Superpowers bridge:
+
+```text
+$meta-dev:plan Write a self-contained implementation plan for <change>.
+Save it under plans/<repo>/ and do not implement it.
+```
+
+Claude can obtain its planning discipline from the external Superpowers plugin.
+Codex does not inherit that Claude plugin dependency, so meta-dev packages an
+adapted `writing-plans` contract directly. It inspects the live codebase, writes
+for a fresh agent with no conversation history, and saves ordinary medium work
+as `plans/<repo>/YYYY-MM-DD-<slug>.md`.
+
 Claude commands remain canonical procedures. Codex has no command surface: for
 a legacy command, use `$meta-dev:command-router <command>` to resolve and
 follow its procedure.
@@ -80,11 +93,15 @@ harden, execute, and review. Plans and their state remain host-neutral:
 `planctl` is the only state write door, and the conductor owns stage transitions
 and the checkbox ledger.
 
-Plan artifacts are rendered from the version `1.0` JSON IR in
-`schemas/plan-artifact.schema.json`, not hand-written per host. The renderer
-emits deterministic frontmatter without `status:`; a multi-phase plan has one
-checkbox ledger in `00-master-plan.md` and checkbox-free phase files, while a
-single-file layout is reserved for compact plans.
+Plan artifacts are rendered from the versioned JSON IR in
+`schemas/plan-artifact.schema.json`, not hand-written per host. Version `1.0`
+preserves the shared Claude and multi-phase contract. Native Codex planning uses
+version `1.1` for execution-grade single-file plans: verified codebase ground
+truth, decisions, exact task interfaces and anchors, ordered work, focused
+commands with expected results, failure handling, blast radius, and rollback.
+The renderer emits deterministic frontmatter without `status:`. Multi-phase
+plans keep one checkbox ledger in `00-master-plan.md`; version `1.1` single-file
+plans contain no Markdown checkbox rows.
 
 Repository topology is likewise host-neutral. Put project repository aliases in
 `.meta-dev/repos.json`; the legacy `.claude/meta-dev-repos.json` remains

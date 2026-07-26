@@ -1,6 +1,6 @@
 {
   "name": "meta-dev",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "description": "Autonomous dev harness — dashboard, overlord, 6-phase orchestrator, HOTL, changelog, multi-repo versioning.",
   "author": {
     "name": "Phong",
@@ -28,7 +28,7 @@
       "Write"
     ],
     "defaultPrompt": [
-      "Plan a scoped change with meta-dev.",
+      "Write a self-contained implementation plan for a fresh agent and save it under plans/<repo>/.",
       "Execute an approved plan task with focused verification.",
       "Review my current change and report a verdict."
     ]

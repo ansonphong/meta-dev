@@ -1,11 +1,23 @@
 ---
 name: plan
-description: Create a dependency-aware implementation plan with shared meta-dev contracts and validation.
+description: Write and save a self-contained implementation plan for a fresh agent. Use for plan requests, medium changes, or implementation planning before code.
 ---
 
 # Plan
 
-Use the planning procedure as host-neutral guidance, not a slash-command interface.
-Read `../../workflow-skills/dod-contract/SKILL.md`, then follow `../../commands/meta-planner.md` in place.
+Use this host-neutral workflow, not a slash-command interface.
 
-Before emitting any plan Markdown, create the shared version `1.0` Plan Artifact IR described by `../../schemas/plan-artifact.schema.json`. Run `python3 ../../scripts/plan-artifact-render.py <ir.json> --validate`, then use that same renderer with `--project-root <project-root>` to install the artifact. Do not write Markdown directly: this keeps Codex and Claude output deterministic and preserves the one-ledger rule for multi-phase plans.
+1. Read `../../references/codex-writing-plans.md` completely.
+2. Read `../../workflow-skills/dod-contract/SKILL.md`.
+3. For medium work, create a version `1.1`, `single-file` IR from
+   `../../schemas/plan-artifact.schema.json` and target the required dated path.
+4. For genuinely large or multi-phase work, follow
+   `../../commands/meta-planner.md` and its version `1.0` shared contract.
+5. Resolve the plugin root from this file and the project root with
+   `<plugin-root>/scripts/lib/repo-topology.py --root`.
+6. Validate and render with `../../scripts/plan-artifact-render.py`, replacing
+   the relative path with its resolved absolute plugin path. Use `--validate`
+   first, then `--project-root <project-root>`.
+
+Do not write plan Markdown directly. Do not implement the plan. Finish by
+reporting the saved path and waiting for an explicit go.
