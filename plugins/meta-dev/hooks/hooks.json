@@ -1,10 +1,10 @@
 {
   "description": "Codex adapters for meta-dev lifecycle hooks and shared git policy.",
   "hooks": {
-    "SessionStart": [{"hooks": [{"type": "command", "command": "python3 \"${PLUGIN_ROOT}/hooks/scripts/codex-adapter.py\"", "timeout": 15}]}],
-    "UserPromptSubmit": [{"hooks": [{"type": "command", "command": "python3 \"${PLUGIN_ROOT}/hooks/scripts/codex-adapter.py\"", "timeout": 15}]}],
-    "PreToolUse": [{"matcher": "Bash|apply_patch", "hooks": [{"type": "command", "command": "python3 \"${PLUGIN_ROOT}/hooks/scripts/codex-adapter.py\"", "timeout": 15}]}],
-    "PostToolUse": [{"matcher": "Bash|apply_patch", "hooks": [{"type": "command", "command": "python3 \"${PLUGIN_ROOT}/hooks/scripts/codex-adapter.py\"", "timeout": 15}]}],
-    "Stop": [{"hooks": [{"type": "command", "command": "python3 \"${PLUGIN_ROOT}/hooks/scripts/codex-adapter.py\"", "timeout": 20}]}]
+    "SessionStart": [{"hooks": [{"type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/codex-adapter.py\"", "timeout": 15}]}],
+    "UserPromptSubmit": [{"hooks": [{"type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/codex-adapter.py\"", "timeout": 15}]}],
+    "PreToolUse": [{"matcher": "Bash|apply_patch", "hooks": [{"type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/codex-adapter.py\"", "timeout": 15}]}],
+    "PostToolUse": [{"matcher": "Bash|apply_patch", "hooks": [{"type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/codex-adapter.py\"", "timeout": 15}]}],
+    "Stop": [{"hooks": [{"type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/codex-adapter.py\"", "timeout": 20}]}]
   }
 }
