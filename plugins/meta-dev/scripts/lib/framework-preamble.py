@@ -84,7 +84,7 @@ def _one_clause(desc):
 
 
 def build(root, full=False):
-    skills_dir = os.path.join(root, "skills")
+    skills_dir = os.path.join(root, "workflow-skills")
     cmds_dir = os.path.join(root, "commands")
 
     skills = []
@@ -114,7 +114,7 @@ def build(root, full=False):
     out.append("owns all of that, and it owns the state.")
     out.append("")
     out.append("Framework root: %s" % root)
-    out.append("  skills/<name>/SKILL.md    — protocols")
+    out.append("  workflow-skills/<name>/SKILL.md — shared protocols")
     out.append("  commands/<name>.md        — entry-point procedures")
     out.append("  references/               — deep detail referenced by the above")
     out.append("  scripts/planctl.sh        — THE state CLI (see LAWS below)")
@@ -128,7 +128,7 @@ def build(root, full=False):
         # Opt-in only. A bounded worker does not need this and is measurably
         # worse with it (see module docstring).
         if skills:
-            out.append("PROTOCOLS (%d) — read %s/skills/<name>/SKILL.md" % (
+            out.append("PROTOCOLS (%d) — read %s/workflow-skills/<name>/SKILL.md" % (
                 len(skills), root))
             for n, d in skills:
                 out.append("  %-24s %s" % (n, d))
@@ -184,7 +184,7 @@ def build(root, full=False):
 
 _FALLBACK = """=== META-DEV HARNESS (you are a worker inside it) ===
 You are executing inside the meta-dev harness. Protocols live in
-skills/<name>/SKILL.md and commands/<name>.md under the plugin root; read the
+workflow-skills/<name>/SKILL.md and commands/<name>.md under the plugin root; read the
 one matching your task before starting.
 LAWS: planctl (scripts/planctl.sh) is the ONLY write door for plan state —
 never hand-edit a checkbox. Report failures honestly with output. If you edit

@@ -49,7 +49,7 @@ user's preference — each is a thing that cannot be undone in the morning:
 3. **Deploy, ship, publish, release.** An unattended run does not push to
    production, does not `npm publish`, does not run a real migration. It
    prepares them and stops at the door.
-4. **The veto list** in `skills/fable-consult/SKILL.md` — destructive,
+4. **The veto list** in `workflow-skills/fable-consult/SKILL.md` — destructive,
    security, money-path, schema, cross-repo contract, spend-or-send, scope
    expansion. These halt the subject and land in the report.
 5. **Human-verify checkboxes stay unchecked.** `by eye` / `by hand` / `gpu` /
@@ -81,11 +81,11 @@ punch list is for.
 ## Judgment calls → Fable, not the user
 
 Under `--autonomous`, any decision that would otherwise stop the run to ask the
-user routes through `skills/fable-consult` **first**. Fable's verdict is
+user routes through `workflow-skills/fable-consult` **first**. Fable's verdict is
 adopted at ≥0.90 with evidence and a falsifier; below that, or on the veto
 list, the subject parks and the question goes in the report with Fable's
 recommendation as the lead option. Full contract and the calibration guard:
-`skills/fable-consult/SKILL.md`.
+`workflow-skills/fable-consult/SKILL.md`.
 
 ## Autonomous Run Report — the deliverable
 

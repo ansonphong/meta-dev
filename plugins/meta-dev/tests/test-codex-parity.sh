@@ -15,7 +15,7 @@ if PARITY_OUT="$(python3 - "$PLUGIN_ROOT" <<'PY'
 import glob, os, sys, yaml
 root = sys.argv[1]
 bad = []
-files = sorted(glob.glob(os.path.join(root, "skills", "*", "SKILL.md")))
+files = sorted(glob.glob(os.path.join(root, "workflow-skills", "*", "SKILL.md")))
 files += sorted(glob.glob(os.path.join(root, "commands", "*.md")))
 for f in files:
     raw = open(f, encoding="utf-8").read()
@@ -60,7 +60,7 @@ import sys
 
 manifest_path = Path(sys.argv[1])
 plugin_root = Path(sys.argv[2]).resolve()
-expected_value = "./skills/"
+expected_value = "./workflow-skills/"
 
 try:
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -71,26 +71,23 @@ try:
         )
 
     skills_dir = (plugin_root / actual_value).resolve(strict=True)
-    expected_dir = (plugin_root / "skills").resolve(strict=True)
+    expected_dir = (plugin_root / "workflow-skills").resolve(strict=True)
     if skills_dir != expected_dir or not skills_dir.is_dir():
         raise ValueError(f"skills resolves outside the real skills directory: {skills_dir}")
 
-    router = skills_dir / "command-router" / "SKILL.md"
-    if not router.is_file():
-        raise ValueError(f"command-router skill missing at {router}")
 except (OSError, ValueError, json.JSONDecodeError) as exc:
     print(exc)
     sys.exit(1)
 PY
 )"
 then
-  ok "manifest skills path is exact and resolves to command-router"
+  ok "manifest skills path is exact and resolves to shared Claude workflows"
 else
-  bad "manifest skills wiring invalid — EVERY skill is invisible in Codex: $MANIFEST_DETAIL"
+  bad "manifest skills wiring invalid — EVERY shared Claude skill is invisible: $MANIFEST_DETAIL"
 fi
 
 echo
-echo "=== Claude legacy compatibility: command-router resolution ==="
+echo "=== Codex legacy-command compatibility: command-router resolution ==="
 
 ROUTER="$PLUGIN_ROOT/skills/command-router/SKILL.md"
 if [ -f "$ROUTER" ]; then
@@ -199,10 +196,10 @@ required = {
         "push only after both are green",
     ],
     "commands/codex-execute.md": ["red blocks DONE and remote push, not persistence"],
-    "skills/agentic-exec-loop/references/loop-protocol.md": [
+    "workflow-skills/agentic-exec-loop/references/loop-protocol.md": [
         "creates a local commit before",
     ],
-    "skills/repair-loop/SKILL.md": ["before every return after editing"],
+    "workflow-skills/repair-loop/SKILL.md": ["before every return after editing"],
     "scripts/lib/framework-preamble.py": ["4. COMMIT-ON-RED:"],
     "scripts/codex-headless-exec": [
         "6. COMMIT-ON-RED:",

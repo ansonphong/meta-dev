@@ -33,4 +33,4 @@ ALWAYS end with a repair report card. Chassis, glyphs, and `CARD_W` come from `r
 
 If the loop exhausts its 3 cycles without going green, the last row is `⛔ Unresolved after 3 cycles` plus the narrowest reproduction found — report the failure honestly, never a green card over a red suite.
 
-Detail: skill `repair-loop` in `plugins/meta-dev/skills/repair-loop/`.
+Detail: skill `repair-loop` in `plugins/meta-dev/workflow-skills/repair-loop/`.

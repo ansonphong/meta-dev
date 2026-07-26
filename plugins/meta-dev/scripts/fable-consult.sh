@@ -12,7 +12,7 @@
 #   12 DEFER             --autonomous + reversible taste → REVIEW-ME, keep going
 #   2  ERROR             consult failed → treat as ESCALATE. FAIL CLOSED.
 #
-# Contract, calibration rationale and the veto list: skills/fable-consult/SKILL.md
+# Contract, calibration rationale and the veto list: workflow-skills/fable-consult/SKILL.md
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -103,7 +103,7 @@ if printf '%s' "$HAYSTACK" | grep -qiE "$VETO_RE"; then
   log_decision "escalate_veto" "-" "" ""
   emit "ESCALATE — VETO CLASS ('$MATCH')" "" \
        "Not Fable's call at any confidence. Ask the human." "" "" \
-       "Safety-class decisions always reach a person (skills/fable-consult/SKILL.md → veto list)."
+       "Safety-class decisions always reach a person (workflow-skills/fable-consult/SKILL.md → veto list)."
   exit 11
 fi
 

@@ -19,4 +19,4 @@ The skill reads the subject description and returns structured classification:
 - **Risk profile** — picks up security-boundary, money-path, identity-stability tags
 - **Recommended pipeline** — which stages of meta-dev to run
 
-Detail: skill `hotl-classification` in `plugins/meta-dev/skills/hotl-classification/`.
+Detail: skill `hotl-classification` in `plugins/meta-dev/workflow-skills/hotl-classification/`.

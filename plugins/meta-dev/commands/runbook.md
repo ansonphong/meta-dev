@@ -27,4 +27,4 @@ as one arc. One level above `/meta-dev`; one below `plans/meta-runbook.md`.
 
 **Progress block:** `planctl runbook render <rb>` (sentinel write, lazy dirty-set).
 **Boxed view:** `planctl runbook <path>` (interactive terminal surface).
-**Detail:** `references/runbook-view.md` · `skills/runbook-orchestration/`.
+**Detail:** `references/runbook-view.md` · `workflow-skills/runbook-orchestration/`.

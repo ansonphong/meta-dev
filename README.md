@@ -207,8 +207,8 @@ plugin root/
 ├── .claude-plugin/ Manifest for Claude Code
 ├── .codex-plugin/  Manifest for Codex
 ├── commands/      Thin entry points (≤30 lines) — delegate to skills/scripts
-├── skills/        Heavy procedures — loaded on demand via Skill tool
-├── codex-skills/  Curated native Codex workflow entries
+├── workflow-skills/ Shared Claude procedures — loaded on demand via Skill tool
+├── skills/        Ten curated native Codex workflows plus command-router fallback
 ├── agents/        Specialized subagents — scanner, reviewer, architect, sweeper
 ├── hooks/         Codex lifecycle hook declarations and adapter
 │   └── scripts/   Event-driven bash/Python handlers
@@ -338,7 +338,7 @@ Meta-dev hooks and scripts are pure bash/jq/python — no model-specific code pa
 - All harness primitives (Skills, TaskCreate, Agent, hooks, MCP) work at the harness layer
 - Subagents default to the configured model — pass explicit `model:` overrides for reasoning-heavy tasks
 - `headless-worker` skill documents env-var inheritance for headless execution
-- See `plugins/meta-dev/skills/headless-worker/references/backend-env.md`
+- See `plugins/meta-dev/workflow-skills/headless-worker/references/backend-env.md`
 
 ## Testing
 

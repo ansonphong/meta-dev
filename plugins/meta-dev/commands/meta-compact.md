@@ -27,4 +27,4 @@ Invoke the `meta-compact` skill to produce a **forward handoff** before compacti
 
 After compaction, the next session's first action is: read the **exact handoff path** from the compact instruction (or the newest `handoff-*.md` in the active plan folder), then execute its **▶ NEXT ACTION**.
 
-Detail: skill `meta-compact` in `plugins/meta-dev/skills/meta-compact/`.
+Detail: skill `meta-compact` in `plugins/meta-dev/workflow-skills/meta-compact/`.

@@ -35,7 +35,8 @@ def require_file(relative: str) -> Path:
 identity = ("name", "description", "author", "homepage", "repository", "license", "keywords")
 assert {key: codex[key] for key in identity} == {key: claude[key] for key in identity}
 assert codex["version"].split("+", 1)[0] == claude["version"].split("+", 1)[0], "manifest base versions drifted"
-assert codex["skills"] == "./codex-skills"
+assert claude["skills"] == "./workflow-skills/"
+assert codex["skills"] == "./skills/"
 assert "hooks" not in codex
 assert codex["interface"] == {
     "displayName": "Meta Dev",
@@ -44,22 +45,31 @@ assert codex["interface"] == {
     "developerName": "Phong",
     "category": "Productivity",
     "capabilities": ["Write"],
+    "defaultPrompt": [
+        "Plan a scoped change with meta-dev.",
+        "Execute an approved plan task with focused verification.",
+        "Review my current change and report a verdict.",
+    ],
 }
 
 expected = {
-    "dev": ("references/workflows/protocol.md", "skills/waterfall-tracking/SKILL.md", "commands/meta-dev.md"),
-    "plan": ("skills/dod-contract/SKILL.md", "commands/meta-planner.md", "schemas/plan-artifact.schema.json", "scripts/plan-artifact-render.py"),
-    "harden": ("references/workflows/protocol.md", "skills/plan-validation/SKILL.md", "commands/meta-loop-gap.md"),
-    "execute": ("references/workflows/protocol.md", "skills/agentic-exec-loop/SKILL.md", "references/execute-dispatch.md"),
-    "review": ("references/workflows/protocol.md", "skills/code-review-protocol/SKILL.md", "references/execute-charter.md"),
-    "ship": ("references/workflows/protocol.md", "skills/deploy-pipeline/SKILL.md", "references/ship-pipeline.md"),
+    "dev": ("references/workflows/protocol.md", "workflow-skills/waterfall-tracking/SKILL.md", "commands/meta-dev.md"),
+    "plan": ("workflow-skills/dod-contract/SKILL.md", "commands/meta-planner.md", "schemas/plan-artifact.schema.json", "scripts/plan-artifact-render.py"),
+    "harden": ("references/workflows/protocol.md", "workflow-skills/plan-validation/SKILL.md", "commands/meta-loop-gap.md"),
+    "execute": ("references/workflows/protocol.md", "workflow-skills/agentic-exec-loop/SKILL.md", "references/execute-dispatch.md"),
+    "review": ("references/workflows/protocol.md", "workflow-skills/code-review-protocol/SKILL.md", "references/execute-charter.md"),
+    "ship": ("references/workflows/protocol.md", "workflow-skills/deploy-pipeline/SKILL.md", "references/ship-pipeline.md"),
     "dashboard": ("references/workflows/protocol.md", "scripts/dashboard-data.sh", "references/dashboard-layout.md"),
-    "runbook": ("references/workflows/protocol.md", "skills/runbook-orchestration/SKILL.md", "references/runbook-view.md"),
-    "diagnose": ("references/workflows/protocol.md", "skills/repair-loop/SKILL.md", "references/codebase-verification.md"),
-    "ops": ("skills/changelog-engine/SKILL.md", "skills/version-manager/SKILL.md"),
+    "runbook": ("references/workflows/protocol.md", "workflow-skills/runbook-orchestration/SKILL.md", "references/runbook-view.md"),
+    "diagnose": ("references/workflows/protocol.md", "workflow-skills/repair-loop/SKILL.md", "references/codebase-verification.md"),
+    "ops": ("workflow-skills/changelog-engine/SKILL.md", "workflow-skills/version-manager/SKILL.md"),
 }
-skills_root = plugin_root / "codex-skills"
-assert {path.name for path in skills_root.iterdir() if path.is_dir()} == set(expected)
+skills_root = plugin_root / "skills"
+native_dirs = {path.name for path in skills_root.iterdir() if path.is_dir()}
+assert len(expected) == 10, f"expected 10 curated workflows, found {len(expected)}"
+assert len(native_dirs) == 11, f"expected 10 curated workflows plus router, found {len(native_dirs)}"
+assert native_dirs == set(expected) | {"command-router"}
+assert (skills_root / "command-router/SKILL.md").is_file(), "compatibility router missing"
 total = 0
 native_text = []
 for name, targets in expected.items():
@@ -87,7 +97,7 @@ assert len(command_files) == 67, f"expected 67 command files, found {len(command
 assert len(routes["commands"]) == 67, f"expected 67 command routes, found {len(routes['commands'])}"
 assert command_files == set(routes["commands"]), "every legacy command must have exactly one native route"
 for workflow, specification in routes["workflows"].items():
-    assert specification["skill"] == f"codex-skills/{workflow}/SKILL.md"
+    assert specification["skill"] == f"skills/{workflow}/SKILL.md"
     require_file(specification["skill"])
     assert specification["subcommands"], f"{workflow}: no workflow targets"
     for procedure in specification["subcommands"].values():
@@ -145,7 +155,7 @@ assert 'VERSION = "1.0"' in renderer and "--validate" in renderer
 
 portability = require_file("tests/test_runtime_portability.py").read_text(encoding="utf-8")
 for marker in (
-    "SCAN_DIRS = (\"commands\", \"references\", \"skills\", \"codex-skills\", \"scripts\")",
+    "SCAN_DIRS = (\"commands\", \"references\", \"skills\", \"workflow-skills\", \"scripts\")",
     "PROVENANCE_ALLOWLIST",
     "SKIP_PATHS",
     "FORBIDDEN = (",

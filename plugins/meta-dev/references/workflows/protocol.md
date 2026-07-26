@@ -65,7 +65,7 @@ Execution has exactly one causal result:
 
 Only `TASK_RED` holds its causal branch. Independent branches continue.
 Review has exactly one uppercase verdict: `PASS`, `CONDITIONAL_PASS`, or `FAIL`;
-see `skills/code-review-protocol/`.
+see `workflow-skills/code-review-protocol/`.
 
 ## Host capability adapters
 
@@ -79,7 +79,8 @@ see `skills/code-review-protocol/`.
 
 ### Codex
 
-- The ten `codex-skills/*/SKILL.md` entries are the public workflow surface.
+- The ten curated `skills/*/SKILL.md` entries are the public workflow surface;
+  `skills/command-router/` is the compatibility fallback for legacy commands.
 - `routes.json` maps every legacy command name to exactly one workflow
   subcommand and canonical procedure.
 - Plan, harden, and review use native `gpt-5.6-sol` with `high` effort by

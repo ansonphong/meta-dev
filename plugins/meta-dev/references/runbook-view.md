@@ -2,7 +2,7 @@
 
 Detail for `/runbook` — the per-campaign control-plane box. The command itself is at
 `commands/runbook.md`; the full orchestration procedure lives in
-`skills/runbook-orchestration/`.
+`workflow-skills/runbook-orchestration/`.
 
 ## Architecture
 

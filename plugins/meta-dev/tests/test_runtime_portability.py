@@ -19,7 +19,7 @@ PROVENANCE_ALLOWLIST = {
     *{Path("templates") / path.name for path in (PLUGIN_ROOT / "templates").glob("*.json")},
 }
 
-SCAN_DIRS = ("commands", "references", "skills", "codex-skills", "scripts")
+SCAN_DIRS = ("commands", "references", "skills", "workflow-skills", "scripts")
 SKIP_PATHS = {
     Path("scripts/sweep-wip-commit.sh"),
     Path("scripts/version-bump.py"),

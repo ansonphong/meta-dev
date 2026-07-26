@@ -41,7 +41,7 @@ required = {
         "BROAD_VERIFY_OMITTED",
         "optimistic momentum",
     ],
-    "skills/agentic-exec-loop/references/loop-protocol.md": [
+    "workflow-skills/agentic-exec-loop/references/loop-protocol.md": [
         "FOCUSED_PASS",
         "TASK_RED",
         "BASELINE_RED",

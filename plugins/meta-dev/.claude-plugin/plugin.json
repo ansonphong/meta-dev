@@ -17,7 +17,7 @@
     "changelog",
     "versioning"
   ],
-  "skills": "./skills/",
+  "skills": "./workflow-skills/",
   "hooks": {
     "SessionStart": [
       {

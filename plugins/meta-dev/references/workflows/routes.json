@@ -3,14 +3,14 @@
   "protocol": "references/workflows/protocol.md",
   "workflows": {
     "dev": {
-      "skill": "codex-skills/dev/SKILL.md",
+      "skill": "skills/dev/SKILL.md",
       "subcommands": {
         "run": "commands/meta-dev.md",
         "orchestrate": "commands/meta-orchestrator.md"
       }
     },
     "plan": {
-      "skill": "codex-skills/plan/SKILL.md",
+      "skill": "skills/plan/SKILL.md",
       "subcommands": {
         "create": "commands/meta-planner.md",
         "contract": "commands/meta-dod.md",
@@ -19,13 +19,13 @@
       }
     },
     "harden": {
-      "skill": "codex-skills/harden/SKILL.md",
+      "skill": "skills/harden/SKILL.md",
       "subcommands": {
         "scan": "commands/meta-loop-gap.md"
       }
     },
     "execute": {
-      "skill": "codex-skills/execute/SKILL.md",
+      "skill": "skills/execute/SKILL.md",
       "subcommands": {
         "plan": "commands/meta-execute.md",
         "auto": "commands/auto-execute.md",
@@ -41,7 +41,7 @@
       }
     },
     "review": {
-      "skill": "codex-skills/review/SKILL.md",
+      "skill": "skills/review/SKILL.md",
       "subcommands": {
         "audit": "commands/meta-audit.md",
         "eval": "commands/meta-eval.md",
@@ -53,26 +53,26 @@
       }
     },
     "ship": {
-      "skill": "codex-skills/ship/SKILL.md",
+      "skill": "skills/ship/SKILL.md",
       "subcommands": {
         "release": "commands/meta-ship.md",
         "canary": "commands/meta-canary.md"
       }
     },
     "dashboard": {
-      "skill": "codex-skills/dashboard/SKILL.md",
+      "skill": "skills/dashboard/SKILL.md",
       "subcommands": {
         "show": "commands/meta-dashboard.md"
       }
     },
     "runbook": {
-      "skill": "codex-skills/runbook/SKILL.md",
+      "skill": "skills/runbook/SKILL.md",
       "subcommands": {
         "manage": "commands/runbook.md"
       }
     },
     "diagnose": {
-      "skill": "codex-skills/diagnose/SKILL.md",
+      "skill": "skills/diagnose/SKILL.md",
       "subcommands": {
         "repair": "commands/meta-repair.md",
         "inbox": "commands/meta-inbox.md",
@@ -80,7 +80,7 @@
       }
     },
     "ops": {
-      "skill": "codex-skills/ops/SKILL.md",
+      "skill": "skills/ops/SKILL.md",
       "subcommands": {
         "changelog": "commands/meta-changelog.md",
         "compact": "commands/meta-compact.md",

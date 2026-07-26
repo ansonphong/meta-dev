@@ -30,7 +30,7 @@ Parse these flags:
 - `--model <model>`: exact Codex model ID; it overrides tier selection but not a supplied effort.
 - `--sandbox <mode>`: `read-only`, `workspace-write`, or `danger-full-access`.
 - `--timeout <ms>`: wall-clock limit; default is `7200000`.
-- `--skill <name>`: run a meta-dev **protocol** (`skills/<name>/SKILL.md`).
+- `--skill <name>`: run a meta-dev **protocol** (`workflow-skills/<name>/SKILL.md`).
 - `--command <name>`: run a meta-dev **procedure** (`commands/<name>.md`).
 - `--no-framework`: omit the harness preamble. Only for trivial one-shots (a lookup, a probe) — never for real work.
 - `--multi-agent`: enable Codex `spawn_agent` (4 concurrent). **Parallelism only — spawned agents inherit the parent's model, so this does NOT save quota.** Under-development flag; opt-in deliberately.

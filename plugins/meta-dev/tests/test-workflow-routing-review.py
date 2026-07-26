@@ -99,11 +99,11 @@ class NativeReviewContract(unittest.TestCase):
 
     def test_review_is_report_only_without_explicit_fix_permission(self) -> None:
         skill = (
-            PLUGIN_ROOT / "skills/code-review-protocol/SKILL.md"
+            PLUGIN_ROOT / "workflow-skills/code-review-protocol/SKILL.md"
         ).read_text(encoding="utf-8")
         routing = (
             PLUGIN_ROOT
-            / "skills/code-review-protocol/references/verdict-routing.md"
+            / "workflow-skills/code-review-protocol/references/verdict-routing.md"
         ).read_text(encoding="utf-8")
         evaluation = (PLUGIN_ROOT / "commands/meta-eval.md").read_text(
             encoding="utf-8"
@@ -120,11 +120,11 @@ class NativeReviewContract(unittest.TestCase):
 
     def test_structured_verdict_and_native_phase_review_remain(self) -> None:
         skill = (
-            PLUGIN_ROOT / "skills/code-review-protocol/SKILL.md"
+            PLUGIN_ROOT / "workflow-skills/code-review-protocol/SKILL.md"
         ).read_text(encoding="utf-8")
         loop = (
             PLUGIN_ROOT
-            / "skills/agentic-exec-loop/references/loop-protocol.md"
+            / "workflow-skills/agentic-exec-loop/references/loop-protocol.md"
         ).read_text(encoding="utf-8")
         for verdict in ("PASS", "CONDITIONAL_PASS", "FAIL"):
             self.assertIn(verdict, skill)
@@ -136,7 +136,7 @@ class NativeReviewContract(unittest.TestCase):
     def test_curated_codex_skills_load_shared_protocol(self) -> None:
         for name in CURATED - {"plan", "ops"}:
             text = (
-                PLUGIN_ROOT / f"codex-skills/{name}/SKILL.md"
+                PLUGIN_ROOT / f"skills/{name}/SKILL.md"
             ).read_text(encoding="utf-8")
             self.assertIn("../../references/workflows/protocol.md", text, name)
             self.assertIn("host-neutral", text, name)

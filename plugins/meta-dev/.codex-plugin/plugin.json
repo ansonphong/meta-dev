@@ -17,7 +17,7 @@
     "changelog",
     "versioning"
   ],
-  "skills": "./codex-skills",
+  "skills": "./skills/",
   "interface": {
     "displayName": "Meta Dev",
     "shortDescription": "Native Codex workflow surface for the meta-dev harness.",
@@ -26,6 +26,11 @@
     "category": "Productivity",
     "capabilities": [
       "Write"
+    ],
+    "defaultPrompt": [
+      "Plan a scoped change with meta-dev.",
+      "Execute an approved plan task with focused verification.",
+      "Review my current change and report a verdict."
     ]
   }
 }

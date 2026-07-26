@@ -14,7 +14,7 @@
 #
 # Conductor-side staging rules (unique per-run paths, atomic writes, verify
 # before dispatch) live in:
-#   skills/agentic-exec-loop/references/loop-protocol.md → "Scratchpad staging".
+#   workflow-skills/agentic-exec-loop/references/loop-protocol.md → "Scratchpad staging".
 # ============================================================================
 
 resolve_prompt() {

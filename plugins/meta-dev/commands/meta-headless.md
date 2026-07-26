@@ -17,4 +17,4 @@ Dispatch a task to a headless worker subagent. Runs autonomously and reports res
 - Worker gets full tool access and operates within standard constraints
 - Reports: task summary, files touched, outcome, any issues found
 
-Detail: skill `headless-worker` in `plugins/meta-dev/skills/headless-worker/`.
+Detail: skill `headless-worker` in `plugins/meta-dev/workflow-skills/headless-worker/`.

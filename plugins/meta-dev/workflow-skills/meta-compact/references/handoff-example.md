@@ -39,7 +39,7 @@ passes; if green, that's the last gate before push.
 - **Git:** master · clean · last commit a1b2c3d "feat(compact): add meta-compact skill" · NOT pushed.
 
 ## 🗂 Working set
-- plugins/meta-dev/skills/meta-compact/SKILL.md — the skill body
+- plugins/meta-dev/workflow-skills/meta-compact/SKILL.md — the skill body
 - plugins/meta-dev/commands/meta-compact.md — full command
 - plugins/meta-dev/commands/compact.md — thin alias
 - plugins/meta-dev/.claude-plugin/plugin.json:3 — version field

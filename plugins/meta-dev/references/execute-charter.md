@@ -297,4 +297,4 @@ This never applies to safety-class decisions — destructive, deploy, security,
 money-path, schema, cross-repo contract, spend-or-send, scope expansion. Those
 are on the veto list and always reach a person. Nor to tree state, which is never
 a judgment call at all: commit and charge on. Contract, calibration rationale and
-the full veto list: `skills/fable-consult/SKILL.md`.
+the full veto list: `workflow-skills/fable-consult/SKILL.md`.

@@ -9,7 +9,7 @@ project is hardcoded here: targets, hosts, restart commands, health URLs, smoke 
 build/test commands, and prerelease channels all come from config. Read everything from
 `bash scripts/config-get.sh meta_dev.ship`.
 
-The actual deploy mechanics live in `skills/deploy-pipeline/SKILL.md` — when this protocol
+The actual deploy mechanics live in `workflow-skills/deploy-pipeline/SKILL.md` — when this protocol
 says "delegate to the deploy skill," invoke that skill. It is real and resolvable.
 
 ---

@@ -22,4 +22,4 @@ Structured contract covering:
 
 Written to `plans/<feature>/dod-contract.md`.
 
-Detail: skill `dod-contract` in `plugins/meta-dev/skills/dod-contract/`.
+Detail: skill `dod-contract` in `plugins/meta-dev/workflow-skills/dod-contract/`.

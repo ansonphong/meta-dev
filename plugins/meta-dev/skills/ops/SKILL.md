@@ -6,4 +6,4 @@ description: Operate changelog and version workflows with the existing shared sc
 # Ops
 
 Use operations as host-neutral guidance, not a slash-command interface.
-Read `../../skills/changelog-engine/SKILL.md`, then follow `../../skills/version-manager/SKILL.md`.
+Read `../../workflow-skills/changelog-engine/SKILL.md`, then follow `../../workflow-skills/version-manager/SKILL.md`.

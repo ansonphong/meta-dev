@@ -94,7 +94,8 @@ print('OK')
 
 check_skills() {
   echo "=== Skill Validation ==="
-  for skill_dir in "$PLUGIN_DIR"/skills/*/; do
+  for skill_root in "$PLUGIN_DIR"/workflow-skills "$PLUGIN_DIR"/skills; do
+    for skill_dir in "$skill_root"/*/; do
     [ -d "$skill_dir" ] || continue
     skill_name=$(basename "$skill_dir")
     skill_file="$skill_dir/SKILL.md"
@@ -106,7 +107,8 @@ check_skills() {
       fi
       # Check references exist. A ref may be skill-local ("references/x.md") OR
       # cross-skill ("other-skill/references/x.md") — capture the optional
-      # leading skill segment so a cross-skill ref resolves against skills/,
+      # leading skill segment so a cross-skill ref resolves against the shared
+      # workflow skill root,
       # not against THIS skill dir (which reported false missing-reference
       # failures for every cross-skill pointer).
       refs=$(grep -oE '[a-zA-Z0-9_.-]*/?references/[a-zA-Z0-9_/.-]*\.md' "$skill_file" 2>/dev/null || true)
@@ -119,13 +121,16 @@ check_skills() {
                         # — Plugin-level docs"), and skills do cite those. Fall
                         # back there before declaring the reference missing.
                         [ -f "$ref_path" ] || ref_path="$PLUGIN_DIR/$ref" ;;
-          *)            ref_path="$PLUGIN_DIR/skills/$ref" ;;
+          workflow-skills/*|skills/*) ref_path="$PLUGIN_DIR/$ref" ;;
+          *)            ref_path="$PLUGIN_DIR/workflow-skills/$ref"
+                        [ -f "$ref_path" ] || ref_path="$PLUGIN_DIR/skills/$ref" ;;
         esac
         if [ ! -f "$ref_path" ]; then
           FAIL=$((FAIL+1)); red "  FAIL: $skill_name — missing reference: $ref"
         fi
       done
     fi
+  done
   done
 }
 

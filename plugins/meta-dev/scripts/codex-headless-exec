@@ -123,11 +123,11 @@ resolve_prompt "$PROMPT_INPUT_FILE" "codex-headless-exec"
 # Claude-only slash command is just another entry point to the same file.
 PROC_MD=""
 if [[ -n "${SKILL_NAME:-}" ]]; then
-    PROC_MD="$SCRIPT_DIR/../skills/${SKILL_NAME}/SKILL.md"
+    PROC_MD="$SCRIPT_DIR/../workflow-skills/${SKILL_NAME}/SKILL.md"
     if [[ ! -f "$PROC_MD" ]]; then
         echo "[ERROR] --skill '$SKILL_NAME': no SKILL.md at $PROC_MD" >&2
         echo "        Available:" >&2
-        ls -1 "$SCRIPT_DIR/../skills" 2>/dev/null | sed 's/^/          /' >&2
+        ls -1 "$SCRIPT_DIR/../workflow-skills" 2>/dev/null | sed 's/^/          /' >&2
         exit 2
     fi
 elif [[ -n "${COMMAND_NAME:-}" ]]; then
@@ -155,11 +155,11 @@ if [[ -n "$PROC_MD" ]]; then
     # promoted to an instruction source. Resolve first, THEN require the result
     # to live under the plugin root.
     case "$PROC_MD" in
-        "$PLUGIN_ROOT"/skills/*|"$PLUGIN_ROOT"/commands/*) ;;
+        "$PLUGIN_ROOT"/workflow-skills/*|"$PLUGIN_ROOT"/skills/*|"$PLUGIN_ROOT"/commands/*) ;;
         *)
             echo "[ERROR] procedure path escapes the plugin root — refusing." >&2
             echo "        resolved : $PROC_MD" >&2
-            echo "        allowed  : $PLUGIN_ROOT/{skills,commands}/" >&2
+            echo "        allowed  : $PLUGIN_ROOT/{workflow-skills,skills,commands}/" >&2
             exit 2
             ;;
     esac
@@ -168,7 +168,7 @@ if [[ -n "$PROC_MD" ]]; then
 Harness translation — that file is written for Claude Code; you are Codex:
 - \${CLAUDE_PLUGIN_ROOT} means ${PLUGIN_ROOT}
 - \$ARGUMENTS means the Task line below.
-- Resolve relative references/ and skills/ paths against ${PLUGIN_ROOT}.
+- Resolve relative references/, workflow-skills/, and skills/ paths against ${PLUGIN_ROOT}.
 - It may tell you to invoke a slash command (/foo) or a named skill, or to use
   the Read/Grep/Glob/Task tools. You have NONE of those. Instead: read files
   with your shell (rg/sed/cat), edit with apply_patch, and when it names

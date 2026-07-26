@@ -94,9 +94,9 @@ else warn "version drift: working tree $LOCAL_V vs Codex cache $CACHE_V
 # matches" with no hint that a bridge exists. Spell both routes out, because a
 # dead-end lookup is what sends people hand-rolling a procedure that already
 # exists.
-SKILLS="$(ls -1d "$PLUGIN_ROOT"/skills/*/ 2>/dev/null | wc -l)"
+CURATED_SKILLS="$(find "$PLUGIN_ROOT"/skills -mindepth 1 -maxdepth 1 -type d ! -name command-router 2>/dev/null | wc -l)"
 CMDS="$(ls -1 "$PLUGIN_ROOT"/commands/*.md 2>/dev/null | wc -l)"
-good "$SKILLS skills via \$meta-dev:<skill> · $CMDS commands via \$meta-dev:command-router <name>
+good "$CURATED_SKILLS curated workflows + command-router via \$meta-dev:<skill> · $CMDS commands via \$meta-dev:command-router <name>
          \$meta-dev:<command> NEVER matches — commands are not a Codex surface."
 
 # 7. Headless dispatch readiness — the single most-asked-for command family.

@@ -39,7 +39,7 @@ Invoke `design-eval` skill. Reads design doc path from `bash scripts/config-get.
 
 Bundle findings by severity and emit the structured
 `PASS | CONDITIONAL_PASS | FAIL` review artifact from
-`skills/code-review-protocol/SKILL.md`.
+`workflow-skills/code-review-protocol/SKILL.md`.
 
 - Without explicit fix authorization: stop after the report. Do not dispatch a
   fixer, edit, stage, or commit.

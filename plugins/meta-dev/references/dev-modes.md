@@ -52,7 +52,7 @@ The bypass only skips the *planning/hardening* stages — it never skips executi
 
 **Cruise/walk exists so the user can walk away and watch the waterfall progress.** Stand up a visible stage-level task list via `TaskCreate` BEFORE Stage 1 and keep it live with `TaskUpdate` for the whole run — `in_progress` on start, `completed` on exit-criteria, `blocked` on halt. No tracker visible = the run has not started correctly. It is the *stage*-level tracker; Stage 5's `/meta-execute` runs its own *task*-level list, distinct and never mirrored. Interactive mode: recommended but optional; autopilot/walk makes it mandatory.
 
-**The full procedure (entries, dependencies, multi-item, skip/block handling, nesting) lives in the `waterfall-tracking` skill** (`skills/waterfall-tracking/SKILL.md`) — invoke it; the loop below wires its updates into stage advancement.
+**The full procedure (entries, dependencies, multi-item, skip/block handling, nesting) lives in the `waterfall-tracking` skill** (`workflow-skills/waterfall-tracking/SKILL.md`) — invoke it; the loop below wires its updates into stage advancement.
 
 ### The 6-Stage Complete-Then-Advance Loop
 
