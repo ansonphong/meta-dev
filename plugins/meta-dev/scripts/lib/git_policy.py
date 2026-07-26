@@ -100,7 +100,7 @@ def _prepare_expansions(command: str) -> tuple[str, list[str]]:
             result.extend((char, command[index + 1]))
             index += 2
             continue
-        if char == "'":
+        if char == "'" and quote is None:
             quote = char
             result.append(char)
             index += 1
@@ -278,6 +278,15 @@ def _git_command(tokens: list[str]) -> list[str] | None:
     index = _executable_index(tokens)
     if index is None:
         return None
+    executable = os.path.basename(tokens[index])
+    if executable in {"bash", "dash", "ksh", "sh", "zsh"}:
+        for arg_index, token in enumerate(tokens[index + 1 :], index + 1):
+            if token == "-c" or (token.startswith("-") and "c" in token[1:]):
+                if arg_index + 1 < len(tokens) and _contains_expansion(tokens[arg_index + 1]):
+                    raise ValueError("dynamic shell command cannot be inspected safely")
+                break
+    elif executable == "eval" and any(_contains_expansion(token) for token in tokens[index + 1 :]):
+        raise ValueError("dynamic shell command cannot be inspected safely")
     if not _is_git_executable(tokens[index]):
         if any(_is_git_executable(token) or re.search(r"\bgit\s", token) for token in tokens):
             raise ValueError("indirect git invocation cannot be inspected safely")

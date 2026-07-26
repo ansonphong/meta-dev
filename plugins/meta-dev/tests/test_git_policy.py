@@ -88,12 +88,16 @@ class GitPolicyTests(unittest.TestCase):
         self.assert_denied("command $(printf git) -C /work/repo status")
         self.assert_denied('printf "%s" "$(git -C /work/repo add -A)"')
         self.assert_denied('printf "%s" "${result:-$(git -C /work/repo add -A)}"')
+        self.assert_denied("""printf "%s" "it's $(git -C /work/repo add -A)" """)
+        self.assert_denied('bash -c "$possibly_git_command"')
+        self.assert_denied('eval "$possibly_git_command"')
 
     def test_allows_safe_expansions_outside_executable_position(self) -> None:
         for command in (
             'echo "$HOME"',
             "printf '%s' \"$value\"",
             "printf '%s' \"$(date +%s)\"",
+            """echo "it's $HOME" """,
             "echo '${literal}'",
             "env LABEL=\"$HOME\" printf '%s' \"$value\"",
         ):
