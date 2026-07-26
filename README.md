@@ -1,10 +1,10 @@
 # Meta-Dev
 
-Autonomous development harness for Claude Code. Dashboard, overlord, 6-phase orchestrator, HOTL classification, deep-investigation probe, changelog engine, multi-repo versioning — all configurable via JSON.
+Autonomous development harness for Claude Code and Codex. Dashboard, overlord, 6-phase orchestrator, HOTL classification, deep-investigation probe, changelog engine, multi-repo versioning — all configurable via JSON.
 
 ## Prerequisites
 
-- **Claude Code** (latest)
+- **Claude Code** (latest) for the slash-command surface, or **Codex** for the native skill surface
 - `jq` ≥ 1.6, `python3` ≥ 3.10, `shellcheck` ≥ 0.7
 - Python package: `jsonschema` (`pip install jsonschema`)
 - Optional: `ulid-py` (falls back to uuid4)
@@ -14,7 +14,7 @@ brew install jq shellcheck
 pip install jsonschema
 ```
 
-## Install
+## Install in Claude Code
 
 ```bash
 /plugin marketplace add ansonphong/meta-dev
@@ -27,6 +27,42 @@ Verify:
 /meta-dashboard
 ```
 
+## Install in Codex
+
+From this repository's root, add the local marketplace described by
+`.agents/plugins/marketplace.json`, then install its available `meta-dev`
+plugin:
+
+```bash
+codex plugin marketplace add .
+codex plugin add meta-dev@meta-dev-local
+```
+
+Restart Codex after installation. The Codex package exposes ten concise workflow
+skills; use `$meta-dev:<workflow>` rather than a Claude slash command:
+
+```text
+$meta-dev:dev        $meta-dev:plan       $meta-dev:harden
+$meta-dev:execute    $meta-dev:review     $meta-dev:ship
+$meta-dev:dashboard  $meta-dev:runbook    $meta-dev:diagnose
+$meta-dev:ops
+```
+
+Claude commands remain canonical procedures. Codex has no command surface: for
+a legacy command, use `$meta-dev:command-router <command>` to resolve and
+follow its procedure.
+
+Codex uses native configured routes: plan, harden, and review default to
+GPT-5.6 Sol with high reasoning effort; execute defaults to GPT-5.6 Terra with
+medium effort. The `codex-headless-exec` runner also defaults to Terra/medium.
+An explicit `--model` overrides `--tier`; an explicit `--effort` overrides the
+tier's default effort. Workflow route defaults are configured under
+`meta_dev.codex.models`.
+
+Codex lifecycle hooks are bundled with the plugin. Trust the installed plugin
+normally so its adapter can apply the shared guard policy to Codex tool events;
+do not use `--dangerously-bypass-hook-trust` in normal work.
+
 ## Quick Start
 
 ```bash
@@ -36,6 +72,23 @@ Verify:
 ```
 
 `/meta-init` creates `plans/_dashboard/` with settings, versioning, changelog, state, and inbox — all validated against JSON schemas. Idempotent (safe to re-run).
+
+## Shared workflow contract
+
+Both host surfaces follow the same six stages: brainstorm, design, plan,
+harden, execute, and review. Plans and their state remain host-neutral:
+`planctl` is the only state write door, and the conductor owns stage transitions
+and the checkbox ledger.
+
+Plan artifacts are rendered from the version `1.0` JSON IR in
+`schemas/plan-artifact.schema.json`, not hand-written per host. The renderer
+emits deterministic frontmatter without `status:`; a multi-phase plan has one
+checkbox ledger in `00-master-plan.md` and checkbox-free phase files, while a
+single-file layout is reserved for compact plans.
+
+Repository topology is likewise host-neutral. Put project repository aliases in
+`.meta-dev/repos.json`; the legacy `.claude/meta-dev-repos.json` remains
+supported for compatibility. If both exist, the neutral file takes precedence.
 
 ## Dashboard
 
@@ -150,11 +203,15 @@ One glance. Every plan, session, inbox advisory, and commit. The Overlord watche
 ## Architecture
 
 ```
-CLAUDE_PLUGIN_ROOT/
+plugin root/
+├── .claude-plugin/ Manifest for Claude Code
+├── .codex-plugin/  Manifest for Codex
 ├── commands/      Thin entry points (≤30 lines) — delegate to skills/scripts
 ├── skills/        Heavy procedures — loaded on demand via Skill tool
+├── codex-skills/  Curated native Codex workflow entries
 ├── agents/        Specialized subagents — scanner, reviewer, architect, sweeper
-├── hooks/scripts/ Event-driven bash handlers — SessionStart, PostToolUse
+├── hooks/         Codex lifecycle hook declarations and adapter
+│   └── scripts/   Event-driven bash/Python handlers
 ├── scripts/       Deterministic ops — no LLM, pure bash/python
 ├── schemas/       JSON Schema draft-07 — settings, state, inbox, changelog, versioning
 ├── templates/     Bootstrap files for /meta-init
