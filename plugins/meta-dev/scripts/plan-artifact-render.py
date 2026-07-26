@@ -151,6 +151,10 @@ def validate_ir(ir: Any) -> dict[str, Any]:
         fail(errors, "IR.slug", "must be lowercase kebab-case")
     if not isinstance(ir.get("repo"), str) or not SLUG.fullmatch(ir["repo"]):
         fail(errors, "IR.repo", "must be a safe lowercase kebab-case slug")
+    elif is_project_relative(artifact_path):
+        artifact_parts = PurePosixPath(artifact_path).parts
+        if len(artifact_parts) < 3 or artifact_parts[:2] != ("plans", ir["repo"]):
+            fail(errors, "IR.artifact_path", "must be under plans/<repo>/ and match IR.repo")
     if not isinstance(ir.get("stage"), int) or not 1 <= ir["stage"] <= 6:
         fail(errors, "IR.stage", "must be an integer from 1 through 6")
     for key in PATH_FIELDS:
@@ -354,6 +358,23 @@ def install(ir: dict[str, Any], project_root: Path, force: bool) -> list[Path]:
     assert_safe_ancestors()
     artifact = root.joinpath(*PurePosixPath(ir["artifact_path"]).parts)
     artifact_exists = os.path.lexists(artifact)
+
+    def assert_safe_existing_artifact() -> None:
+        if not artifact_exists:
+            return
+        if artifact.is_symlink():
+            raise ValidationError(f"refusing to replace symlinked artifact: {artifact}")
+        if ir["layout"] == "multi-phase" and not artifact.is_dir():
+            raise ValidationError(f"refusing to replace non-directory multi-phase artifact: {artifact}")
+        if ir["layout"] == "single-file" and not artifact.is_file():
+            raise ValidationError(f"refusing to replace non-file single-file artifact: {artifact}")
+        try:
+            artifact.resolve(strict=True).relative_to(root)
+        except ValueError as exc:
+            raise ValidationError(f"refusing to replace artifact outside project root: {artifact}") from exc
+
+    if force:
+        assert_safe_existing_artifact()
     if artifact_exists and not force:
         raise FileExistsError(f"refusing to overwrite existing artifact: {artifact}")
     if ir["layout"] == "multi-phase" and any(os.path.lexists(path) for path in destinations.values()) and not force:

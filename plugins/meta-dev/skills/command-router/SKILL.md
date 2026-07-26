@@ -65,9 +65,10 @@ and stale-plugin-cache failures before they waste a dispatch.
 3. **Report honestly.** A verify command that fails gets said out loud, with output.
    A green claim over a red run is the one unrecoverable error.
 4. **Touch only what your task declares.** Task contradicts what is on disk → STOP and report.
-5. **No PreToolUse guard exists here.** `guard-check.sh` does not port to Codex, so
-   nothing mechanically blocks `git add -A`. Stage explicit paths only. Never
-   `git stash`, `rebase`, `pull`, or `merge` without `--ff-only`.
+5. **The trusted Codex PreToolUse hook is the primary git guard.** It validates
+   Bash commands against the shared-worktree policy before execution. The manual
+   rules remain defense in depth: stage explicit paths only; never `git stash`,
+   `rebase`, `pull`, or `merge` without `--ff-only`.
 
 ## Conductor commands are a poor worker target
 

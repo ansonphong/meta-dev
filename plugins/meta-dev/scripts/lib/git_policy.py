@@ -20,10 +20,10 @@ DENIED_SUBCOMMANDS = {
     "stash", "reset", "restore", "checkout", "clean", "rebase", "revert",
 }
 READ_ONLY_SUBCOMMANDS = {
-    "blame", "branch", "config", "describe", "diff", "log", "ls-files",
-    "remote", "rev-list", "rev-parse", "show", "status", "symbolic-ref",
+    "blame", "describe", "diff", "log", "ls-files", "rev-list", "rev-parse",
+    "show", "status",
 }
-SHELL_UNSAFE = ("$(", "`")
+SHELL_UNSAFE = ("$", "`")
 
 
 @dataclass(frozen=True)
@@ -173,6 +173,31 @@ def _validate_commit(directory: str | None, args: list[str]) -> None:
     _explicit_paths(args[4:], action="commit", directory=directory)
 
 
+def _validate_branch(args: list[str]) -> None:
+    """Allow only branch listing forms, never branch creation or deletion."""
+    if args in ([], ["--show-current"], ["--list"], ["-l"]):
+        return
+    if len(args) == 2 and args[0] in {"--list", "-l"} and not args[1].startswith("-"):
+        return
+    raise ValueError("git branch is allowed only for exact read-only listing forms")
+
+
+def _validate_config(args: list[str]) -> None:
+    """Allow a single proven read-only config lookup."""
+    if len(args) == 2 and args[0] == "--get" and args[1] and not args[1].startswith("-"):
+        return
+    raise ValueError("git config is allowed only as git config --get <key>")
+
+
+def _validate_remote(args: list[str]) -> None:
+    """Allow remote enumeration and one named URL lookup, not mutation."""
+    if args in ([], ["-v"], ["--verbose"]):
+        return
+    if len(args) == 2 and args[0] == "get-url" and args[1] and not args[1].startswith("-"):
+        return
+    raise ValueError("git remote is allowed only for listing or get-url <name>")
+
+
 def _validate_git(argv: list[str]) -> None:
     subcommand, directory, args = _parse_git(argv)
     if subcommand in DENIED_SUBCOMMANDS:
@@ -184,6 +209,12 @@ def _validate_git(argv: list[str]) -> None:
     elif subcommand in {"pull", "merge"}:
         if directory is None or args != ["--ff-only"]:
             raise ValueError(f"git {subcommand} is allowed only as git -C <absolute> {subcommand} --ff-only")
+    elif subcommand == "branch":
+        _validate_branch(args)
+    elif subcommand == "config":
+        _validate_config(args)
+    elif subcommand == "remote":
+        _validate_remote(args)
     elif subcommand in READ_ONLY_SUBCOMMANDS:
         return
     elif subcommand in {"fetch", "tag"}:

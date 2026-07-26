@@ -209,6 +209,19 @@ def test_invalid_ir_writes_no_partial_artifact(tmp_path: Path):
     assert not (tmp_path.parent / "outside").exists()
 
 
+def test_rejects_off_ledger_and_repo_mismatched_artifact_paths(tmp_path: Path):
+    for artifact_path, expected in (
+        ("docs/renderer-contract.md", "must be under plans/<repo>/"),
+        ("plans/www/renderer-contract", "must be under plans/<repo>/"),
+    ):
+        ir = base_ir("multi-phase")
+        ir["artifact_path"] = artifact_path
+        result = run_renderer(tmp_path, ir)
+        assert result.returncode == 2
+        assert expected in result.stderr
+    assert not (tmp_path / "plans").exists()
+
+
 def test_rejects_symlinked_output_ancestor_escaping_project_root(tmp_path: Path):
     outside = tmp_path.parent / "outside"
     outside.mkdir()
@@ -224,6 +237,7 @@ def test_rejects_symlinked_output_ancestor_escaping_project_root(tmp_path: Path)
 def test_accepts_arbitrary_safe_repo_slug_and_rejects_checkbox_in_phase_text(tmp_path: Path):
     ir = base_ir("multi-phase")
     ir["repo"] = "studio-api"
+    ir["artifact_path"] = "plans/studio-api/renderer-contract"
     ir["phases"][0]["tasks"][0]["description"] = "Safe detail.\n- [ ] injected row"
 
     result = run_renderer(tmp_path, ir)
@@ -233,7 +247,7 @@ def test_accepts_arbitrary_safe_repo_slug_and_rejects_checkbox_in_phase_text(tmp
     ir["phases"][0]["tasks"][0]["description"] = "Safe detail."
     result = run_renderer(tmp_path, ir)
     assert result.returncode == 0, result.stderr
-    phase_files = (tmp_path / "plans" / "meta" / "renderer-contract").glob("0[1-9]-*.md")
+    phase_files = (tmp_path / "plans" / "studio-api" / "renderer-contract").glob("0[1-9]-*.md")
     assert all("- [" not in path.read_text(encoding="utf-8") for path in phase_files)
 
 
@@ -288,3 +302,19 @@ def test_repeat_render_is_deterministic(tmp_path: Path):
     assert "refusing to overwrite" in refused.stderr
     assert forced.returncode == 0, forced.stderr
     assert [(path, (first_dir / path).read_bytes()) for path in first_files] == [(path, (second_dir / path).read_bytes()) for path in second_files]
+
+
+def test_force_refuses_to_replace_a_symlinked_artifact(tmp_path: Path):
+    ir = base_ir("multi-phase")
+    artifact = tmp_path / ir["artifact_path"]
+    target = tmp_path / "safe-target"
+    target.mkdir()
+    artifact.parent.mkdir(parents=True)
+    artifact.symlink_to(target, target_is_directory=True)
+
+    result = run_renderer(tmp_path, ir, force=True)
+
+    assert result.returncode == 2
+    assert "refusing to replace symlinked artifact" in result.stderr
+    assert artifact.is_symlink()
+    assert not (target / "00-master-plan.md").exists()

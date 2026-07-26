@@ -40,6 +40,20 @@ def deny(reason: str) -> None:
     }})
 
 
+def bash_command(payload: dict) -> str | None:
+    """Normalize Codex's Bash input aliases without accepting malformed input."""
+    tool_input = payload.get("tool_input")
+    if not isinstance(tool_input, dict):
+        return None
+    # Codex production payloads use ``cmd``; retain ``command`` for older hook
+    # payloads. A supplied malformed primary field is never silently bypassed.
+    if "cmd" in tool_input:
+        command = tool_input["cmd"]
+    else:
+        command = tool_input.get("command")
+    return command if isinstance(command, str) else None
+
+
 def main() -> int:
     if not ROOT or not Path(ROOT).is_dir():
         return 0
@@ -60,7 +74,11 @@ def main() -> int:
     if event == "PreToolUse" and tool == "Bash":
         sys.path.insert(0, str(Path(ROOT) / "scripts" / "lib"))
         from git_policy import validate_shell  # pylint: disable=import-outside-toplevel
-        decision = validate_shell(str(payload.get("tool_input", {}).get("command", "")))
+        command = bash_command(payload)
+        if command is None:
+            deny("Bash command is missing or malformed")
+            return 0
+        decision = validate_shell(command)
         if not decision.allowed:
             deny(decision.reason)
             return 0
