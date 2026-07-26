@@ -70,6 +70,11 @@ class GitPolicyTests(unittest.TestCase):
         self.assert_denied("sh -c 'git -C /work/repo add -A'")
         self.assert_denied("git -C /work/repo add -- src/a.py | cat")
 
+    def test_newlines_and_path_qualified_git_are_governed(self) -> None:
+        self.assert_allowed("/usr/bin/git -C /work/repo status\ngit -C /work/repo status")
+        self.assert_denied("echo safe\n/usr/bin/git -C /work/repo add -A")
+        self.assert_denied("/opt/git/bin/git -C /work/repo commit -m unsafe")
+
     def test_codex_adapter_is_gated_without_plugin_root(self) -> None:
         payload = json.dumps({"hook_event_name": "PreToolUse", "tool_name": "Bash", "tool_input": {"command": "git add -A"}})
         env = os.environ.copy()

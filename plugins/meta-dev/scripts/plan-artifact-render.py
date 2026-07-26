@@ -20,7 +20,6 @@ from typing import Any, Iterable
 
 
 VERSION = "1.0"
-REPOS = {"app", "www", "gallery", "meta"}
 LAYOUTS = {"multi-phase", "single-file"}
 PATH_FIELDS = ("context", "docs", "depends", "blocks")
 TASK_HANDLE = re.compile(r"^T[A-Za-z0-9]+\.[0-9]+$")
@@ -32,6 +31,7 @@ _BROAD_VERIFY = re.compile(
     r"(?:^|\s)(?:svelte-check|tsc)(?:\s|$)",
     re.IGNORECASE,
 )
+_CHECKBOX_ROW = re.compile(r"^\s*[-*+]\s+\[[ xX]\]")
 
 
 class ValidationError(ValueError):
@@ -57,7 +57,17 @@ def text_list(value: Any, path: str, errors: list[str]) -> list[str]:
     for index, item in enumerate(value):
         if not isinstance(item, str) or not item.strip():
             fail(errors, f"{path}[{index}]", "must be a non-empty string")
+        elif any(_CHECKBOX_ROW.match(line) for line in item.splitlines()):
+            fail(errors, f"{path}[{index}]", "must not contain a checkbox-shaped line")
     return value
+
+
+def rendered_text(value: Any, path: str, errors: list[str]) -> None:
+    """Reject input that could create a task ledger row outside the master."""
+    if not isinstance(value, str) or not value.strip():
+        fail(errors, path, "must be a non-empty string")
+    elif any(_CHECKBOX_ROW.match(line) for line in value.splitlines()):
+        fail(errors, path, "must not contain a checkbox-shaped line")
 
 
 def path_list(value: Any, path: str, errors: list[str]) -> list[str]:
@@ -87,8 +97,7 @@ def validate_task(task: Any, path: str, errors: list[str], handles: set[str]) ->
     else:
         handles.add(handle)
     for key in ("title", "description"):
-        if not isinstance(task.get(key), str) or not task[key].strip():
-            fail(errors, f"{path}.{key}", "must be a non-empty string")
+        rendered_text(task.get(key), f"{path}.{key}", errors)
     if not isinstance(task.get("test"), bool):
         fail(errors, f"{path}.test", "must be boolean")
     text_list(task.get("dependencies"), f"{path}.dependencies", errors)
@@ -104,9 +113,8 @@ def validate_task(task: Any, path: str, errors: list[str], handles: set[str]) ->
             fail(errors, item_path, "must contain exactly command and scope")
             continue
         command, scope = verify["command"], verify["scope"]
-        if not isinstance(command, str) or not command.strip():
-            fail(errors, f"{item_path}.command", "must be a non-empty string")
-        elif _BROAD_VERIFY.search(command):
+        rendered_text(command, f"{item_path}.command", errors)
+        if isinstance(command, str) and command.strip() and _BROAD_VERIFY.search(command):
             fail(errors, f"{item_path}.command", "must be a focused command, not a broad check")
         if scope not in {"focused", "scoped_check"}:
             fail(errors, f"{item_path}.scope", "must be focused or scoped_check")
@@ -138,12 +146,11 @@ def validate_ir(ir: Any) -> dict[str, Any]:
     elif layout == "multi-phase" and artifact_path.endswith(".md"):
         fail(errors, "IR.artifact_path", "multi-phase layout must name a directory, not a .md file")
     for key in ("title", "why"):
-        if not isinstance(ir.get(key), str) or not ir[key].strip():
-            fail(errors, f"IR.{key}", "must be a non-empty string")
+        rendered_text(ir.get(key), f"IR.{key}", errors)
     if not isinstance(ir.get("slug"), str) or not SLUG.fullmatch(ir["slug"]):
         fail(errors, "IR.slug", "must be lowercase kebab-case")
-    if ir.get("repo") not in REPOS:
-        fail(errors, "IR.repo", f"must be one of {', '.join(sorted(REPOS))}")
+    if not isinstance(ir.get("repo"), str) or not SLUG.fullmatch(ir["repo"]):
+        fail(errors, "IR.repo", "must be a safe lowercase kebab-case slug")
     if not isinstance(ir.get("stage"), int) or not 1 <= ir["stage"] <= 6:
         fail(errors, "IR.stage", "must be an integer from 1 through 6")
     for key in PATH_FIELDS:
@@ -161,15 +168,13 @@ def validate_ir(ir: Any) -> dict[str, Any]:
                 fail(errors, f"{item_path}.path", "must be a project-relative POSIX path without traversal")
             if file["action"] not in {"create", "modify", "delete", "move"}:
                 fail(errors, f"{item_path}.action", "must be create, modify, delete, or move")
-            if not isinstance(file["purpose"], str) or not file["purpose"].strip():
-                fail(errors, f"{item_path}.purpose", "must be a non-empty string")
+            rendered_text(file["purpose"], f"{item_path}.purpose", errors)
     text_list(ir.get("acceptance"), "IR.acceptance", errors)
     baseline = ir.get("loop_gap_baseline")
     if not isinstance(baseline, dict) or set(baseline) != {"summary", "signatures", "affected_files", "prioritized_gaps"}:
         fail(errors, "IR.loop_gap_baseline", "must contain exactly summary, signatures, affected_files, and prioritized_gaps")
     else:
-        if not isinstance(baseline["summary"], str) or not baseline["summary"].strip():
-            fail(errors, "IR.loop_gap_baseline.summary", "must be a non-empty string")
+        rendered_text(baseline["summary"], "IR.loop_gap_baseline.summary", errors)
         text_list(baseline["signatures"], "IR.loop_gap_baseline.signatures", errors)
         path_list(baseline["affected_files"], "IR.loop_gap_baseline.affected_files", errors)
         text_list(baseline["prioritized_gaps"], "IR.loop_gap_baseline.prioritized_gaps", errors)
@@ -195,8 +200,7 @@ def validate_ir(ir: Any) -> dict[str, Any]:
                 else:
                     phase_ids.add(phase_id)
                 for key in ("title", "summary"):
-                    if not isinstance(phase[key], str) or not phase[key].strip():
-                        fail(errors, f"{phase_path}.{key}", "must be a non-empty string")
+                    rendered_text(phase[key], f"{phase_path}.{key}", errors)
                 tasks = phase["tasks"]
                 if not isinstance(tasks, list) or not tasks:
                     fail(errors, f"{phase_path}.tasks", "must be a non-empty array")
@@ -337,11 +341,17 @@ def install(ir: dict[str, Any], project_root: Path, force: bool) -> list[Path]:
     rendered = render_files(ir)
     root = project_root.resolve()
     destinations = {relative: root.joinpath(*relative.parts) for relative in rendered}
-    for destination in destinations.values():
-        try:
-            destination.relative_to(root)
-        except ValueError as exc:  # defensive; validate_ir already rejects this shape.
-            raise ValidationError(f"rendered path escapes project root: {destination}") from exc
+
+    def assert_safe_ancestors() -> None:
+        for destination in destinations.values():
+            try:
+                destination.parent.resolve(strict=False).relative_to(root)
+            except ValueError as exc:
+                raise ValidationError(
+                    f"rendered path has a symlinked ancestor escaping project root: {destination}"
+                ) from exc
+
+    assert_safe_ancestors()
     artifact = root.joinpath(*PurePosixPath(ir["artifact_path"]).parts)
     artifact_exists = os.path.lexists(artifact)
     if artifact_exists and not force:
@@ -362,6 +372,7 @@ def install(ir: dict[str, Any], project_root: Path, force: bool) -> list[Path]:
             if artifact_exists:
                 os.replace(artifact, backup)
             try:
+                assert_safe_ancestors()
                 os.replace(staged_artifact, artifact)
             except OSError:
                 if os.path.lexists(backup):
@@ -375,6 +386,7 @@ def install(ir: dict[str, Any], project_root: Path, force: bool) -> list[Path]:
             if artifact_exists:
                 os.replace(artifact, backup)
             try:
+                assert_safe_ancestors()
                 os.replace(staged_file, artifact)
             except OSError:
                 if os.path.lexists(backup):

@@ -12,7 +12,7 @@
     "artifact_path": { "type": "string", "minLength": 1, "description": "Multi-phase: output directory. Single-file: output .md file." },
     "title": { "type": "string", "minLength": 1 },
     "slug": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
-    "repo": { "enum": ["app", "www", "gallery", "meta"] },
+    "repo": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
     "stage": { "type": "integer", "minimum": 1, "maximum": 6 },
     "context": { "$ref": "#/definitions/pathList" },
     "docs": { "$ref": "#/definitions/pathList" },

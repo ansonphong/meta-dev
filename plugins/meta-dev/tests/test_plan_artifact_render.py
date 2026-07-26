@@ -209,6 +209,61 @@ def test_invalid_ir_writes_no_partial_artifact(tmp_path: Path):
     assert not (tmp_path.parent / "outside").exists()
 
 
+def test_rejects_symlinked_output_ancestor_escaping_project_root(tmp_path: Path):
+    outside = tmp_path.parent / "outside"
+    outside.mkdir()
+    (tmp_path / "plans").symlink_to(outside, target_is_directory=True)
+
+    result = run_renderer(tmp_path, base_ir("multi-phase"))
+
+    assert result.returncode == 2
+    assert "symlinked ancestor escaping project root" in result.stderr
+    assert not (outside / "meta" / "renderer-contract").exists()
+
+
+def test_accepts_arbitrary_safe_repo_slug_and_rejects_checkbox_in_phase_text(tmp_path: Path):
+    ir = base_ir("multi-phase")
+    ir["repo"] = "studio-api"
+    ir["phases"][0]["tasks"][0]["description"] = "Safe detail.\n- [ ] injected row"
+
+    result = run_renderer(tmp_path, ir)
+
+    assert result.returncode == 2
+    assert "checkbox-shaped line" in result.stderr
+    ir["phases"][0]["tasks"][0]["description"] = "Safe detail."
+    result = run_renderer(tmp_path, ir)
+    assert result.returncode == 0, result.stderr
+    phase_files = (tmp_path / "plans" / "meta" / "renderer-contract").glob("0[1-9]-*.md")
+    assert all("- [" not in path.read_text(encoding="utf-8") for path in phase_files)
+
+
+def test_rejects_checkbox_rows_from_every_phase_free_form_field(tmp_path: Path):
+    def injected(ir: dict, field: str) -> None:
+        if field == "phase_title":
+            ir["phases"][0]["title"] = "Contract\n- [ ] injected"
+        elif field == "phase_summary":
+            ir["phases"][0]["summary"] = "Snapshot\n- [ ] injected"
+        elif field == "task_title":
+            ir["phases"][0]["tasks"][0]["title"] = "Define IR\n- [ ] injected"
+        elif field == "task_description":
+            ir["phases"][0]["tasks"][0]["description"] = "Detail\n- [ ] injected"
+        elif field == "dependency":
+            ir["phases"][0]["tasks"][0]["dependencies"] = ["needs\n- [ ] injected"]
+        elif field == "acceptance":
+            ir["phases"][0]["tasks"][0]["acceptance"] = ["done\n- [ ] injected"]
+        elif field == "verify":
+            ir["phases"][0]["tasks"][0]["verify_after"][0]["command"] = "pytest one.py\n- [ ] injected"
+        elif field == "baseline":
+            ir["loop_gap_baseline"]["summary"] = "Baseline\n- [ ] injected"
+
+    for field in ("phase_title", "phase_summary", "task_title", "task_description", "dependency", "acceptance", "verify", "baseline"):
+        ir = base_ir("multi-phase")
+        injected(ir, field)
+        result = run_renderer(tmp_path, ir, validate=True)
+        assert result.returncode == 2, field
+        assert "checkbox-shaped line" in result.stderr
+
+
 def test_repeat_render_is_deterministic(tmp_path: Path):
     ir = base_ir("multi-phase")
     first_root = tmp_path / "first"

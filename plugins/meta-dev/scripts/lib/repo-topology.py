@@ -58,15 +58,16 @@ def find_config():
         return os.path.abspath(explicit), []
 
     candidates = []
+    configured_roots = tuple(_project_roots())
     # Examine all neutral candidates before legacy candidates. This prevents a
     # nearby old config from silently overriding a project's neutral contract.
     for relpath in (NEUTRAL_CONFIG_RELPATH, LEGACY_CONFIG_RELPATH):
         found = None
-        for root in _project_roots():
+        for root in configured_roots:
             found = _existing(os.path.join(root, relpath))
             if found:
                 break
-        if not found:
+        if not found and not configured_roots:
             found = _walk_for(relpath)
         if found:
             candidates.append(os.path.abspath(found))
@@ -83,9 +84,13 @@ def _report_conflict(chosen, shadowed):
 
 def load():
     """Return ``(project_root, repos)`` or ``(None, None)`` if unusable."""
+    explicit_config = _existing(os.environ.get("META_DEV_REPOS_FILE"))
+    configured_root = os.environ.get("META_DEV_PROJECT_ROOT")
+    if configured_root:
+        configured_root = os.path.abspath(configured_root)
     cfg_path, shadowed = find_config()
     if not cfg_path:
-        return None, None
+        return (configured_root, {}) if configured_root else (None, None)
     _report_conflict(cfg_path, shadowed)
     try:
         with open(cfg_path, encoding="utf-8") as fh:
@@ -99,7 +104,11 @@ def load():
     if not os.path.isabs(root):
         root = os.path.normpath(os.path.join(cfg_dir, root))
     repos = cfg.get("repos") or {}
-    return (root, repos) if isinstance(repos, dict) else (None, None)
+    if not isinstance(repos, dict):
+        return None, None
+    # META_DEV_PROJECT_ROOT pins the host boundary for discovered topology,
+    # while an explicit META_DEV_REPOS_FILE remains an intentional override.
+    return (configured_root if configured_root and not explicit_config else root, repos)
 
 
 def resolve(name, root, repos):
@@ -128,8 +137,6 @@ def main():
     if root is None:
         return 1
     if arg == "--root":
-        if not os.path.isdir(root):
-            return 1
         sys.stdout.write(root)
         return 0
     if arg == "--list":

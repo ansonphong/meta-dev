@@ -103,6 +103,27 @@ def test_explicit_topology_and_plugin_root_precedence(tmp_path):
     assert fallback.stdout.strip() == str(_PLUGIN)
 
 
+def test_project_root_is_authoritative_without_or_over_unrelated_topology(tmp_path):
+    project = tmp_path / "configured-project"
+    project.mkdir()
+    empty = tmp_path / "no-topology"
+    empty.mkdir()
+    unrelated = tmp_path / "unrelated"
+    unrelated.mkdir()
+    _topology(unrelated / ".meta-dev" / "repos.json", str(unrelated), {"wrong": "."})
+    env = dict(os.environ, META_DEV_PROJECT_ROOT=str(project))
+    for name in ("META_DEV_REPOS_FILE", "META_DEV_ROOT", "CLAUDE_PROJECT_DIR"):
+        env.pop(name, None)
+
+    root = _run_topology("--root", env=env, cwd=unrelated)
+    assert root.returncode == 0
+    assert root.stdout == str(project)
+    root_without_topology = _run_topology("--root", env=env, cwd=empty)
+    assert root_without_topology.returncode == 0
+    assert root_without_topology.stdout == str(project)
+    assert _run_topology("wrong", env=env, cwd=unrelated).returncode == 1
+
+
 def test_template_is_host_neutral_and_runbook_labels_dynamic_repo_buckets():
     assert json.loads(_TEMPLATE.read_text(encoding="utf-8")) == {
         "root": "..", "repos": {}

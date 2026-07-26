@@ -32,20 +32,50 @@ class Decision:
     reason: str = ""
 
 
+def _separate_unquoted_newlines(command: str) -> str:
+    """Turn shell command newlines into semicolons without touching quoted text."""
+    result: list[str] = []
+    quote: str | None = None
+    index = 0
+    while index < len(command):
+        char = command[index]
+        if quote is None:
+            if char in {"'", '"'}:
+                quote = char
+                result.append(char)
+            elif char == "\\" and index + 1 < len(command) and command[index + 1] == "\n":
+                index += 1  # A backslash-newline is a continuation, not a separator.
+            elif char == "\n":
+                previous = next((item for item in reversed(result) if not item.isspace()), "")
+                if previous not in {"", ";", "&", "|"}:
+                    result.append(";")
+            else:
+                result.append(char)
+        else:
+            result.append(char)
+            if char == "\\" and quote == '"' and index + 1 < len(command):
+                index += 1
+                result.append(command[index])
+            elif char == quote:
+                quote = None
+        index += 1
+    return "".join(result)
+
+
 def _split_commands(command: str) -> list[list[str]]:
     """Split simple commands while refusing shell forms that hide git calls."""
     if not command.strip():
         return []
     if any(marker in command for marker in SHELL_UNSAFE) or re.search(r"[<>]\(", command):
         raise ValueError("shell substitution cannot be inspected safely")
-    lexer = shlex.shlex(command, posix=True, punctuation_chars=";&|")
+    lexer = shlex.shlex(_separate_unquoted_newlines(command), posix=True, punctuation_chars=";&|")
     lexer.whitespace_split = True
     lexer.commenters = ""
     tokens = list(lexer)
     commands: list[list[str]] = []
     current: list[str] = []
     for token in tokens:
-        if token in {"&&", ";", "\n"}:
+        if token in {"&&", ";"}:
             if not current:
                 raise ValueError("empty shell command segment")
             commands.append(current)
@@ -60,6 +90,11 @@ def _split_commands(command: str) -> list[list[str]]:
     return commands
 
 
+def _is_git_executable(token: str) -> bool:
+    """Recognize ``git`` and path-qualified git executables alike."""
+    return token == "git" or ("/" in token and os.path.basename(token) == "git")
+
+
 def _git_command(tokens: list[str]) -> list[str] | None:
     """Return git argv only for an unambiguous direct git invocation."""
     index = 0
@@ -70,8 +105,8 @@ def _git_command(tokens: list[str]) -> list[str] | None:
         index += 1
     if index == len(tokens):
         return None
-    if tokens[index] != "git":
-        if any(token == "git" or re.search(r"\bgit\s", token) for token in tokens):
+    if not _is_git_executable(tokens[index]):
+        if any(_is_git_executable(token) or re.search(r"\bgit\s", token) for token in tokens):
             raise ValueError("indirect git invocation cannot be inspected safely")
         return None
     return tokens[index + 1 :]
