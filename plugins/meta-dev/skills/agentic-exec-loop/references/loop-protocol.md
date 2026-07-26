@@ -144,12 +144,12 @@ plan-under-execution is a member of one:
 RB=$(grep -rlF --include='_runbook-*.md' "$PLAN_REL" plans/ 2>/dev/null | head -1)
 if [ -n "$RB" ]; then
   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/runbook-render.py "$RB"   # stderr prints ⚠ stage-drift
-  git add "$RB" && git commit -q -m "chore(runbook): refresh dashboard — $(basename "$(dirname "$PLAN_REL")") phase landed"
+  git -C <ABS_REPO_ROOT> add -- "$RB" && git -C <ABS_REPO_ROOT> commit --only -q -m "chore(runbook): refresh dashboard phase landed" -- "$RB"
 fi
 ```
 
 - The render is **idempotent** — if nothing changed it rewrites the same block
-  and the commit is empty (skip it: `git diff --cached --quiet || git commit …`).
+  and the commit is empty (skip it: `git diff --cached --quiet || git -C <absolute-repo> commit --only … -- "$RB"`).
 - It writes ONLY the sentineled PROGRESS block; the narrative + CURRENT phase
   tracker (human SHAs) are never touched.
 - Heed its **stderr `⚠ stage-drift`** lines: a plan at ~100% checkboxes still

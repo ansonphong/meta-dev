@@ -41,7 +41,7 @@ When a tier flag is present, run the **agentic-exec-loop** (skill: agentic-exec-
 - At each `## Phase N` boundary (or once at end for phase-less plans), dispatch `meta-dev:review-agent` over `git diff <phase_pre_sha>..HEAD`; branch on PASS/CONDITIONAL_PASS/FAIL per the protocol; run the fix-ladder on FAIL (next rung of `meta_dev.ladder.pool`).
 - The conductor holds only the task list + per-phase verdict; it never reads diffs.
 - **Context watchdog:** at each phase seam (after the verdict, phase committed) run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/context-gauge.py`; on `CONTEXT_VERDICT=OVER` (default 300000) pause and `/meta-compact` forward before advancing — per loop-protocol → "Context watchdog". Keeps long playbooks ahead of the harness's hard auto-compact.
-- **Runbook dashboard sync:** at the SAME phase seam, if the executing plan is a member of a campaign runbook, re-render it so the live dashboard tracks the phase that just landed — `RB=$(grep -rlF --include='_runbook-*.md' "<plan-path>" plans/); [ -n "$RB" ] && python3 ${CLAUDE_PLUGIN_ROOT}/scripts/runbook-render.py "$RB" && { git diff --cached --quiet "$RB" 2>/dev/null || { git add "$RB" && git commit -q -m "chore(runbook): refresh dashboard"; }; }`. Heed its stderr `⚠ stage-drift`; on final-phase pass bump the plan's `stage:`→6. Per loop-protocol → "Runbook dashboard sync". Without this the dashboard freezes mid-run on long-horizon executions.
+- **Runbook dashboard sync:** at the SAME phase seam, if the executing plan is a member of a campaign runbook, re-render it so the live dashboard tracks the phase that just landed. Resolve `REPO_ROOT` to the absolute root before this step, then run: `RB=$(grep -rlF --include='_runbook-*.md' "<plan-path>" plans/); [ -n "$RB" ] && python3 ${CLAUDE_PLUGIN_ROOT}/scripts/runbook-render.py "$RB" && { git diff --cached --quiet "$RB" 2>/dev/null || { git -C <ABS_REPO_ROOT> add -- "$RB" && git -C <ABS_REPO_ROOT> commit --only -q -m "chore(runbook): refresh dashboard" -- "$RB"; }; }`. Heed its stderr `⚠ stage-drift`; on final-phase pass bump the plan's `stage:`→6. Per loop-protocol → "Runbook dashboard sync". Without this the dashboard freezes mid-run on long-horizon executions.
 
 If you (the orchestrating session) dispatch a worker expected to idle past ~4 min, keep your prompt cache warm per loop-protocol's cache-keepalive (270s) — session practice, not command automation.
 
@@ -85,7 +85,7 @@ For EACH task-list item:
 ```bash
 bash ${CLAUDE_PLUGIN_ROOT}/scripts/task-done.sh <plan-path> <handle-from-the-runtime-entry>
 # ^-- shim over `planctl check` (the unified state layer's single write door).
-git add -- <plan-path> && git commit -m "chore(plan): mark <handle> DONE"
+git -C <ABS_REPO_ROOT> add -- <plan-path> && git -C <ABS_REPO_ROOT> commit --only -m "chore(plan): mark <handle> DONE" -- <plan-path>
 ```
 
 - **Not** "parse handles from the worker result." Worker never `Edit`s a checkbox; worker may echo the handle for audit only.

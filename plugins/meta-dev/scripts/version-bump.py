@@ -21,20 +21,21 @@ def bump_semver(current: str, bump_type: str) -> str:
         return f"{major}.{minor}.{patch + 1}"
 
 
-def update_file(filepath: str, old_ver: str, new_ver: str):
+def update_file(filepath: str, old_ver: str, new_ver: str) -> bool:
     if not os.path.exists(filepath):
         print(f"  skip {filepath} (not found)")
-        return
+        return False
     with open(filepath) as f:
         content = f.read()
     if old_ver not in content:
         print(f"  warn: {old_ver} not found in {filepath}")
-        return
+        return False
     content = content.replace(old_ver, new_ver)
     if not DRY_RUN:
         with open(filepath, "w") as f:
             f.write(content)
     print(f"  {'[DRY]' if DRY_RUN else ''} update {filepath}: {old_ver} → {new_ver}")
+    return True
 
 
 def atomic_write_json(filepath: str, data: dict):
@@ -93,50 +94,57 @@ def main():
 
     print(f"Bump {target['id']} ({target['name']}): {old_ver} → {new_ver} ({bump_type})")
 
+    changed_files: list[str] = []
     if not DRY_RUN:
         target["current_version"] = new_ver
-        atomic_write_json(VERSIONING_FILE, data)
-
     for vf in target.get("version_files", []):
-        update_file(vf, old_ver, new_ver)
-
-    # Git tag
-    prefix = target.get("git_tag_prefix", "v")
-    tag = f"{prefix}{new_ver}"
-    if not DRY_RUN:
-        result = subprocess.run(
-            ["git", "add", VERSIONING_FILE] + target.get("version_files", []),
-            capture_output=True, text=True
-        )
-        if result.returncode != 0:
-            print(f"  warn: git add failed ({result.returncode}): {result.stderr.strip()}")
-
-        result = subprocess.run(
-            ["git", "commit", "-m", f"chore: bump {target['id']} to {new_ver}"],
-            capture_output=True, text=True
-        )
-        if result.returncode != 0:
-            print(f"  warn: git commit failed ({result.returncode}): {result.stderr.strip()}")
-        else:
-            result = subprocess.run(["git", "tag", tag], capture_output=True, text=True)
-            if result.returncode != 0:
-                print(f"  warn: git tag failed: {result.stderr.strip()}")
-            else:
-                print(f"Tagged: {tag}")
+        if update_file(vf, old_ver, new_ver):
+            changed_files.append(vf)
 
     # Cascade to followers
     for r in repos:
         if r.get("follows") == target["id"] and not r.get("independent"):
             fmode = r.get("follows_mode", "patch")
-            follower_new = bump_semver(r["current_version"], fmode)
-            print(f"  Cascade: {r['id']} {r['current_version']} → {follower_new} ({fmode})")
+            follower_old = r["current_version"]
+            follower_new = bump_semver(follower_old, fmode)
+            print(f"  Cascade: {r['id']} {follower_old} → {follower_new} ({fmode})")
             if not DRY_RUN:
                 r["current_version"] = follower_new
                 for vf in r.get("version_files", []):
-                    update_file(vf, r.get("current_version", old_ver), follower_new)
+                    if update_file(vf, follower_old, follower_new):
+                        changed_files.append(vf)
 
     if not DRY_RUN:
         atomic_write_json(VERSIONING_FILE, data)
+        changed_files.insert(0, VERSIONING_FILE)
+
+        # Every staged and committed path is named explicitly.  --only makes
+        # this commit independent of the shared index's unrelated entries.
+        repo_root = os.path.abspath(os.getcwd())
+        explicit_files = list(dict.fromkeys(changed_files))
+        result = subprocess.run(
+            ["git", "-C", repo_root, "add", "--", *explicit_files],
+            capture_output=True, text=True,
+        )
+        if result.returncode != 0:
+            print(f"  warn: git add failed ({result.returncode}): {result.stderr.strip()}")
+            return
+        result = subprocess.run(
+            ["git", "-C", repo_root, "commit", "--only", "-m",
+             f"chore: bump {target['id']} to {new_ver}", "--", *explicit_files],
+            capture_output=True, text=True,
+        )
+        if result.returncode != 0:
+            print(f"  warn: git commit failed ({result.returncode}): {result.stderr.strip()}")
+            return
+
+        prefix = target.get("git_tag_prefix", "v")
+        tag = f"{prefix}{new_ver}"
+        result = subprocess.run(["git", "-C", repo_root, "tag", tag], capture_output=True, text=True)
+        if result.returncode != 0:
+            print(f"  warn: git tag failed: {result.stderr.strip()}")
+        else:
+            print(f"Tagged: {tag}")
 
 
 if __name__ == "__main__":

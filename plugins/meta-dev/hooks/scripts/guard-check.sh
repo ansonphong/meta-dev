@@ -4,7 +4,8 @@ set -euo pipefail
 # Matcher: Bash and Edit|Write|MultiEdit in plugin.json (PreToolUse).
 # Input: JSON payload on stdin — { tool_name, tool_input:{command|file_path,...}, ... }
 #
-# Purpose: BLOCK destructive commands and out-of-scope edits BEFORE they execute.
+# Purpose: BLOCK destructive commands, unsafe shared-worktree git commands, and
+# out-of-scope edits BEFORE they execute.
 # This is the load-bearing half of /meta-guard (the PostToolUse hooks are telemetry only).
 #
 # Protocol (Claude Code PreToolUse): exit 0 with JSON on stdout —
@@ -96,6 +97,21 @@ if [ "$TOOL_NAME" = "Bash" ]; then
   COMMAND=$(printf '%s' "$PAYLOAD" | jq -r '.tool_input.command // empty' 2>/dev/null || echo "")
   [ -z "$COMMAND" ] && emit_allow
 
+  # Shared parser used by both Claude and Codex adapters.  Regex checks below
+  # remain for non-git destructive commands and configurable warning policy;
+  # git syntax itself must be parsed so quotes, chains, and multiple calls do
+  # not create an escape hatch.
+  GIT_POLICY="$PLUGIN_ROOT/scripts/lib/git_policy.py"
+  if [ -f "$GIT_POLICY" ]; then
+    set +e
+    GIT_POLICY_REASON=$(python3 "$GIT_POLICY" --command "$COMMAND" 2>&1)
+    GIT_POLICY_RC=$?
+    set -e
+    if [ "$GIT_POLICY_RC" -ne 0 ]; then
+      emit_deny "shared-worktree git policy blocked command: $GIT_POLICY_REASON"
+    fi
+  fi
+
   # rm .git/index — catastrophic, NEVER overrideable (config can only block).
   if printf '%s' "$COMMAND" | grep -qiE 'rm\s+(-[a-zA-Z]+\s+)*\.git/index($|[[:space:]])'; then
     A=$(cfg rm_git_index block)
@@ -123,21 +139,18 @@ if [ "$TOOL_NAME" = "Bash" ]; then
   # `git add` stages EVERY dirty file under a path — including another live
   # session's in-flight worker edits — sweeping foreign work into this commit.
   # Charter rule: the conductor stages EXACTLY its task's declared files.
-  # Escape hatch: sanctioned single-session dir-adds (e.g. plan archival) run
-  # `META_ALLOW_DIR_ADD=1 git add <dir>` — the inline prefix opts out. Mirrors
-  # the HEXTILE_ALLOW_REBASE emergency-override convention.
-  # Known gap (accepted, grug-minimal): a bareword dir with no trailing slash
-  # (`git add plans`) is NOT caught — staging by explicit file path + the
-  # worker manifest are the positive mechanism; this is the regex backstop for
-  # the forms the charter names and the incident used.
+  # There is no override for directory staging: a shared worktree cannot prove
+  # that every file under a directory belongs to this session.
+  # The shared parser above also checks existing bare directory paths; this
+  # regex is retained as a fast, explanatory backstop for familiar forms.
   if printf '%s' "$COMMAND" | grep -qiE '\bgit\s+add\b' \
-     && ! printf '%s' "$COMMAND" | grep -qiE 'META_ALLOW_DIR_ADD=(1|true)'; then
+     ; then
     SWEEP=""
     printf '%s' "$COMMAND" | grep -qiE '\bgit\s+add\s+([^&|;]*[[:space:]])?(-A|--all|-u|--update)([[:space:]]|$)' && SWEEP="the -A/-u/--all/--update flag"
     printf '%s' "$COMMAND" | grep -qiE '\bgit\s+add\s+([^&|;]*[[:space:]])?\.([[:space:]/]|$)'                    && SWEEP="a bare '.'"
     printf '%s' "$COMMAND" | grep -qiE '\bgit\s+add\s+([^&|;]*[[:space:]])?[^[:space:]&|;]+/([[:space:]]|$)'       && SWEEP="a directory path (trailing '/')"
     if [ -n "$SWEEP" ]; then
-      apply_action "$(cfg git_add_sweep block)" "git add with $SWEEP stages EVERY dirty file under that path — in a SHARED tree that sweeps another concurrent session's in-flight worker edits into your commit (commit-sweep, incident 2026-07-05). Stage explicit file paths only: 'git add <file1> <file2>'. Sanctioned single-session dir-adds (plan archival) prefix 'META_ALLOW_DIR_ADD=1'."
+      apply_action "$(cfg git_add_sweep block)" "git add with $SWEEP stages EVERY dirty file under that path — in a SHARED tree that sweeps another concurrent session's in-flight worker edits into your commit (commit-sweep, incident 2026-07-05). Stage explicit file paths only: 'git -C <absolute-repo> add -- <file1> <file2>'."
     fi
   fi
 

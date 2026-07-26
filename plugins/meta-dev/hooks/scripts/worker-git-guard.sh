@@ -14,12 +14,8 @@ set -euo pipefail
 # commit; checkout/reset/stash/restore DESTROY them. Those stay blocked. A
 # commit of explicitly-named paths is additive, recoverable, and safe.
 #
-# So this hook blocks exactly three things:
-#   1. Destructive / history-rewriting / network git subcommands
-#   2. Tree-wide staging (`git add -A|.|-u|<dir>/`, `git commit -a`)
-#   3. `git commit --amend` (history rewrite)
-# Everything else — `git add <explicit paths>`, `git commit -m`, and all
-# read-only git — is ALLOWED.
+# The shared parser allows read-only commands plus explicit staging and only the
+# index-isolating commit form: `git -C <absolute> commit --only -m ... -- files`.
 #
 # Injected by claude-headless-exec via `--settings` (the worker is a separate
 # `claude -p` process that does NOT inherit the project's plugin hooks). It
@@ -53,33 +49,12 @@ TOOL=$(printf '%s' "$PAYLOAD" | jq -r '.tool_name // empty' 2>/dev/null || echo 
 
 CMD=$(printf '%s' "$PAYLOAD" | jq -r '.tool_input.command // empty' 2>/dev/null || echo "")
 [ -n "$CMD" ] || emit_allow
-
-# ── 1. Destructive / history-rewriting / network subcommands ────────────────
-# These either DESTROY a peer's uncommitted work (checkout/restore/reset/clean/
-# stash) or rewrite/move shared history (rebase/merge/cherry-pick/revert/am/
-# filter-branch) or touch the remote (push/pull/fetch). `add` and `commit` are
-# deliberately NOT in this list. Read-only git (status|diff|log|show|blame|
-# rev-parse|ls-files) is not matched either, so a worker can orient itself.
-if printf '%s' "$CMD" | grep -qiE '\bgit\s+([^|;&]*\s)?(stash|checkout|switch|restore|reset|rebase|merge|cherry-pick|revert|push|pull|fetch|am|apply|clean|tag|worktree|filter-branch)\b'; then
-  emit_deny "BLOCKED: destructive/history/network git in worker context. You MAY 'git add <explicit paths>' and 'git commit' your own work — but never stash/checkout/restore/reset/clean (these destroy concurrent sessions' uncommitted work), never rebase/merge/cherry-pick/revert/am (these rewrite shared history), and never push/pull/fetch (the conductor owns the remote). Read-only git (status/diff/log/show) is allowed."
-fi
-
-# ── 2. Tree-wide staging ───────────────────────────────────────────────────
-# `git add -A|--all|-u|--update|.|*` or a bare directory arg (trailing slash)
-# sweeps a concurrent session's in-flight edits into YOUR commit — the actual
-# 2026-07-05 failure mode. Stage the exact files you touched, by name.
-if printf '%s' "$CMD" | grep -qiE '\bgit\s+(-C\s+\S+\s+)?add\b[^|;&]*(\s-{1,2}(A|all|u|update)\b|\s\.(\s|$)|\s\*|\s["'"'"']?\S*/["'"'"']?(\s|$))'; then
-  emit_deny "BLOCKED: tree-wide staging. 'git add -A/./-u/<dir>/' sweeps other agents' in-flight edits into your commit (incident 2026-07-05). Stage the exact files you edited, by full path: git -C <abs-repo-root> add path/to/a.ts path/to/b.svelte"
-fi
-
-# `git commit -a` / `--all` stages every tracked modification — same sweep.
-if printf '%s' "$CMD" | grep -qiE '\bgit\s+(-C\s+\S+\s+)?commit\b[^|;&]*(\s-[a-zA-Z]*a[a-zA-Z]*(\s|$)|\s--all\b)'; then
-  emit_deny "BLOCKED: 'git commit -a/--all' stages every tracked modification, including other agents' in-flight edits. Stage your exact paths with 'git add <paths>' first, then plain 'git commit -m'."
-fi
-
-# ── 3. Commit history rewrite ──────────────────────────────────────────────
-if printf '%s' "$CMD" | grep -qiE '\bgit\s+([^|;&]*\s)?commit\b[^|;&]*\s--amend\b'; then
-  emit_deny "BLOCKED: 'git commit --amend' rewrites history another agent may already have built on. Make a new commit instead."
-fi
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+POLICY="$SCRIPT_DIR/../../scripts/lib/git_policy.py"
+set +e
+REASON=$(python3 "$POLICY" --command "$CMD" 2>&1)
+RC=$?
+set -e
+[ "$RC" -eq 0 ] || emit_deny "BLOCKED: $REASON. Use exact paths and 'git -C <absolute-repo> commit --only -m <message> -- <files>'."
 
 emit_allow

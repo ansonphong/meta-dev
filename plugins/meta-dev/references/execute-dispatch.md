@@ -73,10 +73,12 @@ Steps:
 1. Read the task. List files you'll touch. Confirm they exist + match plan claims.
 2. <TEST_STEP>   ← orchestrator inserts the matching variant (test-first, or "no test — skip to impl").
 3. Implement.
-4. **COMMIT-ON-RED:** `git -C <ABS_REPO_ROOT> add <ONLY the explicit files
-   from step 1> && git -C <ABS_REPO_ROOT> commit -m "<conventional commit>"`.
-   Paste the SHA. NEVER `git add -A`/`.`/`<dir>` or `commit -a`; the tree is
-   shared. Never push; the conductor owns the remote.
+4. **COMMIT-ON-RED:** `git -C <ABS_REPO_ROOT> add -- <ONLY the explicit files
+   from step 1> && git -C <ABS_REPO_ROOT> commit --only -m "<conventional
+   commit>" -- <THE SAME explicit files>`. Paste the SHA. The commit form is
+   mandatory: a bare commit can absorb another worker's shared index entries.
+   NEVER `git add -A`/`.`/`<dir>` or `commit -a`; the tree is shared. Never
+   push; the conductor owns the remote.
 5. Run stub grep on the committed diff. Paste output. Empty = eligible for DONE;
    any hit = red acceptance evidence, but the local commit remains.
 6. If `<VERIFY_CLASS>` is `focused` or `scoped_check`, run `<VERIFY_CMD>` exactly
