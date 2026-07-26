@@ -230,8 +230,20 @@ def test_rejects_symlinked_output_ancestor_escaping_project_root(tmp_path: Path)
     result = run_renderer(tmp_path, base_ir("multi-phase"))
 
     assert result.returncode == 2
-    assert "symlinked ancestor escaping project root" in result.stderr
+    assert "symlinked ledger ancestor" in result.stderr
     assert not (outside / "meta" / "renderer-contract").exists()
+
+
+def test_rejects_repo_ledger_symlink_into_another_ledger(tmp_path: Path):
+    www_ledger = tmp_path / "plans" / "www"
+    www_ledger.mkdir(parents=True)
+    (tmp_path / "plans" / "meta").symlink_to(www_ledger, target_is_directory=True)
+
+    result = run_renderer(tmp_path, base_ir("multi-phase"))
+
+    assert result.returncode == 2
+    assert "symlinked ledger ancestor" in result.stderr
+    assert not (www_ledger / "renderer-contract").exists()
 
 
 def test_accepts_arbitrary_safe_repo_slug_and_rejects_checkbox_in_phase_text(tmp_path: Path):

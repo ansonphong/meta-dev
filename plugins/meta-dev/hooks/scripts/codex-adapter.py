@@ -54,6 +54,18 @@ def bash_command(payload: dict) -> str | None:
     return command if isinstance(command, str) else None
 
 
+def normalized_bash_payload(payload: dict, command: str) -> str:
+    """Preserve Codex fields while supplying the legacy Bash command key."""
+    normalized = dict(payload)
+    tool_input = payload.get("tool_input")
+    if not isinstance(tool_input, dict):
+        raise ValueError("Bash tool_input is missing or malformed")
+    normalized_input = dict(tool_input)
+    normalized_input["command"] = command
+    normalized["tool_input"] = normalized_input
+    return json.dumps(normalized, separators=(",", ":"))
+
+
 def main() -> int:
     if not ROOT or not Path(ROOT).is_dir():
         return 0
@@ -82,9 +94,16 @@ def main() -> int:
         if not decision.allowed:
             deny(decision.reason)
             return 0
-        output = run_legacy("guard-check.sh", raw)
+        try:
+            legacy_payload = normalized_bash_payload(payload, command)
+            output = run_legacy("guard-check.sh", legacy_payload)
+        except (OSError, subprocess.SubprocessError, ValueError):
+            deny("legacy Bash guard could not inspect the command")
+            return 0
         if output:
             print(output)
+        else:
+            deny("legacy Bash guard returned no decision")
         return 0
 
     if event == "PostToolUse" and tool == "Bash":

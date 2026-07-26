@@ -18,6 +18,10 @@ assert SPEC and SPEC.loader
 git_policy = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = git_policy
 SPEC.loader.exec_module(git_policy)
+ADAPTER_SPEC = importlib.util.spec_from_file_location("codex_adapter", ADAPTER_PATH)
+assert ADAPTER_SPEC and ADAPTER_SPEC.loader
+codex_adapter = importlib.util.module_from_spec(ADAPTER_SPEC)
+ADAPTER_SPEC.loader.exec_module(codex_adapter)
 
 PRODUCTION_CODEX_BASH = {
     "hook_event_name": "PreToolUse",
@@ -80,6 +84,21 @@ class GitPolicyTests(unittest.TestCase):
         self.assert_denied("sh -c 'git -C /work/repo add -A'")
         self.assert_denied("git -C /work/repo add -- src/a.py | cat")
         self.assert_denied("g=git; $g -C /work/repo add -- src/a.py")
+        self.assert_denied("env MODE=safe $g -C /work/repo add -A")
+        self.assert_denied("command $(printf git) -C /work/repo status")
+        self.assert_denied('printf "%s" "$(git -C /work/repo add -A)"')
+        self.assert_denied('printf "%s" "${result:-$(git -C /work/repo add -A)}"')
+
+    def test_allows_safe_expansions_outside_executable_position(self) -> None:
+        for command in (
+            'echo "$HOME"',
+            "printf '%s' \"$value\"",
+            "printf '%s' \"$(date +%s)\"",
+            "echo '${literal}'",
+            "env LABEL=\"$HOME\" printf '%s' \"$value\"",
+        ):
+            with self.subTest(command=command):
+                self.assert_allowed(command)
 
     def test_allows_only_proven_read_only_branch_config_and_remote_forms(self) -> None:
         for command in (
@@ -120,6 +139,29 @@ class GitPolicyTests(unittest.TestCase):
         output = json.loads(result.stdout)
         self.assertEqual(output["hookSpecificOutput"]["hookEventName"], "PreToolUse")
         self.assertEqual(output["hookSpecificOutput"]["permissionDecision"], "deny")
+
+    def test_codex_adapter_normalizes_production_cmd_for_legacy_destructive_guard(self) -> None:
+        payload = json.loads(json.dumps(PRODUCTION_CODEX_BASH))
+        payload["tool_input"]["cmd"] = "rm -rf /srv/production-data"
+        payload["tool_input"]["custom_field"] = {"preserved": True}
+        normalized = json.loads(codex_adapter.normalized_bash_payload(
+            payload, payload["tool_input"]["cmd"],
+        ))
+        self.assertEqual(normalized["tool_input"]["command"], payload["tool_input"]["cmd"])
+        self.assertEqual(normalized["tool_input"]["custom_field"], {"preserved": True})
+        self.assertEqual(normalized["tool_input"]["yield_time_ms"], 10000)
+        self.assertNotIn("command", payload["tool_input"])
+        env = os.environ.copy()
+        env["PLUGIN_ROOT"] = str(ROOT)
+
+        result = subprocess.run(
+            [sys.executable, str(ADAPTER_PATH)], input=json.dumps(payload), text=True,
+            capture_output=True, env=env, check=True,
+        )
+
+        output = json.loads(result.stdout)
+        self.assertEqual(output["hookSpecificOutput"]["permissionDecision"], "deny")
+        self.assertIn("Recursive delete", output["hookSpecificOutput"]["permissionDecisionReason"])
 
     def test_codex_adapter_supports_legacy_command_and_denies_missing_or_non_string_input(self) -> None:
         env = os.environ.copy()

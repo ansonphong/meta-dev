@@ -345,17 +345,22 @@ def install(ir: dict[str, Any], project_root: Path, force: bool) -> list[Path]:
     rendered = render_files(ir)
     root = project_root.resolve()
     destinations = {relative: root.joinpath(*relative.parts) for relative in rendered}
+    plans_ledger = root / "plans"
+    repo_ledger = plans_ledger / ir["repo"]
 
     def assert_safe_ancestors() -> None:
+        for ledger in (plans_ledger, repo_ledger):
+            if os.path.lexists(ledger) and ledger.is_symlink():
+                raise ValidationError(f"rendered path has a symlinked ledger ancestor: {ledger}")
+        resolved_ledger = repo_ledger.resolve(strict=False)
         for destination in destinations.values():
             try:
-                destination.parent.resolve(strict=False).relative_to(root)
+                destination.parent.resolve(strict=False).relative_to(resolved_ledger)
             except ValueError as exc:
                 raise ValidationError(
-                    f"rendered path has a symlinked ancestor escaping project root: {destination}"
+                    f"rendered path resolves outside the matching plans/{ir['repo']} ledger: {destination}"
                 ) from exc
 
-    assert_safe_ancestors()
     artifact = root.joinpath(*PurePosixPath(ir["artifact_path"]).parts)
     artifact_exists = os.path.lexists(artifact)
 
@@ -375,11 +380,13 @@ def install(ir: dict[str, Any], project_root: Path, force: bool) -> list[Path]:
 
     if force:
         assert_safe_existing_artifact()
+    assert_safe_ancestors()
     if artifact_exists and not force:
         raise FileExistsError(f"refusing to overwrite existing artifact: {artifact}")
     if ir["layout"] == "multi-phase" and any(os.path.lexists(path) for path in destinations.values()) and not force:
         raise FileExistsError(f"refusing to overwrite existing artifact member under: {artifact}")
     artifact.parent.mkdir(parents=True, exist_ok=True)
+    assert_safe_ancestors()
     stage = Path(tempfile.mkdtemp(prefix=".plan-artifact-", dir=artifact.parent))
     try:
         if ir["layout"] == "multi-phase":

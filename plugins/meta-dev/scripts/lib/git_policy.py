@@ -23,13 +23,120 @@ READ_ONLY_SUBCOMMANDS = {
     "blame", "describe", "diff", "log", "ls-files", "rev-list", "rev-parse",
     "show", "status",
 }
-SHELL_UNSAFE = ("$", "`")
+PARAM_EXPANSION = "__META_PARAMETER_EXPANSION__"
+COMMAND_SUBSTITUTION = "__META_COMMAND_SUBSTITUTION__"
 
 
 @dataclass(frozen=True)
 class Decision:
     allowed: bool
     reason: str = ""
+
+
+def _command_substitution(command: str, start: int) -> tuple[str, int]:
+    """Return one ``$(...)`` body and the index after its closing parenthesis."""
+    index = start + 2
+    quote: str | None = None
+    parenthesis_depth = 0
+    while index < len(command):
+        char = command[index]
+        if quote == "'":
+            if char == "'":
+                quote = None
+        elif quote == '"':
+            if char == "\\" and index + 1 < len(command):
+                index += 1
+            elif char == '"':
+                quote = None
+            elif command.startswith("$(", index):
+                _, index = _command_substitution(command, index)
+                continue
+        elif char in {"'", '"'}:
+            quote = char
+        elif char == "\\" and index + 1 < len(command):
+            index += 1
+        elif command.startswith("$(", index):
+            _, index = _command_substitution(command, index)
+            continue
+        elif char == "(":
+            parenthesis_depth += 1
+        elif char == ")":
+            if parenthesis_depth:
+                parenthesis_depth -= 1
+            else:
+                return command[start + 2 : index], index + 1
+        index += 1
+    raise ValueError("unterminated command substitution cannot be inspected safely")
+
+
+def _backtick_substitution(command: str, start: int) -> tuple[str, int]:
+    """Return one legacy backtick body and the index after its closing mark."""
+    index = start + 1
+    while index < len(command):
+        if command[index] == "\\" and index + 1 < len(command):
+            index += 2
+            continue
+        if command[index] == "`":
+            return command[start + 1 : index], index + 1
+        index += 1
+    raise ValueError("unterminated command substitution cannot be inspected safely")
+
+
+def _prepare_expansions(command: str) -> tuple[str, list[str]]:
+    """Mark active expansions while retaining nested commands for inspection."""
+    result: list[str] = []
+    substitutions: list[str] = []
+    quote: str | None = None
+    index = 0
+    while index < len(command):
+        char = command[index]
+        if quote == "'":
+            result.append(char)
+            if char == "'":
+                quote = None
+            index += 1
+            continue
+        if char == "\\" and index + 1 < len(command):
+            result.extend((char, command[index + 1]))
+            index += 2
+            continue
+        if char == "'":
+            quote = char
+            result.append(char)
+            index += 1
+            continue
+        if char == '"':
+            quote = None if quote == '"' else '"'
+            result.append(char)
+            index += 1
+            continue
+        if command.startswith("$(", index):
+            body, index = _command_substitution(command, index)
+            if not body.strip():
+                raise ValueError("empty command substitution cannot be inspected safely")
+            substitutions.append(body)
+            result.append(COMMAND_SUBSTITUTION)
+            continue
+        if char == "`":
+            body, index = _backtick_substitution(command, index)
+            if not body.strip():
+                raise ValueError("empty command substitution cannot be inspected safely")
+            substitutions.append(body)
+            result.append(COMMAND_SUBSTITUTION)
+            continue
+        if char == "$":
+            braced = re.match(r"\$\{[^}]*\}", command[index:])
+            parameter = braced or re.match(r"\$(?:[A-Za-z_][A-Za-z0-9_]*|[0-9@*#?$!\-])", command[index:])
+            if parameter:
+                if braced:
+                    _, nested = _prepare_expansions(braced.group(0)[2:-1])
+                    substitutions.extend(nested)
+                result.append(PARAM_EXPANSION)
+                index += len(parameter.group(0))
+                continue
+        result.append(char)
+        index += 1
+    return "".join(result), substitutions
 
 
 def _separate_unquoted_newlines(command: str) -> str:
@@ -66,9 +173,10 @@ def _split_commands(command: str) -> list[list[str]]:
     """Split simple commands while refusing shell forms that hide git calls."""
     if not command.strip():
         return []
-    if any(marker in command for marker in SHELL_UNSAFE) or re.search(r"[<>]\(", command):
+    prepared, substitutions = _prepare_expansions(command)
+    if re.search(r"[<>]\(", prepared):
         raise ValueError("shell substitution cannot be inspected safely")
-    lexer = shlex.shlex(_separate_unquoted_newlines(command), posix=True, punctuation_chars=";&|")
+    lexer = shlex.shlex(_separate_unquoted_newlines(prepared), posix=True, punctuation_chars=";&|")
     lexer.whitespace_split = True
     lexer.commenters = ""
     tokens = list(lexer)
@@ -87,6 +195,8 @@ def _split_commands(command: str) -> list[list[str]]:
     if not current:
         raise ValueError("trailing shell command separator")
     commands.append(current)
+    for substitution in substitutions:
+        commands.extend(_split_commands(substitution))
     return commands
 
 
@@ -95,15 +205,78 @@ def _is_git_executable(token: str) -> bool:
     return token == "git" or ("/" in token and os.path.basename(token) == "git")
 
 
+def _contains_expansion(token: str) -> bool:
+    return PARAM_EXPANSION in token or COMMAND_SUBSTITUTION in token
+
+
+def _is_assignment(token: str) -> bool:
+    name, separator, _ = token.partition("=")
+    return bool(separator and name and (name[0].isalpha() or name[0] == "_")
+                and name.replace("_", "").isalnum())
+
+
+def _executable_index(tokens: list[str]) -> int | None:
+    """Locate an executable through assignments and supported command wrappers."""
+    index = 0
+    while index < len(tokens) and _is_assignment(tokens[index]):
+        index += 1
+    while index < len(tokens):
+        token = tokens[index]
+        if _contains_expansion(token):
+            raise ValueError("shell expansion in executable position cannot be inspected safely")
+        executable = os.path.basename(token)
+        if executable == "env":
+            index += 1
+            while index < len(tokens):
+                token = tokens[index]
+                if token == "--":
+                    index += 1
+                    break
+                if token in {"-u", "--unset"}:
+                    index += 2
+                    continue
+                if token.startswith("-") or _is_assignment(token):
+                    index += 1
+                    continue
+                if _contains_expansion(token):
+                    raise ValueError("shell expansion in executable position cannot be inspected safely")
+                break
+            continue
+        if executable in {"command", "exec", "nohup"}:
+            index += 1
+            while index < len(tokens) and tokens[index] == "--":
+                index += 1
+            continue
+        if executable == "sudo":
+            index += 1
+            options_with_values = {
+                "-C", "-D", "-g", "-h", "-p", "-R", "-r", "-T", "-t", "-u",
+                "--chdir", "--chroot", "--command-timeout", "--group", "--host",
+                "--prompt", "--role", "--type", "--user",
+            }
+            while index < len(tokens):
+                token = tokens[index]
+                if token == "--":
+                    index += 1
+                    break
+                if token in options_with_values:
+                    index += 2
+                    continue
+                if token.startswith("-"):
+                    index += 1
+                    continue
+                if _contains_expansion(token):
+                    raise ValueError("shell expansion in executable position cannot be inspected safely")
+                break
+            continue
+        return index
+    return None
+
+
 def _git_command(tokens: list[str]) -> list[str] | None:
     """Return git argv only for an unambiguous direct git invocation."""
-    index = 0
-    while index < len(tokens) and "=" in tokens[index] and not tokens[index].startswith("="):
-        name, _, _ = tokens[index].partition("=")
-        if not name.replace("_", "").isalnum():
-            return None
-        index += 1
-    if index == len(tokens):
+    index = _executable_index(tokens)
+    if index is None:
         return None
     if not _is_git_executable(tokens[index]):
         if any(_is_git_executable(token) or re.search(r"\bgit\s", token) for token in tokens):
