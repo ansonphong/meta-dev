@@ -143,7 +143,7 @@ A multi-hour probe fails from **context rot, coordination drift, and wheel-spinn
 
 **LH1 — Context isolation (load-bearing).** The orchestrator NEVER holds raw agent transcripts. Every dispatched agent returns a **distilled artifact only** (≤ ~200 words: claim · evidence cites · confidence · one counterexample). Verbose exploration, file dumps, and reasoning chains die inside the subagent's context — this is what lets the run survive hours without the orchestrator filling up and losing the plot.
 
-**LH2 — Externalized state ledger.** Maintain `plans/meta/probe-{slug}-state.md`, updated after **every wave and every round** — the durable memory the run reads from, not accumulated chat. Contents:
+**LH2 — Externalized state ledger.** Maintain `plans/meta/{YYYY-MM-DD}-probe-{slug}.state.md` — a sidecar to the report below, so ledger and report sort adjacent (`references/plan-artifacts.md`). Updated after **every wave and every round** — the durable memory the run reads from, not accumulated chat. Contents:
 - **Hypotheses** — each with status (alive / demoted / refuted / confirmed) and current confidence.
 - **Evidence ledger** — every load-bearing fact, **provenance-tagged** to its source (`file:line`, command + output, doc). Ground truth.
 - **Forbidden ruts** — carried and extended.
@@ -179,7 +179,7 @@ Continue iff Q1 surfaces a non-trivial avenue; conclude iff Q1 yields nothing AN
 
 ## Output — the report that opens a conversation
 
-Write `plans/meta/probe-{slug}-{YYYY-MM-DD}.md` (slug from the neutral statement), generated from the state ledger (LH2) and updated incrementally (LH7). The companion `probe-{slug}-state.md` ledger stays on disk as the audit trail and resume point. Report structure:
+Write `plans/meta/{YYYY-MM-DD}-probe-{slug}.md` (slug from the neutral statement; **date leads** — see `references/plan-artifacts.md`), generated from the state ledger (LH2) and updated incrementally (LH7). The companion `{YYYY-MM-DD}-probe-{slug}.state.md` ledger stays on disk beside it as the audit trail and resume point. Report structure:
 
 ```markdown
 # Probe — {neutral question}
@@ -227,8 +227,8 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/inbox-add.sh" \
   --severity moderate \
   --title "probe done on {slug} — {terminal state}" \
   --body "Verdict: {one line} (conf {X}). {N} hypotheses, {M} survived." \
-  --options '[{"label":"Open report","command":"cat plans/meta/probe-{slug}-{date}.md"},{"label":"Re-probe deeper","command":"/meta-probe {target} --budget insane"}]' \
-  --ref-file "plans/meta/probe-{slug}-{date}.md"
+  --options '[{"label":"Open report","command":"cat plans/meta/{date}-probe-{slug}.md"},{"label":"Re-probe deeper","command":"/meta-probe {target} --budget insane"}]' \
+  --ref-file "plans/meta/{date}-probe-{slug}.md"
 ```
 
 ---

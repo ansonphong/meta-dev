@@ -222,7 +222,7 @@ These are EMBEDDED in evaluator behavior. You MUST follow them — the one-line 
 **Status:** PASS / CONDITIONAL PASS / FAIL
 ````
 
-**Write report to:** `{plans_root}/<repo>/<feature>/design-review-{YYYY-MM-DD}.md` when a plan context exists (resolve `{plans_root}` from `meta_dev.paths.plans_root`); otherwise output inline. Never write reports into source trees or `docs/`.
+**Write report to:** the `design-review` artifact path from **`references/plan-artifacts.md`** — directory plan → `{plans_root}/<repo>/<feature>/design-review.md`; **single-file plan → `{plans_root}/<repo>/<plan-stem>.design-review.md`** (resolve `{plans_root}` from `meta_dev.paths.plans_root`). No date in the filename. With no plan context, output inline. Never write reports into source trees or `docs/`.
 
 ---
 

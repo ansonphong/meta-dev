@@ -110,7 +110,7 @@ Before scanning, read this command's `## Learned Patterns` section (at the botto
 
 **Project mode:** Read CLAUDE.md, identify major source directories, group into ~5-15 agent groups.
 
-**Always exclude:** `loop-gap.md`, `.loop-gap-config.md`, `__pycache__/`, `node_modules/`, `.venv/`, `dist/`, `build/`.
+**Always exclude:** `*loop-gap*.md`, `*.gap-report-*.md`, `*.design-review.md`, `*.plan-validation.md`, `.loop-gap-config.md`, `__pycache__/`, `node_modules/`, `.venv/`, `dist/`, `build/` — i.e. **every plan-attached artifact** (`references/plan-artifacts.md`), matched by glob, not by literal filename. A scanner that reads its own prior output as plan content will report the gaps it already logged.
 
 ## Step 2 — Classify Files
 
@@ -139,7 +139,15 @@ Before scanning, read this command's `## Learned Patterns` section (at the botto
 
 ## Step 3 — Check for Existing loop-gap.md
 
-Output locations: Plan → `{TARGET_DIR}/loop-gap.md` | Feature → `plans/loop-gap-{feature}.md` | Code → `plans/loop-gap-{dirname}.md` | Project → `plans/loop-gap-project.md`
+**Output location is governed by `references/plan-artifacts.md` — the one naming rule. Resolve it there, never from memory.** In short:
+
+| Target | Path |
+|--------|------|
+| **Directory plan** (`…/<slug>/00-master-plan.md`) | `{TARGET_DIR}/loop-gap.md` |
+| **Single-file plan** (`…/<stem>.md`) | `{PLAN_STEM}.loop-gap.md` — sibling of the plan, carrying its full stem |
+| Feature / Code / Project scan | `plans/<repo>/loop-gap-{scope}.md` — no plan to attach to; stable + undated so re-scan finds it |
+
+⚠️ **The single-file-plan row is the one that used to be missing.** Without it `{TARGET_DIR}` degrades to the plans root and the artifact is written as an orphan naming no plan. Never emit a date or a counter in the filename.
 
 If exists: read, compare file lists, update. Use `git diff --name-only {LAST_SHA}..HEAD` for incremental mode — unchanged files get a one-line stub instead of full analysis.
 

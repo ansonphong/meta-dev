@@ -247,7 +247,7 @@ After the phase agents return, a single **findings-synthesis agent (opus)** merg
 **Status:** PASS | CONDITIONAL PASS (fix CRITICALs) | FAIL
 ````
 
-Write the report to `{plans_root}/meta/security-audit-{YYYY-MM-DD}.md` (resolve `plans_root` from config). Also write/refresh `.claude/cache/input-validation-report.json` with Phase 3 findings for downstream meta-eval dedup.
+Write the report to `{plans_root}/meta/{YYYY-MM-DD}-security-audit.md` (resolve `plans_root` from config). **Date leads** — see `references/plan-artifacts.md`; a trailing date scatters the series across the directory. Also write/refresh `.claude/cache/input-validation-report.json` with Phase 3 findings for downstream meta-eval dedup.
 
 **Verdict rule:** any CRITICAL → FAIL. CRITICAL fixed but HIGH open → CONDITIONAL PASS. No CRITICAL/HIGH → PASS.
 

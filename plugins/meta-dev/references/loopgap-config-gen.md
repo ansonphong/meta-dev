@@ -1,6 +1,8 @@
 # Loop-Gap Config Generation
 
-How `/meta-planner` generates `.loop-gap-config.md` for a plan directory. This is the config file that `/loop-gap` reads to know what to scan.
+How `/meta-planner` generates the loop-gap scan config — the file `/loop-gap` reads to know what to scan.
+
+**Where it goes** is the `loop-gap-config` row of **`references/plan-artifacts.md`**: directory plan → `<plan-dir>/.loop-gap-config.md` (dot-prefixed, hidden inside the dir); **single-file plan → `<plan-stem>.loop-gap-config.md`**, a sibling carrying the plan's full stem. Never at the plans root — an orphan config names no plan.
 
 ## Config sections (all mandatory)
 
