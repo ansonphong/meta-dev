@@ -1,9 +1,11 @@
 ---
 name: execute
-description: Execute plan tasks with focused verification, durable commits, and phase-boundary review.
+description: Execute scoped plan tasks through the shared loop.
 ---
 
 # Execute
 
-Use the execution loop as a host-neutral procedure, not a slash-command interface.
-Read `../../skills/agentic-exec-loop/SKILL.md`, then follow `../../references/execute-dispatch.md` in place.
+For host-neutral, non-slash-command execution, read
+`../../references/workflows/protocol.md`,
+`../../skills/agentic-exec-loop/SKILL.md`, and
+`../../references/execute-dispatch.md`. Require write permission.

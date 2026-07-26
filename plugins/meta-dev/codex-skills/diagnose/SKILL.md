@@ -1,9 +1,10 @@
 ---
 name: diagnose
-description: Diagnose a focused failure, apply the smallest repair, and preserve an evidence trail.
+description: Diagnose a focused failure and preserve evidence.
 ---
 
 # Diagnose
 
-Use diagnosis as a host-neutral procedure, not a slash-command interface.
-Read `../../skills/repair-loop/SKILL.md`, then follow `../../references/codebase-verification.md` in place.
+For host-neutral, non-slash-command diagnosis, read
+`../../references/workflows/protocol.md`, `../../skills/repair-loop/SKILL.md`,
+and `../../references/codebase-verification.md`. Repair needs permission.

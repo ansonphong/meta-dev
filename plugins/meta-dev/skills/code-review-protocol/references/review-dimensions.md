@@ -1,5 +1,9 @@
 # Review Dimensions — Detailed Rubric
 
+Each dimension returns `PASS`, `NEEDS_FIX`, or `NEEDS_REVIEW`.
+`NEEDS_REVIEW` means the evidence is insufficient or the issue needs a product,
+architecture, security, or other human judgment. It never means "silently fix."
+
 ## 1. Correctness
 
 | Criterion | Pass | Needs Fix |
@@ -32,7 +36,7 @@
 |-----------|------|-----------|
 | New code tested | Corresponding tests added | No tests for new functionality |
 | Edge cases | null/empty/unauthorized tested | Only happy path covered |
-| Existing tests pass | Full suite green | Tests broken by change |
+| Existing evidence | Declared focused verifier is green or omission is explicit | Focused evidence is missing, unsound, or broken by the change |
 
 ## 5. Scope
 
@@ -40,3 +44,14 @@
 |-----------|------|-----------|
 | File boundary | Only declared files touched | Drive-by refactor in unrelated file, formatting-only diff in untouched module |
 | Side effects | No hidden config changes | Log level changed, feature flag toggled, import reorder in unrelated file |
+
+## Evidence rules
+
+- Cite a file and line for every issue when the target is line-addressable.
+- Explain the reachable failure or violated contract; style preference alone is
+  not a correctness finding.
+- Review the declared scope and focused verifier. Do not require a broad suite
+  or build as a task/phase gate.
+- `BASELINE_RED` and `BROAD_VERIFY_OMITTED` are not review failures without
+  causal evidence that the change is unsafe.
+- A suggested fix describes remediation. It does not grant permission to edit.

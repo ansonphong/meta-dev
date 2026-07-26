@@ -1,9 +1,10 @@
 ---
 name: dashboard
-description: Render the live plan and runbook state using the shared dashboard data and layout rules.
+description: Render live plan and runbook state.
 ---
 
 # Dashboard
 
-Use dashboard rendering as a host-neutral procedure, not a slash-command interface.
-Run `../../scripts/dashboard-data.sh`, then read `../../references/dashboard-layout.md`.
+For this host-neutral, non-slash-command read workflow, read
+`../../references/workflows/protocol.md`, run `../../scripts/dashboard-data.sh`,
+and use `../../references/dashboard-layout.md`. Writes require `planctl`.

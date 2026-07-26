@@ -1,14 +1,17 @@
 ---
 name: meta-eval
 description: Dedicated evaluator agent — tests implementations against design criteria, catches what self-review misses
-argument-hint: <plan-path | feature-name> [--criteria design|functional|full] [--rounds N]
+argument-hint: <plan-path | feature-name> [--criteria design|functional|full] [--rounds N] [--fix]
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent]
 model: opus
 ---
 
 # /meta-eval
 
-Post-execution evaluation. Dispatch 8 specialized agents, score design quality, loop until grade ≥ B.
+Post-execution evaluation. Dispatch 8 specialized agents and score design
+quality. Evaluation is report-only by default. `--fix` or an explicit user
+go-word authorizes a separate remediation round; findings alone never authorize
+edits or commits.
 
 ## Dashboard stage signal (waterfall — MANDATORY)
 
@@ -32,13 +35,23 @@ Agents from `references/eval-agents.md`. Dispatch in parallel. Collect findings.
 
 Invoke `design-eval` skill. Reads design doc path from `bash scripts/config-get.sh meta_dev.paths.design_doc`. Score on 4 dimensions.
 
-### 4. Triage + fix round
+### 4. Triage
 
-Auto-fix trivials. Bundle findings by severity. Fix. Commit.
+Bundle findings by severity and emit the structured
+`PASS | CONDITIONAL_PASS | FAIL` review artifact from
+`skills/code-review-protocol/SKILL.md`.
 
-### 5. Round 2 (and 3 if needed)
+- Without explicit fix authorization: stop after the report. Do not dispatch a
+  fixer, edit, stage, or commit.
+- With `--fix`/go authorization: preserve the original verdict, apply only
+  causally supported in-scope fixes, run focused verification, exact-path
+  commit changed files, then continue to the next evaluation round.
 
-Re-dispatch agents. Check resolution. Check regressions. Report grade.
+### 5. Round 2 (and 3 if authorized and needed)
+
+After an authorized remediation, re-dispatch agents. Check resolution and
+regressions. Otherwise omit extra rounds that would only repeat the same
+unchanged evidence.
 
 ### 6. Final report
 

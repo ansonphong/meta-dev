@@ -4,7 +4,7 @@ The governing posture is **optimistic momentum**: focused causal evidence
 releases usable artifacts once, while failure containment follows branches.
 
 ## Roles
-- **Conductor** (main thread, Opus): dispatches, reads ONE verdict line per
+- **Conductor** (host main thread): dispatches, reads ONE verdict line per
   phase + each worker's one-line result. NEVER reads a diff, OUTPUT_FILE.raw,
   or the reviewer transcript.
 - **Worker** — **unflagged = NATIVE TO THE HOST HARNESS** (the default): in
@@ -29,12 +29,14 @@ releases usable artifacts once, while failure containment follows branches.
   applying the caveat; on a non-1M session the native subagent has no 1M
   exposure and is the correct default worker.
   Output → OUTPUT_FILE; conductor reads only the distilled `result`.
-- **Reviewer**: Agent subagent, agentType `meta-dev:review-agent` (Opus). Given
+- **Reviewer**: native to the host by default. Given
   {phase_spec, phase_pre_sha, focused_outcomes}, it computes its OWN
-  `git diff <phase_pre_sha>..HEAD` and returns the verdict JSON below.
+  `git diff <phase_pre_sha>..HEAD` and returns the verdict JSON below. Codex
+  uses the configured Sol/high route; Claude Code keeps its configured
+  `meta-dev:review-agent`. External reviewers run only on an explicit flag.
 - **Fixer**: a headless worker fed the reviewer's `issues`.
 
-## Per-task work (worker self-manages — no Opus per task)
+## Per-task work (worker self-manages — no heavyweight review per task)
 1. At phase start record `PHASE_PRE_SHA=$(git rev-parse HEAD)`.
 2. For EACH task in the phase: dispatch a FRESH worker (new headless process,
    clean context) with the task spec INCLUDING its focused `Verify:` command.
@@ -59,7 +61,7 @@ releases usable artifacts once, while failure containment follows branches.
    `planctl check` — the unified state layer's single write door) using the
    handle the conductor **already bound on the runtime task entry at dispatch**
    (not parsed from the worker). Worker never Edits a checkbox. Conductor
-   commits the flipped plan file per task (momentum). No Opus review at this
+   commits the flipped plan file per task (momentum). No phase review at this
    granularity. Checkbox state records acceptance but does not create dependency
    readiness: dependents become ready from committed usable artifacts plus the
    focused evidence their contracts require.
@@ -80,7 +82,7 @@ releases usable artifacts once, while failure containment follows branches.
    Correspondingly, a worker whose spec contradicts this must REPORT the
    conflict in its return rather than silently obeying the narrower instruction.
 
-## Phase gate — the single Opus code-review checkpoint per phase
+## Phase gate — one native code-review checkpoint per phase
 Task commits/checks already accepted by their narrower per-task gates remain in
 history and on the remote. This is a diff review, not an aggregate test gate. It
 never runs a full suite or replays a passing focused verify; phase-end broad
@@ -176,8 +178,8 @@ blaming or repairing code. Continue independent work and any dependent work
 supported by an already committed usable artifact. A non-stall red requires
 causal classification before it can enter the branch-local fix ladder.
 
-## Context watchdog — pause-and-compact at a seam (conductor-run, NON-NEGOTIABLE on long runs)
-A long playbook (many phases) accretes context in the orchestrating Opus thread
+## Claude Code context watchdog — pause-and-compact at a seam
+A long playbook (many phases) accretes context in the orchestrating Claude thread
 even though diffs never cross back — task tracker, verdicts, worker result lines,
 and the user-facing narration all accumulate. Left unchecked the harness fires
 its blunt hard auto-compact (`CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`) mid-phase. The
@@ -207,7 +209,7 @@ Read only `CONTEXT_VERDICT`:
      continues the loop at phase N+1 — no re-orientation, no lost momentum.
 
 Threshold is configurable: `--threshold N`, or env `META_DEV_CONTEXT_THRESHOLD`
-(default 300000). This watchdog is a SESSION practice of the orchestrating Opus
+(default 300000). This watchdog is a SESSION practice of the orchestrating Claude
 (it owns the `/meta-compact` + `/compact` primitives); it is NEVER handed to a
 headless worker. Workers have fresh, isolated context per task and never compact.
 
@@ -246,9 +248,9 @@ is silently skipped. Rules:
    hard-fail on an empty `--prompt-file`, so a mis-staged file surfaces LOUDLY
    instead of degrading to a silent usage error.
 
-## Conductor cache-keepalive during long idle (SESSION practice, not command automation)
+## Claude Code cache-keepalive during long idle (SESSION practice, not command automation)
 The Anthropic prompt cache has a ~300s sliding TTL. When the orchestrating
-Opus SESSION dispatches a background worker and then idles, it MAY keep its
+Claude session dispatches a background worker and then idles, it MAY keep its
 cache warm by arming a wakeup at **270s** (4m30s — 30s margin under the 300s
 cliff; never 285s+). On wake, if the worker still runs, do a one-line progress
 touch and re-arm; on completion proceed warm. This is unconditional arm-on-idle
@@ -259,7 +261,9 @@ given to a headless worker. Cost: each tick ≈ one cached-prefix read (~10%
 input) + tiny output; net win only for large-context + long-idle.
 
 ## Tier mapping
-(Reviewer is ALWAYS the Opus `meta-dev:review-agent` — independent of tier.)
+(Reviewer is native to the host and independent of the execution tier. Codex
+defaults to configured Sol/high; Claude Code keeps its configured review agent.
+An external review backend is used only when explicitly selected.)
 
 **Fix ladders follow `meta_dev.ladder.pool`** — escalate to the next rung after
 the one that failed, once. Resolve it with
@@ -278,7 +282,7 @@ escalation target is whatever the pool says, not a hardcoded pair.
   runs through `claude-headless-exec --backend sonnet` (a separate `claude -p`,
   Sonnet 5); never an Anthropic-model `Agent` subagent **when the
   conductor session is running `opus[1m]`** — it would bill those at the 1M
-  rate. Opus reviews the phase diff;
+  rate. The host-native reviewer reviews the phase diff;
   attempt-2 escalation is another headless worker one rung along the pool (still
   no 1M exposure) before surfacing. Reach for `--sonnet` when you want Anthropic-grade Sonnet judgment
   off the main thread without spending the conductor's context on it.

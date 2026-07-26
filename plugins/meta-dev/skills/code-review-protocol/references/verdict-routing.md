@@ -1,27 +1,34 @@
 # Verdict Routing
 
-Maps review verdict to action. Input from code-review-protocol output.
+Maps the structured review verdict to a report action. Review/audit is
+report-only unless the user explicitly supplied `--fix` or a go-word.
 
 ## Routing Table
 
-| Verdict | Fix Complexity | Action | Agent | When |
-|---------|---------------|--------|-------|------|
-| pass | — | Done. Commit + close review. | — | Always |
-| needs_fix | trivial | Auto-fix and commit. | haiku | Single-line fix, typing hint, import add |
-| needs_fix | moderate | Generate fix, apply, re-verify, commit. | sonnet | Logic fix, null guard, reorder, test add |
-| needs_fix | structural | Write fix proposal to inbox as advisory. Do not auto-commit. | — | Refactor across modules, interface change |
-| needs_review | — | Write finding to inbox as advisory with options. | — | Architecture concern, security uncertainty |
+| Verdict | Default action | Mutation |
+|---|---|---|
+| `PASS` | Report acceptance evidence; record verdict when the owning workflow calls for it. | None |
+| `CONDITIONAL_PASS` | Report each bounded issue and its disposition. | None |
+| `FAIL` | Report blocking evidence and affected scope. | None |
 
-## Fix Complexity Heuristic
+Do not commit merely to "close review." Do not dispatch a fixer because a
+dimension returned `NEEDS_FIX`. Inbox/state writes are separate workflow actions
+and require their own scope or the owning conductor's explicit contract.
 
-| Complexity | Signs | Max Changes |
-|-----------|-------|-------------|
-| trivial | 1-3 lines changed, single file, mechanical | 3 lines |
-| moderate | 3-30 lines, 1-2 files, judgment needed | 30 lines |
-| structural | 30+ lines, 3+ files, interface changes | Surface only |
+## Authorized remediation
 
-## Auto-commit Rules
+When and only when explicit fix permission exists:
 
-- Trivial + moderate fixes: commit directly (per #1 RULE standing auth)
-- Structural fixes: NEVER auto-commit. Write to inbox.
-- Money/auth/migration files: NEVER auto-commit regardless of complexity.
+1. Emit and preserve the original review verdict.
+2. Partition issues by causal branch and declared file scope.
+3. Apply the smallest supported fix using the host-native executor. External
+   fixers are explicit opt-ins.
+4. Run the named focused verifier once. Classify it with the shared execution
+   result states.
+5. Stage exact paths and create one scoped commit if files changed, including
+   on a red result.
+6. Re-review the repaired diff and emit a new structured verdict.
+
+Auth, money, migrations/schema, destructive changes, and cross-repo contracts
+still require explicit confirmation. Authorization cannot be inferred from
+severity, confidence, fix complexity, or a suggested fix.

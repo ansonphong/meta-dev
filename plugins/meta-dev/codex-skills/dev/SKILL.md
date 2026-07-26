@@ -1,9 +1,10 @@
 ---
 name: dev
-description: Drive one change through the host-neutral six-stage workflow using the shared meta-dev procedures.
+description: Drive one change through the shared six-stage workflow.
 ---
 
 # Dev
 
-Use the six-stage workflow as a host-neutral procedure, not a slash-command interface.
-Read `../../skills/waterfall-tracking/SKILL.md`, then follow `../../commands/meta-dev.md` in place.
+For this host-neutral, non-slash-command workflow, read
+`../../references/workflows/protocol.md`,
+`../../skills/waterfall-tracking/SKILL.md`, and `../../commands/meta-dev.md`.

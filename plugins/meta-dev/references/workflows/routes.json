@@ -1,0 +1,165 @@
+{
+  "schema_version": 1,
+  "protocol": "references/workflows/protocol.md",
+  "workflows": {
+    "dev": {
+      "skill": "codex-skills/dev/SKILL.md",
+      "subcommands": {
+        "run": "commands/meta-dev.md",
+        "orchestrate": "commands/meta-orchestrator.md"
+      }
+    },
+    "plan": {
+      "skill": "codex-skills/plan/SKILL.md",
+      "subcommands": {
+        "create": "commands/meta-planner.md",
+        "contract": "commands/meta-dod.md",
+        "classify": "commands/meta-classify.md",
+        "probe": "commands/meta-probe.md"
+      }
+    },
+    "harden": {
+      "skill": "codex-skills/harden/SKILL.md",
+      "subcommands": {
+        "scan": "commands/meta-loop-gap.md"
+      }
+    },
+    "execute": {
+      "skill": "codex-skills/execute/SKILL.md",
+      "subcommands": {
+        "plan": "commands/meta-execute.md",
+        "auto": "commands/auto-execute.md",
+        "codex": "commands/codex-execute.md",
+        "deep": "commands/deep-execute.md",
+        "fable": "commands/fable-execute.md",
+        "glm": "commands/glm-execute.md",
+        "grok": "commands/grok-execute.md",
+        "opus": "commands/opus-execute.md",
+        "sonnet": "commands/sonnet-execute.md",
+        "headless": "commands/meta-headless.md",
+        "overlord": "commands/meta-overlord.md"
+      }
+    },
+    "review": {
+      "skill": "codex-skills/review/SKILL.md",
+      "subcommands": {
+        "audit": "commands/meta-audit.md",
+        "eval": "commands/meta-eval.md",
+        "batch": "commands/meta-review-batch.md",
+        "design": "commands/meta-review-design.md",
+        "security": "commands/meta-security.md",
+        "ux": "commands/meta-ux.md",
+        "visual": "commands/meta-visual-critique.md"
+      }
+    },
+    "ship": {
+      "skill": "codex-skills/ship/SKILL.md",
+      "subcommands": {
+        "release": "commands/meta-ship.md",
+        "canary": "commands/meta-canary.md"
+      }
+    },
+    "dashboard": {
+      "skill": "codex-skills/dashboard/SKILL.md",
+      "subcommands": {
+        "show": "commands/meta-dashboard.md"
+      }
+    },
+    "runbook": {
+      "skill": "codex-skills/runbook/SKILL.md",
+      "subcommands": {
+        "manage": "commands/runbook.md"
+      }
+    },
+    "diagnose": {
+      "skill": "codex-skills/diagnose/SKILL.md",
+      "subcommands": {
+        "repair": "commands/meta-repair.md",
+        "inbox": "commands/meta-inbox.md",
+        "init-check": "commands/meta-init-check.md"
+      }
+    },
+    "ops": {
+      "skill": "codex-skills/ops/SKILL.md",
+      "subcommands": {
+        "changelog": "commands/meta-changelog.md",
+        "compact": "commands/meta-compact.md",
+        "config": "commands/meta-config.md",
+        "guard": "commands/meta-guard.md",
+        "housekeeping": "commands/housekeeping.md",
+        "init": "commands/meta-init.md",
+        "sweep": "commands/meta-sweep.md",
+        "version": "commands/meta-version.md"
+      }
+    }
+  },
+  "commands": {
+    "audit": "review.audit",
+    "auto-execute": "execute.auto",
+    "canary": "ship.canary",
+    "changelog": "ops.changelog",
+    "classify": "plan.classify",
+    "codex-execute": "execute.codex",
+    "dashboard": "dashboard.show",
+    "deep-execute": "execute.deep",
+    "dev": "dev.run",
+    "dod": "plan.contract",
+    "eval": "review.eval",
+    "execute": "execute.plan",
+    "fable-execute": "execute.fable",
+    "glm-execute": "execute.glm",
+    "grok-execute": "execute.grok",
+    "guard": "ops.guard",
+    "headless": "execute.headless",
+    "housekeeping": "ops.housekeeping",
+    "inbox": "diagnose.inbox",
+    "init-check": "diagnose.init-check",
+    "loop-gap": "harden.scan",
+    "meta-audit": "review.audit",
+    "meta-canary": "ship.canary",
+    "meta-changelog": "ops.changelog",
+    "meta-classify": "plan.classify",
+    "meta-compact": "ops.compact",
+    "meta-config": "ops.config",
+    "meta-dashboard": "dashboard.show",
+    "meta-dev": "dev.run",
+    "meta-dod": "plan.contract",
+    "meta-eval": "review.eval",
+    "meta-execute": "execute.plan",
+    "meta-guard": "ops.guard",
+    "meta-headless": "execute.headless",
+    "meta-inbox": "diagnose.inbox",
+    "meta-init": "ops.init",
+    "meta-init-check": "diagnose.init-check",
+    "meta-loop-gap": "harden.scan",
+    "meta-orchestrator": "dev.orchestrate",
+    "meta-overlord": "execute.overlord",
+    "meta-planner": "plan.create",
+    "meta-probe": "plan.probe",
+    "meta-repair": "diagnose.repair",
+    "meta-review-batch": "review.batch",
+    "meta-review-design": "review.design",
+    "meta-security": "review.security",
+    "meta-ship": "ship.release",
+    "meta-sweep": "ops.sweep",
+    "meta-ux": "review.ux",
+    "meta-version": "ops.version",
+    "meta-visual-critique": "review.visual",
+    "opus-execute": "execute.opus",
+    "orchestrator": "dev.orchestrate",
+    "overlord": "execute.overlord",
+    "planner": "plan.create",
+    "probe": "plan.probe",
+    "repair": "diagnose.repair",
+    "review-batch": "review.batch",
+    "review-design": "review.design",
+    "runbook": "runbook.manage",
+    "security": "review.security",
+    "ship": "ship.release",
+    "sonnet-execute": "execute.sonnet",
+    "sweep": "ops.sweep",
+    "ux": "review.ux",
+    "version": "ops.version",
+    "visual-critique": "review.visual"
+  }
+}
