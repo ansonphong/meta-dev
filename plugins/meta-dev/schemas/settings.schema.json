@@ -488,6 +488,32 @@
             }
           }
         },
+        "codex": {
+          "type": "object",
+          "description": "Codex-only model routing. These defaults do not alter Claude model settings.",
+          "properties": {
+            "models": {
+              "type": "object",
+              "properties": {
+                "plan": { "$ref": "#/definitions/codex_model_route" },
+                "harden": { "$ref": "#/definitions/codex_model_route" },
+                "review": { "$ref": "#/definitions/codex_model_route" },
+                "execute": { "$ref": "#/definitions/codex_model_route" },
+                "lightweight": { "$ref": "#/definitions/codex_model_route" },
+                "mechanical": { "$ref": "#/definitions/codex_model_route" }
+              }
+            },
+            "reviewer": {
+              "type": "string",
+              "enum": ["native"],
+              "default": "native"
+            },
+            "compat_router": {
+              "type": "boolean",
+              "default": true
+            }
+          }
+        },
         "filesystem": {
           "type": "object",
           "properties": {
@@ -1609,6 +1635,23 @@
           }
         }
       }
+    }
+  },
+  "definitions": {
+    "codex_model_route": {
+      "type": "object",
+      "required": ["tier", "effort"],
+      "properties": {
+        "tier": {
+          "type": "string",
+          "enum": ["spark", "terra", "sol"]
+        },
+        "effort": {
+          "type": "string",
+          "enum": ["low", "medium", "high"]
+        }
+      },
+      "additionalProperties": false
     }
   }
 }

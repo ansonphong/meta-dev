@@ -1,0 +1,20 @@
+{
+  "name": "meta-dev-local",
+  "interface": {
+    "displayName": "Meta Dev Local"
+  },
+  "plugins": [
+    {
+      "name": "meta-dev",
+      "source": {
+        "source": "local",
+        "path": "./plugins/meta-dev"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

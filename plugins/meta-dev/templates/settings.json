@@ -98,6 +98,36 @@
       },
       "default_model": "sonnet"
     },
+    "codex": {
+      "models": {
+        "plan": {
+          "tier": "sol",
+          "effort": "high"
+        },
+        "harden": {
+          "tier": "sol",
+          "effort": "high"
+        },
+        "review": {
+          "tier": "sol",
+          "effort": "high"
+        },
+        "execute": {
+          "tier": "terra",
+          "effort": "medium"
+        },
+        "lightweight": {
+          "tier": "terra",
+          "effort": "low"
+        },
+        "mechanical": {
+          "tier": "spark",
+          "effort": "low"
+        }
+      },
+      "reviewer": "native",
+      "compat_router": true
+    },
     "filesystem": {
       "git_corruption_mitigations": {
         "core_filemode": false,
