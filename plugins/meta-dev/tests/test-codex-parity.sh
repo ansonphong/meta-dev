@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Codex-parity guards. Claude Code is lenient about frontmatter; Codex is not.
-# A skill or command with invalid YAML is SILENTLY INVISIBLE in Codex.
+# Legacy Claude compatibility guards. These keep the full Claude command and
+# skill surface healthy; native Codex package coverage lives in
+# test-codex-package-surface.sh.
 set -uo pipefail
 
 PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -8,7 +9,7 @@ PASS=0; FAIL=0
 ok()   { echo -e "\033[32m  PASS: $1\033[0m"; PASS=$((PASS+1)); }
 bad()  { echo -e "\033[31m  FAIL: $1\033[0m"; FAIL=$((FAIL+1)); }
 
-echo "=== Codex Parity: skill + command frontmatter ==="
+echo "=== Claude legacy compatibility: skill + command frontmatter ==="
 VALIDATOR_OK=0
 if PARITY_OUT="$(python3 - "$PLUGIN_ROOT" <<'PY'
 import glob, os, sys, yaml
@@ -41,7 +42,7 @@ fi
 
 if [ "$VALIDATOR_OK" -eq 1 ]; then
   if [ "$FRONTMATTER_COUNT" -gt 0 ] && [ -z "$FRONTMATTER_BAD" ]; then
-    ok "all $FRONTMATTER_COUNT skill/command frontmatters parse under strict YAML (Codex-visible)"
+    ok "all $FRONTMATTER_COUNT legacy skill/command frontmatters parse under strict YAML"
   else
     bad "invalid skill/command frontmatter — INVISIBLE in Codex: $FRONTMATTER_BAD"
   fi
@@ -49,7 +50,7 @@ if [ "$VALIDATOR_OK" -eq 1 ]; then
 fi
 
 echo
-echo "=== Codex Parity: plugin manifest ==="
+echo "=== Claude legacy compatibility: plugin manifest ==="
 
 MANIFEST="${CODEX_PARITY_MANIFEST:-$PLUGIN_ROOT/.claude-plugin/plugin.json}"
 if MANIFEST_DETAIL="$(python3 - "$MANIFEST" "$PLUGIN_ROOT" <<'PY'
@@ -89,13 +90,13 @@ else
 fi
 
 echo
-echo "=== Codex Parity: command-router resolution ==="
+echo "=== Claude legacy compatibility: command-router resolution ==="
 
 ROUTER="$PLUGIN_ROOT/skills/command-router/SKILL.md"
 if [ -f "$ROUTER" ]; then
   ok "command-router skill present"
 else
-  bad "command-router skill MISSING — Codex has no path to the command catalog"
+  bad "command-router skill MISSING — Claude has no path to the command catalog"
 fi
 
 # The router tells Codex commands/ is two levels up from the SKILL.md.
@@ -175,7 +176,7 @@ if [ "$TWIN_VALIDATOR_OK" -eq 1 ]; then
 fi
 
 echo
-echo "=== Codex Parity: worker commit-on-red contract ==="
+echo "=== Shared execution contract: worker commit-on-red ==="
 
 if COMMIT_CONTRACT_DETAIL="$(python3 - "$PLUGIN_ROOT" <<'PY'
 from pathlib import Path
@@ -279,7 +280,7 @@ else
 fi
 
 echo
-echo "=== Codex Parity: focused optimistic momentum ==="
+echo "=== Shared execution contract: focused optimistic momentum ==="
 
 if MOMENTUM_DETAIL="$(python3 - "$PLUGIN_ROOT" <<'PY'
 from pathlib import Path
