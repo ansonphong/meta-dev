@@ -23,7 +23,7 @@ Grok occupies a unique slot: it is **both** a general execution tier **and** a c
 - **As an executor:** Grok 4.5 is a frontier-tier model that **can write files** (like Codex under `--sandbox workspace-write`) — so it can do real bounded implementation work (fixes, refactors, scaffolding), not just read-and-report. Use it like `/deep-execute` or `/glm-execute` for a self-contained task where an independent strong model is wanted.
 - **As a reviewer:** Point it (read-only via `--readonly`) at a diff, the changed files, or a specific finding. An xAI-family model reviewing Claude/DeepSeek/OpenAI output is a **third independent family** — it catches failure modes that same-family review (and even the OpenAI/Codex lens) miss. That independent-family lens is the entire value of Grok-as-reviewer.
 
-**Where it sits on the work ladder:** Grok is in the default pool (`meta_dev.ladder.pool` = `deep`, `grok`, `codex`) as the **frontier-reasoning / third-family** rung — reach for it on tasks that earn it (hard reasoning, a wanted independent family), not for bulk. Treat its quota with the same deliberation as Codex, not the fan-out freedom of DeepSeek. Full routing table: `references/work-ladder.md`.
+**Where it sits on the work ladder:** Grok is in the default pool (`meta_dev.ladder.pool` = `deep`, `grok`, `codex`) as the **frontier-reasoning / third-family** rung. **Grok Heavy (since 2026-07-26) gives us a large compute bucket**, and Grok 4.5 is an Opus-4.8-class model that runs *faster* than Opus — so **spend it**. It is the default answer for gap checks and plan hardening, cross-family review, and bounded implementation that wants a strong independent model. Full routing table: `references/work-ladder.md`.
 
 ## Test discipline — keep every test cycle cheap
 
@@ -94,4 +94,4 @@ When execution completes:
 - `--readonly` enforces read-only via Grok's deny rules (`--deny Write --deny Edit`), which block every write path including shell redirections. It is NOT paired with `bypassPermissions` (that would defeat it).
 - Execute mode uses `--permission-mode bypassPermissions --always-approve` — full autonomy to edit files in the work dir, but **cannot commit** (review and commit yourself).
 - Grok's changes are NOT automatically committed.
-- **Mind the budget** — Grok 4.5 is a frontier model on your grok.com account. Prefer one well-scoped call over many; don't fan Grok out the way you'd fan out DeepSeek. Reserve it for hard reasoning or the independent-family review lens.
+- **Budget is not the constraint** — the grok.com account is on **Grok Heavy**, a large compute bucket, so route work here liberally rather than rationing it. The one thing that still matters is scoping: a well-specified task returns a better result than a vague one, on any model.
