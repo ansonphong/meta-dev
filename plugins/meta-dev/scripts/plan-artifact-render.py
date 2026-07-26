@@ -25,6 +25,9 @@ VERSION = "1.0"
 VERSIONS = {"1.0", "1.1"}
 LAYOUTS = {"multi-phase", "single-file"}
 PATH_FIELDS = ("context", "docs", "depends", "blocks")
+# Authoring depth tiers. Defined once in references/plan-targets.md; absent means DEFAULT_PLAN_TARGET.
+PLAN_TARGETS = {"lean", "standard", "explicit"}
+DEFAULT_PLAN_TARGET = "standard"
 TASK_HANDLE = re.compile(r"^T[A-Za-z0-9]+\.[0-9]+$")
 SLUG = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 PHASE_ID = re.compile(r"^[A-Za-z0-9]+$")
@@ -284,7 +287,7 @@ def validate_ir(ir: Any) -> dict[str, Any]:
         "blast_radius",
         "rollback",
     }
-    optional = {"phases", "tasks", "loop_gap_baseline"} | rich_required
+    optional = {"phases", "tasks", "loop_gap_baseline", "target"} | rich_required
     version = ir.get("version")
     required = base_required | ({"loop_gap_baseline"} if version == "1.0" else rich_required if version == "1.1" else set())
     unknown = set(ir) - required - optional
@@ -330,6 +333,9 @@ def validate_ir(ir: Any) -> dict[str, Any]:
                     fail(errors, "IR.artifact_path", "dated filename slug must match IR.slug")
     if not isinstance(ir.get("stage"), int) or not 1 <= ir["stage"] <= 6:
         fail(errors, "IR.stage", "must be an integer from 1 through 6")
+    # validate_ir consults no schema at runtime (stdlib only), so the enum is enforced here too.
+    if "target" in ir and ir["target"] not in PLAN_TARGETS:
+        fail(errors, "IR.target", "must be lean, standard, or explicit")
     for key in PATH_FIELDS:
         path_list(ir.get(key), f"IR.{key}", errors)
     files = ir.get("files")
@@ -448,6 +454,7 @@ def frontmatter(ir: dict[str, Any]) -> list[str]:
     return [
         "---",
         f"stage: {ir['stage']}",
+        f"target: {ir.get('target', DEFAULT_PLAN_TARGET)}",
         f"repo: {ir['repo']}",
         f"context: {yaml_paths(ir['context'])}",
         f"docs: {yaml_paths(ir['docs'])}",

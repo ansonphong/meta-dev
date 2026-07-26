@@ -29,6 +29,10 @@
     "slug": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
     "repo": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
     "stage": { "type": "integer", "minimum": 1, "maximum": 6 },
+    "target": {
+      "enum": ["lean", "standard", "explicit"],
+      "description": "Authoring depth tier, scaled to the capability of the executing agent. Optional; absent means 'standard'. Tier meanings, the tier-to-backend mapping, and the blast-radius override are defined once in references/plan-targets.md."
+    },
     "context": { "$ref": "#/definitions/pathList" },
     "docs": { "$ref": "#/definitions/pathList" },
     "depends": { "$ref": "#/definitions/pathList" },

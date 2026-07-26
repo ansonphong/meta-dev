@@ -185,6 +185,7 @@ def test_multi_phase_golden_artifact_has_one_checkbox_ledger(tmp_path: Path):
 
     assert master == """---
 stage: 3
+target: standard
 repo: meta
 context: [\".claude/context/meta.md\"]
 docs: [\"docs/contract.md\"]
@@ -256,6 +257,7 @@ def test_single_file_golden_artifact_is_compact_and_has_no_status(tmp_path: Path
     artifact = (tmp_path / "plans/meta/renderer-contract.md").read_text(encoding="utf-8")
     assert artifact == """---
 stage: 3
+target: standard
 repo: meta
 context: [\".claude/context/meta.md\"]
 docs: [\"docs/contract.md\"]
