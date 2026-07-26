@@ -1,10 +1,25 @@
 #!/usr/bin/env python3
 """Bridge Codex lifecycle payloads to the existing Claude-compatible hooks.
 
-Codex ships ``PLUGIN_ROOT`` for bundled hooks; without it this is deliberately
-a no-op, so the adapter cannot affect a Claude session or an arbitrary script
-invocation.  Codex uses ``apply_patch`` for edits, while the legacy hooks expect
-Claude's Edit/Write payload, so only the generic Bash path is delegated.
+Codex uses ``apply_patch`` for edits, while the legacy hooks expect Claude's
+Edit/Write payload, so only the generic Bash path is delegated.
+
+**This adapter must never touch a Claude Code session.**  Claude already has its
+own PreToolUse chain (``.claude/hooks/meta-guard-check.sh`` -> ``guard-check.sh``);
+running the Codex path there applies Codex's stricter shared-worktree git policy
+on top of it, which is not what either layer was designed for.
+
+The original gate was "``PLUGIN_ROOT`` is set", on the assumption that only Codex
+exports it.  That assumption is false -- Claude Code populates the plugin-root
+environment for plugin hooks too, so the gate never fired and the Codex policy
+silently governed Claude sessions.  It presented as *intermittent* (some agents
+blocked, some not) purely because the variable's presence varies by launch path
+and Claude Code version, which made it look like random breakage rather than one
+mis-scoped hook.  Burned 2026-07-26: ``git push`` was refused in a Claude session
+by a Codex-only policy that also had push missing from its allowlist.
+
+Gate positively on the harness instead: bail whenever Claude Code's own markers
+are present.  ``META_DEV_GIT_POLICY_IN_CLAUDE=1`` re-enables it deliberately.
 """
 from __future__ import annotations
 
@@ -15,6 +30,16 @@ import sys
 from pathlib import Path
 
 ROOT = os.environ.get("PLUGIN_ROOT", "")
+
+# Claude Code exports these into every hook process it spawns.
+CLAUDE_MARKERS = ("CLAUDECODE", "CLAUDE_CODE_ENTRYPOINT", "CLAUDE_PROJECT_DIR")
+
+
+def in_claude_session() -> bool:
+    """True when this hook is running under Claude Code rather than Codex."""
+    if os.environ.get("META_DEV_GIT_POLICY_IN_CLAUDE") == "1":
+        return False
+    return any(os.environ.get(marker) for marker in CLAUDE_MARKERS)
 
 
 def emit(value: dict) -> None:
@@ -67,6 +92,9 @@ def normalized_bash_payload(payload: dict, command: str) -> str:
 
 
 def main() -> int:
+    # Claude Code runs its own guard chain — never layer the Codex policy on it.
+    if in_claude_session():
+        return 0
     if not ROOT or not Path(ROOT).is_dir():
         return 0
     raw = sys.stdin.read()
