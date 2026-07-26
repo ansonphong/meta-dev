@@ -69,7 +69,7 @@ cap — a separate rate limit, not file safety.)
 > DASHBOARD never freezes mid-run. The render's stderr `⚠ stage-drift` flags any member at ~100%
 > checkboxes still parked below Stage 6 — advance its `stage:` (truly done) or leave it (awaiting
 > review), but never let a handoff claim "done" while the dashboard shows it mid-stage.
-> ⛔ EXECUTE STAYS GATED. Every member's code-writing needs Phong's explicit "go" (per CLAUDE.md). A
+> ⛔ EXECUTE STAYS GATED. Every member's code-writing needs the human approver's explicit "go" (per CLAUDE.md). A
 > runbook never auto-advances execution. Design/plan/harden waves are non-gated — drive them freely.
 
 ### `chain <new-feature/label>` — daisy-chain a successor

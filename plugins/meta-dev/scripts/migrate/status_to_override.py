@@ -5,7 +5,7 @@ Walks host active plans (same allowlist as plan-index.py walk_candidates) PLUS
 type:runbook files (_runbook-*.md). Parses frontmatter, applies the
 status→override mapping table, and either prints a full mapping report
 (--report / --dry-run, the DEFAULT) or rewrites files via planctl.mutate
-(--apply — gated behind explicit Phong approval).
+(--apply — gated behind explicit human approval).
 
 Stdlib only. Imports planctl.parse + planctl.mutate from the sibling package.
 
@@ -508,7 +508,7 @@ def run_report(project_root):
     print(f"  {'TOTAL':32s} {sum(value_counts.values()):>6d}")
     print()
 
-    # ── Freeform / ambiguous cases (the ones Phong must decide) ───────────────
+    # ── Freeform / ambiguous cases (the ones a human must decide) ─────────────
     if uncertain_cases:
         print("─" * 72)
         print("  ⚠  FREEFORM / AMBIGUOUS STATUS VALUES — NEED HUMAN DECISION")
@@ -516,7 +516,7 @@ def run_report(project_root):
         print()
         print("  These files carry a status: value that does not match any known")
         print("  vocabulary word. The current action for each is noted below —")
-        print("  Phong should review and confirm (or override) before --apply.")
+        print("  A human approver should review and confirm (or override) before --apply.")
         print()
         for rel, raw, note in uncertain_cases:
             short = rel.replace("plans/", "", 1) if rel.startswith("plans/") else rel
@@ -580,7 +580,7 @@ def run_report(project_root):
     if uncertain_cases:
         print(f"  {len(uncertain_cases)} files have FREEFORM status values — REVIEW REQUIRED")
     print("  No files have been modified (--dry-run / --report mode)")
-    print("  Run with --apply to execute the migration after Phong's review.")
+    print("  Run with --apply to execute the migration after human review.")
     print("=" * 72)
 
 
@@ -668,7 +668,7 @@ def parse_args(argv):
     ap.add_argument("--dry-run", action="store_true", dest="dry_run",
                     default=False, help="alias for --report")
     ap.add_argument("--apply", action="store_true", dest="apply",
-                    default=False, help="EXECUTE the migration (gated — Phong "
+                    default=False, help="EXECUTE the migration (gated — human "
                     "must approve the report first)")
     ap.add_argument("--project-root", default=None,
                     help="host project root (default: resolve via planctl.statedir)")

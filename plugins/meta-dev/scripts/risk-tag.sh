@@ -18,7 +18,10 @@ TAGS=""
 # Word-boundary helper: \b plus underscore (for code identifiers like validate_token)
 B='(\b|_)'
 
-PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-.}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/plugin-root.sh
+source "$SCRIPT_DIR/lib/plugin-root.sh"
+PLUGIN_ROOT="$(_md_plugin_root)"
 
 # Pull project-supplied extra keywords once (failure-safe: empty on any error / no config).
 EXTRA_ALL=$(python3 -c '

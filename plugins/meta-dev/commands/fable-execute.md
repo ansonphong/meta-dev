@@ -14,9 +14,9 @@ Uses `scripts/claude-headless-exec --backend fable` under the hood.
 
 Fable 5 is a **general ambient-Anthropic worker** with a specific edge: it's the tier you escalate to when even Opus-grade judgment is being stretched — the most complex reasoning and the longest coherence chains. `/fable-execute` puts that capability **off the main thread** (subagent-first: the conductor's context stays lean; only a distilled result comes back) via a **fresh `claude -p` process** with `--model claude-fable-5` (**no `[1m]` suffix**) and a scrubbed env — so it can't inherit the session's 1M beta and get billed at the premium long-context rate.
 
-**It authenticates via your ambient `~/.claude` login** — no API key, no third-party endpoint. Billing is against your normal Claude subscription/login, same as any local run.
+**It authenticates via your ambient Claude login** — no API key, no third-party endpoint. Billing is against your normal Claude subscription/login, same as any local run.
 
-**Fable's other job — the escalation advisor.** Because it is the top of the ladder, Fable is also who the harness asks *before* it asks Phong. Any run about to stop on a judgment call routes through the `fable-consult` skill first (`scripts/fable-consult.sh`), which pins this same backend read-only at `--effort xhigh`, and adopts the answer only at ≥0.90 confidence backed by `file:line` evidence and a stated falsifier. That path is always on under `--autonomous`. If you are hand-dispatching a hard *decision* rather than a task, prefer `fable-consult` over `/fable-execute` — you get the veto list, the calibration caps, the consult caps, and the decision log for free.
+**Fable's other job — the escalation advisor.** Because it is the top of the ladder, Fable is also who the harness asks *before* it asks the human approver. Any run about to stop on a judgment call routes through the `fable-consult` skill first (`scripts/fable-consult.sh`), which pins this same backend read-only at `--effort xhigh`, and adopts the answer only at ≥0.90 confidence backed by `file:line` evidence and a stated falsifier. That path is always on under `--autonomous`. If you are hand-dispatching a hard *decision* rather than a task, prefer `fable-consult` over `/fable-execute` — you get the veto list, the calibration caps, the consult caps, and the decision log for free.
 
 ## When to Use
 
@@ -94,4 +94,4 @@ When execution completes:
 
 - Default tools: Read,Write,Edit,Bash,Grep,Glob. `--readonly` restricts to Read,Bash,Grep.
 - The worker's changes are NOT automatically committed — remind the user to review and commit.
-- **No API key needed** — `--backend fable` uses your ambient `~/.claude` login; billed to your normal plan.
+- **No API key needed** — `--backend fable` uses your ambient Claude login; billed to your normal plan.

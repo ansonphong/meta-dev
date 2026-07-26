@@ -2,12 +2,43 @@
 """Merge 3-layer config cascade: defaults -> project -> local. Output merged JSON."""
 import json
 import os
+import subprocess
 import sys
+from pathlib import Path
 
+
+def plugin_root() -> Path:
+    """Resolve plugin assets without depending on the caller's cwd."""
+    configured = (
+        os.environ.get("META_DEV_PLUGIN_ROOT")
+        or os.environ.get("PLUGIN_ROOT")
+        or os.environ.get("CLAUDE_PLUGIN_ROOT")
+    )
+    return Path(configured).resolve() if configured else Path(__file__).resolve().parents[1]
+
+
+PLUGIN_ROOT = plugin_root()
+
+
+def project_root(plugin: Path) -> Path:
+    """Use the topology contract instead of the caller's ambient directory."""
+    try:
+        result = subprocess.run(
+            [sys.executable, str(plugin / "scripts" / "lib" / "repo-topology.py"), "--root"],
+            capture_output=True, text=True, check=False, timeout=5,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            return Path(result.stdout.strip())
+    except (OSError, subprocess.SubprocessError):
+        pass
+    return Path.cwd()
+
+
+PROJECT_ROOT = project_root(PLUGIN_ROOT)
 CASCADE = [
-    os.environ.get("CLAUDE_PLUGIN_ROOT", ".") + "/templates/settings.json",
-    "plans/_dashboard/settings.json",
-    "plans/_dashboard/settings.local.json",
+    str(PLUGIN_ROOT / "templates/settings.json"),
+    str(PROJECT_ROOT / "plans" / "_dashboard" / "settings.json"),
+    str(PROJECT_ROOT / "plans" / "_dashboard" / "settings.local.json"),
 ]
 
 
@@ -31,8 +62,7 @@ def main():
             merged = deep_merge(merged, layer)
 
     # Validate against schema if available
-    plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT", ".")
-    schema_path = plugin_root + "/schemas/settings.schema.json"
+    schema_path = PLUGIN_ROOT / "schemas/settings.schema.json"
     if os.path.exists(schema_path):
         try:
             import jsonschema

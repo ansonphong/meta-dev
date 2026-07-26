@@ -3,7 +3,8 @@ set -euo pipefail
 # Anchor cwd to the project root: every plans/... path below is root-relative.
 # shellcheck source=lib/anchor-root.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/anchor-root.sh"
-PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-.}"
+PLUGIN_ROOT="$(_md_plugin_root)"
+export META_DEV_PLUGIN_ROOT="$PLUGIN_ROOT"
 
 PATH_ARG="${1:-}"; VALUE="${2:-}"; LAYER="${3:-project}"
 
@@ -59,7 +60,7 @@ if layer != "local":
     except ImportError:
         print("Warning: jsonschema not available, skipping validation", file=sys.stderr)
     else:
-        schema_path = os.environ.get("CLAUDE_PLUGIN_ROOT", ".") + "/schemas/settings.schema.json"
+        schema_path = os.environ["META_DEV_PLUGIN_ROOT"] + "/schemas/settings.schema.json"
         with open(schema_path, encoding="utf-8") as sf:
             schema = json.load(sf)
         jsonschema.validate(data, schema)

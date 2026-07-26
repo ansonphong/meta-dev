@@ -22,7 +22,7 @@ Two wins, one mechanism:
 
 2. **Top-tier Anthropic reasoning, off-thread.** Opus-grade judgment on a bounded task without spending the conductor's window on it.
 
-**It authenticates via your ambient `~/.claude` login** — no API key, no third-party endpoint. Billing is against your normal Claude subscription/login, same as any local run.
+**It authenticates via your ambient Claude login** — no API key, no third-party endpoint. Billing is against your normal Claude subscription/login, same as any local run.
 
 ## When to Use
 
@@ -100,4 +100,4 @@ When execution completes:
 
 - Default tools: Read,Write,Edit,Bash,Grep,Glob. `--readonly` restricts to Read,Bash,Grep.
 - The worker's changes are NOT automatically committed — remind the user to review and commit.
-- **No API key needed** — `--backend opus` uses your ambient `~/.claude` login; billed to your normal plan at standard rates (1M carries no premium above 200K).
+- **No API key needed** — `--backend opus` uses your ambient Claude login; billed to your normal plan at standard rates (1M carries no premium above 200K).

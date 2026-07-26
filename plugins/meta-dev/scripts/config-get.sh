@@ -3,7 +3,8 @@ set -euo pipefail
 # Anchor cwd to the project root: every plans/... path below is root-relative.
 # shellcheck source=lib/anchor-root.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/anchor-root.sh"
-PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-.}"
+PLUGIN_ROOT="$(_md_plugin_root)"
+export META_DEV_PLUGIN_ROOT="$PLUGIN_ROOT"
 
 PATH_ARG="${1:-}"
 if [ -z "$PATH_ARG" ]; then

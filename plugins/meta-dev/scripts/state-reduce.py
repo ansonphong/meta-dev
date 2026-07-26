@@ -4,12 +4,40 @@ import json
 import os
 import sys
 from datetime import datetime, timezone
+from pathlib import Path
 
-PLUGIN_ROOT = os.environ.get("CLAUDE_PLUGIN_ROOT", ".")
-STATE_DIR = os.path.join(PLUGIN_ROOT, "plans/_dashboard")
+
+def plugin_root() -> Path:
+    configured = (
+        os.environ.get("META_DEV_PLUGIN_ROOT")
+        or os.environ.get("PLUGIN_ROOT")
+        or os.environ.get("CLAUDE_PLUGIN_ROOT")
+    )
+    return Path(configured).resolve() if configured else Path(__file__).resolve().parents[1]
+
+
+def project_root(plugin: Path) -> Path:
+    """Read the topology contract; standalone use deliberately falls back to cwd."""
+    topology = plugin / "scripts" / "lib" / "repo-topology.py"
+    try:
+        import subprocess
+        result = subprocess.run(
+            [sys.executable, str(topology), "--root"],
+            capture_output=True, text=True, check=False, timeout=5,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            return Path(result.stdout.strip())
+    except (OSError, subprocess.SubprocessError):
+        pass
+    return Path.cwd()
+
+
+PLUGIN_ROOT = plugin_root()
+PROJECT_ROOT = project_root(PLUGIN_ROOT)
+STATE_DIR = Path(os.environ.get("META_DEV_STATE_DIR", PROJECT_ROOT / "plans" / "_dashboard"))
 EVENTS_FILE = os.path.join(STATE_DIR, "state.events.jsonl")
 STATE_FILE = os.path.join(STATE_DIR, "state.json")
-TEMPLATE = os.path.join(PLUGIN_ROOT, "plugins/meta-dev/templates/state.json")
+TEMPLATE = PLUGIN_ROOT / "templates" / "state.json"
 
 
 def load_base() -> dict:

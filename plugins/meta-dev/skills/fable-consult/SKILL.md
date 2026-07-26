@@ -1,13 +1,13 @@
 ---
 name: fable-consult
-description: "Consult Fable 5 before escalating a judgment call to the human. Use when a long-horizon or autonomous run hits a hard architecture / design / implementation-taste decision it would otherwise STOP and ask Phong about. Fable answers with a recommendation, a confidence score, and a falsifier; a verdict that clears 0.90 AND carries evidence is adopted and logged, anything weaker escalates to the human WITH Fable's recommendation as the lead option. Safety-class decisions (destructive, deploy, security, money, schema, cross-repo) NEVER route here — they always reach the human."
+description: "Consult Fable 5 before escalating a judgment call to the human. Use when a long-horizon or autonomous run hits a hard architecture / design / implementation-taste decision it would otherwise stop and ask the human approver about. Fable answers with a recommendation, a confidence score, and a falsifier; a verdict that clears 0.90 AND carries evidence is adopted and logged, anything weaker escalates to the human with Fable's recommendation as the lead option. Safety-class decisions (destructive, deploy, security, money, schema, cross-repo) never route here — they always reach the human."
 ---
 
 # Fable Consult — ask the smartest model before you wake the human
 
 An execution run that stops to ask a question costs the user a round-trip and,
 on an overnight run, costs them the whole night. Most of what gets escalated is
-not a question only Phong can answer — it is a hard question the run was not
+not a question only the human approver can answer — it is a hard question the run was not
 confident enough to answer itself. **Those go to Fable first.**
 
 This skill is the standard escalation pre-step. It does not remove the human
@@ -47,7 +47,7 @@ plugin-level `autonomous-mode` reference).
 | Scope expansion | building something the plan does not contain |
 
 **Product taste is a special case.** Brand, naming, pricing copy, and the shape
-of a user-facing flow are Phong's, not Fable's. But under `--autonomous` these
+of a user-facing flow belong to the human approver, not Fable. But under `--autonomous` these
 must not halt the run: take Fable's **most reversible** option, mark it
 `REVIEW-ME`, and land it in the morning punch list. Authority preserved, sleep
 preserved.
@@ -161,7 +161,7 @@ look at it.
 
 Every consult appends one line to `plans/_dashboard/fable-decisions.jsonl`,
 whatever the outcome. This is the point of the feature on an overnight run:
-Phong wakes to an auditable list of what was decided in his absence, with the
+The human approver receives an auditable list of what was decided in their absence, with the
 confidence and the falsifier attached, and can reverse any of it.
 
 A decision made autonomously and *not* logged is indistinguishable from a

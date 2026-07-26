@@ -75,7 +75,7 @@ Every gate that would have paused for human eyes accumulates instead:
 - `REVIEW-ME` product-taste calls Fable made reversibly (fable-consult → DEFER)
 
 Run the **whole** deferred set at the END of the run, in one batch, as far as
-it can be run without a human. What genuinely needs Phong's eyes is what the
+it can be run without a human. What genuinely needs the operator's eyes is what the
 punch list is for.
 
 ## Judgment calls → Fable, not the user

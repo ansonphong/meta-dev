@@ -3,6 +3,7 @@ set -euo pipefail
 # Anchor cwd to the project root: every plans/... path below is root-relative.
 # shellcheck source=lib/anchor-root.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/anchor-root.sh"
+PLUGIN_ROOT="$(_md_plugin_root)"
 # Append a single JSON event line to state.events.jsonl.
 # Usage: state-append.sh '{"event":"commit","sha":"abc123",...}'
 

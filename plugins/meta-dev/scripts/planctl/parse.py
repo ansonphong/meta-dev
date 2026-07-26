@@ -88,7 +88,7 @@ _OWNED_HANDLE_RE = re.compile(
 # Measured across the plans corpus (44,362 checkbox rows): 343 boxes gain
 # protection and ZERO lose it (the new pattern is a strict superset). Among the
 # 343 were "By-eye CALIBRATION GATE (blocking — requires the running app)",
-# "By-eye (Phong)", and "By-eye checklist (human, running app)" — unambiguous
+# "By-eye (human)", and "By-eye checklist (human, running app)" — unambiguous
 # human gates that an automated flip could have closed with nobody looking.
 #
 # NOTE this shifts derived progress: human-verify boxes are excluded from

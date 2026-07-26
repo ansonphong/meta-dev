@@ -52,16 +52,18 @@
 #   codex-headless-exec --repo www --tier sol --effort xhigh -- "Fix the intermittent billing race"
 #
 # Prerequisites:
-#   - codex CLI on PATH, already authenticated (~/.codex/auth.json) — Codex
+#   - codex CLI on PATH, already authenticated (CODEX_HOME/auth.json) — Codex
 #     Plus/Pro login or OPENAI_API_KEY. No env key is injected here; codex uses
 #     its own stored auth.
 # ============================================================================
 
 set -euo pipefail
 
-# ── Resolve project root ────────────────────────────────────────────────
+# ── Resolve plugin assets ───────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+# shellcheck source=lib/plugin-root.sh
+source "$SCRIPT_DIR/lib/plugin-root.sh"
+PLUGIN_ROOT="$(_md_plugin_root)"
 
 # ── Defaults ────────────────────────────────────────────────────────────
 REPO=""
@@ -150,7 +152,6 @@ fi
 if [[ -n "$PROC_MD" ]]; then
     PROC_DIR="$(cd "$(dirname "$PROC_MD")" && pwd)"
     PROC_MD="$PROC_DIR/$(basename "$PROC_MD")"
-    PLUGIN_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
     # Containment check: the -f test alone accepts traversal, so
     # `--command ../../../README` resolved to the repo README and Codex was then
     # told to follow it "EXACTLY as your procedure" — arbitrary local markdown
@@ -223,7 +224,9 @@ if ! command -v codex &>/dev/null; then
     echo "        Install + authenticate Codex CLI first: https://developers.openai.com/codex/cli" >&2
     exit 1
 fi
-[ -f "$HOME/.codex/auth.json" ] || { echo "[codex] ~/.codex/auth.json missing — run codex login or set OPENAI_API_KEY" >&2; exit 2; }
+CODEX_CONFIG_DIR="${CODEX_HOME:-${XDG_CONFIG_HOME:+$XDG_CONFIG_HOME/codex}}"
+[ -n "$CODEX_CONFIG_DIR" ] || CODEX_CONFIG_DIR="$HOME/.codex"
+[ -f "$CODEX_CONFIG_DIR/auth.json" ] || { echo "[codex] auth.json missing from CODEX_HOME — run codex login or set OPENAI_API_KEY" >&2; exit 2; }
 
 # --- repo resolution (shared, cwd-independent — see lib/resolve-workdir.sh) ---
 # --repo is strict (unresolvable => abort); bare dispatch anchors to the project
@@ -341,9 +344,8 @@ cd "$WORK_DIR"
 # prompt. Roster is generated from disk, so it cannot drift from reality.
 # --no-framework opts out for trivial one-shots (a codeword probe, a lookup).
 if [[ "${NO_FRAMEWORK:-false}" != "true" ]]; then
-    _PLUGIN_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
     FRAMEWORK_PREAMBLE="$(python3 "$SCRIPT_DIR/lib/framework-preamble.py" \
-        "$_PLUGIN_ROOT" ${FRAMEWORK_FULL:+--full} 2>/dev/null || true)"
+        "$PLUGIN_ROOT" ${FRAMEWORK_FULL:+--full} 2>/dev/null || true)"
     if [[ -n "$FRAMEWORK_PREAMBLE" ]]; then
         PROMPT="${FRAMEWORK_PREAMBLE}
 

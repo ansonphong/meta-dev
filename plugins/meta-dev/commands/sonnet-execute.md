@@ -20,7 +20,7 @@ When the orchestrating session runs `opus[1m]`, the `[1m]` flag turns on the **1
 >
 > The one place `[1m]` still matters: **Bedrock / Google Cloud / Microsoft Foundry**, where a model ID *without* `[1m]` uses 200K. We run first-party via the ambient login, so it does not apply.
 
-**It authenticates via your ambient `~/.claude` login** — no API key, no third-party endpoint. Billing is against your normal Claude subscription/login, same as any local run.
+**It authenticates via your ambient Claude login** — no API key, no third-party endpoint. Billing is against your normal Claude subscription/login, same as any local run.
 
 ## When to Use
 
@@ -99,4 +99,4 @@ When execution completes:
 
 - Default tools: Read,Write,Edit,Bash,Grep,Glob. `--readonly` restricts to Read,Bash,Grep.
 - The worker's changes are NOT automatically committed — remind the user to review and commit.
-- **No API key needed** — `--backend sonnet` uses your ambient `~/.claude` login; billed to your normal plan at standard rates (1M carries no premium above 200K).
+- **No API key needed** — `--backend sonnet` uses your ambient Claude login; billed to your normal plan at standard rates (1M carries no premium above 200K).

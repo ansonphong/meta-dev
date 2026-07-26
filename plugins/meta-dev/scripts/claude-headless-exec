@@ -41,15 +41,17 @@
 # Prerequisites:
 #   - DEEPSEEK_API_KEY env var (for --backend deep)
 #   - GLM_API_KEY env var (for --backend glm)
-#   - --backend sonnet|opus|fable needs NO key — it uses your ambient ~/.claude login
+#   - --backend sonnet|opus|fable needs NO key — it uses your ambient Claude login
 #   - claude CLI on PATH
 # ============================================================================
 
 set -euo pipefail
 
-# ── Resolve project root ────────────────────────────────────────────────
+# ── Resolve plugin assets ───────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+# shellcheck source=lib/plugin-root.sh
+source "$SCRIPT_DIR/lib/plugin-root.sh"
+PLUGIN_ROOT="$(_md_plugin_root)"
 
 # ── Backend defaults ────────────────────────────────────────────────────
 declare -A BACKEND_BASE_URL
@@ -79,7 +81,7 @@ BACKEND_SUBAGENT_MODEL[glm]="glm-5.2"
 BACKEND_EFFORT[glm]="high"                            # DECIDED high: unpooled/explicit-only backend, reached deliberately for stateful work — no reason to under-think it
 BACKEND_LABEL[glm]="GLM"
 
-# sonnet → REAL Anthropic backend via your ambient ~/.claude login (NOT a 3rd
+# sonnet → REAL Anthropic backend via your ambient Claude login (NOT a 3rd
 # party). No base URL, no API key — just pin the Sonnet model. What this buys is
 # CONTEXT ECONOMY: the worker's reads and tool churn stay in its own window and
 # only a distilled result returns, so the conductor's context is preserved.
@@ -93,7 +95,7 @@ BACKEND_SUBAGENT_MODEL[sonnet]="claude-sonnet-5"     # its own subagents stay on
 BACKEND_EFFORT[sonnet]="high"                        # DECIDED high: Anthropic's own API default, and the quality/token sweet spot for a bulk per-task code writer under a cap. xhigh is Anthropic's pick for the HARDEST coding/agentic work — reach for it per-task via --effort, not as the fleet default. Sweep down to medium/low on mechanical batches.
 BACKEND_LABEL[sonnet]="Sonnet-5"
 
-# opus → REAL Anthropic backend via the ambient ~/.claude login (same shape as
+# opus → REAL Anthropic backend via the ambient Claude login (same shape as
 # sonnet, one tier up). Pin claude-opus-5. Reach for it when a task needs
 # top-tier Anthropic reasoning off the main thread — the win is context hygiene
 # (the conductor's window stays lean), not a smaller billed window.
@@ -106,7 +108,7 @@ BACKEND_SUBAGENT_MODEL[opus]="claude-opus-5"         # its own subagents stay on
 BACKEND_EFFORT[opus]="high"                          # DECIDED high: same reasoning as sonnet, and Opus is already the expensive tier — --effort xhigh for a genuinely hard one-off, medium/low to conserve the Opus cap
 BACKEND_LABEL[opus]="Opus-5"
 
-# fable → REAL Anthropic backend via the ambient ~/.claude login. Pin
+# fable → REAL Anthropic backend via the ambient Claude login. Pin
 # claude-fable-5. Fable 5 is the top of the ambient ladder — reach
 # for it on the HARDEST, most-complex tasks that demand extreme reasoning and
 # long-horizon coherence, off the main thread.
@@ -206,7 +208,7 @@ Examples:
 Prerequisites:
   DEEPSEEK_API_KEY env var (for --backend deep)
   GLM_API_KEY env var (for --backend glm)
-  --backend sonnet|opus|fable needs NO key (uses ambient ~/.claude login)
+  --backend sonnet|opus|fable needs NO key (uses ambient Claude login)
   claude CLI on PATH
 EOF
 }
@@ -317,7 +319,7 @@ fi
 
 # ── Validate API key ────────────────────────────────────────────────────
 # Backends with an empty key-env (sonnet) authenticate via the ambient
-# ~/.claude login — no API key to validate, so skip this block entirely.
+# Ambient Claude login — no API key to validate, so skip this block entirely.
 AUTH_KEY_ENV="${BACKEND_AUTH_KEY_ENV[$BACKEND]}"
 AUTH_KEY=""
 if [[ -n "$AUTH_KEY_ENV" ]]; then
@@ -406,7 +408,7 @@ fi
 # Both hooks self-gate on META_WORKER_MANIFEST, so they're no-ops anywhere else.
 MANIFEST_FILE="${OUTPUT_FILE}.manifest.jsonl"
 WORKER_SETTINGS_FILE="${OUTPUT_FILE}.worker-settings.json"
-HOOKS_DIR="$PROJECT_ROOT/hooks/scripts"
+HOOKS_DIR="$PLUGIN_ROOT/hooks/scripts"
 : > "$MANIFEST_FILE"   # start empty so the conductor always finds the file
 python3 - "$WORKER_SETTINGS_FILE" "$HOOKS_DIR" <<'PYEOF'
 import json, sys
@@ -495,7 +497,7 @@ ENV_UNSET=()
 
 if [[ -z "${BACKEND_BASE_URL[$BACKEND]}" ]]; then
     # Ambient Anthropic backends (sonnet / opus / fable) — REAL Anthropic via the
-    # ~/.claude login. An empty base URL is the marker: do NOT set a base URL or
+    # Ambient Claude login. An empty base URL is the marker: do NOT set a base URL or
     # auth token. Scrub any inherited 3rd-party routing (e.g. if this runs from a
     # shell that was pointed at deep/glm) so the model can't be proxied off to the
     # wrong backend. The pinned 5-family model runs 1M at standard rates (no
@@ -526,7 +528,7 @@ fi
 if [[ -n "$AUTH_KEY" ]]; then
     MASKED_KEY="${AUTH_KEY:0:5}...${AUTH_KEY: -4}"
 else
-    MASKED_KEY="(ambient ~/.claude login)"
+    MASKED_KEY="(ambient Claude login)"
 fi
 BACKEND_LABEL="${BACKEND_LABEL[$BACKEND]}"
 

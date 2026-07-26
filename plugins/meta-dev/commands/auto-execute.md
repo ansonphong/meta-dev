@@ -123,7 +123,7 @@ PY
 
 ## Gating — code-writing executes stay gated
 
-`/auto-execute` inherits the project's hard rule: **design / plan / harden / review / audit chunks flow freely**, but **code-writing plan execution requires Phong's explicit "go"** (see CLAUDE.md → Action Discernment + the Development Waterfall). Routing through a cheaper backend never relaxes the gate — a DeepSeek worker writing app code is still a plan execution. Read-write chunks outside a gated plan (ad-hoc fixes, refactors you'd normally just do) follow the same >90%-confident / in-scope / reversible discernment as any direct edit.
+`/auto-execute` inherits the project's hard rule: **design / plan / harden / review / audit chunks flow freely**, but **code-writing plan execution requires the human approver's explicit "go"** (see CLAUDE.md → Action Discernment + the Development Waterfall). Routing through a cheaper backend never relaxes the gate — a DeepSeek worker writing app code is still a plan execution. Read-write chunks outside a gated plan (ad-hoc fixes, refactors you'd normally just do) follow the same >90%-confident / in-scope / reversible discernment as any direct edit.
 
 ## Step 1: Parse Arguments
 

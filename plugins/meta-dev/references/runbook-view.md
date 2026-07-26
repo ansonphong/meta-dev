@@ -46,7 +46,7 @@ plans/meta-runbook.md          META runbook — global cross-repo ledger (one en
 ## Rules
 
 - **Track it.** Stand up a TaskCreate list (one entry per member) for `execute` runs.
-- **EXECUTE is gated.** `execute` writes code → needs Phong's explicit "go" per member.
+- **EXECUTE is gated.** `execute` writes code → needs the human approver's explicit "go" per member.
 - **Delegate.** Authoring + topo-sort = Opus. Driving members = the work ladder
   (`references/work-ladder.md`). Gate reviews = Codex or Grok (cross-family lens;
   both also execute).

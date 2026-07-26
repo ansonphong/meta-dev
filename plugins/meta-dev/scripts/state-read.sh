@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
-PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-.}"
+# shellcheck source=lib/anchor-root.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/anchor-root.sh"
+PLUGIN_ROOT="$(_md_plugin_root)"
 PATH_ARG="${1:-}"
 
 # Ensure reduced state is current, then output
-export CLAUDE_PLUGIN_ROOT
+export META_DEV_PLUGIN_ROOT="$PLUGIN_ROOT"
 OUTPUT=$(python3 "$PLUGIN_ROOT/scripts/state-reduce.py")
 
 if [ -z "$PATH_ARG" ]; then

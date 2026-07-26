@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
-PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-.}"
+LEGACY_CLAUDE_INIT=false
+[ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -z "${META_DEV_PLUGIN_ROOT:-}" ] && [ -z "${PLUGIN_ROOT:-}" ] && LEGACY_CLAUDE_INIT=true
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/plugin-root.sh
+source "$SCRIPT_DIR/lib/plugin-root.sh"
+PLUGIN_ROOT="$(_md_plugin_root)"
 DRY_RUN="${DRY_RUN:-false}"
 AUTO="${AUTO:-false}"
 
@@ -45,9 +50,15 @@ for tmpl in settings.json versioning.json changelog.json state.json inbox.jsonl 
   echo "  CREATED $target"
 done
 
-# Scaffold repo-topology config from template (discrete — not the dashboard loop above)
-mkdir -p .claude
-[ -f .claude/meta-dev-repos.json ] || cp "$TEMPLATES_DIR/repo-topology.json" .claude/meta-dev-repos.json
+# Scaffold the neutral topology contract. Claude-host initialization keeps its
+# legacy file so existing installations continue to work; the resolver prefers
+# the neutral contract whenever both are present.
+mkdir -p .meta-dev
+[ -f .meta-dev/repos.json ] || cp "$TEMPLATES_DIR/repo-topology.json" .meta-dev/repos.json
+if [ "$LEGACY_CLAUDE_INIT" = true ]; then
+  mkdir -p .claude
+  [ -f .claude/meta-dev-repos.json ] || cp "$TEMPLATES_DIR/repo-topology.json" .claude/meta-dev-repos.json
+fi
 
 # Append .gitignore entries
 GITIGNORE_SRC="$TEMPLATES_DIR/gitignore.template"

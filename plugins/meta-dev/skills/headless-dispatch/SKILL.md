@@ -36,9 +36,9 @@ fine). Instead:
 - **Per-invocation, preferred when you control the launch:**
   `-c 'sandbox_workspace_write.writable_roots=["<abs>/.git"]'`
 - **Permanent:** add the repo's `.git` to `[sandbox_workspace_write]
-  writable_roots` in `~/.codex/config.toml`. Unlike `network_access = true`,
+  writable_roots` in the Codex configuration file. Unlike `network_access = true`,
   this is **path-scoped** — list specific repos, never a wildcard — so it grants
-  nothing outside the repos you name. Still Phong's call to make.
+  nothing outside the repos you name. Still the human approver's call to make.
 
 `codex-headless-exec` already grants this per-run, so a failure here means you
 are on a launch path that bypasses it: **interactive `codex`, a bare
@@ -55,7 +55,7 @@ session cannot grant itself network access. Choose a policy and restart Codex:
 - Prefer a narrow launch override when you control the Codex invocation:
   `-c sandbox_workspace_write.network_access=true`. This grants network access
   only to that invocation.
-- Never edit global `~/.codex/config.toml` without Phong's explicit approval.
+- Never edit global Codex configuration without the human approver's explicit approval.
   A global `[sandbox_workspace_write] network_access = true` permanently weakens
   every workspace-write Codex session on this machine, across every project.
 
@@ -77,7 +77,7 @@ things.** Each is a thin wrapper that ends up at the same script with a differen
 | `/deep-execute`   | `deep`   | `deepseek-v4-pro` | cheapest bulk; mechanical bounded edits |
 | `/glm-execute`    | `glm`    | `glm-5.2`         | long-horizon, stateful agentic refactors |
 
-`sonnet`/`opus`/`fable` are **real Anthropic via your ambient `~/.claude` login** —
+`sonnet`/`opus`/`fable` are **real Anthropic via your ambient Claude login** —
 no API key. `deep` needs `DEEPSEEK_API_KEY`, `glm` needs `GLM_API_KEY`; the doctor
 reports which are visible. All five pin a bare model ID (no `[1m]` — a no-op on first-party, where the 5-family is always 1M), so a
 headless worker cannot inherit a session's 1M beta and get billed at the premium
@@ -102,7 +102,7 @@ they disagree:
 Resolve `<plugin-root>` rather than hand-typing it — the cache path is
 version-pinned and moves on every patch bump:
 
-    PLUGIN_ROOT="$(ls -d ~/.codex/plugins/cache/meta-dev/meta-dev/*/ | sort -V | tail -1)"
+    PLUGIN_ROOT="$(ls -d "${CODEX_HOME:-$HOME/.codex}"/plugins/cache/meta-dev/meta-dev/*/ | sort -V | tail -1)"
 
 `--repo <alias>` takes the lowercase alias (`app`/`www`/`gallery`/`meta`), never a
 directory name. Add `--readonly` when the worker only investigates and reports —

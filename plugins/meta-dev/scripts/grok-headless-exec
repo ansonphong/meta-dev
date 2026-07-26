@@ -48,9 +48,11 @@
 
 set -euo pipefail
 
-# ── Resolve project root ────────────────────────────────────────────────
+# ── Resolve plugin assets ───────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+# shellcheck source=lib/plugin-root.sh
+source "$SCRIPT_DIR/lib/plugin-root.sh"
+PLUGIN_ROOT="$(_md_plugin_root)"
 
 # ── Defaults ────────────────────────────────────────────────────────────
 REPO=""

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Context gauge — report the orchestrating session's live context-window size.
 
-Reads the CURRENT session transcript (located via $CLAUDE_CODE_SESSION_ID) and
+Reads the current Claude-host session transcript (located via $CLAUDE_CODE_SESSION_ID) and
 returns the latest API context occupancy:
 
     input_tokens + cache_read_input_tokens + cache_creation_input_tokens
@@ -35,7 +35,10 @@ def find_transcript():
     Primary: $CLAUDE_CODE_SESSION_ID names the exact file under any project dir.
     Fallback: the most-recently-modified transcript (the actively-appended one).
     """
-    base = os.path.expanduser("~/.claude/projects")
+    config_dir = os.environ.get("CLAUDE_CONFIG_DIR") or os.path.join(
+        os.environ.get("HOME", ""), ".claude"
+    )
+    base = os.environ.get("CLAUDE_PROJECTS_DIR") or os.path.join(config_dir, "projects")
     if not os.path.isdir(base):
         return None
     sid = os.environ.get("CLAUDE_CODE_SESSION_ID") or os.environ.get("CLAUDE_SESSION_ID")

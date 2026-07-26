@@ -54,7 +54,7 @@ passes; if green, that's the last gate before push.
 - Cache resolves versions with `ls | head -1` (lexical) — stale lower versions can shadow the new one; delete them.
 
 ## 🚫 Out of scope / do-not-touch
-- The 3 child app repos (360-HEXTILE-APP/WWW/GALLERY) — this is meta-dev plugin only.
+- The child application repositories — this is the meta-dev plugin only.
 - Don't touch the model frontmatter of other commands — already all-opus.
 ```
 

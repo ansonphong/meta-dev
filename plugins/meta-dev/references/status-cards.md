@@ -65,7 +65,7 @@ Two consequences that are enforced by test
 | `🔄` | `executing` | running |
 | `⏸` | `draft`, `ready` | queued |
 | `⏳` | `needs-review` | awaiting verdict |
-| `🔒` | `gated` | human gate — waiting on Phong |
+| `🔒` | `gated` | human gate — waiting on an approver |
 | `⛔` | `blocked` | blocked |
 | `⏺` | `parked` | paused |
 | `🚫` | `superseded` | superseded |

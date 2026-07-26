@@ -3,7 +3,12 @@
 # Codex has no PreToolUse hook, so this is the explicit stand-in.
 set -uo pipefail
 
-PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/plugin-root.sh
+source "$SCRIPT_DIR/lib/plugin-root.sh"
+PLUGIN_ROOT="$(_md_plugin_root)"
+CODEX_CONFIG_DIR="${CODEX_HOME:-${XDG_CONFIG_HOME:+$XDG_CONFIG_HOME/codex}}"
+[ -n "$CODEX_CONFIG_DIR" ] || CODEX_CONFIG_DIR="$HOME/.codex"
 WARN=0; ERR=0
 good() { echo "  [ ok ] $1"; }
 warn() { echo "  [warn] $1"; WARN=$((WARN+1)); }
@@ -17,7 +22,7 @@ if [ "$code" = "000" ]; then
   err "network egress BLOCKED (HTTP 000). Claude workers cannot run.
          STOP and choose a policy before dispatch: prefer restarting Codex with
          -c sandbox_workspace_write.network_access=true for one invocation.
-         Global ~/.codex/config.toml changes require Phong's explicit approval
+         Global Codex configuration changes require explicit human approval
          and weaken every workspace-write session machine-wide, permanently."
 else
   good "network egress OK (HTTP $code)"
@@ -47,7 +52,7 @@ else
          Fix the sandbox instead, by either:
            - per-invocation: -c 'sandbox_workspace_write.writable_roots=[\"$_GITDIR\"]'
            - permanent: add \"$_GITDIR\" to [sandbox_workspace_write] writable_roots
-             in ~/.codex/config.toml (scope to specific repos, never a wildcard)
+             in the Codex config directory (scope to specific repos, never a wildcard)
          meta-dev's own codex-headless-exec already grants this per-run; this
          failure means you are on a launch path that bypasses it (interactive
          codex, bare 'codex exec', or a fresh machine with no global config)."
@@ -57,8 +62,9 @@ fi
 if command -v claude >/dev/null 2>&1; then good "claude CLI: $(claude --version 2>/dev/null | head -1)"
 else err "claude CLI not found on PATH"; fi
 
-if [ -d "$HOME/.claude" ]; then good "ambient Claude login directory present"
-else warn "~/.claude absent — subscription workers (opus/fable/sonnet) may not authenticate"; fi
+CLAUDE_CONFIG_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+if [ -d "$CLAUDE_CONFIG_DIR" ]; then good "ambient Claude login directory present"
+else warn "ambient Claude login directory absent — subscription workers (opus/fable/sonnet) may not authenticate"; fi
 
 # 4. Optional API backends.
 [ -n "${DEEPSEEK_API_KEY:-}" ] && good "DEEPSEEK_API_KEY visible" || warn "DEEPSEEK_API_KEY unset (deep backend unavailable)"
@@ -66,7 +72,7 @@ else warn "~/.claude absent — subscription workers (opus/fable/sonnet) may not
 
 # 5. Plugin cache freshness.
 LOCAL_V="$(python3 -c "import json; print(json.load(open('$PLUGIN_ROOT/.claude-plugin/plugin.json'))['version'])" 2>/dev/null || echo '?')"
-CACHE_V="$(ls -1 "$HOME/.codex/plugins/cache/meta-dev/meta-dev" 2>/dev/null | sort -V | tail -1 || echo '?')"
+CACHE_V="$(ls -1 "$CODEX_CONFIG_DIR/plugins/cache/meta-dev/meta-dev" 2>/dev/null | sort -V | tail -1 || echo '?')"
 if [ "$LOCAL_V" = "$CACHE_V" ]; then good "plugin version in sync ($LOCAL_V)"
 else warn "version drift: working tree $LOCAL_V vs Codex cache $CACHE_V
          Fix: bump patch, push, then /plugin marketplace update meta-dev"; fi

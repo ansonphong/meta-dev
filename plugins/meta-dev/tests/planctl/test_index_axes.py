@@ -11,7 +11,7 @@ from planctl import db, read, sync  # noqa: E402
 
 
 LEGACY_DB = Path(
-    "/tmp/claude-1000/-mnt-d-Projects-360-Hextile/"
+    "/tmp/claude-1000/-mnt-d-Projects-sample-host/"
     "c1f46252-e549-48fd-9db3-60258c198fd2/scratchpad/legacy-schema.db"
 )
 LEGACY_PLAN_COLUMNS = [

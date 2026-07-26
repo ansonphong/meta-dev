@@ -11,7 +11,10 @@ set -uo pipefail
 # It never starts services, never installs deps, never commits, never resets.
 
 REPO_DIR="${1:-.}"
-PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-.}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/plugin-root.sh
+source "$SCRIPT_DIR/lib/plugin-root.sh"
+PLUGIN_ROOT="$(_md_plugin_root)"
 STATUS=0   # 0=OK, 1=WARN, 2=BLOCKED
 
 green()  { echo "OK    | $1"; }

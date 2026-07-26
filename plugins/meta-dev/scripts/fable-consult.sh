@@ -15,7 +15,10 @@
 # Contract, calibration rationale and the veto list: skills/fable-consult/SKILL.md
 set -uo pipefail
 
-PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/plugin-root.sh
+source "$SCRIPT_DIR/lib/plugin-root.sh"
+PLUGIN_ROOT="$(_md_plugin_root)"
 QUESTION=""; PACKET=""; PLAN=""; REPO=""; AUTONOMOUS=0; REVERSIBLE=0; TASTE=0
 CAP="${META_DEV_FABLE_CONSULT_CAP:-5}"
 
