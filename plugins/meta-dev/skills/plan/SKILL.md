@@ -12,7 +12,8 @@ Use this host-neutral workflow, not a slash-command interface.
 3. For medium work, create a version `1.1`, `single-file` IR from
    `../../schemas/plan-artifact.schema.json` and target the required dated path.
 4. For genuinely large or multi-phase work, follow
-   `../../commands/meta-planner.md` and its version `1.0` shared contract.
+   `../../references/workflows/command-adapter.md`,
+   `../../commands/meta-planner.md`, and its version `1.0` shared contract.
 5. Resolve the plugin root from this file and the project root with
    `<plugin-root>/scripts/lib/repo-topology.py --root`.
 6. Validate and render with `../../scripts/plan-artifact-render.py`, replacing

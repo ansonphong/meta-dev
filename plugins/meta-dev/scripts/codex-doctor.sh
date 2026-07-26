@@ -89,21 +89,19 @@ else warn "version drift: working tree $LOCAL_V vs Codex cache $CACHE_V
          Fix: bump patch, push, then /plugin marketplace update meta-dev"; fi
 
 # 6. Command surface reality check.
-# Codex autocompletes $meta-dev: against SKILLS ONLY. Every commands/*.md is
-# invisible here, and the miss is silent: `$meta-dev:fable-execute` returns "no
-# matches" with no hint that a bridge exists. Spell both routes out, because a
-# dead-end lookup is what sends people hand-rolling a procedure that already
-# exists.
-CURATED_SKILLS="$(find "$PLUGIN_ROOT"/skills -mindepth 1 -maxdepth 1 -type d ! -name command-router 2>/dev/null | wc -l)"
+# Codex autocompletes $meta-dev: against skills, so canonical commands are
+# generated as exact native skills. Pure Claude redirect aliases stay behind
+# the compatibility router to protect Codex's bounded initial skill index.
+NATIVE_SKILLS="$(find "$PLUGIN_ROOT"/skills -mindepth 2 -maxdepth 2 -name SKILL.md 2>/dev/null | wc -l)"
 CMDS="$(ls -1 "$PLUGIN_ROOT"/commands/*.md 2>/dev/null | wc -l)"
-good "$CURATED_SKILLS curated workflows + command-router via \$meta-dev:<skill> · $CMDS commands via \$meta-dev:command-router <name>
-         \$meta-dev:<command> NEVER matches — commands are not a Codex surface."
+good "$NATIVE_SKILLS native skills · $CMDS Claude command names
+         Canonical: \$meta-dev:meta-planner · fallback aliases: \$meta-dev:command-router planner"
 
 # 7. Headless dispatch readiness — the single most-asked-for command family.
 if [ -x "$PLUGIN_ROOT/scripts/claude-headless-exec" ]; then
   good "headless workers ready: claude-headless-exec --backend fable|opus|sonnet|deep|glm
-         /fable-execute and friends are COMMANDS (invisible to Codex) that all
-         resolve to this one script + a --backend flag. Skill: \$meta-dev:headless-dispatch"
+         \$meta-dev:fable-execute and friends are native command skills that
+         resolve to this one script + a --backend flag."
 else
   err "claude-headless-exec missing or not executable in $PLUGIN_ROOT/scripts/"
 fi

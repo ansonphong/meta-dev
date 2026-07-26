@@ -87,13 +87,19 @@ else
 fi
 
 echo
-echo "=== Codex legacy-command compatibility: command-router resolution ==="
+echo "=== Codex command compatibility: exact skills plus alias fallback ==="
 
 ROUTER="$PLUGIN_ROOT/skills/command-router/SKILL.md"
 if [ -f "$ROUTER" ]; then
   ok "command-router skill present"
 else
-  bad "command-router skill MISSING — Claude has no path to the command catalog"
+  bad "command-router skill MISSING — Codex has no fallback for bare aliases"
+fi
+
+if python3 "$PLUGIN_ROOT/scripts/sync-codex-command-skills.py" >/dev/null; then
+  ok "canonical command skills are complete and synchronized"
+else
+  bad "canonical command skills are missing or drifted"
 fi
 
 # The router tells Codex commands/ is two levels up from the SKILL.md.

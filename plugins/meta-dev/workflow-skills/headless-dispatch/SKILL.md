@@ -1,6 +1,6 @@
 ---
 name: headless-dispatch
-description: "Dispatch a Claude Code headless worker from a non-Claude harness such as Codex or Grok. THIS IS THE CODEX ENTRY POINT FOR /fable-execute, /opus-execute, /sonnet-execute, /deep-execute and /glm-execute — those are commands, not skills, so `$meta-dev:fable-execute` will never match; they are all one script and one --backend flag, mapped below. Use when asked to run a task on fable, opus, sonnet, deepseek or glm from Codex, to spawn a headless/background worker, or to hand work off the main thread. Covers the two sandbox preconditions (network egress, .git writability), doctor preflight, and shell invocation form."
+description: "Dispatch a Claude Code headless worker from a non-Claude harness such as Codex or Grok. Codex exposes fable-execute, opus-execute, sonnet-execute, deep-execute, and glm-execute as exact native command skills; all are one script and one --backend flag, mapped below. Use when asked to run a task on fable, opus, sonnet, deepseek, or glm from Codex, spawn a headless/background worker, or hand work off the main thread. Covers network egress, .git writability, doctor preflight, and shell invocation."
 allowed-tools: [Read, Bash, Glob, Grep]
 ---
 
@@ -66,8 +66,9 @@ Do not attempt to work around the sandbox from the blocked session.
 Claude Code exposes `/fable-execute`, `/opus-execute`, `/sonnet-execute`,
 `/deep-execute` and `/glm-execute` as five slash commands. **They are not five
 things.** Each is a thin wrapper that ends up at the same script with a different
-`--backend`. Codex has no commands surface, so do not go looking for them —
-`$meta-dev:fable-execute` matches nothing. Run the script:
+`--backend`. In Codex, `$meta-dev:fable-execute` and its peers are exact native
+skills that adapt these command procedures. When already inside this skill,
+run the script directly:
 
 | Claude Code command | `--backend` | Model | Reach for it when |
 |---|---|---|---|

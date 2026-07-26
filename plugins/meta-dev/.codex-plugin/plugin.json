@@ -1,6 +1,6 @@
 {
   "name": "meta-dev",
-  "version": "1.4.1",
+  "version": "1.4.2",
   "description": "Autonomous dev harness — dashboard, overlord, 6-phase orchestrator, HOTL, changelog, multi-repo versioning.",
   "author": {
     "name": "Phong",
@@ -20,8 +20,8 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "Meta Dev",
-    "shortDescription": "Native Codex workflow surface for the meta-dev harness.",
-    "longDescription": "A concise Codex skill surface for planning, execution, review, shipping, and operational workflows.",
+    "shortDescription": "First-class Codex command surface for the meta-dev harness.",
+    "longDescription": "Canonical meta-dev commands as native Codex skills, plus compact planning, review, and operations helpers.",
     "developerName": "Phong",
     "category": "Productivity",
     "capabilities": [

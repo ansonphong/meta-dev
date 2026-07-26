@@ -79,10 +79,14 @@ see `workflow-skills/code-review-protocol/`.
 
 ### Codex
 
-- The ten curated `skills/*/SKILL.md` entries are the public workflow surface;
-  `skills/command-router/` is the compatibility fallback for legacy commands.
-- `routes.json` maps every legacy command name to exactly one workflow
-  subcommand and canonical procedure.
+- Every canonical command is an exact native skill name. In Codex CLI/IDE,
+  invoke `$meta-dev:meta-planner`; on surfaces with the skill picker, select
+  `meta-dev:meta-planner` with `@`.
+- Pure Claude redirect aliases are not duplicated into Codex's limited initial
+  skill index. `skills/command-router/` remains the compatibility fallback for
+  those aliases and unknown spellings.
+- `routes.json` maps every Claude command name to exactly one workflow
+  subcommand, canonical procedure, and first-class native command skill.
 - Plan, harden, and review use native `gpt-5.6-sol` with `high` effort by
   default, as configured under `meta_dev.codex.models`. Other workflows use
   their configured native route.

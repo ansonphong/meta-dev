@@ -5,7 +5,8 @@ description: Coordinate related plans through a campaign runbook.
 
 # Runbook
 
-For host-neutral, non-slash-command campaigns, read
-`../../references/workflows/protocol.md`,
+Read `../../references/workflows/command-adapter.md`,
+`../../references/workflows/protocol.md`, `../../commands/runbook.md`,
 `../../workflow-skills/runbook-orchestration/SKILL.md`, and
-`../../references/runbook-view.md`. The conductor owns state.
+`../../references/runbook-view.md` completely, then follow them with the user's
+remaining request as the command arguments. The conductor owns state.

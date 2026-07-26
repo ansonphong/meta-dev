@@ -38,21 +38,31 @@ codex plugin marketplace add .
 codex plugin add meta-dev@meta-dev-local
 ```
 
-Restart Codex after installation. The Codex package exposes ten concise workflow
-skills; use `$meta-dev:<workflow>` rather than a Claude slash command:
+Restart Codex after installation. Canonical Claude commands are exposed under
+the same names as native Codex skills:
 
 ```text
-$meta-dev:dev        $meta-dev:plan       $meta-dev:harden
-$meta-dev:execute    $meta-dev:review     $meta-dev:ship
-$meta-dev:dashboard  $meta-dev:runbook    $meta-dev:diagnose
-$meta-dev:ops
+$meta-dev:meta-planner <request-or-plan>
+$meta-dev:meta-execute <plan>
+$meta-dev:meta-dashboard
+$meta-dev:meta-ship <target>
 ```
 
-For a normal implementation plan, invoke the native Superpowers bridge:
+In ChatGPT/Codex surfaces with the `@` skill picker, select the same fully
+qualified skill, for example `@meta-dev:meta-planner`. Codex CLI and the IDE use
+`$`. Literal plugin-defined `/meta-planner` is not a Codex extension surface.
+
+For a normal medium implementation plan, invoke the native Superpowers bridge:
 
 ```text
 $meta-dev:plan Write a self-contained implementation plan for <change>.
 Save it under plans/<repo>/ and do not implement it.
+```
+
+For a full master plan with phase files, use the familiar command name:
+
+```text
+$meta-dev:meta-planner <request-or-existing-plan>
 ```
 
 Claude can obtain its planning discipline from the external Superpowers plugin.
@@ -61,9 +71,10 @@ adapted `writing-plans` contract directly. It inspects the live codebase, writes
 for a fresh agent with no conversation history, and saves ordinary medium work
 as `plans/<repo>/YYYY-MM-DD-<slug>.md`.
 
-Claude commands remain canonical procedures. Codex has no command surface: for
-a legacy command, use `$meta-dev:command-router <command>` to resolve and
-follow its procedure.
+Claude commands remain canonical procedures. Codex packages every real command
+once under its canonical name. Pure bare redirects such as `planner` →
+`meta-planner` remain Claude aliases so Codex's limited initial skill index does
+not overflow. `command-router` is retained only as a compatibility fallback.
 
 Codex uses native configured routes: plan, harden, and review default to
 GPT-5.6 Sol with high reasoning effort; execute defaults to GPT-5.6 Terra with
@@ -225,7 +236,7 @@ plugin root/
 ├── .codex-plugin/  Manifest for Codex
 ├── commands/      Thin entry points (≤30 lines) — delegate to skills/scripts
 ├── workflow-skills/ Shared Claude procedures — loaded on demand via Skill tool
-├── skills/        Ten curated native Codex workflows plus command-router fallback
+├── skills/        Canonical Codex command skills plus compact workflow helpers
 ├── agents/        Specialized subagents — scanner, reviewer, architect, sweeper
 ├── hooks/         Codex lifecycle hook declarations and adapter
 │   └── scripts/   Event-driven bash/Python handlers

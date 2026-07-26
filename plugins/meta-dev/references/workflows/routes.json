@@ -3,7 +3,7 @@
   "protocol": "references/workflows/protocol.md",
   "workflows": {
     "dev": {
-      "skill": "skills/dev/SKILL.md",
+      "skill": "skills/meta-dev/SKILL.md",
       "subcommands": {
         "run": "commands/meta-dev.md",
         "orchestrate": "commands/meta-orchestrator.md"
@@ -25,7 +25,7 @@
       }
     },
     "execute": {
-      "skill": "skills/execute/SKILL.md",
+      "skill": "skills/meta-execute/SKILL.md",
       "subcommands": {
         "plan": "commands/meta-execute.md",
         "auto": "commands/auto-execute.md",
@@ -53,14 +53,14 @@
       }
     },
     "ship": {
-      "skill": "skills/ship/SKILL.md",
+      "skill": "skills/meta-ship/SKILL.md",
       "subcommands": {
         "release": "commands/meta-ship.md",
         "canary": "commands/meta-canary.md"
       }
     },
     "dashboard": {
-      "skill": "skills/dashboard/SKILL.md",
+      "skill": "skills/meta-dashboard/SKILL.md",
       "subcommands": {
         "show": "commands/meta-dashboard.md"
       }
