@@ -45,6 +45,12 @@ meta-dev/
 
 Source of truth: `plugins/meta-dev/scripts/codex-headless-exec` (tier→model map) + `plugins/meta-dev/commands/codex-execute.md` (routing doctrine). `gpt-5.6-codex` is deliberately absent — rejected by the ChatGPT-account API.
 
+## Plan Targets — Authoring Depth
+
+Plans carry an optional `target: lean | standard | explicit` (absent means `standard`) that scales authoring depth and gap-scan breadth to the capability of the executing model. **`plugins/meta-dev/references/plan-targets.md` is the ONE definition** — tier table, tier↔backend map, capability ordering, blast-radius override, and the dispatch mismatch rule. `meta-planner`, `codex-writing-plans`, and `meta-loop-gap` link to it; none restates it, and neither should anything else.
+
+The field is optional at both IR versions. `plan-artifact-render.py` hand-rolls every check (stdlib only, no `jsonschema`), so an enum lives in **two** places — the schema for authoring and `validate_ir` for runtime. Changing one alone silently does nothing.
+
 ## Principles
 
 1. **Skills > commands for reuse.** Command = entry. Skill = procedure.
