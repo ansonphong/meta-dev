@@ -58,7 +58,7 @@ Only `test: yes` tasks get a TDD subtask (test→fail→impl→pass→commit). *
 
 `00-master-plan.md` with: header, file structure, gap fixes, ALL tasks as `### Task N:` units **plus the per-task `- [ ]` subtask checkboxes from step 2** (so the master is the **sole** granular ledger execution will flip — see step 2 granularity + one-ledger rule), integration test task, execution rules.
 
-**After the master checklist is written:** run (or instruct) `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/task-stamp.py <path-to-00-master-plan.md>` so every box carries a `` `T…` `` handle before Stage 5. Generated execution rules must say: conductor runs `task-done <master-plan> <handle>` on the master only — **never** "flip HERE and in the phase file", never dual-write.
+**Cross-host artifact contract (MANDATORY):** Before writing Markdown, emit a version `1.0` JSON IR conforming to `schemas/plan-artifact.schema.json`. Validate it with `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/plan-artifact-render.py <ir.json> --validate`, then render it with `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/plan-artifact-render.py <ir.json> --project-root <project-root>`. The renderer is the only plan-artifact writer: it emits deterministic frontmatter without `status:`, stable `` `T…` `` handles plus planctl-compatible `#hex` beads, and refuses overwrites by default. Use `layout: "multi-phase"` for a directory with `00-master-plan.md` as its sole checkbox ledger and checkbox-free phase files; use `layout: "single-file"` only for compact plans. Do not hand-render a host-specific variant.
 
 ### 7. Generate `.loop-gap-config.md`
 
