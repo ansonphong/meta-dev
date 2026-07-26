@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+# Focused runner contract test: no network and no live Codex invocation.
+set -euo pipefail
+
+TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$TEST_DIR/.." && pwd)"
+RUNNER="$PLUGIN_ROOT/scripts/codex-headless-exec"
+TMP_DIR="$(mktemp -d)"
+trap 'rm -rf "$TMP_DIR"' EXIT
+
+mkdir -p "$TMP_DIR/bin" "$TMP_DIR/codex-home"
+cp "$TEST_DIR/fixtures/codex-exec-stub.sh" "$TMP_DIR/bin/codex"
+cp "$TEST_DIR/fixtures/codex-auth.json" "$TMP_DIR/codex-home/auth.json"
+chmod +x "$TMP_DIR/bin/codex"
+
+run_stubbed() {
+    local fixture="$1"
+    local output="$2"
+    PATH="$TMP_DIR/bin:$PATH" \
+    CODEX_HOME="$TMP_DIR/codex-home" \
+    CODEX_STUB_ARGV="$TMP_DIR/argv" \
+    CODEX_STUB_RESULT="$fixture" \
+    STALL_SECS=0 \
+    "$RUNNER" --no-framework --timeout 10000 --output-file "$output" -- "Return the required JSON handoff."
+}
+
+valid_output="$TMP_DIR/valid-output.json"
+run_stubbed "$TEST_DIR/fixtures/codex-worker-result-valid.json" "$valid_output" >"$TMP_DIR/valid.stdout" 2>"$TMP_DIR/valid.stderr"
+
+python3 - "$valid_output" "$TMP_DIR/argv" "$PLUGIN_ROOT/schemas/codex-worker-result.schema.json" <<'PY'
+import json
+import sys
+
+output, argv, schema = map(__import__('pathlib').Path, sys.argv[1:])
+wrapped = json.loads(output.read_text())
+assert wrapped["is_error"] is False
+assert wrapped["backend"] == "codex"
+assert json.loads(wrapped["result"])["verification"] == "FOCUSED_PASS"
+args = argv.read_text().splitlines()
+assert "--output-schema" in args
+assert args[args.index("--output-schema") + 1] == str(schema)
+assert args[args.index("-m") + 1] == "gpt-5.6-terra"
+print("PASS: output schema, Terra default, and legacy wrapper contract")
+PY
+
+malformed_output="$TMP_DIR/malformed-output.json"
+if run_stubbed "$TEST_DIR/fixtures/codex-worker-result-malformed.json" "$malformed_output" >"$TMP_DIR/malformed.stdout" 2>"$TMP_DIR/malformed.stderr"; then
+    echo "FAIL: malformed worker result unexpectedly succeeded" >&2
+    exit 1
+fi
+python3 - "$malformed_output" <<'PY'
+import json
+import sys
+wrapped = json.load(open(sys.argv[1]))
+assert wrapped["is_error"] is True
+assert wrapped["subtype"] == "error"
+PY
+grep -F "[ERROR] malformed structured Codex result" "$malformed_output.stderr" >/dev/null
+echo "PASS: malformed structured result fails loudly without a live Codex run"

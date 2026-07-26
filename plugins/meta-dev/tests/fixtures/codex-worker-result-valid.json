@@ -1,0 +1,9 @@
+{
+  "verification": "FOCUSED_PASS",
+  "summary": "Stubbed Codex worker completed its focused verification.",
+  "verify_command": "bash plugins/meta-dev/tests/test-codex-headless-result-contract.sh",
+  "verify_output": "PASS: fixture result accepted",
+  "commit_sha": "abc123def456",
+  "changed_files": ["plugins/meta-dev/scripts/codex-headless-exec"],
+  "blockers": []
+}

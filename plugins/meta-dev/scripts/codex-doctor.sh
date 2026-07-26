@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Preflight for a Codex session driving the meta-dev harness.
-# Codex has no PreToolUse hook, so this is the explicit stand-in.
+# Codex lifecycle hooks are supported through meta-dev's trusted adapter; this
+# remains a diagnostic, not a substitute for hook trust or guard policy.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -15,6 +16,16 @@ warn() { echo "  [warn] $1"; WARN=$((WARN+1)); }
 err()  { echo "  [FAIL] $1"; ERR=$((ERR+1)); }
 
 echo "=== codex-doctor ==="
+
+# 0. Codex hook trust. The adapter is loaded by a trusted installed plugin;
+# this source checkout can only verify that the adapter is present. Never tell
+# users to bypass trust for automation — trust the plugin through Codex's normal
+# flow, then the runner can rely on the same guard policy as interactive Codex.
+if [ -f "$PLUGIN_ROOT/hooks/hooks.json" ] && [ -x "$PLUGIN_ROOT/hooks/scripts/codex-adapter.py" ]; then
+  good "Codex lifecycle hook adapter bundled; trust the installed meta-dev plugin normally (never --dangerously-bypass-hook-trust)"
+else
+  err "Codex lifecycle hook adapter missing; restore hooks/hooks.json and hooks/scripts/codex-adapter.py"
+fi
 
 # 1. Network egress — the #1 blocker for headless dispatch.
 code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 https://api.anthropic.com/v1/models 2>/dev/null)" || code="000"

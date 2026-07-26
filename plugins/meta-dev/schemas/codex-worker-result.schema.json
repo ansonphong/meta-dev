@@ -1,0 +1,41 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/ansonphong/meta-dev/main/plugins/meta-dev/schemas/codex-worker-result.schema.json",
+  "title": "Meta-Dev Codex Worker Result",
+  "description": "Structured final handoff emitted by codex exec. The runner embeds this JSON in its existing OUTPUT_FILE.result string.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "verification",
+    "summary",
+    "verify_command",
+    "verify_output",
+    "commit_sha",
+    "changed_files",
+    "blockers"
+  ],
+  "properties": {
+    "verification": {
+      "type": "string",
+      "enum": [
+        "FOCUSED_PASS",
+        "TASK_RED",
+        "BASELINE_RED",
+        "INFRA_RED",
+        "BROAD_VERIFY_OMITTED"
+      ]
+    },
+    "summary": { "type": "string", "minLength": 1 },
+    "verify_command": { "type": "string" },
+    "verify_output": { "type": "string" },
+    "commit_sha": { "type": ["string", "null"] },
+    "changed_files": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "blockers": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    }
+  }
+}

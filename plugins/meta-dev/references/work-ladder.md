@@ -31,7 +31,7 @@ not pooled. The pool governs *automatic* selection only.
 |---|---|---|
 | Bounded mechanical edits, renames, boilerplate, scoped searches, lint/format/syntax triage | **DeepSeek** (`--deep`) | Cheapest bulk tier. Fan out freely. |
 | Independent frontier reasoning; a wanted *third* model family; hard single-file diagnosis | **Grok** (`--grok`) | xAI-family lens catches what Anthropic- and OpenAI-family review both miss. Budget it like Codex, **not** like DeepSeek — it is not a fan-out farm. |
-| Long-horizon stateful execution; multi-file features; the OpenAI-family review lens at phase gates / Stage 6 | **Codex** (`--codex`) | First-class executor *and* cross-family reviewer. Route `spark` tier first — it bills to a separate weekly quota from the shared `gpt-5.6` pool. |
+| Long-horizon stateful execution; multi-file features; the OpenAI-family review lens at phase gates / Stage 6 | **Codex** (`--codex`) | First-class executor *and* cross-family reviewer. Use configured **Terra** for execution (medium; low for lightweight work) and **Sol** for plan/harden/review (high). Spark/Luna remain explicit legacy tiers only. |
 
 Reviewers are a separate axis: the phase-gate reviewer is always the Opus
 `meta-dev:review-agent` subagent regardless of which backend executed. Cross-family
@@ -39,8 +39,10 @@ review (Codex, Grok) is an *additional* lens, not a replacement.
 
 ## Stay native only when
 
-Native means an `Agent` subagent under Claude Code, or `codex exec` spark
-delegation under Codex — no external process. Reach for it when the task:
+Native means an `Agent` subagent under Claude Code, or Codex-native delegation
+under Codex — no external backend. Codex may select its native model: Terra for
+execution/lightweight work and Sol for planning, hardening, and review. Reach
+for it when the task:
 
 - **needs our harness** — it must run a meta-dev slash command or a project skill internally;
 - **needs vision** — screenshots, design review, image comparison (external backends are text+tools only);
@@ -55,15 +57,18 @@ Otherwise delegate.
 instance on another model's endpoint, so those workers have our whole harness and
 can run our slash commands internally.
 
-**Codex and Grok cannot.** They are their own agents with their own tool surfaces —
-no `/meta-execute`, no `/loop-gap`, no project skills. Give them a direct task
-("fix the failing test in Z", "audit X for gap class Y and report findings"),
-never "run `/loop-gap` on this plan". Anything needing our harness stays with the
-conductor or a Claude-harness worker.
+**Codex and Grok cannot run Claude slash commands.** They are their own agents
+with their own tool surfaces — no `/meta-execute` or `/loop-gap`. Give them a
+direct task ("fix the failing test in Z", "audit X for gap class Y and report
+findings"), never "run `/loop-gap` on this plan". Anything needing the Claude
+command harness stays with the conductor or a Claude-harness worker.
 
-Codex and Grok also have **no PreToolUse hook**, so `guard-check.sh` does not
-port — the git bans reach them as advisory prompt text only. State the git rules
-explicitly in every Codex/Grok task spec.
+Codex does support lifecycle hooks. When the meta-dev plugin is installed and
+its hooks are trusted, its Codex adapter bridges the shared guard policy to
+Codex tool events. Never use `--dangerously-bypass-hook-trust` in normal work.
+State the git rules in direct task specs as defense in depth (and because a
+headless invocation can precede hook installation/trust). Grok has no such
+adapter here, so its rules remain advisory prompt text.
 
 ## GLM: available, not pooled
 

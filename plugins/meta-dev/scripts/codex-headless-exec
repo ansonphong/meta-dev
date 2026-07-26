@@ -15,18 +15,14 @@
 # Options:
 #   --repo <name>            Resolve via topology config; unresolvable => abort.
 #                            Omit to run at the PROJECT ROOT (never the caller's cwd).
-#   --tier <tier>            GPT routing tier: spark | luna | terra | sol
+#   --tier <tier>            GPT routing tier: terra | sol (configured roles);
+#                            spark | luna remain explicit legacy compatibility tiers.
 #                            (fallback default: terra — but CHOOSE, don't inherit)
 #
-#   ⚡ SPARK FIRST — spark bills to a SEPARATE weekly quota from the shared
-#      gpt-5.6 sol/terra/luna pool (see `codex /status`, which lists the two
-#      independently). Spark work costs the 5.6 budget NOTHING, so every
-#      mechanical pass routed to spark preserves scarce budget for the
-#      reasoning-heavy work only sol can do. Default to spark whenever it is
-#      competent — bulk renames, boilerplate, lint/format sweeps, syntax
-#      triage, grep-and-summarize, single-file edits with clear criteria.
-#      Escalate to sol for ambiguity, cross-module behaviour, security, or
-#      architecture — that is what the preserved budget is for.
+#   Terra is the configured execution/default role (medium; low for lightweight
+#   work). Sol is the configured high-judgment role (plan/harden/review). Spark
+#   and Luna are retained only for callers that explicitly request legacy tiers;
+#   they are never the modern default.
 #   --effort <level>         Reasoning: none | low | medium | high | xhigh | max
 #                            (default follows tier; terra = medium)
 #   --model <model>          Explicit model override; wins over --tier
@@ -48,7 +44,7 @@
 #   -h, --help               Show this help
 #
 # Examples:
-#   codex-headless-exec --repo app --tier luna --readonly -- "Audit src/lib/license.ts for Ed25519 verify bugs"
+#   codex-headless-exec --repo app --tier terra --readonly -- "Audit src/lib/license.ts for Ed25519 verify bugs"
 #   codex-headless-exec --repo www --tier sol --effort xhigh -- "Fix the intermittent billing race"
 #
 # Prerequisites:
@@ -79,6 +75,7 @@ OUTPUT_FORMAT="json"
 PROMPT=""
 PROMPT_INPUT_FILE=""
 OUTPUT_FILE=""
+RESULT_SCHEMA="$PLUGIN_ROOT/schemas/codex-worker-result.schema.json"
 
 # ── Help ────────────────────────────────────────────────────────────────
 show_help() {
@@ -188,18 +185,17 @@ fi
 # Tiers select real model IDs. An explicit --model remains available for
 # account-specific snapshots or a future model-family migration.
 #
-# `spark` is the Codex-specialized speed tier (gpt-5.3-codex-spark) — a
-# coding-tuned, low-latency model for high-volume mechanical passes. It is a
-# 5.3-family ID on purpose: verified live on this account 2026-07-18, while
-# `gpt-5.6-codex` is REJECTED by the API ("not supported when using Codex with
-# a ChatGPT account"). Do not "upgrade" spark to 5.6-codex without re-probing.
+# Terra and Sol are the configured GPT-5.6 roles: Terra executes ordinary and
+# lightweight work; Sol handles planning, hardening, and review. The older
+# Spark/Luna IDs stay available only behind an explicit --tier for compatibility
+# with legacy callers; they must not silently become the routing default.
 case "$TIER" in
     spark) TIER_MODEL="gpt-5.3-codex-spark"; TIER_EFFORT="low" ;;
     luna)  TIER_MODEL="gpt-5.6-luna";  TIER_EFFORT="low" ;;
     terra) TIER_MODEL="gpt-5.6-terra"; TIER_EFFORT="medium" ;;
     sol)   TIER_MODEL="gpt-5.6-sol";   TIER_EFFORT="high" ;;
     *)
-        echo "[ERROR] Invalid --tier '$TIER'. Use spark, luna, terra, or sol." >&2
+        echo "[ERROR] Invalid --tier '$TIER'. Use terra or sol (or explicit legacy spark/luna)." >&2
         exit 1
         ;;
 esac
@@ -325,20 +321,21 @@ echo ""
 # -s MODE    → sandbox policy (read-only for audits, workspace-write for fixes)
 cd "$WORK_DIR"
 
-# ── Git-discipline preamble (replaces the PreToolUse guard Codex does not have) ──
-# Claude Code workers are fenced by hooks/scripts/guard-check.sh +
-# worker-git-guard.sh, which BLOCK `git add -A`, broad dir-adds, rebase/pull/
-# merge, and stash. Codex has no PreToolUse hook, and `--sandbox
-# workspace-write` does NOT stop a broad `git add` INSIDE the workspace — it
-# only fences the filesystem. This tree runs 4-20 concurrent agents and a
-# `git rebase` here once deleted 5,544 files, so the rules ride in the prompt
-# where Codex will actually read them. Prompt-level is weaker than a hook;
-# it is not a reason to leave the rail off.
+# ── Git-discipline preamble (defense in depth for lifecycle hooks) ────────────
+# Codex supports lifecycle hooks. A trusted installed meta-dev plugin loads the
+# Codex adapter in hooks/hooks.json, which bridges guard policy to Codex tool
+# events. This runner deliberately never uses --dangerously-bypass-hook-trust:
+# trust the installed plugin through Codex's normal trust flow instead.
+#
+# The prompt repeats the git rules because a direct headless invocation can run
+# before plugin hooks are installed/trusted, and `--sandbox workspace-write`
+# does not itself stop a broad git add. Hooks enforce policy where available;
+# prompt rules remain the portable second line of defense.
 # ── Framework preamble: the harness a Codex worker is otherwise blind to ────
 # A Claude Code worker is BORN inside the harness — plugin skills and slash
-# commands are present, hooks fire, CLAUDE.md is in context. A Codex worker has
-# none of that (CLAUDE.md is not read, no hooks port), so a bare dispatch makes
-# it freelance: its own review process, hand-edited checkboxes, broad git adds.
+# commands are present, hooks fire, CLAUDE.md is in context. A Codex worker does
+# not inherit Claude's command surface or CLAUDE.md; trusted Codex lifecycle
+# hooks may still fire, but a bare headless task must receive its procedure.
 # Interactive Codex has @meta-dev and $meta-dev:<skill>; HEADLESS has neither.
 # So we hand it the framework in the one channel headless does have — the
 # prompt. Roster is generated from disk, so it cannot drift from reality.
@@ -356,35 +353,26 @@ fi
 # ── Delegation preamble: how a worker buys cheap capacity ───────────────────
 # Two DIFFERENT mechanisms, and conflating them costs money:
 #
-#   spawn_agent (--multi-agent)  — same-model fan-out. Verified live: its params
-#       are task_name/message/fork_turns and there is NO model parameter, so a
-#       sol worker spawning agents gets MORE SOL AGENTS on the same scarce 5.6
-#       pool. Good for parallelism, useless for saving quota.
-#   shell out to `codex exec -m gpt-5.3-codex-spark` — a REAL spark subagent,
-#       billed to spark's SEPARATE weekly pool. This is the one that saves
-#       budget, and every worker already has a shell.
-#
-# So we tell the worker to delegate mechanical sub-work to spark by shell.
-DELEGATION_PREAMBLE="DELEGATING SUB-WORK (how to buy cheap capacity):
-Spark (gpt-5.3-codex-spark) bills to a SEPARATE weekly quota from the shared
-gpt-5.6 sol/terra/luna pool. Work you hand to spark costs the 5.6 budget
-NOTHING. When your task contains mechanical sub-work — bulk edits, boilerplate,
-lint/format sweeps, syntax triage, grep-and-summarize across many files —
-delegate it rather than doing it yourself:
+# Codex native delegation can select a model. Keep ordinary execution on Terra;
+# pin Sol only for judgment-heavy planning, hardening, or review. Explicit
+# legacy/external dispatch choices remain caller-controlled rather than inferred.
+DELEGATION_PREAMBLE="DELEGATING SUB-WORK (current Codex roles):
+Native Codex delegation may select its model. Use gpt-5.6-terra for bounded
+execution and lightweight work; reserve gpt-5.6-sol for planning, hardening,
+or review that needs deeper judgment. For a direct child process, pin the role:
 
-  codex exec -m gpt-5.3-codex-spark --sandbox read-only \\
+  codex exec -m gpt-5.6-terra --sandbox read-only \\
     -c model_reasoning_effort=low '<bounded sub-task with acceptance criteria>'
 
 Give each delegated sub-task explicit scope and success criteria, then VERIFY
-its output yourself — you remain accountable for the result. Spend your own
-(expensive) reasoning on the judgment-bearing part only.
+its output yourself — you remain accountable for the result. Do not replace an
+explicit legacy or external backend flag selected by the conductor.
 "
 if [[ "${MULTI_AGENT:-false}" == "true" ]]; then
     DELEGATION_PREAMBLE="${DELEGATION_PREAMBLE}
-You also have spawn_agent (up to 4 concurrent, including you). NOTE: spawned
-agents INHERIT YOUR MODEL — there is no model parameter — so use spawn_agent
-only for genuine PARALLELISM, never to save quota. For cheap work, shell out to
-spark as above.
+You also have spawn_agent (up to 4 concurrent, including you). Use its model
+selection when the host exposes it; otherwise use direct codex exec with -m.
+Use parallelism only for genuinely independent work.
 "
 fi
 PROMPT="${DELEGATION_PREAMBLE}
@@ -416,6 +404,21 @@ If a task seems to require breaking one of these, STOP and report instead.
 '
 PROMPT="${GIT_GUARD_PREAMBLE}${PROMPT}"
 
+# Codex validates the final message against this schema. The schema is a worker
+# handoff, not a replacement for OUTPUT_FILE: callers still receive the normal
+# wrapper object and its string `result`, now containing schema-validated JSON.
+RESULT_CONTRACT_PREAMBLE="FINAL HANDOFF (machine-readable, binding):
+Your final response MUST be one JSON object conforming to
+${RESULT_SCHEMA}. No Markdown fences or prose outside that object. Report the
+actual verification classification, command/output, scoped commit SHA (or null
+when no commit is applicable), changed files, and blockers. Never claim green
+when verification is red or omitted.
+
+---
+
+"
+PROMPT="${RESULT_CONTRACT_PREAMBLE}${PROMPT}"
+
 # Liveness watchdog: kill + auto-reset a wedged codex run instead of waiting out
 # the 120-min cap. See lib/stall-watchdog.sh.
 source "$SCRIPT_DIR/lib/stall-watchdog.sh"
@@ -427,6 +430,7 @@ stall_launch_worker() {
     [[ "${MULTI_AGENT:-false}" == "true" ]] && _MA=(--enable multi_agent_v2)
     printf '%s' "$PROMPT" | timeout "${TIMEOUT_S}s" codex exec \
         --json \
+        --output-schema "$RESULT_SCHEMA" \
         -o "$LASTMSG_FILE" \
         -s "$SANDBOX" \
         "${CODEX_SANDBOX_CFG[@]}" \
@@ -464,7 +468,54 @@ if [[ $EXIT_CODE -eq 124 ]]; then
     echo "[WARN] codex exec timed out after ${TIMEOUT_S}s." >> "$STDERR_FILE"
 fi
 
-# ── Distill RAW → clean result ──────────────────────────────────────────
+# ── Validate structured final handoff, then distill event metadata ───────
+# --output-schema asks Codex to produce the worker handoff directly. Validate
+# the saved last message again so an old CLI or a broken stub cannot silently
+# turn malformed text into an apparently successful OUTPUT_FILE contract.
+validate_worker_result() {
+    python3 - "$RESULT_SCHEMA" "$LASTMSG_FILE" <<'PY'
+import json
+import sys
+
+schema_path, result_path = sys.argv[1:3]
+try:
+    schema = json.load(open(schema_path, encoding="utf-8"))
+    result = json.load(open(result_path, encoding="utf-8"))
+except (OSError, json.JSONDecodeError) as exc:
+    raise SystemExit(f"not valid JSON: {exc}")
+
+required = schema.get("required", [])
+properties = schema.get("properties", {})
+if not isinstance(result, dict):
+    raise SystemExit("final response must be a JSON object")
+unexpected = set(result) - set(properties)
+missing = [key for key in required if key not in result]
+if unexpected:
+    raise SystemExit("unexpected field(s): " + ", ".join(sorted(unexpected)))
+if missing:
+    raise SystemExit("missing required field(s): " + ", ".join(missing))
+if result.get("verification") not in properties["verification"]["enum"]:
+    raise SystemExit("verification is not a supported classification")
+for field in ("summary", "verify_command", "verify_output"):
+    if not isinstance(result.get(field), str):
+        raise SystemExit(f"{field} must be a string")
+if not result["summary"]:
+    raise SystemExit("summary must not be empty")
+if result.get("commit_sha") is not None and not isinstance(result.get("commit_sha"), str):
+    raise SystemExit("commit_sha must be a string or null")
+for field in ("changed_files", "blockers"):
+    if not isinstance(result.get(field), list) or not all(isinstance(v, str) and v for v in result[field]):
+        raise SystemExit(f"{field} must be an array of strings")
+PY
+}
+
+if ! RESULT_VALIDATION_ERROR="$(validate_worker_result 2>&1)"; then
+    echo "[ERROR] malformed structured Codex result: $RESULT_VALIDATION_ERROR" >> "$STDERR_FILE"
+    # Preserve the wrapper contract, but make malformed worker output fatal.
+    [[ $EXIT_CODE -eq 0 ]] && EXIT_CODE=3
+fi
+
+# ── Distill event metadata → existing clean OUTPUT_FILE contract ─────────
 RESULT_TEXT=""
 IS_ERROR="unknown"
 PARSE_OK=false
