@@ -6,7 +6,7 @@ State DB + event log live OFF the 9p mount::
     ~/.cache/meta-dev/<project-slug>/{state.db, events.jsonl}
 
 ``<project-slug>`` = ``slugify(abs_path(host_project_root))`` — the SAME scheme
-Claude Code uses for its own project dirs (e.g. ``-mnt-d-Projects-360-Hextile``),
+Claude Code uses for its own project dirs (e.g. ``-home-user-Projects-example``),
 so the planctl state tree sits next to Claude Code's per-project data.
 
 Injection seam (R8/DR-4) — two env overrides, NEVER set in production:
@@ -24,8 +24,8 @@ Injection seam (R8/DR-4) — two env overrides, NEVER set in production:
     ``plans/`` tree is the project root, not the live host root.
 
 ``project_root()`` resolves the HOST project root through
-``lib/repo-topology.py --root`` (cwd-independent — never guesses cwd, mirroring
-``resolve-workdir.sh``'s refuse-to-guess law).
+``lib/repo-topology.py --root``. The plugin root is resolved independently from
+its script location; a named repository root remains a topology entry.
 
 Stdlib only.
 """
@@ -78,15 +78,16 @@ def project_root():
 
     Order (first hit wins; never guesses cwd):
       1. ``$META_DEV_ROOT``            — fixture/test override (DR-4)
-      2. ``repo-topology.py --root``   — cwd-independent topology (preferred)
-      3. ``$CLAUDE_PROJECT_DIR``       — plugin-runtime fallback
+      2. ``repo-topology.py --root``   — configured topology (preferred)
+      3. ``$META_DEV_PROJECT_ROOT`` / ``$CLAUDE_PROJECT_DIR`` — runtime fallback
       4. error loudly                  — refuse-to-guess (resolve-workdir law)
 
-    Memoized per (META_DEV_ROOT, CLAUDE_PROJECT_DIR) — see ``_ROOT_MEMO``.
+    Memoized per root/topology environment inputs — see ``_ROOT_MEMO``.
 
     Raises SystemExit (exit 1) if none resolve.
     """
-    _key = (os.environ.get("META_DEV_ROOT"), os.environ.get("CLAUDE_PROJECT_DIR"))
+    _key = (os.environ.get("META_DEV_ROOT"), os.environ.get("META_DEV_PROJECT_ROOT"),
+            os.environ.get("CLAUDE_PROJECT_DIR"), os.environ.get("META_DEV_REPOS_FILE"))
     if _key in _ROOT_MEMO:
         return _ROOT_MEMO[_key]
     _resolved = _project_root_uncached()
@@ -109,16 +110,18 @@ def _project_root_uncached():
             if result.returncode == 0 and result.stdout.strip():
                 return os.path.abspath(result.stdout.strip())
         except (OSError, subprocess.TimeoutExpired):
-            pass  # fall through to CLAUDE_PROJECT_DIR
+            pass  # fall through to explicit runtime project roots
 
-    proj = os.environ.get("CLAUDE_PROJECT_DIR")
-    if proj:
-        return os.path.abspath(proj)
+    for name in ("META_DEV_PROJECT_ROOT", "CLAUDE_PROJECT_DIR"):
+        proj = os.environ.get(name)
+        if proj:
+            return os.path.abspath(proj)
 
     sys.exit(
         "planctl: cannot resolve project root (set META_DEV_ROOT or "
-        "CLAUDE_PROJECT_DIR, or run where .claude/meta-dev-repos.json is "
-        "discoverable). Refusing to guess cwd."
+        "META_DEV_PROJECT_ROOT/CLAUDE_PROJECT_DIR, or configure "
+        ".meta-dev/repos.json (legacy .claude/meta-dev-repos.json is also "
+        "accepted). Refusing to guess cwd."
     )
 
 

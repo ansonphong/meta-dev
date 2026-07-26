@@ -451,8 +451,10 @@ _STAGE_NAME = {
 _TABLE_BAR_W = 4
 
 
-# Repo-root buckets under plans/ — never the identity of a plan, just its repo.
-_REPO_DIRS = ("app", "www", "gallery", "meta", "cam")
+def _repo_bucket(path):
+    """Return the dynamic ``plans/<repo>`` bucket for a project-relative path."""
+    parts = path.replace("\\", "/").split("/")
+    return parts[1] if len(parts) >= 3 and parts[0] == "plans" else None
 
 
 def _link_to(target_rel, from_rel):
@@ -489,7 +491,7 @@ def _member_label(path, kind, missing=False, offindex=None):
     base = path.rsplit("/", 1)[-1]
     stem = base[:-3] if base.endswith(".md") else base
     parent = os.path.basename(os.path.dirname(path))
-    folder = parent if parent and parent not in _REPO_DIRS else None
+    folder = parent if parent and parent != _repo_bucket(path) else None
 
     if kind == "runbook":
         return "▸ **%s** _(nested runbook)_" % (folder or stem)

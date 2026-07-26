@@ -1,9 +1,4 @@
 {
   "root": "..",
-  "repos": {
-    "app": "360-HEXTILE-APP",
-    "www": "360-HEXTILE-WWW",
-    "gallery": "360-HEXTILE-GALLERY",
-    "cam": "360-HEXTILE-CAM"
-  }
+  "repos": {}
 }

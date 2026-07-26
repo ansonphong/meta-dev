@@ -5,13 +5,13 @@
 # Most meta-dev scripts address state with project-root-relative paths
 # ("plans/_dashboard/state.events.jsonl", "plans/", "plans/_archive/..."). That
 # is only correct when cwd IS the project root. It usually is — until a
-# conductor's shell keeps a `cd 360-HEXTILE-APP` from an earlier Bash call, at
+# conductor's shell keeps a `cd` into a child repository from an earlier Bash call, at
 # which point every one of those paths silently retargets into the child repo:
 # a second event log, a second inbox, a second claim registry, plans archived
 # from a tree that has no plans. Nothing errors; the state just forks.
 #
-# That is not hypothetical — it committed a 159KB state.events.jsonl and a stray
-# meta plan into 360-HEXTILE-APP before this anchor existed.
+# That is not hypothetical — it can commit a state log and a stray plan into a
+# child repository before this anchor exists.
 #
 # Sourcing this file cds to the project root (as found by repo-topology.py,
 # which is itself cwd-independent), so those relative paths resolve to THE
@@ -25,9 +25,12 @@
 # ============================================================================
 
 _md_anchor_root() {
-    local lib_dir root
-    lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    root="$(python3 "$lib_dir/repo-topology.py" --root 2>/dev/null || true)"
+    local lib_dir plugin_root root
+    lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+    # shellcheck source=plugin-root.sh
+    source "$lib_dir/plugin-root.sh"
+    plugin_root="$(_md_plugin_root)"
+    root="$(python3 "$plugin_root/scripts/lib/repo-topology.py" --root 2>/dev/null || true)"
     if [ -n "$root" ] && [ -d "$root" ]; then
         cd "$root" || return 0
     fi

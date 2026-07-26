@@ -7,7 +7,7 @@
 #
 # THE LAW: a worker's cwd is set by the DISPATCH, never by the conductor's
 # ambient shell. The conductor's shell keeps its cwd between Bash calls, so one
-# stray `cd 360-HEXTILE-APP` used to silently re-point every worker launched
+# stray `cd` into a child repository used to silently re-point every worker launched
 # afterwards — they would resolve `git rev-parse --show-toplevel` to the child
 # repo and write plans into it. Two rules follow:
 #
@@ -26,8 +26,14 @@
 # ============================================================================
 
 resolve_workdir() {
-    local topo="$SCRIPT_DIR/lib/repo-topology.py"
+    local lib_dir plugin_root topo
     local root=""
+
+    lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+    # shellcheck source=plugin-root.sh
+    source "$lib_dir/plugin-root.sh"
+    plugin_root="$(_md_plugin_root)"
+    topo="$plugin_root/scripts/lib/repo-topology.py"
 
     if [[ ! -f "$topo" ]]; then
         echo "[headless] FATAL: missing $topo" >&2
@@ -47,13 +53,13 @@ resolve_workdir() {
         {
             echo "[headless] ABORT: --repo '$REPO' does not resolve to a directory."
             if [[ -n "$root" ]]; then
-                echo "           Known repos (from ${META_DEV_REPOS_FILE:-<project>/.claude/meta-dev-repos.json}):"
+                echo "           Known repos (from ${META_DEV_REPOS_FILE:-<project>/.meta-dev/repos.json}):"
                 python3 "$topo" --list 2>/dev/null | sed 's/^/             - /' || true
             else
                 echo "           No meta-dev topology config found. Looked for:"
                 echo "             \$META_DEV_REPOS_FILE"
-                echo "             \$CLAUDE_PROJECT_DIR/.claude/meta-dev-repos.json"
-                echo "             .claude/meta-dev-repos.json in cwd and every parent"
+                echo "             <project>/.meta-dev/repos.json"
+                echo "             <project>/.claude/meta-dev-repos.json (legacy)"
             fi
             echo "           Not dispatching — a worker in the wrong repo writes to the wrong tree."
         } >&2
@@ -71,6 +77,6 @@ resolve_workdir() {
     WORK_DIR="$(pwd)"
     REPO="$(basename "$WORK_DIR")"
     WORKDIR_ORIGIN="cwd fallback — no topology config found"
-    echo "[headless] WARN: no .claude/meta-dev-repos.json found; using cwd $WORK_DIR" >&2
+    echo "[headless] WARN: no topology file found; using cwd $WORK_DIR" >&2
     return 0
 }
