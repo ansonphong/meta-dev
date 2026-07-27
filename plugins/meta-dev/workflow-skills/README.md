@@ -10,6 +10,6 @@
 | `changelog-engine` | Batched changelog management | `/meta-changelog` |
 | `version-manager` | Multi-repo version bumping with cascades | `/meta-version` |
 | `inbox-clearer` | Autonomous inbox clearing with model tier discipline | `/meta-inbox clear` |
-| `deploy-pipeline` | Generalized deploy step (push-hook / rsync+restart / artifact publish) | `/meta-ship` |
+
 | `waterfall-tracking` | Visible stage-level task list for the 6-stage waterfall (autopilot/walk) | `/meta-dev` |
 | `fable-consult` | Ask Fable 5 a judgment call before escalating to the human; adopt at ≥0.90 with evidence + falsifier, else escalate carrying the recommendation | any run about to stop and ask; always under `--autonomous` |

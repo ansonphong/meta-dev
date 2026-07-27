@@ -21,7 +21,6 @@ If a fact lives in neither, the command falls back to a safe portable default, t
 | Security invariants | `meta_dev.security.always_checked_invariants` | Enumerate the always-checked critical checks |
 | Canary targets | `meta_dev.canary.targets` | Note which services exist + how to reach them |
 | Init-check probes | `meta_dev.init_check.services` | Note required services / runtimes |
-| Ship targets / deploy | `meta_dev.ship.targets` | Deploy mechanics, migration policy |
 | Eval health checks | `meta_dev.eval.health_checks` | — |
 | Test / build / branch / commit style | (detected) | Test runner, build/run cmds, branch name, commit conventions |
 

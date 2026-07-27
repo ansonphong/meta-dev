@@ -59,7 +59,6 @@ workflow_targets = {
     "harden": ("references/workflows/protocol.md", "workflow-skills/plan-validation/SKILL.md", "commands/meta-loop-gap.md"),
     "execute": ("references/workflows/protocol.md", "workflow-skills/agentic-exec-loop/SKILL.md", "references/execute-dispatch.md"),
     "review": ("references/workflows/protocol.md", "workflow-skills/code-review-protocol/SKILL.md", "references/execute-charter.md"),
-    "ship": ("references/workflows/protocol.md", "workflow-skills/deploy-pipeline/SKILL.md", "references/ship-pipeline.md"),
     "dashboard": ("references/workflows/protocol.md", "scripts/dashboard-data.sh", "references/dashboard-layout.md"),
     "runbook": ("references/workflows/protocol.md", "workflow-skills/runbook-orchestration/SKILL.md", "references/runbook-view.md"),
     "diagnose": ("references/workflows/protocol.md", "workflow-skills/repair-loop/SKILL.md", "references/codebase-verification.md"),
@@ -90,9 +89,10 @@ assert routes["schema_version"] == 1
 require_file(routes["protocol"])
 assert set(routes["workflows"]) == set(workflow_targets)
 command_files = {path.stem for path in (plugin_root / "commands").glob("*.md")}
-assert len(command_files) == 67, f"expected 67 command files, found {len(command_files)}"
-assert len(routes["commands"]) == 67, f"expected 67 command routes, found {len(routes['commands'])}"
 assert command_files == set(routes["commands"]), "every legacy command must have exactly one native route"
+assert len(command_files) == len(routes["commands"]), (
+    f"command/route count mismatch: {len(command_files)} files vs {len(routes['commands'])} routes"
+)
 for workflow, specification in routes["workflows"].items():
     require_file(specification["skill"])
     assert specification["subcommands"], f"{workflow}: no workflow targets"

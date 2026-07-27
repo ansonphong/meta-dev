@@ -45,7 +45,7 @@ the same names as native Codex skills:
 $meta-dev:meta-planner <request-or-plan>
 $meta-dev:meta-execute <plan>
 $meta-dev:meta-dashboard
-$meta-dev:meta-ship <target>
+$meta-dev:meta-canary <target>
 ```
 
 In ChatGPT/Codex surfaces with the `@` skill picker, select the same fully
@@ -170,7 +170,7 @@ Run `/meta-dashboard` to see your entire development operation at a glance.
 ║  │            │   [3] hold + ask question                                │    ║
 ║  ├────────────┼─────────────────────────────────────────────────────────┤    ║
 ║  │ inb_01h9b7 │ 🟦 deploy gate — auth-refactor ready for production     │    ║
-║  │            │   [1] deploy now → /meta-ship auth-refactor             │    ║
+║  │            │   [1] deploy now → project /deploy or APP /release      │    ║
 ║  │            │   [2] schedule for later                                 │    ║
 ║  └────────────┴─────────────────────────────────────────────────────────┘    ║
 ║                                                                              ║
@@ -269,7 +269,7 @@ plugin root/
 | `/meta-planner` | Restructure plans for automated execution |
 | `/meta-execute` | Subagent-driven plan execution with verify+commit+push per task |
 | `/meta-eval` | Dedicated evaluator — tests implementations against design criteria |
-| `/meta-ship` | Release pipeline — changelog cut + version bump + deploy |
+| `/meta-canary` | Post-deploy health monitor (ops workflow; learned patterns → APP `/release`) |
 
 ### Review & Quality
 | Command | Purpose |

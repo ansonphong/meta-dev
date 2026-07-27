@@ -334,23 +334,6 @@
         "grade_threshold": "B"
       }
     },
-    "ship": {
-      "default_target": null,
-      "migration_gate": true,
-      "lockfile": "plans/_dashboard/.ship.lock",
-      "channels": null,
-      "preflight": {
-        "require_clean_tree": true,
-        "require_on_branch": true,
-        "require_no_index_lock": true,
-        "run_tests": true
-      },
-      "token_budget": {
-        "commit_count": 200,
-        "context_bytes": 80000
-      },
-      "targets": {}
-    },
     "execute": {
       "test_policy": "critical-only",
       "risk_keywords": {

@@ -222,23 +222,26 @@ At end of duration (or on ALERT / early termination):
 - UNHEALTHY: Persistent failures detected. Action required.
 ````
 
-**If invoked by a deploy/ship pipeline:** fold the report into the ship completion
+**If invoked after a deploy or `/release`:** fold the report into that completion
 summary rather than writing a separate file. **If standalone:** output to conversation.
 
-## Step 6: Pattern Detection & Upstream Improvement (patches meta-ship)
+## Step 6: Pattern Detection & Upstream Improvement (patches APP `/release`)
 
 Skip if first canary run (no past data) or all checks passed.
 
 1. **Classify failures** from this run and compare against past canary alerts/reports.
 2. **Pattern matching** — if the same failure type appears in **3+ separate** monitoring
    sessions, derive an upstream rule. Examples:
-   - "Health endpoint timeout after migration" → meta-ship: "Pre-deploy must run a migration health check."
-   - "SSL cert warning" → meta-ship: "Pre-deploy must verify cert has >30 days validity."
-   - "Error spike in first 2 minutes then recovery" → meta-ship: "Post-deploy must wait 2 minutes before marking healthy."
-3. **Patch meta-ship:**
-   a. Open `commands/meta-ship.md`.
-   b. Find its `## Learned Patterns` section.
-   c. Check for semantic duplicates.
+   - "Health endpoint timeout after migration" → release/deploy: "Pre-deploy must run a migration health check."
+   - "SSL cert warning" → release/deploy: "Pre-deploy must verify cert has >30 days validity."
+   - "Error spike in first 2 minutes then recovery" → release/deploy: "Post-deploy must wait 2 minutes before marking healthy."
+3. **Patch the upstream surface:**
+   a. For **APP desktop release** failures → open
+      `360-HEXTILE-APP/.claude/skills/release.md` and append under a
+      `## Learned Patterns` section (create it if missing).
+   b. For generic web-deploy canaries with no project release skill → append
+      under this file's `## Learned Patterns` only.
+   c. Check for semantic duplicates before appending.
    d. Append a new `LP-NNN` entry with **Source:** `meta-canary`.
    (Commit per the host command's discipline — this reference does not run git itself.)
 
@@ -260,5 +263,5 @@ Skip if first canary run (no past data) or all checks passed.
 
 <!-- Auto-maintained by the improvement loop. Generalized only — no project-specific entries. -->
 <!-- Max 20 patterns. meta-audit enforces the cap via consolidation. -->
-<!-- meta-canary detects recurring post-deploy failures and patches meta-ship (Step 6). -->
+<!-- meta-canary detects recurring post-deploy failures and patches APP /release or this file (Step 6). -->
 <!-- Only meta-audit may remove patterns; all other commands are append-only. -->

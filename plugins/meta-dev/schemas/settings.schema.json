@@ -495,17 +495,31 @@
             "models": {
               "type": "object",
               "properties": {
-                "plan": { "$ref": "#/definitions/codex_model_route" },
-                "harden": { "$ref": "#/definitions/codex_model_route" },
-                "review": { "$ref": "#/definitions/codex_model_route" },
-                "execute": { "$ref": "#/definitions/codex_model_route" },
-                "lightweight": { "$ref": "#/definitions/codex_model_route" },
-                "mechanical": { "$ref": "#/definitions/codex_model_route" }
+                "plan": {
+                  "$ref": "#/definitions/codex_model_route"
+                },
+                "harden": {
+                  "$ref": "#/definitions/codex_model_route"
+                },
+                "review": {
+                  "$ref": "#/definitions/codex_model_route"
+                },
+                "execute": {
+                  "$ref": "#/definitions/codex_model_route"
+                },
+                "lightweight": {
+                  "$ref": "#/definitions/codex_model_route"
+                },
+                "mechanical": {
+                  "$ref": "#/definitions/codex_model_route"
+                }
               }
             },
             "reviewer": {
               "type": "string",
-              "enum": ["native"],
+              "enum": [
+                "native"
+              ],
               "default": "native"
             },
             "compat_router": {
@@ -1365,225 +1379,12 @@
             }
           }
         },
-        "ship": {
-          "type": "object",
-          "properties": {
-            "default_target": {
-              "type": [
-                "string",
-                "null"
-              ],
-              "default": null
-            },
-            "migration_gate": {
-              "type": "boolean",
-              "default": true
-            },
-            "lockfile": {
-              "type": "string",
-              "default": "plans/_dashboard/.ship.lock"
-            },
-            "channels": {
-              "type": [
-                "array",
-                "null"
-              ],
-              "items": {
-                "type": "string"
-              },
-              "default": null
-            },
-            "preflight": {
-              "type": "object",
-              "properties": {
-                "require_clean_tree": {
-                  "type": "boolean",
-                  "default": true
-                },
-                "require_on_branch": {
-                  "type": "boolean",
-                  "default": true
-                },
-                "require_no_index_lock": {
-                  "type": "boolean",
-                  "default": true
-                },
-                "run_tests": {
-                  "type": "boolean",
-                  "default": true
-                }
-              }
-            },
-            "token_budget": {
-              "type": "object",
-              "properties": {
-                "commit_count": {
-                  "type": "integer",
-                  "default": 200
-                },
-                "context_bytes": {
-                  "type": "integer",
-                  "default": 80000
-                }
-              }
-            },
-            "targets": {
-              "type": "object",
-              "additionalProperties": {
-                "type": "object",
-                "required": [
-                  "kind",
-                  "repo_path"
-                ],
-                "properties": {
-                  "kind": {
-                    "type": "string",
-                    "enum": [
-                      "server",
-                      "artifact"
-                    ]
-                  },
-                  "repo_path": {
-                    "type": "string"
-                  },
-                  "branch": {
-                    "type": "string",
-                    "default": "main"
-                  },
-                  "version_repo_id": {
-                    "type": [
-                      "string",
-                      "null"
-                    ],
-                    "default": null
-                  },
-                  "test_cmd": {
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    },
-                    "default": []
-                  },
-                  "build_cmd": {
-                    "type": [
-                      "string",
-                      "null"
-                    ],
-                    "default": null
-                  },
-                  "migration": {
-                    "type": [
-                      "object",
-                      "null"
-                    ],
-                    "properties": {
-                      "check_cmd": {
-                        "type": "string"
-                      },
-                      "upgrade_cmd": {
-                        "type": [
-                          "string",
-                          "null"
-                        ]
-                      },
-                      "downgrade_cmd": {
-                        "type": [
-                          "string",
-                          "null"
-                        ]
-                      }
-                    }
-                  },
-                  "deploy": {
-                    "type": [
-                      "object",
-                      "null"
-                    ],
-                    "properties": {
-                      "host": {
-                        "type": "string"
-                      },
-                      "path": {
-                        "type": "string"
-                      },
-                      "restart_cmd": {
-                        "type": [
-                          "string",
-                          "null"
-                        ]
-                      }
-                    }
-                  },
-                  "health": {
-                    "type": [
-                      "object",
-                      "null"
-                    ],
-                    "properties": {
-                      "url": {
-                        "type": "string"
-                      },
-                      "expected_status": {
-                        "type": "integer",
-                        "default": 200
-                      },
-                      "expected_body": {
-                        "type": [
-                          "string",
-                          "null"
-                        ],
-                        "default": null
-                      }
-                    }
-                  },
-                  "smoke_tests": {
-                    "type": "array",
-                    "default": [],
-                    "items": {
-                      "type": "object",
-                      "properties": {
-                        "name": {
-                          "type": "string"
-                        },
-                        "url": {
-                          "type": "string"
-                        },
-                        "method": {
-                          "type": "string",
-                          "default": "GET"
-                        },
-                        "expected_status": {
-                          "type": "integer",
-                          "default": 200
-                        },
-                        "expected_body": {
-                          "type": [
-                            "string",
-                            "null"
-                          ],
-                          "default": null
-                        }
-                      }
-                    }
-                  },
-                  "canary_target": {
-                    "type": [
-                      "string",
-                      "null"
-                    ],
-                    "default": null
-                  }
-                }
-              }
-            }
-          }
-        },
         "execute": {
           "type": "object",
           "properties": {
             "test_policy": {
               "type": "string",
-              "description": "How aggressively planner + execute generate written tests. 'critical-only' (default): write a test ONLY for critical-breakage tasks (data corruption, auth/crypto verify, payment/value transfer, DB migration, serialization round-trip, cross-service API contract); everything else verifies by build/grep/run-by-eye. 'tdd-all': legacy — every task gets a failing-test-first TDD cycle. 'none': never auto-generate tests; verify by cheap checks only. The host CLAUDE.md testing policy (if present) further refines what counts as critical.",
+              "description": "How aggressively planner + execute generate written tests. 'critical-only' (default): write a test ONLY for critical-breakage tasks (data corruption, auth/crypto verify, payment/value transfer, DB migration, serialization round-trip, cross-service API contract); everything else verifies by build/grep/run-by-eye. 'tdd-all': legacy \u2014 every task gets a failing-test-first TDD cycle. 'none': never auto-generate tests; verify by cheap checks only. The host CLAUDE.md testing policy (if present) further refines what counts as critical.",
               "enum": [
                 "critical-only",
                 "tdd-all",
@@ -1640,15 +1441,26 @@
   "definitions": {
     "codex_model_route": {
       "type": "object",
-      "required": ["tier", "effort"],
+      "required": [
+        "tier",
+        "effort"
+      ],
       "properties": {
         "tier": {
           "type": "string",
-          "enum": ["spark", "terra", "sol"]
+          "enum": [
+            "spark",
+            "terra",
+            "sol"
+          ]
         },
         "effort": {
           "type": "string",
-          "enum": ["low", "medium", "high"]
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ]
         }
       },
       "additionalProperties": false

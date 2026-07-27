@@ -52,13 +52,6 @@
         "visual": "commands/meta-visual-critique.md"
       }
     },
-    "ship": {
-      "skill": "skills/meta-ship/SKILL.md",
-      "subcommands": {
-        "release": "commands/meta-ship.md",
-        "canary": "commands/meta-canary.md"
-      }
-    },
     "dashboard": {
       "skill": "skills/meta-dashboard/SKILL.md",
       "subcommands": {
@@ -89,14 +82,16 @@
         "housekeeping": "commands/housekeeping.md",
         "init": "commands/meta-init.md",
         "sweep": "commands/meta-sweep.md",
-        "version": "commands/meta-version.md"
+        "version": "commands/meta-version.md",
+        "canary": "commands/meta-canary.md",
+        "goal": "commands/meta-goal.md"
       }
     }
   },
   "commands": {
     "audit": "review.audit",
     "auto-execute": "execute.auto",
-    "canary": "ship.canary",
+    "canary": "ops.canary",
     "changelog": "ops.changelog",
     "classify": "plan.classify",
     "codex-execute": "execute.codex",
@@ -116,7 +111,7 @@
     "init-check": "diagnose.init-check",
     "loop-gap": "harden.scan",
     "meta-audit": "review.audit",
-    "meta-canary": "ship.canary",
+    "meta-canary": "ops.canary",
     "meta-changelog": "ops.changelog",
     "meta-classify": "plan.classify",
     "meta-compact": "ops.compact",
@@ -126,6 +121,7 @@
     "meta-dod": "plan.contract",
     "meta-eval": "review.eval",
     "meta-execute": "execute.plan",
+    "meta-goal": "ops.goal",
     "meta-guard": "ops.guard",
     "meta-headless": "execute.headless",
     "meta-inbox": "diagnose.inbox",
@@ -140,7 +136,6 @@
     "meta-review-batch": "review.batch",
     "meta-review-design": "review.design",
     "meta-security": "review.security",
-    "meta-ship": "ship.release",
     "meta-sweep": "ops.sweep",
     "meta-ux": "review.ux",
     "meta-version": "ops.version",
@@ -155,7 +150,6 @@
     "review-design": "review.design",
     "runbook": "runbook.manage",
     "security": "review.security",
-    "ship": "ship.release",
     "sonnet-execute": "execute.sonnet",
     "sweep": "ops.sweep",
     "ux": "review.ux",

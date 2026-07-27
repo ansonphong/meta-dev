@@ -1,6 +1,6 @@
 ---
 name: meta-canary
-description: Post-deploy health monitor — runs continuous checks after deployment, alerts on failures, patches meta-ship with recurring issues
+description: Post-deploy health monitor — runs continuous checks after deployment, alerts on failures, records learned patterns against the APP /release skill
 argument-hint: "[<target>] [<duration>] [--verbose]"
 allowed-tools: [Read, Edit, Bash, Grep]
 model: opus
@@ -42,13 +42,15 @@ thresholds are config-driven — read from `bash scripts/config-get.sh meta_dev.
    `1=warn · 2=elevated · 3=ALERT+stop` with a structured CANARY ALERT report.
 5. **Final report** — HEALTHY / DEGRADED / UNHEALTHY verdict with results, timeline,
    and avg/max/P95 latency.
-6. **Pattern detection** — recurring failures (3+ sessions) patch `commands/meta-ship.md`
-   Learned Patterns. Makes the "patches meta-ship" frontmatter claim real.
+6. **Pattern detection** — recurring failures (3+ sessions) append Learned Patterns
+   on the APP `/release` skill (`360-HEXTILE-APP/.claude/skills/release.md`) when
+   the failure is release-path related; otherwise note them in canary protocol
+   Learned Patterns only.
 
 ## Rules
 
 Never fix during monitoring · min 30s interval · `curl --max-time 10` (hang = failure) ·
 SSL/DNS bookend-only · baseline-relative regressions. See protocol Operational Rules.
 
-When chained by a deploy pipeline, fold the report into the ship summary; standalone,
-output to conversation.
+When chained after a deploy or `/release`, fold the report into that completion
+summary; standalone, output to conversation.

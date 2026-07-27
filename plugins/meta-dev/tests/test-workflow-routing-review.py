@@ -17,7 +17,6 @@ CURATED = {
     "harden",
     "execute",
     "review",
-    "ship",
     "dashboard",
     "runbook",
     "diagnose",
@@ -35,8 +34,9 @@ class WorkflowRoutingContract(unittest.TestCase):
             path.stem for path in (PLUGIN_ROOT / "commands").glob("*.md")
         }
         routes = self.catalog["commands"]
-        self.assertEqual(67, len(command_files))
+        # command files and routes must stay 1:1 (no orphan routes / no unrouted cmds)
         self.assertEqual(command_files, set(routes))
+        self.assertEqual(len(command_files), len(routes))
 
         workflows = self.catalog["workflows"]
         self.assertEqual(CURATED, set(workflows))
