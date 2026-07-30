@@ -186,7 +186,7 @@ for event, entries in hooks["hooks"].items():
     assert entries and entries[0]["hooks"], f"{event}: missing adapter hook"
     hook = entries[0]["hooks"][0]
     assert hook["type"] == "command"
-    assert hook["command"] == 'python3 "${PLUGIN_ROOT}/hooks/scripts/codex-adapter.py"'
+    assert hook["command"] == 'python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/codex-adapter.py"'
     assert hook["timeout"] in {15, 20}
 for marker in ("def main()", "PreToolUse", "PostToolUse", "SessionStart", "UserPromptSubmit", "Stop"):
     assert marker in adapter_text, f"Codex adapter missing {marker}"
@@ -245,12 +245,12 @@ if codex_cli:
         )
         assert result.returncode == 0, result.stderr
         listed = json.loads(result.stdout)
-        available = next(item for item in listed["available"] if item["pluginId"] == "meta-dev@meta-dev-local")
+        available = next(item for item in listed["available"] if item["pluginId"] == "meta-dev@meta-dev")
         assert available["version"] == codex["version"]
         assert available["source"] == {"source": "local", "path": str(home / "plugins/meta-dev")}
 
         install = subprocess.run(
-            [codex_cli, "plugin", "add", "meta-dev@meta-dev-local", "--json"],
+            [codex_cli, "plugin", "add", "meta-dev@meta-dev", "--json"],
             env=environment, text=True, capture_output=True, check=False,
         )
         assert install.returncode == 0, install.stdout + install.stderr

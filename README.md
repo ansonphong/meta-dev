@@ -35,7 +35,14 @@ plugin:
 
 ```bash
 codex plugin marketplace add .
-codex plugin add meta-dev@meta-dev-local
+codex plugin add meta-dev@meta-dev
+```
+
+To refresh an already-installed copy after a push, use the update script — it
+upgrades the marketplace snapshot and reinstalls the current version:
+
+```bash
+bash plugins/meta-dev/scripts/plugin-refresh.sh
 ```
 
 Restart Codex after installation. Canonical Claude commands are exposed under
