@@ -25,7 +25,7 @@
       }
     },
     "execute": {
-      "skill": "skills/meta-execute/SKILL.md",
+      "skill": "skills/execute/SKILL.md",
       "subcommands": {
         "plan": "commands/meta-execute.md",
         "auto": "commands/auto-execute.md",

@@ -72,6 +72,19 @@ For a full master plan with phase files, use the familiar command name:
 $meta-dev:meta-planner <request-or-existing-plan>
 ```
 
+To execute an approved plan, use the matching host-neutral helper. It runs the
+execute→review→fix loop directly — one worker per checkbox, focused causal
+verification, a durable commit per task, and `planctl` as the only write door —
+rather than routing through the Claude command adapter:
+
+```text
+$meta-dev:execute <plan>
+```
+
+It requires an explicit go for that plan; a saved plan alone is not permission.
+The six host-neutral helpers are `plan`, `execute`, `harden`, `review`,
+`diagnose`, and `ops`.
+
 Claude can obtain its planning discipline from the external Superpowers plugin.
 Codex does not inherit that Claude plugin dependency, so meta-dev packages an
 adapted `writing-plans` contract directly. It inspects the live codebase, writes
