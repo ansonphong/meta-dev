@@ -166,6 +166,32 @@ class GitPolicyTests(unittest.TestCase):
         self.assertEqual(output["hookSpecificOutput"]["hookEventName"], "PreToolUse")
         self.assertEqual(output["hookSpecificOutput"]["permissionDecision"], "deny")
 
+    def test_codex_adapter_approves_safe_command_without_stdout(self) -> None:
+        payload = json.loads(json.dumps(PRODUCTION_CODEX_BASH))
+        payload["tool_input"]["cmd"] = "git -C /work/repo status --short"
+        env = os.environ.copy()
+        env["PLUGIN_ROOT"] = str(ROOT)
+
+        result = subprocess.run(
+            [sys.executable, str(ADAPTER_PATH)], input=json.dumps(payload),
+            text=True, capture_output=True, env=env, check=True,
+        )
+
+        self.assertEqual(result.stdout, "")
+
+    def test_codex_adapter_preserves_warning_without_bare_allow(self) -> None:
+        output = codex_adapter.normalize_legacy_pretool_output(json.dumps({
+            "hookSpecificOutput": {
+                "hookEventName": "PreToolUse",
+                "permissionDecision": "allow",
+            },
+            "systemMessage": "meta-guard WARN: inspect this command",
+        }))
+
+        self.assertEqual(output, {
+            "systemMessage": "meta-guard WARN: inspect this command",
+        })
+
     def test_codex_adapter_production_cmd_denies_dynamic_git_bypasses(self) -> None:
         env = os.environ.copy()
         env["PLUGIN_ROOT"] = str(ROOT)

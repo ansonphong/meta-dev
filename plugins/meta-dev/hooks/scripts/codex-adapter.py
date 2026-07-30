@@ -91,6 +91,40 @@ def normalized_bash_payload(payload: dict, command: str) -> str:
     return json.dumps(normalized, separators=(",", ":"))
 
 
+def normalize_legacy_pretool_output(output: str) -> dict | None:
+    """Translate Claude's PreToolUse decision shape to Codex's contract.
+
+    Codex treats exit 0 with no output as approval.  It accepts an explicit
+    ``permissionDecision: allow`` only when the hook also rewrites the call via
+    ``updatedInput``.  The legacy guard emits bare ``allow`` decisions, so
+    forwarding them verbatim makes every safe Bash call report a hook failure.
+    """
+    decoded = json.loads(output)
+    if not isinstance(decoded, dict):
+        raise ValueError("legacy Bash guard returned a non-object decision")
+    specific = decoded.get("hookSpecificOutput")
+    if not isinstance(specific, dict):
+        raise ValueError("legacy Bash guard returned no hook-specific decision")
+    if specific.get("hookEventName") != "PreToolUse":
+        raise ValueError("legacy Bash guard returned the wrong hook event")
+
+    decision = specific.get("permissionDecision")
+    if decision == "deny":
+        return decoded
+    if decision != "allow":
+        raise ValueError("legacy Bash guard returned an unsupported decision")
+
+    # A future legacy rewrite is already valid Codex output and must survive.
+    if "updatedInput" in specific:
+        return decoded
+
+    # Preserve warning text while dropping Claude's unsupported bare allow.
+    message = decoded.get("systemMessage")
+    if isinstance(message, str) and message:
+        return {"systemMessage": message}
+    return None
+
+
 def main() -> int:
     # Claude Code runs its own guard chain — never layer the Codex policy on it.
     if in_claude_session():
@@ -129,7 +163,13 @@ def main() -> int:
             deny("legacy Bash guard could not inspect the command")
             return 0
         if output:
-            print(output)
+            try:
+                normalized_output = normalize_legacy_pretool_output(output)
+            except (json.JSONDecodeError, ValueError):
+                deny("legacy Bash guard returned a malformed decision")
+                return 0
+            if normalized_output is not None:
+                emit(normalized_output)
         else:
             deny("legacy Bash guard returned no decision")
         return 0
