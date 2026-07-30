@@ -1,17 +1,25 @@
 # Meta-Dev Plugin — Development Guide
 
-## 🔴 HARD RULE #1 — BUMP VERSION EVERY PUSH
+## 🔴 HARD RULE #1 — BUMP THE VERSION *AND* PUSH. BOTH. EVERY TIME.
 
-**Every push to origin MUST bump the patch version (third number) in `plugins/meta-dev/.claude-plugin/plugin.json`.** `1.0.X` → increment X by 1 each push (1.1.0 → 1.1.1 → 1.1.2 …).
+**The rule runs in both directions and neither half is optional:**
 
-**Why:** Claude Code caches installed plugins under `~/.claude/plugins/cache/<marketplace>/<plugin>/<version>/`. The cache is **version-keyed**. If the version does not change, Claude keeps loading the frozen cached snapshot and **new/edited commands, skills, and agents never register** — no matter how many times you `/plugin marketplace update`. Bumping the patch number forces a fresh cache build on the next update.
+- **Every push MUST carry a patch bump** — increment the third number in **both** `plugins/meta-dev/.claude-plugin/plugin.json` **and** `plugins/meta-dev/.codex-plugin/plugin.json` (their base versions must match; `tests/test-codex-package-surface.sh` fails on drift). `1.4.9` → `1.4.10` → `1.4.11` …
+- **Every bump MUST be pushed, in the same act.** A version bump that sits local is worse than no bump: the manifest claims a version the remote has never served. **Never commit meta-dev and stop.** Commit and push are ONE action, always, no confirmation step.
 
-**Procedure (do this as part of every push, never skip):**
-1. Edit `plugin.json` → bump patch (`version` field).
-2. Stage the bump with the rest of the change.
-3. Commit + push.
+**Why the bump:** plugin caches are **version-keyed** — Claude Code at `~/.claude/plugins/cache/<marketplace>/<plugin>/<version>/`, Codex at `~/.codex/plugins/cache/<marketplace>/<plugin>/<version>/`. If the version does not change, the host keeps loading the frozen snapshot and **new/edited commands, skills, and agents never register**, no matter how many times you run `/plugin marketplace update`. Bumping forces a fresh cache build.
 
-After pushing, the user reloads with `/plugin marketplace update meta-dev` + `/plugin install meta-dev@meta-dev` + restart — the new version cache rebuilds and changes appear.
+**Why the push:** the marketplace pulls from **`origin/main`, never your disk.** An unpushed commit is invisible to it — the buggy or stale version stays live and the "fix" is an illusion. This is not theoretical: on 2026-07-30 the Codex cache was still on `1.3.75` from five days earlier because two commits carrying `1.4.10` were left unpushed, so `$meta-dev:plan` did not exist in any loaded build even though the skill had been on disk the whole time.
+
+**Procedure — one unit of work, never split:**
+1. Make the change.
+2. Bump the patch in **both** manifests.
+3. Stage the exact paths, commit.
+4. **`git -C /mnt/d/Projects/360-Hextile/meta-dev push origin main`** — note the branch is **`main`** here, not `master` like the other repos.
+
+**Found unpushed commits on this repo? Push them.** Discovering someone else's local-only commits is not a new decision to escalate — it is this same act, interrupted. Push, then report. **The remote is the source of truth for every host, so keep it current constantly.**
+
+After pushing, reload: `/plugin marketplace update meta-dev` + `/plugin install meta-dev@meta-dev` + restart the host — the new version cache rebuilds and the changes appear.
 
 ## Structure
 
