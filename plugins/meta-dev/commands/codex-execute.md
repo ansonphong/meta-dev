@@ -67,9 +67,9 @@ Classify the task by scope, ambiguity, reversibility, and quality sensitivity. P
 | High-volume mechanical code work where latency matters: bulk rename, boilerplate, mass lint/format fix, quick syntax triage | `spark` / `low` | `workspace-write` for an authorized edit; else `read-only` |
 | Read-only lookup, one-file mechanical edit, focused test diagnosis | `luna` / `low` | `read-only` for analysis; `workspace-write` only for an authorized edit |
 | Normal bug fix, known-scope feature, focused refactor, standard diff review | `terra` / `medium` | `workspace-write` for requested changes; otherwise `read-only` |
-| Cross-module behavior, ambiguous root cause, security/reliability review, migration, architecture work | `sol` / `high` | `read-only` until implementation is explicitly authorized |
-| High-impact or difficult task with measurable quality criteria and evidence that `high` is insufficient | `sol` / `xhigh` | match the requested action |
-| Only the hardest quality-first work, after `xhigh` is demonstrably insufficient | `sol` / `max` | match the requested action |
+| Cross-module behavior, ambiguous root cause, security/reliability review, migration, architecture work | `sol` / `high` | `read-only` for chat-only verdict; **`workspace-write` if any report/plan file is required** |
+| High-impact or difficult task with measurable quality criteria and evidence that `high` is insufficient | `sol` / `xhigh` | match the requested action (write path → `workspace-write`) |
+| Only the hardest quality-first work, after `xhigh` is demonstrably insufficient | `sol` / `max` | match the requested action (write path → `workspace-write`) |
 
 `gpt-5.6-sol` is the flagship model, `gpt-5.6-terra` is the balanced model, `gpt-5.6-luna` is optimized for efficient high-volume work, and `gpt-5.3-codex-spark` is the Codex-specialized speed model — coding-tuned and lowest-latency, so it beats `luna` on bulk mechanical *code* passes while `luna` remains the better generalist for prose/analysis. `high`, `xhigh`, and especially `max` increase latency and usage; use them only when the task's risk or evaluation criteria justify it. Never infer that `danger-full-access` is needed from tier or effort.
 
@@ -85,10 +85,22 @@ Classify the task by scope, ambiguity, reversibility, and quality sensitivity. P
 | Phase-gate or diff review | `sol` / `high` | `--skill code-review-protocol` |
 | Over-engineering / complexity audit | `terra` / `medium` | `--skill sniff-test` |
 | Executing a phase file task-by-task | `terra` / `medium` | `--command meta-execute` |
-| Plan gap-scan (HARDEN) | `sol` / `high` | `--command meta-loop-gap` |
-| Architecture, security, ambiguous root cause | `sol` / `xhigh` | plain task, `--readonly` |
+| Plan gap-scan (HARDEN) | `sol` / `high` | `--command meta-loop-gap` · **`workspace-write`** (report on disk) |
+| Architecture, security, ambiguous root cause | `sol` / `xhigh` | plain task · `--readonly` only if chat-only; **file/report → no `--readonly`** |
 
-For a review, explanation, diagnosis, or plan, make no changes and select `--readonly` unless the user explicitly asks for implementation. For a change, build, or fix request, make only the in-scope local changes and run relevant non-destructive, path-scoped validation. Require confirmation for external writes, destructive operations, purchases, or a material scope expansion.
+### ⛔ Sandbox vs deliverable (mandatory)
+
+**Sandbox is part of the task.** Do not default Sol architecture/gap work to `--readonly` when the brief names a file.
+
+| Situation | Sandbox |
+|-----------|---------|
+| Pure analysis; answer only in the worker return; no file, no commit | `--readonly` OK |
+| Any on-disk deliverable: gap report, plan/brainstorm/design edit, code, commit, fixture, artifact under `plans/` | **`workspace-write` (omit `--readonly`)** |
+| User said `--readonly` but task needs a file | workspace-write, **or** demand the **entire report in the final message** — never “write X.md” under readonly |
+
+Hard rules: brief says “write X.md” / “commit” / “gap-report” → **no `--readonly`**. Gap scans and reviews-with-artifact default **workspace-write**. Under readonly, results live in the return only. `workspace-write` must allow `.git` when commits are required — never “conductor commits for Codex.”
+
+For a review, explanation, or diagnosis **with no artifact**, make no changes and select `--readonly`. For gap reports, plan harden artifacts, or any named output path, use **`workspace-write`**. For a change, build, or fix request, make only the in-scope local changes and run relevant non-destructive, path-scoped validation. Require confirmation for external writes, destructive operations, purchases, or a material scope expansion.
 
 ## Step 3: Confirm and Execute
 
