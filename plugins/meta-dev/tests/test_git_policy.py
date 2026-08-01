@@ -34,6 +34,26 @@ PRODUCTION_CODEX_BASH = {
 }
 
 
+def codex_env(*, plugin_root: bool = True) -> dict[str, str]:
+    """Build the environment a real Codex hook runs in.
+
+    ``codex-adapter`` deliberately no-ops whenever Claude Code's markers are
+    present, so a suite run from inside a Claude session would otherwise get
+    empty stdout from every adapter test and fail decoding it as JSON — while
+    the one gating test passed for the wrong reason.  Drop the markers so
+    these cases assert Codex behavior no matter which host runs the suite.
+    """
+    env = os.environ.copy()
+    for marker in codex_adapter.CLAUDE_MARKERS:
+        env.pop(marker, None)
+    env.pop("META_DEV_GIT_POLICY_IN_CLAUDE", None)
+    if plugin_root:
+        env["PLUGIN_ROOT"] = str(ROOT)
+    else:
+        env.pop("PLUGIN_ROOT", None)
+    return env
+
+
 class GitPolicyTests(unittest.TestCase):
     def assert_allowed(self, command: str) -> None:
         decision = git_policy.validate_shell(command)
@@ -177,16 +197,37 @@ class GitPolicyTests(unittest.TestCase):
 
     def test_codex_adapter_is_gated_without_plugin_root(self) -> None:
         payload = json.dumps({"hook_event_name": "PreToolUse", "tool_name": "Bash", "tool_input": {"command": "git add -A"}})
-        env = os.environ.copy()
-        env.pop("PLUGIN_ROOT", None)
-        result = subprocess.run([sys.executable, str(ADAPTER_PATH)], input=payload, text=True, capture_output=True, env=env, check=True)
+        result = subprocess.run([sys.executable, str(ADAPTER_PATH)], input=payload, text=True, capture_output=True, env=codex_env(plugin_root=False), check=True)
         self.assertEqual(result.stdout, "")
+
+    def test_codex_adapter_is_gated_inside_a_claude_session(self) -> None:
+        """Claude runs its own guard chain — the Codex policy must not layer on it."""
+        payload = json.dumps(PRODUCTION_CODEX_BASH)
+        for marker in codex_adapter.CLAUDE_MARKERS:
+            with self.subTest(marker=marker):
+                env = codex_env()
+                env[marker] = "1"
+                result = subprocess.run(
+                    [sys.executable, str(ADAPTER_PATH)], input=payload, text=True,
+                    capture_output=True, env=env, check=True,
+                )
+                self.assertEqual(result.stdout, "")
+
+        # The opt-in override re-enables it deliberately.
+        env = codex_env()
+        env["CLAUDECODE"] = "1"
+        env["META_DEV_GIT_POLICY_IN_CLAUDE"] = "1"
+        result = subprocess.run(
+            [sys.executable, str(ADAPTER_PATH)], input=payload, text=True,
+            capture_output=True, env=env, check=True,
+        )
+        self.assertEqual(
+            json.loads(result.stdout)["hookSpecificOutput"]["permissionDecision"], "deny",
+        )
 
     def test_codex_adapter_emits_native_deny_shape(self) -> None:
         payload = json.dumps(PRODUCTION_CODEX_BASH)
-        env = os.environ.copy()
-        env["PLUGIN_ROOT"] = str(ROOT)
-        result = subprocess.run([sys.executable, str(ADAPTER_PATH)], input=payload, text=True, capture_output=True, env=env, check=True)
+        result = subprocess.run([sys.executable, str(ADAPTER_PATH)], input=payload, text=True, capture_output=True, env=codex_env(), check=True)
         output = json.loads(result.stdout)
         self.assertEqual(output["hookSpecificOutput"]["hookEventName"], "PreToolUse")
         self.assertEqual(output["hookSpecificOutput"]["permissionDecision"], "deny")
@@ -194,12 +235,10 @@ class GitPolicyTests(unittest.TestCase):
     def test_codex_adapter_approves_safe_command_without_stdout(self) -> None:
         payload = json.loads(json.dumps(PRODUCTION_CODEX_BASH))
         payload["tool_input"]["cmd"] = "git -C /work/repo status --short"
-        env = os.environ.copy()
-        env["PLUGIN_ROOT"] = str(ROOT)
 
         result = subprocess.run(
             [sys.executable, str(ADAPTER_PATH)], input=json.dumps(payload),
-            text=True, capture_output=True, env=env, check=True,
+            text=True, capture_output=True, env=codex_env(), check=True,
         )
 
         self.assertEqual(result.stdout, "")
@@ -218,8 +257,7 @@ class GitPolicyTests(unittest.TestCase):
         })
 
     def test_codex_adapter_production_cmd_denies_dynamic_git_bypasses(self) -> None:
-        env = os.environ.copy()
-        env["PLUGIN_ROOT"] = str(ROOT)
+        env = codex_env()
         commands = (
             'g=git; maybe="$g -C /work/repo add -A"; export maybe; bash -c \'$maybe\'',
             'path=.; git -C /work/repo add -- "$path"',
@@ -249,12 +287,10 @@ class GitPolicyTests(unittest.TestCase):
         self.assertEqual(normalized["tool_input"]["custom_field"], {"preserved": True})
         self.assertEqual(normalized["tool_input"]["yield_time_ms"], 10000)
         self.assertNotIn("command", payload["tool_input"])
-        env = os.environ.copy()
-        env["PLUGIN_ROOT"] = str(ROOT)
 
         result = subprocess.run(
             [sys.executable, str(ADAPTER_PATH)], input=json.dumps(payload), text=True,
-            capture_output=True, env=env, check=True,
+            capture_output=True, env=codex_env(), check=True,
         )
 
         output = json.loads(result.stdout)
@@ -262,8 +298,7 @@ class GitPolicyTests(unittest.TestCase):
         self.assertIn("Recursive delete", output["hookSpecificOutput"]["permissionDecisionReason"])
 
     def test_codex_adapter_supports_legacy_command_and_denies_missing_or_non_string_input(self) -> None:
-        env = os.environ.copy()
-        env["PLUGIN_ROOT"] = str(ROOT)
+        env = codex_env()
         payloads = (
             {"hook_event_name": "PreToolUse", "tool_name": "Bash", "tool_input": {"command": "git -C /work/repo add -A"}},
             {"hook_event_name": "PreToolUse", "tool_name": "Bash", "tool_input": {}},
