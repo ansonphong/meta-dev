@@ -82,7 +82,6 @@ class GitPolicyTests(unittest.TestCase):
 
     def test_rejects_indirect_or_uninspectable_git(self) -> None:
         self.assert_denied("sh -c 'git -C /work/repo add -A'")
-        self.assert_denied("git -C /work/repo add -- src/a.py | cat")
         self.assert_denied("g=git; $g -C /work/repo add -- src/a.py")
         self.assert_denied("env MODE=safe $g -C /work/repo add -A")
         self.assert_denied("command $(printf git) -C /work/repo status")
@@ -91,6 +90,32 @@ class GitPolicyTests(unittest.TestCase):
         self.assert_denied("""printf "%s" "it's $(git -C /work/repo add -A)" """)
         self.assert_denied('bash -c "$possibly_git_command"')
         self.assert_denied('eval "$possibly_git_command"')
+
+    def test_pipelines_are_split_not_refused(self) -> None:
+        """A pipeline hides nothing — split it and inspect every segment."""
+        for command in (
+            "ls foo | head -5",
+            "curl -s https://example.com -o out.json || true",
+            "python3 tool.py 2>&1 | tail -20",
+            "echo one & echo two",
+            "git -C /work/repo add -- src/a.py | cat",
+            "git -C /work/repo status | grep -c modified &",
+        ):
+            with self.subTest(command=command):
+                self.assert_allowed(command)
+        for command in (
+            "ls foo | git -C /work/repo stash",
+            "echo hi || git -C /work/repo add -A",
+            "git -C /work/repo rebase origin/main | cat",
+            "true & git -C /work/repo reset --hard",
+        ):
+            with self.subTest(command=command):
+                self.assert_denied(command)
+
+    def test_allows_git_free_commands_the_splitter_cannot_inspect(self) -> None:
+        """Process substitution with no git in it is not this policy's business."""
+        self.assert_allowed("diff <(ls dir_a) <(ls dir_b)")
+        self.assert_denied("diff <(git -C /work/repo stash list) other.txt")
 
     def test_rejects_dynamic_shell_programs_after_outer_quote_removal(self) -> None:
         for command in (

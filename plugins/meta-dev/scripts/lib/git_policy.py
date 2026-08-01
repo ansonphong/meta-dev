@@ -33,6 +33,16 @@ class Decision:
     reason: str = ""
 
 
+class ShellShapeError(ValueError):
+    """A shell form the splitter cannot break into simple commands.
+
+    Distinct from the refusals raised once an executable is in hand: this one
+    says only "I could not split this string", never "something is hiding a
+    git call".  A command that never names git is therefore allowed through
+    it, so an unrelated ``cat <(ls)`` is not denied on a git rule.
+    """
+
+
 def _command_substitution(command: str, start: int) -> tuple[str, int]:
     """Return one ``$(...)`` body and the index after its closing parenthesis."""
     index = start + 2
@@ -66,7 +76,7 @@ def _command_substitution(command: str, start: int) -> tuple[str, int]:
             else:
                 return command[start + 2 : index], index + 1
         index += 1
-    raise ValueError("unterminated command substitution cannot be inspected safely")
+    raise ShellShapeError("unterminated command substitution cannot be inspected safely")
 
 
 def _backtick_substitution(command: str, start: int) -> tuple[str, int]:
@@ -79,7 +89,7 @@ def _backtick_substitution(command: str, start: int) -> tuple[str, int]:
         if command[index] == "`":
             return command[start + 1 : index], index + 1
         index += 1
-    raise ValueError("unterminated command substitution cannot be inspected safely")
+    raise ShellShapeError("unterminated command substitution cannot be inspected safely")
 
 
 def _prepare_expansions(command: str) -> tuple[str, list[str]]:
@@ -113,14 +123,14 @@ def _prepare_expansions(command: str) -> tuple[str, list[str]]:
         if command.startswith("$(", index):
             body, index = _command_substitution(command, index)
             if not body.strip():
-                raise ValueError("empty command substitution cannot be inspected safely")
+                raise ShellShapeError("empty command substitution cannot be inspected safely")
             substitutions.append(body)
             result.append(COMMAND_SUBSTITUTION)
             continue
         if char == "`":
             body, index = _backtick_substitution(command, index)
             if not body.strip():
-                raise ValueError("empty command substitution cannot be inspected safely")
+                raise ShellShapeError("empty command substitution cannot be inspected safely")
             substitutions.append(body)
             result.append(COMMAND_SUBSTITUTION)
             continue
@@ -175,7 +185,7 @@ def _split_commands(command: str) -> list[list[str]]:
         return []
     prepared, substitutions = _prepare_expansions(command)
     if re.search(r"[<>]\(", prepared):
-        raise ValueError("shell substitution cannot be inspected safely")
+        raise ShellShapeError("shell substitution cannot be inspected safely")
     lexer = shlex.shlex(_separate_unquoted_newlines(prepared), posix=True, punctuation_chars=";&|")
     lexer.whitespace_split = True
     lexer.commenters = ""
@@ -183,18 +193,18 @@ def _split_commands(command: str) -> list[list[str]]:
     commands: list[list[str]] = []
     current: list[str] = []
     for token in tokens:
-        if token in {"&&", ";"}:
-            if not current:
-                raise ValueError("empty shell command segment")
-            commands.append(current)
+        # Any run of ';' '&' '|' is a command separator: '&&', ';', '|', '||',
+        # '&', ';;', and the '&' shlex splits out of a '2>&1' redirect.  A
+        # pipeline hides nothing — splitting on it keeps every git call in its
+        # own segment, so inspection is strictly broader than refusing to parse.
+        if token and not token.strip(";&|"):
+            if current:
+                commands.append(current)
             current = []
-        elif token in {"|", "||", "&", "&;"}:
-            raise ValueError(f"shell operator {token!r} cannot be inspected safely")
         else:
             current.append(token)
-    if not current:
-        raise ValueError("trailing shell command separator")
-    commands.append(current)
+    if current:
+        commands.append(current)
     for substitution in substitutions:
         commands.extend(_split_commands(substitution))
     return commands
@@ -455,6 +465,11 @@ def _validate_git(argv: list[str]) -> None:
         )
 
 
+def _mentions_git(command: str) -> bool:
+    """Report whether the raw command string names git at all."""
+    return re.search(r"\bgit\b", command) is not None
+
+
 def validate_shell(command: str) -> Decision:
     """Validate all direct git calls inside a shell command string."""
     try:
@@ -462,6 +477,15 @@ def validate_shell(command: str) -> Decision:
             git_argv = _git_command(tokens)
             if git_argv is not None:
                 _validate_git(git_argv)
+    except ShellShapeError as exc:
+        # The splitter could not break this string apart, but nothing in it
+        # names git — an unrelated curl or grep must not be denied on a git
+        # rule.  Refusals raised once an executable is in hand (an expansion
+        # in executable position, a dynamic `bash -c`, an indirect git) are
+        # plain ValueError and still deny below: those forms can hide git.
+        if not _mentions_git(command):
+            return Decision(True)
+        return Decision(False, str(exc))
     except ValueError as exc:
         return Decision(False, str(exc))
     return Decision(True)
