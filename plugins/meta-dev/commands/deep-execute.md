@@ -1,7 +1,7 @@
 ---
 name: deep-execute
-argument-hint: <task description> [--repo <name>] [--readonly] [--model <model>]  # --repo names from .claude/meta-dev-repos.json
-description: Execute a task via headless DeepSeek Claude Code — spawns a separate Claude Code instance on the DeepSeek backend, executes the task, and reports results
+argument-hint: <task description> [--repo <name>] [--readonly] [--tier <flash|pro>] [--model <model>]  # --repo names from .claude/meta-dev-repos.json
+description: Execute a task via headless DeepSeek Claude Code — default deepseek-v4-flash (Flash-0731); escalate with --tier pro → deepseek-v4-pro
 ---
 
 # /deep-execute — DeepSeek Headless Execution
@@ -10,7 +10,29 @@ Spawn a headless Claude Code worker on the **DeepSeek** backend to execute a tas
 
 Uses `scripts/claude-headless-exec --backend deep` under the hood.
 
+**Default model: `deepseek-v4-flash`** (DeepSeek-V4-Flash-0731, official public beta as of 2026-07-31). Both Flash and Pro share a **1M** context window; Flash is the cheaper/faster bulk workhorse, Pro is the escalate tier for hard reasoning.
+
 **The worker is a full Claude Code instance — it is not limited to code execution.** Its "task" can be any prompt (research, audit, summarize, refactor, investigate) **or an explicit meta-dev command to run internally** — `/meta-execute`, `/meta-planner`, `/loop-gap`, `/meta-eval`, `/sniff`, etc. Pair with `--readonly` for read-only ops (research/review/audit). This makes it a general worker for any waterfall stage, not just EXECUTE.
+
+## Flash vs Pro — pick the tier
+
+| | **Flash** (`deepseek-v4-flash`) — **default** | **Pro** (`deepseek-v4-pro`) |
+|--|-----------------------------------------------|-----------------------------|
+| Size | 284B total / 13B active | 1.6T total / 49B active |
+| Context | 1M | 1M |
+| Cost / speed | ~3× cheaper, much faster, higher concurrency | Premium per-token |
+| Role | Bulk mechanical + agent loops | Hard reasoning escalate |
+| When | Renames, codemods, scoped edits, fan-out, most coding agents | Flash fails multi-step reasoning / needs max depth |
+
+**Flash-first (same idea as Codex Spark-first):** default to Flash unless the task clearly needs Pro. Flash-0731 was re-post-trained for agent work (same architecture as Flash-Preview; DeepSeek claims agent benchmarks above V4-Pro-Preview). Escalate with `--tier pro` only when quality justifies ~3× cost.
+
+```bash
+# default = Flash
+claude-headless-exec --backend deep --repo app -- "Rename getCwd across the project"
+
+# escalate hard work
+claude-headless-exec --backend deep --tier pro --repo app -- "Hard multi-step agentic refactor"
+```
 
 ## When to Use
 
@@ -28,7 +50,7 @@ DeepSeek is the **cheap, scalable workhorse** — strongest when the task is **s
 - Tasks where step N depends on correctly carrying context from steps 1..N-1
 - Frontend/Svelte work needing design consistency across many components
 
-**Rule of thumb:** *break it small → DeepSeek; keep it whole → GLM.* For a big job, let GLM drive and farm the mechanical leaves to DeepSeek.
+**Rule of thumb:** *break it small → DeepSeek Flash; keep it whole → GLM; Flash not deep enough → `--tier pro`.*
 
 ## Executing a phase/wave file (multi-phase meta-planner plans)
 
@@ -43,7 +65,7 @@ When `/auto-execute` (or the user) hands you **one phase/wave file** from a mult
 
 ⚠️ A full phase is multi-task and **stateful** (Task N.2 depends on N.1) — that's the edge of DeepSeek's comfort zone (drift risk on long phases). DeepSeek is a good fit for a **short phase of small, disjoint tasks**; long/stateful phases should route to GLM. `/auto-execute` makes that call.
 
-**Empirical (2026-06-26, identical hardening-audit task):** DeepSeek-V4-pro — 20 turns · 209s, very thorough verification table, found a real gap. GLM-5.2 — 9 turns · 178s, found a different (subtler) gap. DeepSeek burned ~2× the turns for comparable single-shot quality → its edge is *throughput when fanned out*, not solo long-horizon reasoning.
+**Empirical (2026-06-26, identical hardening-audit task):** DeepSeek-V4-pro — 20 turns · 209s, very thorough verification table, found a real gap. GLM-5.2 — 9 turns · 178s, found a different (subtler) gap. DeepSeek burned ~2× the turns for comparable single-shot quality → its edge is *throughput when fanned out*, not solo long-horizon reasoning. (Default today is Flash-0731 for cost/speed; use `--tier pro` when you need that Pro-depth pass.)
 
 ## Test discipline — keep every test cycle cheap
 
@@ -57,7 +79,8 @@ Parse these optional flags:
 - `--repo <name>` — target repo (default: auto-detect from cwd; names from .claude/meta-dev-repos.json)
 - `--readonly` — restrict to read-only tools (review/analysis tasks)
 - `--claim <plan-dir>` — **concurrency safety (shared tree):** claim this plan directory before dispatch. The wrapper ABORTS if another live session holds an overlapping scope, and auto-releases on exit. Use whenever the worker edits `plans/**`. (`--claim-warn` warns instead of aborting.) See `references/execute-charter.md` → Concurrency Safety.
-- `--model <model>` — override default model (default: `deepseek-v4-pro`; fast option: `deepseek-v4-flash`)
+- `--tier <flash|pro>` — DeepSeek model tier (default: **`flash`** → `deepseek-v4-flash`; `pro` → `deepseek-v4-pro`)
+- `--model <model>` — exact model ID override (`deepseek-v4-flash` or `deepseek-v4-pro`); wins over `--tier`
 - `--max-turns <n>` — cap agent turns (default: unset — worker runs to completion)
 
 Everything else is the task description.
@@ -67,7 +90,7 @@ If no task description is provided, ask the user what task to execute.
 ## Step 2: Confirm the Plan
 
 Summarize what will be executed:
-- **Backend:** DeepSeek (`deepseek-v4-pro` or as specified)
+- **Backend:** DeepSeek (`deepseek-v4-flash` by default, or `--tier pro` / `--model` as specified)
 - **Repo:** (detected or specified)
 - **Task:** (the task description)
 - **Mode:** read-only or read-write
@@ -79,11 +102,12 @@ If the task is destructive (deletes files, drops data, modifies prod), confirm w
 Run the headless worker. For tasks expected to take >30 seconds, use `run_in_background: true` so the session stays responsive.
 
 ```bash
-# Build the command
+# Build the command (default model = deepseek-v4-flash)
 ${CLAUDE_PLUGIN_ROOT}/scripts/claude-headless-exec \
   --backend deep \
   --repo <repo> \
-  --model <model> \
+  ${TIER:+--tier "$TIER"} \
+  ${MODEL:+--model "$MODEL"} \
   ${READONLY:+--readonly} \
   ${MAX_TURNS:+--max-turns "$MAX_TURNS"} \
   -- <task description>

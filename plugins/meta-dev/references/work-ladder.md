@@ -1,6 +1,6 @@
 # Work Ladder — the ONE source of truth
 
-> **Last verified:** 2026-07-24
+> **Last verified:** 2026-08-02
 
 Which backends may be **auto-selected** for delegated work, in what order they
 **escalate**, and when to stay **native** instead. Every command, skill, and
@@ -29,7 +29,7 @@ not pooled. The pool governs *automatic* selection only.
 
 | Task shape | Backend | Why |
 |---|---|---|
-| Bounded mechanical edits, renames, boilerplate, scoped searches, lint/format/syntax triage | **DeepSeek** (`--deep`) | Cheapest bulk tier. Fan out freely. |
+| Bounded mechanical edits, renames, boilerplate, scoped searches, lint/format/syntax triage | **DeepSeek** (`--deep`) | Cheapest bulk tier. Default model is **`deepseek-v4-flash`** (Flash-0731); escalate hard reasoning with `--tier pro` → `deepseek-v4-pro`. Fan out freely. |
 | The same mechanical shapes, when the work is *code* | **Codex Spark** (`--codex --tier spark`) | Coding-tuned and on a **separate weekly quota we rarely exhaust** — effectively free capacity. Prefer it over `luna` on bulk code; never default bulk to `terra`. |
 | Independent frontier reasoning; gap checks and plan hardening; a wanted *third* model family; hard diagnosis; bounded implementation needing a strong model | **Grok** (`--grok`) | xAI-family lens catches what Anthropic- and OpenAI-family review both miss. **Grok Heavy (2026-07-26) = a large compute bucket**, and Grok 4.5 is Opus-4.8-class while running faster than Opus — so **spend it freely**; it is no longer rationed and no longer reserved for the single hardest task. |
 | Long-horizon stateful execution; multi-file features; the OpenAI-family review lens at phase gates / Stage 6 | **Codex** (`--codex`) | First-class executor *and* cross-family reviewer. **Route `spark` first** on anything mechanical; use **Terra** (medium) for ordinary execution and **Sol** (high) for plan/harden/review — those share the limited 5.6 pool, so every pass spark absorbs preserves it. |

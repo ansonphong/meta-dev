@@ -11,6 +11,8 @@
 #   --repo <name>            Resolve via topology config; unresolvable => abort.
 #                            Omit to run at the PROJECT ROOT (never the caller's cwd).
 #   --model <model>          Override default model for this backend
+#   --tier <flash|pro>       DeepSeek-only convenience: map to deepseek-v4-flash|pro
+#                            (ignored on other backends; --model wins over --tier)
 #   --timeout <ms>           Timeout in ms (default: 7200000 = 120 min)
 #   --tools <list>           Comma-separated tool list (default: Read,Write,Edit,Bash,Grep,Glob)
 #   --readonly               Restrict to read-only tools (Read,Bash,Grep)
@@ -21,10 +23,13 @@
 # Examples:
 #   claude-headless-exec --backend deep --repo app -- "Fix all TypeScript errors"
 #   claude-headless-exec --backend glm --repo www --readonly -- "Audit for SQL injection"
-#   claude-headless-exec --backend deep --model deepseek-v4-flash -- "Rename getCwd to getCurrentWorkingDirectory across my project"
+#   claude-headless-exec --backend deep --tier pro -- "Hard multi-step agentic refactor"
+#   claude-headless-exec --backend deep --model deepseek-v4-flash -- "Rename getCwd across the project"
 #
 # Backend defaults:
-#   deep   → deepseek-v4-pro (opus/sonnet), deepseek-v4-flash (haiku)
+#   deep   → deepseek-v4-flash (default / haiku / subagent); deepseek-v4-pro (opus escalate)
+#            Flash-0731 (2026-07-31 official) is the bulk workhorse — cheaper + faster + 1M ctx.
+#            Escalate to Pro only when Flash fails hard reasoning.
 #   glm    → glm-5.2 (opus/sonnet/subagent), glm-4.5 (haiku) — routed via local beta-strip proxy
 #   sonnet → claude-sonnet-5; REAL Anthropic via ambient login (1M context)
 #   opus   → claude-opus-5;   REAL Anthropic via ambient login (1M context)
@@ -65,10 +70,13 @@ declare -A BACKEND_LABEL
 
 BACKEND_BASE_URL[deep]="https://api.deepseek.com/anthropic"
 BACKEND_AUTH_KEY_ENV[deep]="DEEPSEEK_API_KEY"
-BACKEND_OPUS_MODEL[deep]="deepseek-v4-pro"
-BACKEND_SONNET_MODEL[deep]="deepseek-v4-pro"
+# DeepSeek V4 pair (both 1M context). Flash-0731 (2026-07-31 official public beta)
+# is the bulk default — 284B/13B active, ~3× cheaper than Pro, agent-post-trained.
+# Pro (1.6T/49B active) stays the escalate slot for hard reasoning only.
+BACKEND_OPUS_MODEL[deep]="deepseek-v4-pro"            # hard sub-work escalate
+BACKEND_SONNET_MODEL[deep]="deepseek-v4-flash"         # DEFAULT primary worker
 BACKEND_HAIKU_MODEL[deep]="deepseek-v4-flash"
-BACKEND_SUBAGENT_MODEL[deep]="deepseek-v4-pro"
+BACKEND_SUBAGENT_MODEL[deep]="deepseek-v4-flash"       # match default; hard → opus→pro
 BACKEND_EFFORT[deep]=""                               # DECIDED: no effort knob on this backend — see the resolve block, which warns rather than forwarding
 BACKEND_LABEL[deep]="DeepSeek"
 
@@ -125,6 +133,8 @@ BACKEND_LABEL[fable]="Fable-5"
 BACKEND=""
 REPO=""
 MODEL=""
+TIER=""      # deep-only convenience: flash|pro → deepseek-v4-flash|pro (--model wins)
+MODEL_EXPLICIT=0  # 1 when --model was passed (so --tier cannot override it)
 EFFORT=""    # thinking/reasoning effort; resolved from per-backend default unless --effort given
 EFFORT_EXPLICIT=0   # 1 when the caller passed --effort (so a no-knob backend can warn instead of silently dropping it)
 TIMEOUT=""   # resolved after parse (all backends → 7200000 = 120 min) unless --timeout given
@@ -164,6 +174,8 @@ Options:
   --repo <name>             Resolve via .claude/meta-dev-repos.json; an
                             unknown name ABORTS. Omit => project root (not cwd).
   --model <model>           Override the default model
+  --tier <flash|pro>        DeepSeek-only: deepseek-v4-flash | deepseek-v4-pro
+                            (ignored on other backends; --model wins over --tier)
   --effort <level>          Thinking effort: low|medium|high|xhigh|max
                             (per-backend default: sonnet/opus/fable=high, glm=high, deep=none)
   --timeout <ms>            Timeout in ms via API_TIMEOUT_MS (default: 7200000 = 120 min)
@@ -190,7 +202,8 @@ auto-reset, instead of idling out the full 120-min cap):
   -h, --help                Show this help
 
 Backend defaults (model · effort):
-  deep   → deepseek-v4-pro          (DeepSeek API · effort n/a)
+  deep   → deepseek-v4-flash        (DeepSeek API · effort n/a · --tier flash|pro)
+           escalate hard work with --tier pro → deepseek-v4-pro
   glm    → glm-5.2                    (Z.AI API · effort high · via local beta-strip proxy)
   sonnet → claude-sonnet-5          (Anthropic · ambient login · effort high)
   opus   → claude-opus-5            (Anthropic · ambient login · effort high)
@@ -198,6 +211,7 @@ Backend defaults (model · effort):
 
 Examples:
   claude-headless-exec --backend deep --repo app -- "Fix all TS errors"
+  claude-headless-exec --backend deep --tier pro -- "Hard multi-step agentic refactor"
   claude-headless-exec --backend glm --repo www --readonly -- "Audit auth"
   claude-headless-exec --backend sonnet --repo app -- "Review the diff"
   claude-headless-exec --backend opus --repo app -- "Redesign the render-node lineage"
@@ -226,6 +240,11 @@ while [[ $# -gt 0 ]]; do
             ;;
         --model)
             MODEL="$2"
+            MODEL_EXPLICIT=1
+            shift 2
+            ;;
+        --tier)
+            TIER="$2"
             shift 2
             ;;
         --effort)
@@ -355,6 +374,23 @@ if [[ "$READONLY" == "true" ]]; then
 fi
 
 # ── Resolve model ───────────────────────────────────────────────────────
+# --tier is DeepSeek-only sugar (flash|pro). --model always wins when both set.
+if [[ -n "$TIER" ]]; then
+    if [[ "$BACKEND" != "deep" ]]; then
+        echo "[WARN] --tier '$TIER' ignored: only applies to --backend deep (got '$BACKEND')." >&2
+    elif [[ "$MODEL_EXPLICIT" == "1" ]]; then
+        echo "[WARN] --tier '$TIER' ignored: --model '$MODEL' already set and wins." >&2
+    else
+        case "$TIER" in
+            flash) MODEL="deepseek-v4-flash" ;;
+            pro)   MODEL="deepseek-v4-pro" ;;
+            *)
+                echo "[ERROR] Invalid --tier '$TIER' for deep backend. Use: flash, pro." >&2
+                exit 1
+                ;;
+        esac
+    fi
+fi
 if [[ -z "$MODEL" ]]; then
     MODEL="${BACKEND_SONNET_MODEL[$BACKEND]}"
 fi
