@@ -457,6 +457,31 @@ def _repo_bucket(path):
     return parts[1] if len(parts) >= 3 and parts[0] == "plans" else None
 
 
+_ISO_DATE_PREFIX = re.compile(r"^\d{4}-\d{2}-\d{2}-")
+
+
+def _member_short_id(path):
+    """Short identity token for the execution-order glyph chain.
+
+    Mirrors ``_member_label``'s folder-vs-stem rule and exists for the same
+    reason. A campaign plan lives in its own folder, so the FOLDER is its
+    identity. A standalone plan sitting directly in ``plans/<repo>/`` has no
+    folder to borrow — its parent IS the repo bucket, which is identical for
+    every such member, so a chain built from the parent renders as
+    ``www → www → …`` and tells the reader nothing.
+
+    Fall back to the file's own stem there, with a leading ISO date stripped
+    (``2026-08-04-patterns-showcase`` → ``patterns-showcase``) since the date is
+    ordering metadata, not identity.
+    """
+    base = path.rsplit("/", 1)[-1]
+    stem = base[:-3] if base.endswith(".md") else base
+    parent = os.path.basename(os.path.dirname(path))
+    if parent and parent != _repo_bucket(path):
+        return parent
+    return _ISO_DATE_PREFIX.sub("", stem) or stem or path
+
+
 def _link_to(target_rel, from_rel):
     """Markdown link href for ``target_rel``, relative to the FILE at ``from_rel``.
 
@@ -595,8 +620,7 @@ def compose_block(rb_rel, rollup, member_rows):
         return row.get("glyph") or mark(None)
 
     chain = " → ".join(
-        "**%s** %s" % (os.path.basename(os.path.dirname(row["path"])) or row["path"],
-                       _glyph_for(row))
+        "**%s** %s" % (_member_short_id(row["path"]) or row["path"], _glyph_for(row))
         for row in member_rows) or "—"
 
     # The Stage-6 terminal of the chain is a destination, not a live status:
