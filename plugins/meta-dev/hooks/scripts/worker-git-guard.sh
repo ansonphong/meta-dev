@@ -14,8 +14,11 @@ set -euo pipefail
 # commit; checkout/reset/stash/restore DESTROY them. Those stay blocked. A
 # commit of explicitly-named paths is additive, recoverable, and safe.
 #
-# The shared parser allows read-only commands plus explicit staging and only the
-# index-isolating commit form: `git -C <absolute> commit --only -m ... -- files`.
+# The shared policy (scripts/lib/git_policy.py) is a DESTRUCTIVE-ONLY denylist:
+# it blocks the sweep and the destroyers and allows every other git command with
+# no required flag shape. It is the same policy the interactive guard runs — a
+# worker is not held to a stricter contract than the conductor, it just runs in
+# a context where a sweep is likelier to hit a peer.
 #
 # Injected by claude-headless-exec via `--settings` (the worker is a separate
 # `claude -p` process that does NOT inherit the project's plugin hooks). It
@@ -55,6 +58,6 @@ set +e
 REASON=$(python3 "$POLICY" --command "$CMD" 2>&1)
 RC=$?
 set -e
-[ "$RC" -eq 0 ] || emit_deny "BLOCKED: $REASON. Use exact paths and 'git -C <absolute-repo> commit --only -m <message> -- <files>'."
+[ "$RC" -eq 0 ] || emit_deny "BLOCKED: $REASON"
 
 emit_allow

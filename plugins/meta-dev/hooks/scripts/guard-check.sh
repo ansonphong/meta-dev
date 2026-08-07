@@ -97,116 +97,52 @@ if [ "$TOOL_NAME" = "Bash" ]; then
   COMMAND=$(printf '%s' "$PAYLOAD" | jq -r '.tool_input.command // empty' 2>/dev/null || echo "")
   [ -z "$COMMAND" ] && emit_allow
 
-  # Shared-worktree git policy — HEADLESS-WORKER CHARTER ONLY, never interactive.
+  # ---- GIT: one shell-aware policy, no duplicated regexes ------------------
   #
-  # scripts/lib/git_policy.py is deny-by-default over the whole git surface: it
-  # bans reset/restore/checkout/stash/clean/rebase/revert outright, demands
-  # `git -C <absolute> add -- <files>` and `commit --only -m ... -- <files>`, and
-  # refuses every subcommand nobody explicitly enumerated (cat-file, worktree,
-  # apply, grep, for-each-ref, cherry-pick, submodule, ...). That contract exists
-  # so N concurrent headless workers cannot destroy or sweep up each other's
-  # in-flight edits in ONE shared tree — it is enforced at its proper home,
-  # hooks/scripts/worker-git-guard.sh, which self-gates on META_WORKER_MANIFEST.
+  # scripts/lib/git_policy.py is now a DESTRUCTIVE-ONLY DENYLIST (inverted from
+  # the old deny-by-default allowlist on 2026-08-07). It blocks exactly the set
+  # that can destroy uncommitted or published work — reset --hard, stash, broad
+  # checkout/restore, clean -f, rebase, non-ff merge/pull, force push, tree-wide
+  # add/commit -a, amend, filter-branch, reflog expire, update-ref -d, branch -D
+  # — and allows everything else with no required flag shape and no mandatory
+  # -C. So it is safe to run in EVERY context, and it runs unconditionally here.
   #
-  # Running it from here applied the worker charter to every interactive session
-  # the plugin is installed in, so ordinary conductor work (`git cat-file`,
-  # `git config --list`, `git restore`, plain `git add -p`) was denied with a
-  # "shared-worktree policy" reason that named a worktree the user never entered.
-  # Under Codex the same policy also runs ahead of this script in
-  # codex-adapter.py, so calling it here was pure duplication. Fixed 2026-08-04.
+  # It replaces the hand-rolled regexes that used to live below — git AND non-git
+  # alike. Those were duplicates with a worse engine: grep cannot tell a command
+  # from a string, so `python3 - <<'PY'` with "git reset --hard" in a Python
+  # string literal was denied, a grep for a destructive command was denied, and a
+  # COMMIT MESSAGE describing one was denied. The policy parses the shell and
+  # checks each simple command's executable, so data reads as data.
   #
-  # The destructive-command guards BELOW are the interactive contract and still
-  # apply everywhere: reset --hard, checkout/restore ., clean -f, broad `git add`
-  # sweeps, force-push to main. Gate only the worker charter.
-  if [ -n "${META_WORKER_MANIFEST:-}" ] || [ "${META_DEV_GIT_POLICY_IN_CLAUDE:-}" = "1" ]; then
-    GIT_POLICY="$PLUGIN_ROOT/scripts/lib/git_policy.py"
-    if [ -f "$GIT_POLICY" ]; then
-      set +e
-      GIT_POLICY_REASON=$(python3 "$GIT_POLICY" --command "$COMMAND" 2>&1)
-      GIT_POLICY_RC=$?
-      set -e
-      if [ "$GIT_POLICY_RC" -ne 0 ]; then
-        emit_deny "shared-worktree git policy blocked command: $GIT_POLICY_REASON"
-      fi
+  # `--guard` also applies the non-git rules (rm -rf outside temp, rm .git/index,
+  # destructive SQL on a database command line) and returns the settings.json
+  # category, so meta_dev.guard.destructive_categories still tunes each one.
+  #
+  # META_DEV_GIT_POLICY_SKIP=1 disables it outright for a deliberate rescue.
+  GIT_POLICY="$PLUGIN_ROOT/scripts/lib/git_policy.py"
+  if [ -f "$GIT_POLICY" ] && [ "${META_DEV_GIT_POLICY_SKIP:-}" != "1" ]; then
+    set +e
+    VERDICT=$(python3 "$GIT_POLICY" --guard --command "$COMMAND" 2>/dev/null)
+    set -e
+    if [ -n "$VERDICT" ] && [ "$(printf '%s' "$VERDICT" | jq -r '.allowed')" = "false" ]; then
+      REASON=$(printf '%s' "$VERDICT" | jq -r '.reason')
+      CATEGORY=$(printf '%s' "$VERDICT" | jq -r '.category')
+      case "$CATEGORY" in
+        git)
+          emit_deny "$REASON" ;;
+        rm_git_index)
+          A=$(cfg rm_git_index block)
+          [ "$A" = "warn" ] && A=block  # schema forbids allow; force block regardless
+          apply_action "$A" "$REASON" ;;
+        *)
+          apply_action "$(cfg "$CATEGORY" block)" "$REASON" ;;
+      esac
     fi
-  fi
-
-  # rm .git/index — catastrophic, NEVER overrideable (config can only block).
-  if printf '%s' "$COMMAND" | grep -qiE 'rm\s+(-[a-zA-Z]+\s+)*\.git/index($|[[:space:]])'; then
-    A=$(cfg rm_git_index block)
-    [ "$A" = "warn" ] && A=block  # schema forbids allow; force block regardless
-    apply_action "$A" "rm .git/index destroys the git index — NEVER do this. Remove only .git/index.lock from a Windows terminal, then 'git add -A'."
-  fi
-
-  # git reset --hard — destroys uncommitted changes.
-  if printf '%s' "$COMMAND" | grep -qiE 'git\s+reset\s+(-[a-zA-Z]+\s+)*--hard'; then
-    apply_action "$(cfg git_reset_hard block)" "git reset --hard destroys uncommitted changes. Stash or commit first."
-  fi
-
-  # git checkout . / git restore . — overwrites working tree.
-  if printf '%s' "$COMMAND" | grep -qiE 'git\s+(checkout|restore)\s+(--\s+)?\.($|[[:space:]])'; then
-    apply_action "$(cfg git_checkout_dot block)" "git checkout/restore . overwrites uncommitted working-tree changes. Stash or commit first."
-  fi
-
-  # git clean -f — permanently deletes untracked files. Folded under git_checkout_dot.
-  if printf '%s' "$COMMAND" | grep -qiE 'git\s+clean\s+-[a-zA-Z]*f'; then
-    apply_action "$(cfg git_checkout_dot block)" "git clean -f permanently deletes untracked files."
-  fi
-
-  # git add -A/-u/./<dir/> — the COMMIT-SWEEP guard (incident 2026-07-05).
-  # The meta repo working tree is SHARED across concurrent sessions. A broad
-  # `git add` stages EVERY dirty file under a path — including another live
-  # session's in-flight worker edits — sweeping foreign work into this commit.
-  # Charter rule: the conductor stages EXACTLY its task's declared files.
-  # There is no override for directory staging: a shared worktree cannot prove
-  # that every file under a directory belongs to this session.
-  # The shared parser above also checks existing bare directory paths; this
-  # regex is retained as a fast, explanatory backstop for familiar forms.
-  if printf '%s' "$COMMAND" | grep -qiE '\bgit\s+add\b' \
-     ; then
-    SWEEP=""
-    printf '%s' "$COMMAND" | grep -qiE '\bgit\s+add\s+([^&|;]*[[:space:]])?(-A|--all|-u|--update)([[:space:]]|$)' && SWEEP="the -A/-u/--all/--update flag"
-    printf '%s' "$COMMAND" | grep -qiE '\bgit\s+add\s+([^&|;]*[[:space:]])?\.([[:space:]/]|$)'                    && SWEEP="a bare '.'"
-    printf '%s' "$COMMAND" | grep -qiE '\bgit\s+add\s+([^&|;]*[[:space:]])?[^[:space:]&|;]+/([[:space:]]|$)'       && SWEEP="a directory path (trailing '/')"
-    if [ -n "$SWEEP" ]; then
-      apply_action "$(cfg git_add_sweep block)" "git add with $SWEEP stages EVERY dirty file under that path — in a SHARED tree that sweeps another concurrent session's in-flight worker edits into your commit (commit-sweep, incident 2026-07-05). Stage explicit file paths only: 'git -C <absolute-repo> add -- <file1> <file2>'."
-    fi
-  fi
-
-  # git push --force on main/master — overwrites remote history.
-  if printf '%s' "$COMMAND" | grep -qiE 'git\s+push\s+.*(--force([^-]|$)|-f([[:space:]]|$))'; then
-    if printf '%s' "$COMMAND" | grep -qiE '(main|master)'; then
-      apply_action "$(cfg git_push_force_main block)" "git push --force on main/master overwrites shared history. Use --force-with-lease and a non-protected branch."
-    else
-      emit_warn_allow "git push --force — prefer --force-with-lease to avoid clobbering remote work."
-    fi
-  fi
-
-  # git branch -D — force-deletes a branch without merge check (warn).
-  if printf '%s' "$COMMAND" | grep -qiE 'git\s+branch\s+-D'; then
-    emit_warn_allow "git branch -D force-deletes a branch with no merge check."
   fi
 
   # --no-verify — bypasses safety hooks.
   if printf '%s' "$COMMAND" | grep -qiE '(--no-verify|--no-gpg-sign)'; then
     apply_action "$(cfg no_verify_flag warn)" "--no-verify / --no-gpg-sign bypasses safety hooks. Fix the underlying failure instead."
-  fi
-
-  # rm -rf / rm -r on non-temp paths.
-  if printf '%s' "$COMMAND" | grep -qiE 'rm\s+(-[a-zA-Z]*r[a-zA-Z]*f|-[a-zA-Z]*f[a-zA-Z]*r|-r[[:space:]])'; then
-    # Carve-out: rm under a temp dir is routine and safe.
-    if printf '%s' "$COMMAND" | grep -qiE 'rm\s+(-[a-zA-Z]+\s+)*("?(/tmp/|/var/tmp/|\$\{?TMPDIR)|"?\./?(tmp|\.tmp|node_modules|dist|build)/)'; then
-      emit_allow
-    fi
-    apply_action "$(cfg rm_rf_non_temp block)" "Recursive delete (rm -rf) outside a temp/build path. Verify the target carefully — this is irreversible."
-  fi
-
-  # SQL data destruction.
-  if printf '%s' "$COMMAND" | grep -qiE 'DROP\s+(TABLE|DATABASE)|TRUNCATE\s+TABLE'; then
-    apply_action "$(cfg drop_table block)" "DROP TABLE/DATABASE or TRUNCATE is irreversible data destruction."
-  fi
-  if printf '%s' "$COMMAND" | grep -qiE 'DELETE\s+FROM\s+[A-Za-z_][A-Za-z0-9_."]*\s*;'; then
-    apply_action "$(cfg drop_table block)" "DELETE FROM with no WHERE clause deletes every row. Add a WHERE filter."
   fi
 
   emit_allow
