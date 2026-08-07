@@ -97,18 +97,37 @@ if [ "$TOOL_NAME" = "Bash" ]; then
   COMMAND=$(printf '%s' "$PAYLOAD" | jq -r '.tool_input.command // empty' 2>/dev/null || echo "")
   [ -z "$COMMAND" ] && emit_allow
 
-  # Shared parser used by both Claude and Codex adapters.  Regex checks below
-  # remain for non-git destructive commands and configurable warning policy;
-  # git syntax itself must be parsed so quotes, chains, and multiple calls do
-  # not create an escape hatch.
-  GIT_POLICY="$PLUGIN_ROOT/scripts/lib/git_policy.py"
-  if [ -f "$GIT_POLICY" ]; then
-    set +e
-    GIT_POLICY_REASON=$(python3 "$GIT_POLICY" --command "$COMMAND" 2>&1)
-    GIT_POLICY_RC=$?
-    set -e
-    if [ "$GIT_POLICY_RC" -ne 0 ]; then
-      emit_deny "shared-worktree git policy blocked command: $GIT_POLICY_REASON"
+  # Shared-worktree git policy — HEADLESS-WORKER CHARTER ONLY, never interactive.
+  #
+  # scripts/lib/git_policy.py is deny-by-default over the whole git surface: it
+  # bans reset/restore/checkout/stash/clean/rebase/revert outright, demands
+  # `git -C <absolute> add -- <files>` and `commit --only -m ... -- <files>`, and
+  # refuses every subcommand nobody explicitly enumerated (cat-file, worktree,
+  # apply, grep, for-each-ref, cherry-pick, submodule, ...). That contract exists
+  # so N concurrent headless workers cannot destroy or sweep up each other's
+  # in-flight edits in ONE shared tree — it is enforced at its proper home,
+  # hooks/scripts/worker-git-guard.sh, which self-gates on META_WORKER_MANIFEST.
+  #
+  # Running it from here applied the worker charter to every interactive session
+  # the plugin is installed in, so ordinary conductor work (`git cat-file`,
+  # `git config --list`, `git restore`, plain `git add -p`) was denied with a
+  # "shared-worktree policy" reason that named a worktree the user never entered.
+  # Under Codex the same policy also runs ahead of this script in
+  # codex-adapter.py, so calling it here was pure duplication. Fixed 2026-08-04.
+  #
+  # The destructive-command guards BELOW are the interactive contract and still
+  # apply everywhere: reset --hard, checkout/restore ., clean -f, broad `git add`
+  # sweeps, force-push to main. Gate only the worker charter.
+  if [ -n "${META_WORKER_MANIFEST:-}" ] || [ "${META_DEV_GIT_POLICY_IN_CLAUDE:-}" = "1" ]; then
+    GIT_POLICY="$PLUGIN_ROOT/scripts/lib/git_policy.py"
+    if [ -f "$GIT_POLICY" ]; then
+      set +e
+      GIT_POLICY_REASON=$(python3 "$GIT_POLICY" --command "$COMMAND" 2>&1)
+      GIT_POLICY_RC=$?
+      set -e
+      if [ "$GIT_POLICY_RC" -ne 0 ]; then
+        emit_deny "shared-worktree git policy blocked command: $GIT_POLICY_REASON"
+      fi
     fi
   fi
 
