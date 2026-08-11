@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
 """ledger.py — the ledger-as-projection tools (design §5).
 
-The human ledger (``plans/meta-runbook.md``) is a PROJECTION of the index — a
-readable view a human edits. These verbs keep it honest against reality:
+The human **live** ledger (``plans/meta-runbook.md``) is a PROJECTION of the
+index — a readable view a human edits. Keep it LEAN (~≤150 lines): Sequence +
+milestones + short Wave Strategy only. Cold history lives in
+``plans/meta-runbook-archive.md`` (not scanned by dashboards).
+
+These verbs keep the live ledger honest against reality:
 
   * ``cmd_ledger_check`` — ``planctl ledger check [--json]``: diff the human
     ledger against the index. Surfaces: unregistered ACTIVE runbooks (≥1
@@ -13,10 +17,11 @@ readable view a human edits. These verbs keep it honest against reality:
   * ``cmd_ledger_shipped`` — ``planctl ledger shipped [--write]``: regenerate a
     COMPACT ``## Shipped`` index (one line per archived entry). Sources
     (P4-REGEN/HISTLOSS): an ``_archive/`` dir-walk PLUS a parse of the EXISTING
-    ``## Shipped`` section as seed (ZERO ``archive`` events exist in the legacy
-    log yet). ``--write`` takes a mandatory pre-write backup + applies a
-    per-entry gate (the archived target must exist AND carry equivalent detail,
-    else the prose entry is preserved). Stdout by default.
+    ``## Shipped`` section as seed. Prefer writing compact history into
+    ``meta-runbook-archive.md`` (or stdout); the live file keeps a pointer.
+    ``--write`` takes a mandatory pre-write backup + applies a per-entry gate
+    (the archived target must exist AND carry equivalent detail, else the prose
+    entry is preserved). Stdout by default.
 
 The ledger basename (``meta-runbook.md``) is EXCLUDED from the index — it is
 read from disk here (S8/W2C-9). ``read.sequence_order`` already parses the
@@ -33,6 +38,8 @@ import shutil
 from planctl import db, parse, statedir, sync
 
 LEDGER_BASENAME = "meta-runbook.md"
+# Cold history sibling (not scanned by plan-index / dashboard Sequence).
+LEDGER_ARCHIVE_BASENAME = "meta-runbook-archive.md"
 
 # ── ledger file parsing (the index excludes the ledger; read from disk) ───────
 _SEQ_HEAD = re.compile(r"^#{1,6}\s+Sequence\b", re.IGNORECASE)
@@ -49,6 +56,11 @@ _PAREN_TARGET = re.compile(
 
 def _ledger_path(root):
     return os.path.join(root, "plans", LEDGER_BASENAME)
+
+
+def _ledger_archive_path(root):
+    """Cold history file; preferred write target for compact shipped regen."""
+    return os.path.join(root, "plans", LEDGER_ARCHIVE_BASENAME)
 
 
 def _section_lines(lines, head_re):
@@ -107,9 +119,34 @@ def _parse_ledger(root):
 
 
 # ── ledger check ──────────────────────────────────────────────────────────────
+def _runbook_fm_status_done(root, rb_path):
+    """True when the runbook file itself declares ``status: done`` in YAML.
+
+    Campaigns closed by hand can leave stale non-done members in ``members:``;
+    rollup then stays non-done even though the manuscript is retired. Honor the
+    frontmatter flag so closed runbooks do not force re-registration in the
+    live ledger."""
+    full = os.path.join(root, rb_path)
+    if not os.path.isfile(full):
+        return False
+    try:
+        with open(full, encoding="utf-8", errors="ignore") as fh:
+            head = fh.read(8000)
+    except OSError:
+        return False
+    if not head.startswith("---"):
+        return False
+    parts = head.split("---", 2)
+    if len(parts) < 3:
+        return False
+    return bool(re.search(r"(?m)^status:\s*done\b", parts[1]))
+
+
 def _active_runbooks(conn):
     """``[path]`` for runbooks with ≥1 non-done member (active = not-done rollup
-    with members). Uses the computed-on-read rollup (design §4/W2E-10)."""
+    with members). Uses the computed-on-read rollup (design §4/W2E-10).
+    Skips runbooks that declare ``status: done`` even if members are stale."""
+    root = statedir.project_root()
     out = []
     for (rb,) in conn.execute(
             "SELECT path FROM files WHERE kind='runbook' ORDER BY path"):
@@ -119,6 +156,8 @@ def _active_runbooks(conn):
         if rollup.get("members_total", 0) == 0:
             continue  # empty runbook — not active
         if rollup.get("status") == "done":
+            continue
+        if _runbook_fm_status_done(root, rb):
             continue
         out.append(rb)
     return out
@@ -177,12 +216,28 @@ def cmd_ledger_check(args):
     finally:
         conn.close()
 
+    # Live ledger size budget (lean meta-runbook ~≤20KB editorial target).
+    live_path = ledger["path"]
+    live_size = os.path.getsize(live_path) if os.path.isfile(live_path) else 0
+    live_lines = len(ledger["lines"]) if ledger["lines"] else 0
+    size_warn = None
+    if live_size > 20 * 1024 or live_lines > 200:
+        size_warn = {
+            "path": live_path,
+            "bytes": live_size,
+            "lines": live_lines,
+            "budget_bytes": 20 * 1024,
+            "budget_lines": 200,
+            "hint": "move Shipped novels to plans/meta-runbook-archive.md",
+        }
+
     payload = {
         "unregistered": unregistered,
         "dead": dead,
         "marker_drift": marker_drift,
         "archived_member": archived_member,
         "parenthetical": parenthetical,
+        "live_size_warn": size_warn,
     }
     if getattr(args, "json", False):
         print(json.dumps(payload))
@@ -206,6 +261,13 @@ def _print_check_human(p):
              p["archived_member"],
              lambda m: "%s -> %s" % (m["runbook"], m["archived_member"]))
     _section("Parenthetical status/%% on Sequence lines", p["parenthetical"])
+    sw = p.get("live_size_warn")
+    if sw:
+        print("Live ledger size WARN: %s bytes / %s lines (budget %s B / %s lines)" % (
+            sw["bytes"], sw["lines"], sw["budget_bytes"], sw["budget_lines"]))
+        print("  hint: %s" % sw["hint"])
+    else:
+        print("Live ledger size: OK (≤20KB / ≤200 lines)")
 
 
 # ── ledger shipped ────────────────────────────────────────────────────────────

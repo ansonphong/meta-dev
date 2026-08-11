@@ -90,10 +90,12 @@ if [ ! -f "$CHANGELOG_FILE" ]; then
   echo "Created $CHANGELOG_FILE"
 fi
 
-# Create meta-runbook.md if missing — the single hand-maintained ledger.
+# Create meta-runbook.md if missing — the single hand-maintained LIVE ledger.
 # Status/stage/% live in each plan's YAML frontmatter (read live by the
 # dashboard via plan-index.py); this file is the EDITORIAL layer ONLY:
-# priority order (## Sequence), milestones, wave strategy, and shipped log.
+# priority order (## Sequence), milestones, wave strategy. Keep it LEAN
+# (~≤150 lines). Cold history goes to meta-runbook-archive.md — never
+# paste closeout novels into the live file.
 RUNBOOK_FILE="plans/meta-runbook.md"
 if [ ! -f "$RUNBOOK_FILE" ]; then
   cat > "$RUNBOOK_FILE" <<EOF
@@ -102,21 +104,45 @@ if [ ! -f "$RUNBOOK_FILE" ]; then
 > Editorial layer ONLY. Status/stage/% are NOT stored here — the dashboard reads them live
 > from each plan's YAML frontmatter + checkboxes. Edit this file to change PRIORITY ORDER,
 > MILESTONES, or wave strategy — nothing else.
+> **Lean rules:** path must exist · no \`/_archive/\` in Sequence · no status novels · one path once.
+> **Cold history:** [meta-runbook-archive.md](meta-runbook-archive.md)
 
 ## Wave Strategy / Critical Path
 
-_What to work on right now, in what order. Update as waves complete._
+_What to work on right now, in what order. Update as waves complete. Keep short._
 
 ## Sequence
 
 _Ordered list of ACTIVE plan paths (build order). One \`plans/...\` path per line._
 _Insert \`=== MILESTONE: TYPE · label ===\` markers between entries to mark releases._
+_Active campaigns: \`=== RUNBOOK: plans/.../_runbook-….md · label ===\`._
+
+## Residual / Not Auto-Tracked
+
+_Short bullets only (blockers without a clean live plan path)._
 
 ## Shipped
 
-_Completed plans, newest first (\`plans/.../00-master-plan.md — Title  (archived: ...)\`)._
+> Full history: [meta-runbook-archive.md](meta-runbook-archive.md)
+> After Stage 6: drop from Sequence; append one compact line to the archive file.
 EOF
   echo "Created $RUNBOOK_FILE"
+fi
+
+ARCHIVE_FILE="plans/meta-runbook-archive.md"
+if [ ! -f "$ARCHIVE_FILE" ]; then
+  cat > "$ARCHIVE_FILE" <<EOF
+# Meta-Runbook Archive — Cold History — $PROJECT_NAME
+
+> Cold history only. Live ledger: [meta-runbook.md](meta-runbook.md).
+> Do not load this into routine session context.
+> Append one compact line per archived plan (newest first).
+
+## Shipped
+
+_Completed plans, newest first._
+EOF
+  echo "Created $ARCHIVE_FILE"
 fi
 
 # Validate JSON files

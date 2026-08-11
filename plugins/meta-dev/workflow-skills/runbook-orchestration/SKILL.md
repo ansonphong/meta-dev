@@ -11,7 +11,8 @@ subject through Brainstorm→Design→Plan→Harden→Execute→Review. A runboo
 through that waterfall in dependency order, with one live dashboard tracking the whole arc.
 
 ```
-plans/meta-runbook.md          META runbook — global cross-repo ledger (one entry per campaign)
+plans/meta-runbook.md          META live ledger (lean Sequence + milestones; keep ~≤150 lines)
+plans/meta-runbook-archive.md  Cold Shipped history (not routine context)
   └─ _runbook-YYYY-MM-DD.md     CAMPAIGN runbook — sequences N member plans, drives the waterfall  ← THIS skill
        └─ plan dirs/files        individual plans — each driven by /meta-dev or /meta-execute
             └─ - [ ] tasks         checkboxes (per phase / per task)
@@ -82,9 +83,10 @@ starts, or (b) split an over-large runbook into a focused successor.
 ### `add <plan>` / `done <plan>` / `archive`
 - `add` — insert a plan into `members` at the dependency-correct position; re-render.
 - `done` — flip the member's own frontmatter + write its `## Closeout` into the member's `00-master-plan.md`; re-render. No closeout prose in the runbook.
-- `archive` — when ALL members are `done`: mark the runbook `status: done`, move its META-runbook
-  entry Sequence→Shipped, and (per repo convention) move the campaign to `_archive/` if the whole arc
-  is shipped. Never delete a runbook.
+- `archive` — when ALL members are `done`: mark the runbook `status: done`, drop its META-runbook
+  marker + members from live `## Sequence`, append one compact line to `plans/meta-runbook-archive.md`,
+  and (per repo convention) move the campaign to `_archive/` if the whole arc is shipped. Never
+  delete a runbook; never re-paste closeout novels into live `meta-runbook.md`.
 
 ---
 

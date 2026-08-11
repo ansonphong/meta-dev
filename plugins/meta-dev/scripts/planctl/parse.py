@@ -508,7 +508,8 @@ def parse_smoke(text) -> int:
 def kind_of(text, fm, path=""):
     """Classify a file → ``'plan'`` | ``'runbook'`` | ``'ledger'`` (design §4).
 
-    * ``ledger`` iff ``path`` basename == ``meta-runbook.md``.
+    * ``ledger`` iff ``path`` basename is ``meta-runbook.md`` or
+      ``meta-runbook-archive.md`` (live ledger + cold history; neither is a plan).
     * ``runbook`` iff ``fm['type'] == 'runbook'`` (frontmatter-based, NOT
       filename — design §4).
     * ``plan`` otherwise.
@@ -517,7 +518,7 @@ def kind_of(text, fm, path=""):
     (then only plan/runbook detection applies). ``text`` is accepted for
     signature stability but unused (runbook-ness is frontmatter-driven)."""
     base = path.rsplit("/", 1)[-1] if path else ""
-    if base == "meta-runbook.md":
+    if base in ("meta-runbook.md", "meta-runbook-archive.md"):
         return "ledger"
     if isinstance(fm, dict) and fm.get("type") == "runbook":
         return "runbook"
