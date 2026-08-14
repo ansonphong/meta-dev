@@ -21,8 +21,9 @@
 # Options:
 #   --repo <name>            Resolve via topology config; unresolvable => abort.
 #                            Omit to run at the PROJECT ROOT (never the caller's cwd).
-#   --model <model>          Override grok model (default: grok-4.5, pinned)
-#   --effort <level>         Reasoning effort for the model (grok --reasoning-effort)
+#   --model <model>          Override grok model (default: grok-4.6, pinned)
+#   --effort <level>         Reasoning effort (default: high). grok-4.6:
+#                            low|medium|high|xhigh. grok-4.5: low|medium|high.
 #   --max-turns <n>          Cap agent turns (default: uncapped; bounded by --timeout)
 #   --timeout <ms>           Wall-clock timeout in ms (default: 7200000 = 120 min)
 #   --readonly               Deny Write/Edit — enforced read-only (audits/reviews)
@@ -56,8 +57,8 @@ PLUGIN_ROOT="$(_md_plugin_root)"
 
 # ── Defaults ────────────────────────────────────────────────────────────
 REPO=""
-MODEL="grok-4.5"          # pinned default — guarantees grok-4.5 regardless of account-level default
-EFFORT=""
+MODEL="grok-4.6"          # pinned default — do not inherit TUI/config.toml model
+EFFORT="high"             # pinned omit-fallback — do not inherit TUI default_reasoning_effort (often xhigh)
 MAX_TURNS=""
 TIMEOUT="7200000"         # 120 min — grok can run long-horizon work; never cap deep at 10 min
 READONLY=false
@@ -77,8 +78,11 @@ Usage:
 Options:
   --repo <name>            Resolve via .claude/meta-dev-repos.json; an
                            unknown name ABORTS. Omit => project root (not cwd).
-  --model <model>          Override grok model (default: grok-4.5, pinned)
-  --effort <level>         Reasoning effort for the model
+  --model <model>          Override grok model (default: grok-4.6, pinned)
+  --effort <level>         Reasoning effort (default: high).
+                           grok-4.6: low|medium|high|xhigh
+                           grok-4.5: low|medium|high
+                           xhigh is 4.6-only; max maps to xhigh (4.6) / high (4.5)
   --max-turns <n>          Cap agent turns (default: uncapped; bounded by --timeout)
   --timeout <ms>           Wall-clock timeout in ms (default: 7200000 = 120 min)
   --readonly               Deny Write/Edit — enforced read-only (audits/reviews)
@@ -119,6 +123,63 @@ done
 source "$SCRIPT_DIR/lib/read-prompt.sh"
 resolve_prompt "$PROMPT_INPUT_FILE" "grok-headless-exec"
 
+# ── Model / effort contract ─────────────────────────────────────────────
+# Menus verified 2026-08-14 against `grok models` + ~/.grok/models_cache.json
+# (grok 1.0.3): grok-4.6 advertises xhigh|high|medium|low; grok-4.5 advertises
+# high|medium|low. Always pass --effort so TUI default_reasoning_effort cannot
+# leak into a headless worker.
+# Mutates EFFORT in this shell — do not call from $() or `exit` only kills the subshell.
+_normalize_grok_effort() {
+    local model="$1" effort="$2"
+    case "$model" in
+        grok-4.6)
+            case "$effort" in
+                xhigh|high|medium|low) EFFORT="$effort" ;;
+                max)
+                    echo "[WARN] grok-4.6 has no 'max' — using xhigh" >&2
+                    EFFORT="xhigh"
+                    ;;
+                none|minimal)
+                    echo "[WARN] grok-4.6 has no '$effort' — using low" >&2
+                    EFFORT="low"
+                    ;;
+                *)
+                    echo "[ERROR] grok-4.6 --effort must be low|medium|high|xhigh (got: $effort)" >&2
+                    return 2
+                    ;;
+            esac
+            ;;
+        grok-4.5)
+            case "$effort" in
+                high|medium|low) EFFORT="$effort" ;;
+                xhigh|max)
+                    echo "[WARN] grok-4.5 has no '$effort' — using high" >&2
+                    EFFORT="high"
+                    ;;
+                none|minimal)
+                    echo "[WARN] grok-4.5 has no '$effort' — using low" >&2
+                    EFFORT="low"
+                    ;;
+                *)
+                    echo "[ERROR] grok-4.5 --effort must be low|medium|high (got: $effort)" >&2
+                    return 2
+                    ;;
+            esac
+            ;;
+        *)
+            case "$effort" in
+                none|minimal|low|medium|high|xhigh|max) EFFORT="$effort" ;;
+                *)
+                    echo "[ERROR] unknown --effort '$effort' (canonical: none|minimal|low|medium|high|xhigh|max)" >&2
+                    return 2
+                    ;;
+            esac
+            ;;
+    esac
+    return 0
+}
+_normalize_grok_effort "$MODEL" "$EFFORT" || exit $?
+
 # ── Validate grok CLI + auth ────────────────────────────────────────────
 if ! command -v grok &>/dev/null; then
     echo "[ERROR] 'grok' CLI not found on PATH." >&2
@@ -155,7 +216,8 @@ cat <<EOF
 ║  HEADLESS EXECUTION — Grok (xAI)
 ╠══════════════════════════════════════════════════════════════════════════╣
 ║  Backend   : Grok
-║  Model     : ${MODEL:-grok-4.5}
+║  Model     : ${MODEL:-grok-4.6}
+║  Effort    : ${EFFORT:-high}
 ║  Repo      : ${REPO}
 ║  Resolved  : ${WORKDIR_ORIGIN}
 ║  Work Dir  : ${WORK_DIR}

@@ -1,7 +1,7 @@
 ---
 name: grok-execute
-argument-hint: "<task description> [--repo <name>] [--readonly] [--model <model>] [--effort <level>] [--max-turns <n>]  # --repo names from .claude/meta-dev-repos.json"
-description: "Execute a task via headless xAI Grok (Grok Build CLI). Grok is its OWN harness (like Codex) — it cannot run our slash commands, so give it a DIRECT task. Like Codex, Grok can read AND write, so it serves double duty: a full general-purpose execution worker (the frontier-reasoning rung of meta_dev.ladder.pool, alongside /deep-execute and /codex-execute) AND a third cross-family review lens (xAI family, alongside Anthropic and OpenAI). Default model grok-4.5."
+argument-hint: "<task description> [--repo <name>] [--readonly] [--model <grok-4.6|grok-4.5>] [--effort <low|medium|high|xhigh>] [--max-turns <n>]  # --repo names from .claude/meta-dev-repos.json"
+description: "Execute a task via headless xAI Grok (Grok Build CLI). Grok is its OWN harness (like Codex) — it cannot run our slash commands, so give it a DIRECT task. Like Codex, Grok can read AND write, so it serves double duty: a full general-purpose execution worker (the frontier-reasoning rung of meta_dev.ladder.pool, alongside /deep-execute and /codex-execute) AND a third cross-family review lens (xAI family, alongside Anthropic and OpenAI). Default model grok-4.6; grok-4.5 still available. Dispatcher picks --effort per task (xhigh is grok-4.6 only)."
 ---
 
 # /grok-execute — Grok Headless Execution
@@ -20,10 +20,10 @@ Consequence: **give Grok a direct task, never a "run `/command`" instruction.** 
 
 Grok occupies a unique slot: it is **both** a general execution tier **and** a cross-family reviewer.
 
-- **As an executor:** Grok 4.5 is a frontier-tier model that **can write files** (like Codex under `--sandbox workspace-write`) — so it can do real bounded implementation work (fixes, refactors, scaffolding), not just read-and-report. Use it like `/deep-execute` or `/glm-execute` for a self-contained task where an independent strong model is wanted.
+- **As an executor:** Grok 4.6 is a frontier-tier model that **can write files** (like Codex under `--sandbox workspace-write`) — so it can do real bounded implementation work (fixes, refactors, scaffolding), not just read-and-report. Use it like `/deep-execute` or `/glm-execute` for a self-contained task where an independent strong model is wanted.
 - **As a reviewer:** Point it (read-only via `--readonly`) at a diff, the changed files, or a specific finding. An xAI-family model reviewing Claude/DeepSeek/OpenAI output is a **third independent family** — it catches failure modes that same-family review (and even the OpenAI/Codex lens) miss. That independent-family lens is the entire value of Grok-as-reviewer.
 
-**Where it sits on the work ladder:** Grok is in the default pool (`meta_dev.ladder.pool` = `deep`, `grok`, `codex`) as the **frontier-reasoning / third-family** rung. **Grok Heavy (since 2026-07-26) gives us a large compute bucket**, and Grok 4.5 is an Opus-4.8-class model that runs *faster* than Opus — so **spend it**. It is the default answer for gap checks and plan hardening, cross-family review, and bounded implementation that wants a strong independent model. Full routing table: `references/work-ladder.md`.
+**Where it sits on the work ladder:** Grok is in the default pool (`meta_dev.ladder.pool` = `deep`, `grok`, `codex`) as the **frontier-reasoning / third-family** rung. **Grok Heavy (since 2026-07-26) gives us a large compute bucket**, and Grok 4.6 is the current frontier default (4.5 remains available via `--model grok-4.5`) — so **spend it**. It is the default answer for gap checks and plan hardening, cross-family review, and bounded implementation that wants a strong independent model. Full routing table: `references/work-ladder.md`.
 
 ## Test discipline — keep every test cycle cheap
 
@@ -36,25 +36,41 @@ The user's input is: `$ARGUMENTS`
 Parse these optional flags:
 - `--repo <name>` — target repo (default: auto-detect from cwd; names from .claude/meta-dev-repos.json)
 - `--readonly` — enforced read-only (deny Write/Edit). Use for all audits/reviews. Grok's deny-rule sandbox blocks every write path (write tool, shell redirection, search_replace) — verified empirically.
-- `--model <model>` — override grok model (default: `grok-4.5`, pinned)
-- `--effort <level>` — reasoning effort for the model
+- `--model <grok-4.6|grok-4.5>` — override grok model (default: `grok-4.6`, pinned). `grok-4.5` is still supported. An explicit `--model` from the user always wins.
+- `--effort <low|medium|high|xhigh>` — reasoning effort. **You pick this from the task**, every time. Do not inherit the TUI/`config.toml` default (often `xhigh`). `xhigh` exists on `grok-4.6` only; `grok-4.5` accepts `low|medium|high`. The runner's omit-fallback is `high` so a forgotten flag does not silently become TUI `xhigh`. Canonical CLI also lists `none|minimal|max`; the runner maps `none`/`minimal` → `low` and `max` → `xhigh` on 4.6 / `high` on 4.5.
 - `--max-turns <n>` — cap agent turns (default: uncapped; bounded by the 120-min timeout)
 - `--timeout <ms>` — wall-clock timeout (default `7200000` = 120 min)
 
 Everything else is the task description. If none is given, ask what task to run.
 
-## Step 2: Confirm the Plan
+## Step 2: Select Model and Effort
+
+**Default model is `grok-4.6`.** Keep `grok-4.5` for an explicit compare, a 4.5-only repro, or a user `--model grok-4.5`. Do not pick 4.5 just because older docs mention it.
+
+**You decide `--effort` from the task.** State the chosen model and effort before dispatching. An explicit `--effort` from the user always wins. Omit only when you have already classified the task as ordinary `high` work.
+
+| Task shape | Model | Effort |
+| --- | --- | --- |
+| Quick lookup, one-file mechanical edit, focused search, cheap fan-out | `grok-4.6` | `low` |
+| Ordinary implementation, focused refactor, standard gap check, standard diff review | `grok-4.6` | `high` |
+| Hard diagnosis, architecture, plan harden, adversarial / cross-family review, anything where being subtly wrong is expensive | `grok-4.6` | `xhigh` |
+| Explicit 4.5 fallback or side-by-side compare | `grok-4.5` | `high` (4.5 has no `xhigh`) |
+
+`xhigh` is the new 4.6 extra-high reasoning tier. Use it when the task earns it — not as a blanket default. `high` is the omit-fallback on both models.
+
+## Step 3: Confirm the Plan
 
 Summarize before running:
 - **Backend:** Grok (`grok --output-format json`)
-- **Model:** grok-4.5 (or override)
+- **Model:** grok-4.6 (or the `--model` override)
+- **Effort:** the level you selected above (or the user's `--effort`)
 - **Repo / Work dir:** (detected or specified)
 - **Task:** (the task description)
 - **Mode:** read-only (audit/review) or execute (writes allowed)
 
 If the task is destructive or writes outside the repo, confirm with the user first. For gap-checking/hardening/review, **default to `--readonly`** — Grok reports, you decide.
 
-## Step 3: Execute
+## Step 4: Execute
 
 Run the headless worker. For tasks expected to take >30s, use `run_in_background: true` so the session stays responsive.
 
@@ -73,7 +89,7 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/grok-headless-exec \
 
 **Note on progress:** Grok's `--output-format json` writes the entire result object at completion (it does not stream), so a long run will appear silent until it returns. The wall-clock timeout is the safety net — be patient on deep tasks.
 
-## Step 4: Report Results
+## Step 5: Report Results
 
 The script distills the worker's output — three files per run:
 - **`OUTPUT_FILE`** (printed as `OUTPUT_FILE=<path>`) — clean JSON: `{is_error, subtype, num_turns, duration_ms, session_id, result, usage, backend, stop_reason}`. `result` is Grok's final message. `json.load()` it directly.
