@@ -1,6 +1,6 @@
 # Meta-Dev
 
-Autonomous development harness for Claude Code and Codex. Dashboard, overlord, **6-stage waterfall**, HOTL classification, deep-investigation probe, changelog engine, multi-repo versioning — all configurable via JSON.
+Autonomous development harness for Claude Code, Codex, and Grok Build. Dashboard, overlord, **6-stage waterfall**, HOTL classification, deep-investigation probe, changelog engine, multi-repo versioning — all configurable via JSON.
 
 ## The 6-stage waterfall
 
@@ -41,11 +41,11 @@ flowchart LR
 - Stages 1–4 are planning and docs only. Source code starts at Stage 5.
 - Default stop is **Stage 4**. Approving a plan is not permission to execute it.
 - Quick fixes (typos, one-file config) may skip to Stage 5. Everything else uses the full waterfall.
-- Claude Code and Codex run the same six stages. `planctl` is the only state write door.
+- Claude Code, Codex, and Grok Build run the same six stages. `planctl` is the only state write door.
 
 ## Prerequisites
 
-- **Claude Code** (latest) for the slash-command surface, or **Codex** for the native skill surface
+- **Claude Code**, **Codex**, or **Grok Build** (`grok` CLI) — pick one host
 - `jq` ≥ 1.6, `python3` ≥ 3.10, `shellcheck` ≥ 0.7
 - Python package: `jsonschema` (`pip install jsonschema`)
 - Optional: `ulid-py` (falls back to uuid4)
@@ -148,6 +148,62 @@ Codex lifecycle hooks are bundled with the plugin. Trust the installed plugin
 normally so its adapter can apply the shared guard policy to Codex tool events;
 do not use `--dangerously-bypass-hook-trust` in normal work.
 
+## Install in Grok
+
+Grok Build is a first-class host. Add this repo as a marketplace, then install
+and enable the plugin:
+
+```bash
+grok plugin marketplace add ansonphong/meta-dev
+grok plugin install meta-dev --trust
+grok plugin enable meta-dev
+```
+
+`--trust` lets the plugin's hooks run. Grok leaves plugins **off** until you
+enable them — `install` alone is not enough.
+
+From a local clone instead of GitHub:
+
+```bash
+grok plugin marketplace add /path/to/meta-dev
+grok plugin install meta-dev --trust
+grok plugin enable meta-dev
+```
+
+Or install the plugin folder directly:
+
+```bash
+grok plugin install /path/to/meta-dev/plugins/meta-dev --trust
+grok plugin enable meta-dev
+```
+
+To keep it on across sessions, list it in `~/.grok/config.toml`:
+
+```toml
+[plugins]
+enabled = ["meta-dev"]
+```
+
+Verify:
+
+```bash
+grok plugin list
+```
+
+You should see `meta-dev`. Start a new Grok session (or press `r` in `/plugins`)
+and run `/meta-dashboard`.
+
+After a push, refresh the catalog and the installed copy:
+
+```bash
+grok plugin marketplace update meta-dev
+grok plugin update meta-dev
+```
+
+In a Grok session the plugin's slash commands and skills load as `/meta-dev`,
+`/meta-execute`, `/meta-dashboard`, `/meta-planner`, and the rest of the
+waterfall. Grok runs the same six stages as Claude Code and Codex.
+
 ## Quick Start
 
 ```bash
@@ -160,7 +216,8 @@ do not use `--dangerously-bypass-hook-trust` in normal work.
 
 ## Shared workflow contract
 
-Both host surfaces run the same six-stage waterfall (see the top of this README).
+Claude Code, Codex, and Grok Build run the same six-stage waterfall (see the
+top of this README).
 Plans and their state remain host-neutral: `planctl` is the only state write
 door, and the conductor owns stage transitions and the checkbox ledger.
 
