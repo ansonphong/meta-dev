@@ -1,6 +1,47 @@
 # Meta-Dev
 
-Autonomous development harness for Claude Code and Codex. Dashboard, overlord, 6-phase orchestrator, HOTL classification, deep-investigation probe, changelog engine, multi-repo versioning — all configurable via JSON.
+Autonomous development harness for Claude Code and Codex. Dashboard, overlord, **6-stage waterfall**, HOTL classification, deep-investigation probe, changelog engine, multi-repo versioning — all configurable via JSON.
+
+## The 6-stage waterfall
+
+This is the core of the harness. `/meta-dev` drives every non-trivial piece of work through **six stages, in this order**. Do not skip stages. Do not write code before Stage 5.
+
+```
+ 1 BRAINSTORM  →  2 DESIGN  →  3 PLAN  →  4 HARDEN  ━━  5 EXECUTE  →  6 REVIEW
+    intent           spec         tasks        gaps          code          verify
+                                                 ▲
+                                      default stop here
+                                      Stage 5 needs an explicit go
+```
+
+```mermaid
+flowchart LR
+  S1["1 BRAINSTORM<br/>explore intent"] --> S2["2 DESIGN<br/>spec + architecture"]
+  S2 --> S3["3 PLAN<br/>tasks + files + deps"]
+  S3 --> S4["4 HARDEN<br/>gap-scan until clean"]
+  S4 --> S5["5 EXECUTE<br/>write code — needs go"]
+  S5 --> S6["6 REVIEW<br/>verify + archive"]
+```
+
+| # | Stage | What happens | Writes code? | Command |
+|---|-------|--------------|--------------|---------|
+| **1** | **Brainstorm** | Explore intent, constraints, alternatives. No plan yet. | No | `/meta-dev` |
+| **2** | **Design** | Spec and architecture: data models, APIs, UX, decisions. | No | `/meta-dev` |
+| **3** | **Plan** | Task-level plan: phases, file paths, deps, focused verify. | No | `/meta-planner` |
+| **4** | **Harden** | Gap-scan the plan until no gaps remain. **Default stop.** | No | `/loop-gap` |
+| **5** | **Execute** | Implement task-by-task. **Needs an explicit go.** | **Yes** | `/meta-execute` |
+| **6** | **Review** | Code review, eval, archive, context sync. | No (review only) | `/meta-eval` |
+
+```bash
+/meta-dev <subject>           # Stages 1–4, then halt. Nothing ships until you say go.
+/meta-dev <subject> --to 6    # Full waterfall. Stage 5 still needs an explicit go.
+```
+
+**Rules that do not bend:**
+- Stages 1–4 are planning and docs only. Source code starts at Stage 5.
+- Default stop is **Stage 4**. Approving a plan is not permission to execute it.
+- Quick fixes (typos, one-file config) may skip to Stage 5. Everything else uses the full waterfall.
+- Claude Code and Codex run the same six stages. `planctl` is the only state write door.
 
 ## Prerequisites
 
@@ -119,10 +160,9 @@ do not use `--dangerously-bypass-hook-trust` in normal work.
 
 ## Shared workflow contract
 
-Both host surfaces follow the same six stages: brainstorm, design, plan,
-harden, execute, and review. Plans and their state remain host-neutral:
-`planctl` is the only state write door, and the conductor owns stage transitions
-and the checkbox ledger.
+Both host surfaces run the same six-stage waterfall (see the top of this README).
+Plans and their state remain host-neutral: `planctl` is the only state write
+door, and the conductor owns stage transitions and the checkbox ledger.
 
 Plan artifacts are rendered from the versioned JSON IR in
 `schemas/plan-artifact.schema.json`, not hand-written per host. Version `1.0`
@@ -283,7 +323,7 @@ plugin root/
 ### Development Lifecycle
 | Command | Purpose |
 |---------|---------|
-| `/meta-dev` | 6-phase orchestrator: classify → dod → plan → harden → execute → review → ship |
+| `/meta-dev` | 6-stage waterfall: brainstorm → design → plan → harden → execute → review |
 | `/meta-classify` | HOTL vs HITL task classification by blast radius |
 | `/meta-dod` | Generate definition-of-done contracts from task descriptions |
 | `/meta-planner` | Restructure plans for automated execution |
