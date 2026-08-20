@@ -2,82 +2,81 @@
 
 > **Last verified:** 2026-08-20
 
-Which backends may be **auto-selected** for delegated work, and when to stay
-**native** instead. Every command, skill, and reference that talks about
-delegation order links here — never restates it.
+Which backends may be **auto-selected** for delegated work, which are
+**review-only**, and when to stay **native**. Every command, skill, and
+reference that talks about delegation order links here — never restates it.
 
 **Binding doctrine (also `CLAUDE.md` → Delegation Discipline):**
 
-- **Pooled worker = Grok only.** Every subagent is a Grok worker.
-- **Use Grok subagents liberally** — fan-out, swarms, whenever the work is more
-  than a few tool calls.
-- **Claude Pro is the conductor, not a farm.** Do not spawn Claude headless
-  workers unless Phong names that backend this turn.
-- **Codex is out.** No subscription. Do not auto-select Codex.
+- **Pooled worker = Grok only.** Implementation, investigation, mechanical
+  bulk, UI without vision, Grok-swarm gap scans. Use Grok subagents
+  **liberally** (fan-out, swarms).
+- **Claude and Codex are $20 / $30-mo plans.** Quota is small. Do not farm
+  them for execute, bulk, or swarms.
+- **Cross-family review is what Opus and Codex are for.** At harden and
+  code-review gates, fire **one** `/opus-execute` and **one** `/codex-execute`
+  (prefer `--readonly`). Not a swarm. Not a loop. Not "also implement this."
+- **Claude Pro is the conductor, not a farm.** Do not spawn native Task/Agent
+  Haiku/Sonnet/Opus subagents for work Grok should own.
 
-## Pool is Grok — do not fall through config
+## Pool is Grok
 
 ```bash
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/config-get.sh" meta_dev.ladder.pool
+# → ["grok"]
 ```
 
-**Auto-select `grok` only.** If this key still returns `deep` / `codex` / anything
-else, those rungs are **parked** — ignore them for automatic selection. Doctrine
-here wins over a stale config value.
-
-Plugin `templates/settings.json` may still ship `["deep","grok","codex"]`. That
-is not permission to dispatch DeepSeek or Codex. To make `config-get` match
-doctrine, set the **project** layer:
+Project layer (`plans/_dashboard/settings.json`):
 
 ```json
 "ladder": { "pool": ["grok"], "native_only_when_required": true }
 ```
 
-in `plans/_dashboard/settings.json`. Do **not** edit the shipped default in
-`templates/settings.json`.
+**Auto-select `grok` only.** Opus and Codex are **not** in the pool — they are
+explicit review dispatches. If this key still returns `deep` / extra rungs,
+ignore them for automatic selection.
 
 `meta_dev.ladder.native_only_when_required` (default `true`) says delegation is
 the default posture. See **Stay native only when** below.
 
-**Explicit flags always win — and they are parked by default.** `--deep` /
-`--glm` / `--codex` / `--sonnet` / `--opus` / `--fable` force that backend
-**only when Phong named it this turn**. `--grok` is the pooled default. Fable
-stays EXPRESS-PERMISSION even when named.
+**Explicit flags:** `--grok` is the pooled default. `--opus` / `--codex` (and
+`/opus-execute` / `/codex-execute`) are **review-only**. `--deep` / `--glm` /
+`--sonnet` / `--fable` force that backend **only when Phong named it this
+turn**. Fable stays EXPRESS-PERMISSION even when named.
 
-## Host override — Grok is the only subagent
+## Host override — Grok does the work
 
 > **When the conductor host is Claude Code (Claude Pro), the default processing
 > worker is Grok (`/grok-execute` / `--grok` / Grok `spawn_subagent`).** The
 > conductor holds gates, slash commands, permission, and integration. Grok does
-> the processing. Do **not** spawn native Task/Agent Haiku/Sonnet/Opus
-> subagents, and do **not** call `/opus-execute` / `/sonnet-execute` /
-> `/fable-execute`, unless Phong names that backend this turn.
+> the processing. Do **not** spawn native Task/Agent subagents to "stay local."
 >
-> Mechanical bulk, UI/frontend (no vision on this thread), harden, review, and
-> multi-file work all go to Grok. Vision, slash harness, true one-liners, and
-> phase-gate judgment stay on the conductor.
+> At a **harden** or **code-review** gate, add one `/opus-execute` and one
+> `/codex-execute` on the same artifact. That is the whole Claude/Codex budget
+> for that gate.
 
-**Grok Build host:** same rule. Doctrine also auto-loads from
+**Grok Build host:** same split. Doctrine also auto-loads from
 `.grok/rules/host-behavior.md`.
 
 ## Route by task shape
 
 | Task shape | Backend | Why |
 |---|---|---|
-| Almost all delegated work: mechanical edits, multi-file investigation, diagnosis, implementation (with go), plan drafting, gap scans, harden, review, UI without vision on this thread, parallel tracks | **Grok** (`--grok` / `/grok-execute` / Grok `spawn_subagent`) | **The only pooled worker.** Spend it. Fan out freely. |
-| DeepSeek, Codex (any tier), GLM, Claude headless (Sonnet/Opus/Fable), native Claude Task/Agent | **Parked** | Dispatch **only** when Phong names that backend this turn. Fable stays EXPRESS-PERMISSION even then. |
+| Almost all delegated work: mechanical edits, multi-file investigation, diagnosis, implementation (with go), plan drafting, Grok-swarm gap scans, UI without vision, parallel tracks | **Grok** (`--grok` / `/grok-execute` / Grok `spawn_subagent`) | **The only pooled worker.** Spend it. Fan out freely. |
+| Stage 4 harden extra-family pass · Stage 6 / phase-gate **code review** | **One `/opus-execute` + one `/codex-execute`** (prefer `--readonly`) | Cross-family lens. $20/30-mo quota — **one pass each per gate**, not a swarm. Grok still does the first named review. |
+| DeepSeek, GLM, `/sonnet-execute`, `/fable-execute`, native Claude Task/Agent | **Parked** | Dispatch **only** when Phong names that backend this turn. Fable stays EXPRESS-PERMISSION even then. |
 
-**Cost is never a reason to skip Grok, and an old ladder is never a reason to
-call Codex or DeepSeek.** Under Claude Code, **reach for Grok before doing
-multi-step work on the main thread**.
+**Cost is never a reason to skip Grok for work, and quota is always a reason
+not to execute on Opus or Codex.** Under Claude Code, **reach for Grok before
+doing multi-step work on the main thread**.
 
-Reviewers are a Grok `meta-dev:review-agent` (named reviewer, not self-review).
-Cross-family Codex/DeepSeek review is parked with those backends.
+Do **not** use `/opus-execute` or `/codex-execute` for implementation,
+mechanical bulk, brainstorm, design, plan writing, or Stage 5 execute.
 
 ## Stay native only when
 
-Native means the **conductor thread** — not a Claude Task/Agent subagent, not
-`/opus-execute`. Stay on the conductor when the task:
+Native means the **conductor thread** — not a Claude Task/Agent subagent.
+Stay on the conductor when the task:
 
 - **needs our harness** — it must run a meta-dev slash command or a project skill internally (a Grok worker cannot run `/meta-*`);
 - **needs vision** — screenshots, design review, image comparison (external backends are text+tools only);
@@ -88,25 +87,21 @@ Native means the **conductor thread** — not a Claude Task/Agent subagent, not
 
 Otherwise, **default to Grok** and use subagents liberally. Independent tracks
 may run in parallel. Liberal fan-out overrides "prefer one subagent over several."
+Harden / code-review gates then add the one Opus + one Codex pass.
 
 ## Foreign harnesses: give them tasks, never commands
 
-`--deep`, `--glm`, `--sonnet`, `--opus`, and `--fable` spawn a full **Claude Code**
-instance on another model's endpoint. **Do not use them unless Phong named that
-backend this turn.** Claude Pro quota is the interactive session, not a farm.
+`--opus` / `/opus-execute` spawn a full **Claude Code** instance, so that
+worker *can* run our slash commands. Still brief it as a **review**, not a farm.
 
-**Grok cannot run Claude slash commands.** It is its own agent with its own tool
-surface — no `/meta-execute` or `/loop-gap`. Give it a direct task ("fix the
-failing test in Z", "audit X for gap class Y and report findings"), never
-"run `/loop-gap` on this plan". Anything needing the Claude command harness
-stays with the conductor.
+**Grok and Codex cannot run Claude slash commands.** They are their own agents
+— no `/meta-execute` or `/loop-gap`. Give them a direct task ("audit this diff
+for gap class Y and report findings"), never "run `/loop-gap` on this plan".
+Anything needing the Claude command harness stays with the conductor.
 
-Grok has no PreToolUse hook here, so git bans (rebase/pull/merge, `git stash`,
-`git add -A`) reach Grok as **advisory prompt text only**, not enforced
-interception. State the git rules in every Grok task spec.
-
-**Codex is out.** No `/codex-execute`. If Phong later names Codex, give it a
-direct task the same way — never a bare `/command`.
+Grok (and Codex) have no PreToolUse hook here, so git bans reach them as
+**advisory prompt text only**. State the git rules in every Grok/Codex task
+spec. Codex review passes should be `--readonly` so they cannot write.
 
 ## Parked backends
 
@@ -116,15 +111,12 @@ names them this turn:
 | Flag / command | Backend |
 |---|---|
 | `--deep` / `/deep-execute` | DeepSeek |
-| `--codex` / `/codex-execute` | Codex (GPT) — **no subscription** |
 | `--glm` / `/glm-execute` | GLM 5.2 |
 | `--sonnet` / `/sonnet-execute` | Anthropic Sonnet 5 headless |
-| `--opus` / `/opus-execute` | Anthropic Opus 5 headless |
 | `--fable` / `/fable-execute` | Anthropic Fable 5 headless — EXPRESS-PERMISSION even when named |
 | native Task/Agent Haiku/Sonnet/Opus | Claude Pro farm — banned unless named |
 
-To restore a parked backend to automatic selection, Phong must say so, then add
-it to `meta_dev.ladder.pool` in `plans/_dashboard/settings.json`.
+`/opus-execute` and `/codex-execute` are **review-only**, not parked.
 
 ## Adding or reordering a backend
 
@@ -134,4 +126,5 @@ change. Do **not** edit the shipped default in `templates/settings.json`; that
 moves with plugin version bumps. Cascade rules:
 `references/config-cascade.md`.
 
-Until that key is `["grok"]`, treat extra rungs as parked anyway.
+Keep the execute pool at `["grok"]`. Do not add `opus` or `codex` to the pool
+— that would farm the $20/30-mo plans.
