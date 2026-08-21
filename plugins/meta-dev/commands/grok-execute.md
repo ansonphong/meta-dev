@@ -102,12 +102,12 @@ When execution completes:
 1. **Read `OUTPUT_FILE`** (or the printed `RESULT` block) — already clean JSON.
 2. **Check `is_error`** and the `Exit code` line — exit `3` = distill failed (inspect `.raw`), exit `4` = worker reported error, exit `124` = timed out. A non-`EndTurn` `stop_reason` (e.g. `MaxTurns`) is surfaced as a note appended to the result but does not by itself mark error.
 3. **Summarize** — what Grok found/did, files touched (if execute mode), any issues.
-4. **Apply / next steps** — for reviews, the value is the findings: triage them and apply fixes yourself or via a claude-harness worker. Remind the user Grok's changes (if any) are **not** auto-committed.
+4. **Apply / next steps** — for reviews, the value is the findings: triage them and apply fixes yourself or via a worker. For execute tasks the worker **must have committed** (commit-on-red). If it returned dirty, that is an executor bug — recover per `references/execute-charter.md`; do not treat uncommitted Grok edits as expected.
 
 ## Safety Notes
 
 - Grok must be authenticated (`~/.grok/auth.json` — via `grok login`, OAuth to grok.com / xAI). The script warns if auth is missing.
 - `--readonly` enforces read-only via Grok's deny rules (`--deny Write --deny Edit`), which block every write path including shell redirections. It is NOT paired with `bypassPermissions` (that would defeat it).
-- Execute mode uses `--permission-mode bypassPermissions --always-approve` — full autonomy to edit files in the work dir, but **cannot commit** (review and commit yourself).
-- Grok's changes are NOT automatically committed.
+- Execute mode uses `--permission-mode bypassPermissions --always-approve` — full autonomy to edit files **and to commit**. The worker **must** `git -C <ABS> add -- <paths> && git -C <ABS> commit --only -m "…" -- <paths>` before returning (commit-on-red). Never push; the conductor owns the remote.
+- Uncommitted Grok edits are a **bug**, not a feature. Do not write "the conductor commits" into a Grok brief.
 - **Budget is not the constraint** — the grok.com account is on **Grok Heavy**, a large compute bucket, so route work here liberally rather than rationing it. The one thing that still matters is scoping: a well-specified task returns a better result than a vague one, on any model.

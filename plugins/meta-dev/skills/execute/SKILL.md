@@ -20,9 +20,12 @@ the user for this plan. Absent one, report what would run and stop.
 4. Resolve the plugin root from this file and the project root with
    `<plugin-root>/scripts/lib/repo-topology.py --root`.
 5. Build one runtime task per plan checkbox, in dependency order. Dispatch one
-   fresh scoped worker per task and **inline that task's own plan section
-   verbatim** into the brief — never tell a worker to reconstruct the task by
-   reading the plan file.
+   fresh **host-native** worker per task (Grok Build → `spawn_subagent`; Claude
+   Code → `Agent`; Codex → spark mechanical / sol hard) and **inline that
+   task's own plan section verbatim** into the brief — never tell a worker to
+   reconstruct the task by reading the plan file. The conductor does not
+   implement. `--inline` only when the user passed it. Honor `--review
+   each|phase|end|auto`.
 6. Verify each task with a focused check scoped to its declared files. A
    task-caused failure is `TASK_RED`: repair it and defer only its direct
    dependents. Pre-existing or out-of-scope failures are `BASELINE_RED` and

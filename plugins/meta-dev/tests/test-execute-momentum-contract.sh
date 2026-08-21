@@ -99,6 +99,88 @@ else
 fi
 
 echo
+echo "=== Execute host-dispatch: conductor stays thin ==="
+if DETAIL="$(python3 - "$PLUGIN_ROOT" <<'PY'
+from pathlib import Path
+import sys
+
+root = Path(sys.argv[1])
+required = {
+    "commands/meta-execute.md": [
+        "this thread does not implement",
+        "spawn_subagent",
+        "Grok Build",
+        "--review each",
+        "gpt-5.6-sol",
+        "never this thread",
+        "Context watchdog (every execute path",
+    ],
+    "references/execute-charter.md": [
+        "this thread does not implement",
+        "spawn_subagent",
+    ],
+    "references/execute-dispatch.md": [
+        "host-native worker",
+        "never a hardcoded `model: sonnet`",
+    ],
+    "workflow-skills/agentic-exec-loop/references/loop-protocol.md": [
+        "spawn_subagent",
+        "never the conductor thread",
+        "--review each",
+        "every execute path",
+    ],
+    "commands/grok-execute.md": [
+        "must have committed",
+        "Uncommitted Grok edits are a **bug**",
+    ],
+    "references/workflows/protocol.md": [
+        "bug in the host table",
+        "spawn_subagent",
+    ],
+}
+forbidden = {
+    "commands/meta-execute.md": [
+        "fresh Sonnet subagent",
+        "NATIVE TO THE HOST HARNESS",
+    ],
+    "references/execute-dispatch.md": [
+        "fresh Sonnet subagent",
+        "`model: sonnet`, `run_in_background: true`",
+    ],
+    "commands/grok-execute.md": [
+        "cannot commit",
+        "NOT automatically committed",
+    ],
+    "references/workflows/protocol.md": [
+        "Missing delegation means run serially",
+    ],
+}
+
+issues = []
+texts = {}
+for rel, markers in required.items():
+    text = (root / rel).read_text(encoding="utf-8")
+    texts[rel] = text
+    for marker in markers:
+        if marker not in text:
+            issues.append(f"{rel}: missing {marker!r}")
+for rel, markers in forbidden.items():
+    text = texts.get(rel) or (root / rel).read_text(encoding="utf-8")
+    for marker in markers:
+        if marker in text:
+            issues.append(f"{rel}: stale contradiction {marker!r}")
+
+if issues:
+    print(" | ".join(issues))
+    raise SystemExit(1)
+PY
+)"; then
+  ok "host-native spawn, --review, Grok commit-on-red, no conductor fallback"
+else
+  bad "host-dispatch contract drifted: $DETAIL"
+fi
+
+echo
 echo "=== Execute momentum: folder-nav regression ==="
 if DETAIL="$(python3 - "$PLUGIN_ROOT" <<'PY'
 import json

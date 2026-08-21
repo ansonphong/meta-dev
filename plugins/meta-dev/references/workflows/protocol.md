@@ -98,8 +98,11 @@ see `workflow-skills/code-review-protocol/`.
 
 Resolve `routes.json`, read the target procedure, and translate capabilities:
 filesystem reads, exact-path edits, shell checks, scoped commits, and optional
-delegation. Missing delegation means run serially; it never changes permission,
-result-state, review, or verification semantics.
+delegation. Missing delegation is a **bug in the host table**, not permission
+to implement on the conductor. Look up `commands/meta-execute.md` Host dispatch
+(Grok Build → `spawn_subagent`, Claude Code → `Agent`, Codex → spark/sol).
+`--inline` is the only legal serial-on-conductor path. Permission, result-state,
+review, and verification semantics never change.
 
 ## Routing
 

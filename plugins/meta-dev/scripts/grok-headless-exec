@@ -12,8 +12,9 @@
 #   {is_error, subtype, num_turns, duration_ms, session_id, result, usage,
 #    backend, stop_reason}
 #
-# Unlike codex (review-only by doctrine), grok can READ and WRITE, so it is a
-# full general-purpose execution worker AND a cross-family (xAI) review lens.
+# Grok can READ, WRITE, and COMMIT (bypassPermissions in execute mode).
+# Workers MUST commit their own edits (commit-on-red). Uncommitted Grok
+# edits are a bug. Grok is a full executor AND a cross-family (xAI) review lens.
 #
 # Usage:
 #   grok-headless-exec [options] -- <prompt>

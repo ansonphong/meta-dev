@@ -7,12 +7,16 @@ releases usable artifacts once, while failure containment follows branches.
 - **Conductor** (host main thread): dispatches, reads ONE verdict line per
   phase + each worker's one-line result. NEVER reads a diff, OUTPUT_FILE.raw,
   or the reviewer transcript.
-- **Worker** — **unflagged = NATIVE TO THE HOST HARNESS** (the default): in
-  Claude Code a native `Agent`/Task subagent, no external process spawn; in Codex
-  native delegation via
-  `codex exec -m gpt-5.3-codex-spark -c model_reasoning_effort=low --sandbox workspace-write '<bounded task>'`
-  (Spark bills to a **separate weekly quota** from the gpt-5.6 family → cheapest
-  tier available). Everything else is an **explicit opt-in** headless process:
+- **Worker** — **unflagged = host-native subagent per checkbox, never the
+  conductor thread** (the default): in **Grok Build** a `spawn_subagent`
+  (`general-purpose`, inherit model, `background`, `capability_mode: all`) with
+  git bans + commit-on-red in the brief; in Claude Code a native `Agent`/Task
+  subagent (or pooled Grok if host `CLAUDE.md` / work-ladder says so); in Codex
+  native delegation via `codex exec` — **spark / low** for mechanical (separate
+  weekly quota from gpt-5.6), **`gpt-5.6-sol` / high** for cross-module,
+  security, migration, or ambiguous root cause. `--inline` is the only
+  conductor-as-worker path, and only when the user passed it. Everything else
+  is an **explicit opt-in** headless process:
   DeepSeek `--backend deep`, GLM `--backend glm`, or Anthropic Sonnet 5
   `--backend sonnet` via ${CLAUDE_PLUGIN_ROOT}/scripts/claude-headless-exec;
   Codex `--codex` via ${CLAUDE_PLUGIN_ROOT}/scripts/codex-headless-exec (no
@@ -33,13 +37,16 @@ releases usable artifacts once, while failure containment follows branches.
   {phase_spec, phase_pre_sha, focused_outcomes}, it computes its OWN
   `git diff <phase_pre_sha>..HEAD` and returns the verdict JSON below. Codex
   uses the configured Sol/high route; Claude Code keeps its configured
-  `meta-dev:review-agent`. External reviewers run only on an explicit flag.
+  `meta-dev:review-agent`; Grok Build `spawn_subagent`s a reviewer. External
+  reviewers run only on an explicit flag. Honor `--review each|phase|end|auto`.
 - **Fixer**: a headless worker fed the reviewer's `issues`.
 
-## Per-task work (worker self-manages — no heavyweight review per task)
+## Per-task work (worker self-manages — no heavyweight review per task unless `--review each`)
 1. At phase start record `PHASE_PRE_SHA=$(git rev-parse HEAD)`.
-2. For EACH task in the phase: dispatch a FRESH worker (new headless process,
-   clean context) with the task spec INCLUDING its focused `Verify:` command.
+2. For EACH task in the phase: dispatch a FRESH host-native worker (Grok
+   `spawn_subagent`, Claude `Agent`, Codex `codex exec`, or a tier-flag
+   headless process — never the conductor thread) with the task spec INCLUDING
+   its focused `Verify:` command.
    The worker runs that hook once and self-fixes locally only when causal
    evidence makes the result `TASK_RED`. If it changed any
    declared file, it stages those exact paths and creates a local commit before
@@ -62,7 +69,9 @@ releases usable artifacts once, while failure containment follows branches.
    handle the conductor **already bound on the runtime task entry at dispatch**
    (not parsed from the worker). Worker never Edits a checkbox. Conductor
    commits the flipped plan file per task (momentum). No phase review at this
-   granularity. Checkbox state records acceptance but does not create dependency
+   granularity unless `--review each` (then a host-native review-agent hop
+   runs after this task's commit, before the next dispatch — serial on
+   purpose). Checkbox state records acceptance but does not create dependency
    readiness: dependents become ready from committed usable artifacts plus the
    focused evidence their contracts require.
 
@@ -178,18 +187,21 @@ blaming or repairing code. Continue independent work and any dependent work
 supported by an already committed usable artifact. A non-stall red requires
 causal classification before it can enter the branch-local fix ladder.
 
-## Claude Code context watchdog — pause-and-compact at a seam
-A long playbook (many phases) accretes context in the orchestrating Claude thread
-even though diffs never cross back — task tracker, verdicts, worker result lines,
-and the user-facing narration all accumulate. Left unchecked the harness fires
-its blunt hard auto-compact (`CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`) mid-phase. The
-watchdog gets ahead of that with a GRACEFUL forward-compact at a clean seam.
+## Context watchdog — pause-and-compact at a seam (every execute path)
 
-**The phase boundary IS the convenient seam** — the tree is committed there
-(per-task commits + phase gate), so it is always safe to compact.
+A long playbook accretes context in the **conductor** thread (Claude, Grok, or
+Codex) even though diffs never cross back — task tracker, verdicts, worker
+result lines, and narration all accumulate. Left unchecked the harness fires
+a blunt hard auto-compact mid-task. The watchdog gets ahead of that with a
+GRACEFUL forward-compact at a clean seam. It runs on **bare `/meta-execute`
+and every tier-flag path**, not only `--deep/--grok/--codex`.
 
-At **each phase gate, AFTER the verdict resolves and the phase's work is
-committed** (i.e. right before advancing to the next phase), the conductor runs:
+**Seams:** each review hop (`--review each`), each phase gate (`phase`), every
+8 completed tasks on a phase-less `end` run, and after solidify. The tree is
+committed there (per-task commits), so it is always safe to compact.
+
+At **each seam, AFTER the verdict (if any) resolves and the work is
+committed** (i.e. right before the next dispatch), the conductor runs:
 
 ```bash
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/context-gauge.py   # default threshold 300000
@@ -197,28 +209,29 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/context-gauge.py   # default threshold 300
 
 Read only `CONTEXT_VERDICT`:
 - **`OK`** (or `UNKNOWN`) → advance to the next phase as normal.
-- **`OVER`** → do NOT start the next phase. The current phase is already
-  committed (clean seam), so:
+- **`OVER`** → do NOT start the next task/phase. The current seam is already
+  committed (clean), so:
   1. Invoke `/meta-compact` (the `meta-dev:meta-compact` skill) — it writes a
-     forward handoff whose **▶ NEXT ACTION is "resume the playbook at phase
-     N+1"**, naming the plan path + the next phase file + the per-phase loop.
+     forward handoff whose **▶ NEXT ACTION is "resume the playbook at the next
+     task/phase"**, naming the plan path + the next phase file (or next
+     checkbox handle) + the loop.
   2. Surface the one-line pause notice + the exact `/compact read …` trigger to
      the user and STOP. Compaction is the user's (or auto-compact's) to pull —
      the loop never runs `/compact` itself.
-  3. After the user compacts, the resume contract reads the handoff and
-     continues the loop at phase N+1 — no re-orientation, no lost momentum.
+  3. After the user compact, the resume contract reads the handoff and
+     continues the loop at that next task/phase — no re-orientation, no lost
+     momentum.
 
 Threshold is configurable: `--threshold N`, or env `META_DEV_CONTEXT_THRESHOLD`
-(default 300000). This watchdog is a SESSION practice of the orchestrating Claude
-(it owns the `/meta-compact` + `/compact` primitives); it is NEVER handed to a
-headless worker. Workers have fresh, isolated context per task and never compact.
+(default 300000). This watchdog is a SESSION practice of the orchestrating
+conductor (it owns `/meta-compact`); it is NEVER handed to a worker. Workers
+have fresh, isolated context per task and never compact.
 
 ## Plans without `## Phase N` structure
-Treat the whole plan as one phase → a single review at the end (this matches
-bare meta-execute's end-of-run review timing). With only one seam (the end), the
-context watchdog has no mid-run boundary to act on — for such single-phase plans
-the harness auto-compact remains the backstop; the watchdog matters for the
-multi-phase playbooks it was built for.
+Treat the whole plan as one phase. `--review auto` → `end` (one review after
+solidify). `--review each` still hops per task. The watchdog still fires every
+8 completed tasks on an `end` run so a long phase-less plan cannot fill the
+conductor window.
 
 ## Context-hygiene contract (NON-NEGOTIABLE)
 Per phase, the only things crossing back to main: N one-line worker `result`s
@@ -270,9 +283,11 @@ the one that failed, once. Resolve it with
 `config-get.sh meta_dev.ladder.pool`; doctrine and task-shape routing:
 `references/work-ladder.md`. The per-flag notes below name the *worker*; the
 escalation target is whatever the pool says, not a hardcoded pair.
-- **unflagged (the default): Worker=native to the host harness** — Claude Code
-  native `Agent` subagent; Codex native `gpt-5.3-codex-spark` delegation
-  (separate weekly quota). Fix ladder native→deep.
+- **unflagged (the default): Worker=host-native subagent, never the conductor
+  thread** — Grok Build `spawn_subagent`; Claude Code native `Agent` (or pooled
+  Grok if the host names it); Codex spark mechanical / sol hard (spark is a
+  separate weekly quota). Fix ladder native→next pooled rung. `--inline` only
+  when the user passed it.
 - `--deep`: Worker=deep (first pooled rung).
 - `--grok`: Worker=grok — independent frontier reasoning and the third review family (xAI).
 - `--glm`: Worker=glm. **Available, not pooled** — reachable only by this explicit flag.

@@ -1,6 +1,6 @@
 # Execute Dispatch Template
 
-The subagent prompt template used by `/meta-execute` for each task. This is the full text sent to each fresh Sonnet subagent.
+The subagent prompt template used by `/meta-execute` for each task. This is the full text sent to each fresh **host-native worker** (Grok Build `spawn_subagent`, Claude Code `Agent`, Codex spark/sol). Never a hardcoded Sonnet Agent.
 
 ## Law: every worker owns durability for its own edits
 
@@ -151,7 +151,7 @@ branch after every edit is committed—it does not halt unrelated implementation
 
 ## Background fixer prompt (optimistic mode)
 
-Dispatched in the background (`Agent`, `subagent_type: general-purpose`, `model: sonnet`, `run_in_background: true`) when a task hits a recoverable regression, so the main loop keeps advancing independent tasks.
+Dispatched in the background as a **host-native worker** (same Host dispatch table as the task: Grok Build `spawn_subagent`, Claude Code `Agent`, or Codex `codex exec` — never a hardcoded `model: sonnet`) when a task hits a recoverable regression, so the main loop keeps advancing independent tasks.
 
 ```
 You are a REGRESSION FIXER. A task in a running plan failed its verify. Plan path: <PLAN_PATH>
