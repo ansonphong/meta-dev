@@ -37,7 +37,8 @@
         "opus": "commands/opus-execute.md",
         "sonnet": "commands/sonnet-execute.md",
         "headless": "commands/meta-headless.md",
-        "overlord": "commands/meta-overlord.md"
+        "overlord": "commands/meta-overlord.md",
+        "task-agent": "commands/meta-task-agent.md"
       }
     },
     "review": {
@@ -137,6 +138,7 @@
     "meta-review-design": "review.design",
     "meta-security": "review.security",
     "meta-sweep": "ops.sweep",
+    "meta-task-agent": "execute.task-agent",
     "meta-ux": "review.ux",
     "meta-version": "ops.version",
     "meta-visual-critique": "review.visual",
@@ -152,6 +154,7 @@
     "security": "review.security",
     "sonnet-execute": "execute.sonnet",
     "sweep": "ops.sweep",
+    "task-agent": "execute.task-agent",
     "ux": "review.ux",
     "version": "ops.version",
     "visual-critique": "review.visual"

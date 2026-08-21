@@ -50,7 +50,7 @@ and stale-plugin-cache failures before they waste a dispatch.
 
 ## Conductor commands are a poor worker target
 
-`execute`, `overlord`, `runbook` and `dev` carry conductor duties — checkbox
-flips, phase-gate review, dashboards. Running one as a dispatched worker
-produces state you cannot reliably maintain. If you are a worker rather than the
-session driver, say so and ask for a bounded task instead.
+`execute`, `task-agent`, `overlord`, `runbook` and `dev` carry conductor duties —
+checkbox flips, session-mode spawns, phase-gate review, dashboards. Running one
+as a dispatched worker produces state you cannot reliably maintain. If you are a
+worker rather than the session driver, say so and ask for a bounded task instead.

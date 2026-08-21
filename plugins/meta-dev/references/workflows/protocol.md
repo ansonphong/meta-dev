@@ -101,7 +101,8 @@ filesystem reads, exact-path edits, shell checks, scoped commits, and optional
 delegation. Missing delegation is a **bug in the host table**, not permission
 to implement on the conductor. Look up `commands/meta-execute.md` Host dispatch
 (Grok Build → `spawn_subagent`, Claude Code → `Agent`, Codex → spark/sol).
-`--inline` is the only legal serial-on-conductor path. Permission, result-state,
+The same table is `/meta-task-agent`. `--inline` is the only legal
+serial-on-conductor path for execute; task-agent has no `--inline`. Permission, result-state,
 review, and verification semantics never change.
 
 ## Routing

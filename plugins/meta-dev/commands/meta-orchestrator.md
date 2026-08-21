@@ -28,6 +28,7 @@ Front-door dispatcher. Routes natural language to the correct meta-dev command.
 - "init" / "setup" → `/meta-init`
 - "repair" / "fix" → `/meta-repair`
 - "sweep" / "maintenance" → `/meta-sweep`
+- "task agent" / "async bots" / "spin off subagents" → `/meta-task-agent`
 
 If ambiguous, present options with confidence scores.
 

@@ -201,8 +201,8 @@ grok plugin update meta-dev
 ```
 
 In a Grok session the plugin's slash commands and skills load as `/meta-dev`,
-`/meta-execute`, `/meta-dashboard`, `/meta-planner`, and the rest of the
-waterfall. Grok runs the same six stages as Claude Code and Codex.
+`/meta-execute`, `/meta-task-agent`, `/meta-dashboard`, `/meta-planner`, and the
+rest of the waterfall. Grok runs the same six stages as Claude Code and Codex.
 
 ## Quick Start
 
@@ -385,8 +385,20 @@ plugin root/
 | `/meta-dod` | Generate definition-of-done contracts from task descriptions |
 | `/meta-planner` | Restructure plans for automated execution |
 | `/meta-execute` | Subagent-driven plan execution with verify+commit+push per task |
+| `/meta-task-agent` | Async subagent storm — each prompt spawns a background worker until `--end` |
 | `/meta-eval` | Dedicated evaluator — tests implementations against design criteria |
 | `/meta-canary` | Post-deploy health monitor (ops workflow; learned patterns → APP `/release`) |
+
+`/meta-task-agent` is **not** plan execute. It opens a session: every following prompt is a background subagent. Close with `/meta-task-agent --end`.
+
+```bash
+/meta-task-agent                         # open; next messages spawn workers
+fix the login button hover state
+update the README install section
+/meta-task-agent --batch                 # one worker per line in this message
+/meta-task-agent --status
+/meta-task-agent --end
+```
 
 ### Review & Quality
 | Command | Purpose |
