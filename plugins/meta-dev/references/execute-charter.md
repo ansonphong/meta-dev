@@ -130,6 +130,8 @@ There is no broad acceptance sweep to make the focused results "more green."
 
 **Conflict safety.** Fixers touch only the failed task's files; dependents (overlapping files) are `deferred`, so the main loop advances only disjoint-file work — no parallel-commit collision. The conductor owns remote synchronization and uses only the repository's permitted fast-forward flow; genuine conflict → surface.
 
+**Safe parallel waves.** Default is to co-dispatch every READY task whose declared file set is disjoint from in-flight workers, up to 8 in-flight from this run. Serialize when files overlap, file set is unknown, `--review each`, `--inline`, or `--glm`. `--strict` serializes verify, not disjoint dispatch. The checkbox flip is per completed task; it does not force the rest of the run serial.
+
 ## Conductor law — this thread does not implement
 
 The `/meta-execute` conductor does **not** implement plan tasks. Each verifiable checkbox is a fresh host-native subagent (Grok Build → `spawn_subagent`; Claude Code → `Agent`, or pooled Grok if host `CLAUDE.md` says so; Codex → spark mechanical / sol hard). The worker commits its own edits. The conductor reads a one-line result and flips `task-done`. `--inline` is the only exception, and only when the user passed it. Missing a worker primitive is a bug in the host table, not permission to type the plan on this thread. When unsure, spawn. Stay native only for the slash harness, vision, a true one-liner, permission/stage gates, and integrating that one-line return.

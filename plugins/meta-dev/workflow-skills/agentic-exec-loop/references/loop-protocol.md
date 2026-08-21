@@ -7,8 +7,7 @@ releases usable artifacts once, while failure containment follows branches.
 - **Conductor** (host main thread): dispatches, reads ONE verdict line per
   phase + each worker's one-line result. NEVER reads a diff, OUTPUT_FILE.raw,
   or the reviewer transcript.
-- **Worker** — **unflagged = host-native subagent per checkbox, never the
-  conductor thread** (the default): in **Grok Build** a `spawn_subagent`
+- **Worker** — **unflagged = host-native subagent per checkbox, never the conductor thread** (the default): in **Grok Build** a `spawn_subagent`
   (`general-purpose`, inherit model, `background`, `capability_mode: all`) with
   git bans + commit-on-red in the brief; in Claude Code a native `Agent`/Task
   subagent (or pooled Grok if host `CLAUDE.md` / work-ladder says so); in Codex
@@ -43,10 +42,7 @@ releases usable artifacts once, while failure containment follows branches.
 
 ## Per-task work (worker self-manages — no heavyweight review per task unless `--review each`)
 1. At phase start record `PHASE_PRE_SHA=$(git rev-parse HEAD)`.
-2. For EACH task in the phase: dispatch a FRESH host-native worker (Grok
-   `spawn_subagent`, Claude `Agent`, Codex `codex exec`, or a tier-flag
-   headless process — never the conductor thread) with the task spec INCLUDING
-   its focused `Verify:` command.
+2. For READY work in the phase: dispatch FRESH host-native workers **in parallel when file sets are disjoint** (Grok `spawn_subagent`, Claude `Agent`, Codex `codex exec`, or a tier-flag headless process — never the conductor thread), cap 8 in-flight. Serialize on overlapping/unknown files, `--review each`, `--inline`, `--glm`. Spec INCLUDES the focused `Verify:` command.
    The worker runs that hook once and self-fixes locally only when causal
    evidence makes the result `TASK_RED`. If it changed any
    declared file, it stages those exact paths and creates a local commit before

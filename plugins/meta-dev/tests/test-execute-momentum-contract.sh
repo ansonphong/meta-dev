@@ -114,10 +114,14 @@ required = {
         "gpt-5.6-sol",
         "never this thread",
         "Context watchdog (every execute path",
+        "Safe parallel waves",
+        "declared file set is disjoint",
     ],
     "references/execute-charter.md": [
         "this thread does not implement",
         "spawn_subagent",
+        "Safe parallel waves",
+        "disjoint-file work",
     ],
     "references/execute-dispatch.md": [
         "host-native worker",
@@ -128,6 +132,7 @@ required = {
         "never the conductor thread",
         "--review each",
         "every execute path",
+        "in parallel when file sets are disjoint",
     ],
     "commands/grok-execute.md": [
         "must have committed",

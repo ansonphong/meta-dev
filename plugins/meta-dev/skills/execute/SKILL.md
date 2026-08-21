@@ -24,8 +24,9 @@ the user for this plan. Absent one, report what would run and stop.
    Code → `Agent`; Codex → spark mechanical / sol hard) and **inline that
    task's own plan section verbatim** into the brief — never tell a worker to
    reconstruct the task by reading the plan file. The conductor does not
-   implement. `--inline` only when the user passed it. Honor `--review
-   each|phase|end|auto`.
+   implement. Co-dispatch READY tasks whose declared files are disjoint
+   (cap 8). Serialize on overlap, `--review each`, `--inline`. `--inline`
+   only when the user passed it. Honor `--review each|phase|end|auto`.
 6. Verify each task with a focused check scoped to its declared files. A
    task-caused failure is `TASK_RED`: repair it and defer only its direct
    dependents. Pre-existing or out-of-scope failures are `BASELINE_RED` and

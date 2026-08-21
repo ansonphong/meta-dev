@@ -67,6 +67,28 @@ Reviewer is host-native: Claude → configured `meta-dev:review-agent`; Grok Bui
 
 Parse plan, dispatch one **fresh host-native subagent per checkbox** (Host dispatch above). Every editing worker creates an exact-path local commit before returning, including on red verification. No external backend is spawned unless a tier flag says so. **Optimistic momentum is the default control flow:** run only focused verification, once; release dependents from committed usable artifacts; and never let an unrelated baseline, broad omitted gate, manual gate, or ordinary failure on another branch stop forward progress. A causally proven `TASK_RED` repairs the smallest affected branch while every independent task continues. Only critical-risk tasks (`money-path` / `release-stability` / `schema-drift`) verify synchronously, and even those use a focused verifier. `--strict` serializes focused verification; it never authorizes broad checks or converts unrelated debt into task failure. `--review each` serializes **dispatch** (review hop between tasks) on top of that.
 
+### Safe parallel waves (default — non-negotiable)
+
+**Parallelize when it is safe. Serialize when it would collide.** Do not walk the task list one-at-a-time if two ready tasks can run together.
+
+A task is **READY** when all of these hold:
+1. Plan `depends` / TaskCreate deps are releasable (`FOCUSED_PASS` or `BASELINE_RED`).
+2. Its **declared file set is disjoint** from every worker (and fixer) currently in flight from this run.
+3. It is not deferred on a `TASK_RED` parent.
+
+**Dispatch:** spawn every currently-READY task as a fresh host-native subagent, up to the in-flight cap (**8** execute workers from this run, fixers count). As each worker returns, immediately fill the empty slot with the next READY task. Do not wait for the whole wave to drain before considering new ready work.
+
+**Serialize (do not co-dispatch) when ANY of:**
+- Declared file sets overlap (same path in two tasks) — queue the later one.
+- `--review each` (one task at a time by design).
+- `--inline` (this thread is the worker).
+- `--glm` (account cap ~3 — never two GLM workers in parallel).
+- Unknown / undeclared file set — treat as overlapping; do not guess.
+
+`--strict` serializes **verify**, not disjoint dispatch. File-disjoint READY tasks may still overlap in flight under `--strict`.
+
+The checkbox rule does **not** serialize dispatch. Flip a task the instant **it** is releasable. Independent siblings may already be in flight.
+
 ## Charter
 
 Read `references/execute-charter.md` before dispatching. Execution posture (optimistic momentum), anti-paranoia, CLAIMED protocol, failure posture matrix, resume logic, pause gates — all there.
@@ -108,11 +130,11 @@ Call `TaskCreate` once per **checkbox** from the step-1 inventory (every task he
 
 ### 4. Per task: claim → risk-tag → dispatch → local commit → verify → accept/repair
 
-For EACH task-list item:
+Walk READY work as **waves** (Safe parallel waves above), not a forced serial list. For each task you dispatch (several may be in flight):
 
 1. Mark `in_progress` via `TaskUpdate`. CLAIM in plan file (per execute-charter.md). Commit claim.
 2. Run `echo "<task body>" | bash scripts/risk-tag.sh` → get risk tags
-3. Dispatch a **fresh host-native subagent** (Host dispatch table — Grok Build → `spawn_subagent`; Claude Code → `Agent`; Codex → spark or sol) with the task spec from `references/execute-dispatch.md` + risk-tag clauses. Do **not** implement the task on this thread. Under `--deep` this becomes a headless DeepSeek worker instead (`${CLAUDE_PLUGIN_ROOT}/scripts/claude-headless-exec --backend deep`), and `--glm`/`--sonnet`/`--codex`/`--grok` force their own backends per the Worker-tier section — an external backend is used **only** when its flag was passed. Default: dispatch the next dep-satisfied, non-deferred task without waiting on in-flight fixers or in-flight tests (momentum). `--strict`: wait for the prior task to go green first. `--review each`: wait for that task's review hop before the next dispatch.
+3. Dispatch a **fresh host-native subagent** (Host dispatch table — Grok Build → `spawn_subagent`; Claude Code → `Agent`; Codex → spark or sol) with the task spec from `references/execute-dispatch.md` + risk-tag clauses. Do **not** implement the task on this thread. Under `--deep` this becomes a headless DeepSeek worker instead (`${CLAUDE_PLUGIN_ROOT}/scripts/claude-headless-exec --backend deep`), and `--glm`/`--sonnet`/`--codex`/`--grok` force their own backends per the Worker-tier section — an external backend is used **only** when its flag was passed. Default: fill every READY slot up to the cap — do not wait on in-flight fixers, in-flight tests, or an unrelated sibling. `--strict`: wait for that task's focused verify before *its* dependents; disjoint READY siblings still dispatch. `--review each`: wait for that task's review hop before the next dispatch (serial).
 4. Before dispatch, classify the task's Verify command with `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/verify-scope.py --command "$VERIFY_CMD" --allowed-path <each-declared-source-or-test-path>`. Pass only `focused` or `scoped_check` commands to the worker. `manual`, `broad`, and `unscoped` commands are NOT run and must not be replaced with a wider command; record `BROAD_VERIFY_OMITTED`/`UNSCOPED_VERIFY_OMITTED` or the human punch-list item. A broad command written in a plan is stale plan prose, not authorization to burn the repository-wide gate.
 5. The subagent returns only after any scoped edits are in an exact-path **local commit**, even if its focused Verify was red. Run **instant inline checks only** (stub grep on the committed diff + declared-file existence — milliseconds). The worker owns its focused verifier and runs it ONCE after its commit. Trust a structured result containing command, exit code, and output tail; the conductor MUST NOT rerun a passing verifier. Only if trustworthy execution evidence is absent may the conductor run that same focused command once. Non-critical focused verification may run async; critical-risk tasks verify synchronously. Never run `npm run check`, `svelte-check`, project-wide `tsc`, a build, package-wide tests, or a full suite anywhere in `/meta-execute`, including solidify.
 6. **Advance immediately** according to causal state: `FOCUSED_PASS` → mark `completed`, run `task-done`, and release dependents; `BASELINE_RED` (unchanged or wholly outside declared source/test paths) → record once, mark `completed`, run `task-done`, and release dependents; `BROAD_VERIFY_OMITTED`/manual → do not run or repair, complete the code task, release code dependents, and report separately; `TASK_RED` requires causal evidence and launches a focused fixer (same Host dispatch table as the task — never a hardcoded Sonnet Agent) while only direct dependents defer; `INFRA_RED` retries infrastructure once and never blames code without causal evidence. Ordinary repair exhaustion parks that branch while every independent task continues. Whole-run STOP is reserved for guard/safety denial, a global plan↔code contradiction, genuine schema divergence, or an unusable critical contract.
@@ -121,7 +143,7 @@ For EACH task-list item:
 
 ### ⛔ MANDATORY CHECKBOX RULE — NEVER SKIP, NEVER DEFER
 
-**Every time a task completes (green verify), the conductor flips its checkbox via `task-done` BEFORE dispatching the next task — never batch, never defer to the end, never hand-`Edit` the mark.** Unchecked boxes read as "nothing happened"; the checkbox is the user's primary visibility into progress and the single source of truth.
+**Every time a task completes (green verify), the conductor flips its checkbox via `task-done` immediately — never batch flips to the end, never defer, never hand-`Edit` the mark.** Unchecked boxes read as "nothing happened"; the checkbox is the user's primary visibility into progress and the single source of truth. This flip is per-task. It does **not** mean "wait to dispatch independent siblings." Fill READY parallel slots as soon as they are file-disjoint.
 
 **Conductor-owned handle (Invariant 2):** when the runtime task list was built from stamped master checkboxes, **each TaskCreate entry already stores its `` `T…` `` handle**. After green Verify-After the conductor runs:
 
@@ -193,8 +215,8 @@ ALWAYS end with this structured dashboard. The report MUST include every section
 |------|--------|
 | *(no tier flag)* | **Default — host-native subagent per checkbox, never this thread.** Grok Build → `spawn_subagent`; Claude Code → `Agent` (or pooled Grok if host `CLAUDE.md` / work-ladder says so); Codex → spark mechanical / sol hard. See Host dispatch. Every tier flag below is an explicit *foreign* opt-in; which backends are auto-selectable is `meta_dev.ladder.pool` (`references/work-ladder.md`) |
 | `--inline` | Main-thread execution, no subagents. **Only when the user passed it.** Never infer it. |
-| `--review each\|phase\|end\|auto` | Review cadence. Default `auto` (`phase` if ≥2 phases, else `end`; `each` on critical-risk tasks). `each` = one task at a time + review hop. |
-| `--strict` | Serialize focused verification and repair. It never authorizes broad tests, never reruns green, and never turns BASELINE_RED/broad/manual evidence into a task or whole-run blocker |
+| `--review each\|phase\|end\|auto` | Review cadence. Default `auto` (`phase` if ≥2 phases, else `end`; `each` on critical-risk tasks). `each` = one task at a time + review hop (no parallel dispatch). |
+| `--strict` | Serialize focused verification and repair. It never authorizes broad tests, never reruns green, and never turns BASELINE_RED/broad/manual evidence into a task or whole-run blocker. Disjoint READY tasks may still run in parallel. |
 | `--deep` | Per-task headless DeepSeek worker + phase-gated review-agent (cheapest external tier; fix-escalation goes one rung up `meta_dev.ladder.pool`) |
 | `--glm` | Per-task headless GLM worker + phase-gated review-agent. **Available, not pooled** — never auto-selected; see `references/work-ladder.md` |
 | `--grok` | Per-task headless Grok worker (`scripts/grok-headless-exec`) + phase-gated review-agent. Independent frontier reasoning and the third review family (xAI) |
