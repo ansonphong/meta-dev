@@ -1,6 +1,6 @@
 ---
 name: sonnet-execute
-argument-hint: <task description> [--repo <name>] [--readonly] [--model <model>] [--effort <level>]  # --repo names from .claude/meta-dev-repos.json
+argument-hint: <task description> [--repo <name>] [--readonly] [--budget auto|low|medium|high] [--model <model>] [--effort <level>]  # --repo names from .claude/meta-dev-repos.json
 description: Execute a task via headless Anthropic Sonnet 5 Claude Code — spawns a SEPARATE Claude Code process off the main thread, so Anthropic-grade Sonnet judgment runs without consuming the conductor's context window. Sonnet 5 is 1M-context on the first-party API.
 ---
 
@@ -47,8 +47,9 @@ Parse these optional flags:
 - `--readonly` — restrict to read-only tools (review/analysis tasks)
 - `--claim <plan-dir>` — **concurrency safety (shared tree):** claim this plan directory before dispatch. The wrapper ABORTS if another live session holds an overlapping scope, and auto-releases on exit. Use whenever the worker edits `plans/**`. (`--claim-warn` warns instead of aborting.) See `references/execute-charter.md` → Concurrency Safety.
 - `--model <model>` — override default model (default: `claude-sonnet-5`). **Don't add `[1m]`** — it is a no-op on first-party API, where Sonnet 5 is always 1M
+- `--budget auto|low|medium|high` — **depth cap** (default `auto`). Classify before dispatch. Doctrine: `references/execute-budget.md`.
 - `--effort <level>` — thinking/reasoning effort: `low|medium|high|xhigh|max` (**default: `high`** — Anthropic's own Sonnet 5 default; drop to `medium`/`low` to conserve the Max Sonnet cap on bulk work)
-- `--max-turns <n>` — cap agent turns (default: unset — worker runs to completion)
+- `--max-turns <n>` — cap agent turns (default: from `--budget`)
 
 Everything else is the task description. If no task description is provided, ask the user what task to execute.
 
@@ -72,6 +73,7 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/claude-headless-exec \
   --backend sonnet \
   --repo <repo> \
   ${MODEL:+--model "$MODEL"} \
+  --budget "$BUDGET" \
   ${EFFORT:+--effort "$EFFORT"} \
   ${READONLY:+--readonly} \
   ${MAX_TURNS:+--max-turns "$MAX_TURNS"} \

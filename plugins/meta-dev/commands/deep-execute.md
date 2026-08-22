@@ -1,6 +1,6 @@
 ---
 name: deep-execute
-argument-hint: <task description> [--repo <name>] [--readonly] [--flash] [--vision] [--tier <flash|pro|vision>] [--model <model>]  # --repo names from .claude/meta-dev-repos.json
+argument-hint: <task description> [--repo <name>] [--readonly] [--flash] [--vision] [--tier <flash|pro|vision>] [--budget auto|low|medium|high] [--model <model>]  # --repo names from .claude/meta-dev-repos.json
 description: Execute a task via headless DeepSeek Claude Code — default deepseek-v4-pro (V4-Pro-0813 GA); --flash → flash; --vision → deepseek-v4-flash-vision-exp
 ---
 
@@ -95,7 +95,8 @@ Parse these optional flags:
 - `--vision` — force Vision (`deepseek-v4-flash-vision-exp`). Alias of `--tier vision`. Binding. Use when the worker must Read images (JPEG/PNG/GIF/WebP). Exclusive vs `--flash` / `--pro`.
 - `--tier <flash|pro|vision>` — DeepSeek model tier (default: **`pro`** → `deepseek-v4-pro`; `flash` → `deepseek-v4-flash`; `vision` → `deepseek-v4-flash-vision-exp`). `--flash`, `--pro`, and `--vision` are boolean sugars.
 - `--model <model>` — exact model ID override (`deepseek-v4-pro`, `deepseek-v4-flash`, or `deepseek-v4-flash-vision-exp`); wins over `--tier` / `--flash` / `--vision`
-- `--max-turns <n>` — cap agent turns (default: unset — worker runs to completion)
+- `--budget auto|low|medium|high` — **depth cap** (default `auto`). Classify before dispatch: `--flash` / rename / boilerplate → `low`; ordinary bounded unit → `medium`; do **not** pick `high` for DeepSeek — if the task needs high, route to Grok. Forward the resolved word. Doctrine: `references/execute-budget.md`.
+- `--max-turns <n>` — cap agent turns (default: from `--budget`)
 
 Everything else is the task description.
 
@@ -125,6 +126,7 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/claude-headless-exec \
   ${TIER:+--tier "$TIER"} \
   ${MODEL:+--model "$MODEL"} \
   ${READONLY:+--readonly} \
+  --budget "$BUDGET" \
   ${MAX_TURNS:+--max-turns "$MAX_TURNS"} \
   -- <task description>
 ```

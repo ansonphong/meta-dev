@@ -1,6 +1,6 @@
 ---
 name: grok-execute
-argument-hint: "<task description> [--repo <name>] [--readonly] [--model <grok-4.6|grok-4.5>] [--effort <low|medium|high|xhigh>] [--max-turns <n>]  # --repo names from .claude/meta-dev-repos.json"
+argument-hint: "<task description> [--repo <name>] [--readonly] [--model <grok-4.6|grok-4.5>] [--budget auto|low|medium|high] [--effort <low|medium|high|xhigh>] [--max-turns <n>]  # --repo names from .claude/meta-dev-repos.json"
 description: "Execute a task via headless xAI Grok (Grok Build CLI). Interactive Grok has meta-dev as skills/slash commands. A headless grok --prompt-file worker is still Grok Build (same plugins), not Claude Code — brief a DIRECT task or a skill to follow, never a Claude slash. Grok can read AND write. Frontier-reasoning rung of meta_dev.ladder.pool (alongside /deep-execute for mechanical work). Codex and Opus are review-only, not pooled. Default model grok-4.6; grok-4.5 still available. Dispatcher picks --effort per task (xhigh is grok-4.6 only)."
 ---
 
@@ -41,9 +41,10 @@ Parse these optional flags:
 - `--repo <name>` — target repo (default: auto-detect from cwd; names from .claude/meta-dev-repos.json)
 - `--readonly` — enforced read-only (deny Write/Edit). Use for all audits/reviews. Grok's deny-rule sandbox blocks every write path (write tool, shell redirection, search_replace) — verified empirically.
 - `--model <grok-4.6|grok-4.5>` — override grok model (default: `grok-4.6`, pinned). `grok-4.5` is still supported. An explicit `--model` from the user always wins.
-- `--effort <low|medium|high|xhigh>` — reasoning effort. **You pick this from the task**, every time. Do not inherit the TUI/`config.toml` default (often `xhigh`). `xhigh` exists on `grok-4.6` only; `grok-4.5` accepts `low|medium|high`. The runner's omit-fallback is `high` so a forgotten flag does not silently become TUI `xhigh`. Canonical CLI also lists `none|minimal|max`; the runner maps `none`/`minimal` → `low` and `max` → `xhigh` on 4.6 / `high` on 4.5.
-- `--max-turns <n>` — cap agent turns (default: uncapped; bounded by the 120-min timeout)
-- `--timeout <ms>` — wall-clock timeout (default `7200000` = 120 min)
+- `--budget auto|low|medium|high` — **depth cap** (default `auto`). Classify the task before dispatch: mechanical → `low`, ordinary → `medium`, hard/auth/schema/pipeline → `high`. Unsure → `medium`. Forward the **resolved** word (`low|medium|high`), never `auto`, unless you want the runner's medium fallback. Caps turns and wall clock so the worker cannot wander. Not `--effort`. Doctrine: `references/execute-budget.md`.
+- `--effort <low|medium|high|xhigh>` — reasoning effort. **You pick this from the task**, every time. Do not inherit the TUI/`config.toml` default (often `xhigh`). `xhigh` exists on `grok-4.6` only; `grok-4.5` accepts `low|medium|high`. The runner's omit-fallback is `high` so a forgotten flag does not silently become TUI `xhigh`. Canonical CLI also lists `none|minimal|max`; the runner maps `none`/`minimal` → `low` and `max` → `xhigh` on 4.6 / `high` on 4.5. Explicit `--effort` wins over `--budget`'s effort hint.
+- `--max-turns <n>` — cap agent turns (default: from `--budget`)
+- `--timeout <ms>` — wall-clock timeout (default: from `--budget`)
 
 Everything else is the task description. If none is given, ask what task to run.
 
@@ -51,7 +52,7 @@ Everything else is the task description. If none is given, ask what task to run.
 
 **Default model is `grok-4.6`.** Keep `grok-4.5` for an explicit compare, a 4.5-only repro, or a user `--model grok-4.5`. Do not pick 4.5 just because older docs mention it.
 
-**You decide `--effort` from the task.** State the chosen model and effort before dispatching. An explicit `--effort` from the user always wins. Omit only when you have already classified the task as ordinary `high` work.
+**You decide `--budget` and `--effort` from the task.** Classify budget first (`low` mechanical, `medium` ordinary, `high` hard — unsure → medium). State model, budget, and effort before dispatching. An explicit user `--budget` / `--effort` always wins. Helper: `scripts/classify-execute-budget.sh`.
 
 | Task shape | Model | Effort |
 | --- | --- | --- |
@@ -67,6 +68,7 @@ Everything else is the task description. If none is given, ask what task to run.
 Summarize before running:
 - **Backend:** Grok (`grok --output-format json`)
 - **Model:** grok-4.6 (or the `--model` override)
+- **Budget:** resolved `low|medium|high` (never leave `auto` for the runner if you classified)
 - **Effort:** the level you selected above (or the user's `--effort`)
 - **Repo / Work dir:** (detected or specified)
 - **Task:** (the task description)
@@ -82,6 +84,7 @@ Run the headless worker. For tasks expected to take >30s, use `run_in_background
 ${CLAUDE_PLUGIN_ROOT}/scripts/grok-headless-exec \
   ${REPO:+--repo "$REPO"} \
   ${MODEL:+--model "$MODEL"} \
+  --budget "$BUDGET" \
   ${EFFORT:+--effort "$EFFORT"} \
   ${MAX_TURNS:+--max-turns "$MAX_TURNS"} \
   ${READONLY:+--readonly} \

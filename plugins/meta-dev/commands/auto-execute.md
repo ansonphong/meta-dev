@@ -1,6 +1,6 @@
 ---
 name: auto-execute
-argument-hint: <any task, prompt, plan, or meta-dev op> [--deep|--grok|--codex|--sonnet|--glm] [--flash] [--vision] [--effort <level>] [--repo <name>] [--readonly] [--max-turns <n>] [--autonomous]  # --repo names from .claude/meta-dev-repos.json
+argument-hint: <any task, prompt, plan, or meta-dev op> [--deep|--grok|--codex|--sonnet|--glm] [--flash] [--vision] [--budget auto|low|medium|high] [--effort <level>] [--repo <name>] [--readonly] [--max-turns <n>] [--autonomous]  # --repo names from .claude/meta-dev-repos.json
 description: "Opus-conducted headless work router for ANY task — brainstorm, design, plan, harden, execute, review/audit, or any arbitrary prompt/plan. Decomposes a job into chunks and farms each NATIVELY to the host harness by default (Claude Code → an Agent subagent; Codex → gpt-5.3-codex-spark on its own weekly quota), with --deep (DeepSeek, cheapest external), --grok (independent frontier reasoning + third-family lens), --codex (first-class executor AND the cross-family review lens), --sonnet, and --glm as explicit opt-ins; reviews every round-trip and escalates one rung along meta_dev.ladder.pool on failure (references/work-ladder.md)."
 ---
 
@@ -132,7 +132,8 @@ The user's input is: `$ARGUMENTS`
 - `--deep` / `--glm` / `--sonnet` / `--codex` — force a backend, skip routing (still chunk + review). `--sonnet` pins each chunk to a separate headless Anthropic Sonnet 5 worker (`claude-headless-exec --backend sonnet`, `claude-sonnet-5`) — Anthropic-grade judgment in its own process, so the chunk's context churn never lands in the conductor's window. `--codex` is a first-class executor **and** the cross-family review lens (see Core Bias) — route it spark-first and dispatch through `scripts/codex-headless-exec` (`--sandbox workspace-write` when it edits, `--sandbox read-only` when it only reports back). `--deep` defaults to `deepseek-v4-pro` (V4-Pro-0813). Pass `--flash` on a mechanical chunk to force Flash. Pass `--vision` when the chunk must look at images.
 - `--flash` — DeepSeek-only. Forwarded as `--flash` on `--deep` workers. Binding when the user passed it; otherwise the conductor may add it only for clearly mechanical/low-reasoning chunks (see `/deep-execute`).
 - `--vision` — DeepSeek-only. Forwarded as `--vision` on `--deep` workers → `deepseek-v4-flash-vision-exp`. Binding when the user passed it; otherwise the conductor may add it only when the chunk must look at images/screenshots (Pro/Flash 400 on images). Exclusive vs `--flash`.
-- `--effort <level>` — thinking/reasoning effort forwarded to each headless worker: `low|medium|high|xhigh|max`. Applies to `--sonnet`/`--glm`/`--grok` (Anthropic + GLM default `high`). **`--deep` has no effort knob** — the runner warns and drops the level rather than forwarding it. Drop to `medium`/`low` to conserve the Max Sonnet cap on bulk chunks; `xhigh` for the hardest work. Omit to use the per-backend default
+- `--budget auto|low|medium|high` — **depth cap** (default `auto`). Classify each chunk before dispatch (`low` mechanical, `medium` ordinary, `high` hard). Campaign ceiling if you pass a concrete level. Doctrine: `references/execute-budget.md`.
+- `--effort <level>` — thinking/reasoning effort forwarded to each headless worker: `low|medium|high|xhigh|max`. Applies to `--sonnet`/`--glm`/`--grok` (Anthropic + GLM default `high`). **`--deep` has no effort knob** — the runner warns and drops the level rather than forwarding it. Drop to `medium`/`low` to conserve the Max Sonnet cap on bulk chunks; `xhigh` for the hardest work. Omit to use the per-backend default. Explicit `--effort` wins over `--budget`.
 - `--repo <name>` — target repo (default: auto-detect from cwd; names from .claude/meta-dev-repos.json)
 - `--readonly` — restrict workers to read-only tools (audits/reviews — route freely, either backend)
 - `--max-turns <n>` — cap worker turns
@@ -154,6 +155,7 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/claude-headless-exec \
   --backend <deep|glm|sonnet|opus|fable> \
   ${FLASH:+--flash} \
   ${VISION:+--vision} \
+  --budget "$BUDGET" \
   ${EFFORT:+--effort "$EFFORT"} \
   ${REPO:+--repo "$REPO"} \
   ${READONLY:+--readonly} \

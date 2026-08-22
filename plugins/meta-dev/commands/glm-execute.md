@@ -1,6 +1,6 @@
 ---
 name: glm-execute
-argument-hint: <task description> [--repo <name>] [--readonly] [--model <model>]  # --repo names from .claude/meta-dev-repos.json
+argument-hint: <task description> [--repo <name>] [--readonly] [--budget auto|low|medium|high] [--model <model>]  # --repo names from .claude/meta-dev-repos.json
 description: Execute a task via headless GLM Claude Code — spawns a separate Claude Code instance on the GLM (Z.AI) backend, executes the task, and reports results
 ---
 
@@ -57,7 +57,8 @@ Parse these optional flags:
 - `--readonly` — restrict to read-only tools (review/analysis tasks)
 - `--claim <plan-dir>` — **concurrency safety (shared tree):** claim this plan directory before dispatch. The wrapper ABORTS if another live session holds an overlapping scope, and auto-releases on exit. Use whenever the worker edits `plans/**`. (`--claim-warn` warns instead of aborting.) See `references/execute-charter.md` → Concurrency Safety.
 - `--model <model>` — override default model (default: `glm-5.2`; haiku-tier: `glm-4.5`)
-- `--max-turns <n>` — cap agent turns (default: unset — worker runs to completion)
+- `--budget auto|low|medium|high` — **depth cap** (default `auto`). Classify before dispatch. Doctrine: `references/execute-budget.md`.
+- `--max-turns <n>` — cap agent turns (default: from `--budget`)
 
 Everything else is the task description.
 
@@ -96,6 +97,7 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/claude-headless-exec \
   --repo <repo> \
   --model <model> \
   ${READONLY:+--readonly} \
+  --budget "$BUDGET" \
   ${MAX_TURNS:+--max-turns "$MAX_TURNS"} \
   -- <task description>
 ```

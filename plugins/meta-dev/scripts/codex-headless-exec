@@ -25,8 +25,11 @@
 #   they are never the modern default.
 #   --effort <level>         Reasoning: none | low | medium | high | xhigh | max
 #                            (default follows tier; terra = medium)
+#   --budget auto|low|medium|high
+#                            Depth cap (default auto → medium at the runner).
+#                            See references/execute-budget.md
 #   --model <model>          Explicit model override; wins over --tier
-#   --timeout <ms>           Wall-clock timeout in ms (default: 7200000 = 120 min)
+#   --timeout <ms>           Wall-clock timeout in ms (default: from --budget)
 #
 # Liveness watchdog (env knobs — a wedged worker that goes silent is killed and
 # auto-reset, instead of idling out the full 120-min cap):
@@ -68,7 +71,11 @@ MODEL_EXPLICIT=false
 TIER="terra"
 EFFORT="medium"
 EFFORT_EXPLICIT=false
-TIMEOUT="7200000"         # 120 min — codex runs long-horizon review/gap-scans; never cap a deep audit at 10 min
+TIMEOUT="7200000"
+TIMEOUT_EXPLICIT=false
+BUDGET="auto"
+MAX_TURNS=""
+MAX_TURNS_EXPLICIT=false
 SANDBOX="workspace-write"
 READONLY=false
 OUTPUT_FORMAT="json"
@@ -90,7 +97,8 @@ while [[ $# -gt 0 ]]; do
         --model)    MODEL="$2"; MODEL_EXPLICIT=true; shift 2 ;;
         --tier)     TIER="$2"; shift 2 ;;
         --effort)   EFFORT="$2"; EFFORT_EXPLICIT=true; shift 2 ;;
-        --timeout)  TIMEOUT="$2"; shift 2 ;;
+        --budget)   BUDGET="$2"; shift 2 ;;
+        --timeout)  TIMEOUT="$2"; TIMEOUT_EXPLICIT=true; shift 2 ;;
         --sandbox)  SANDBOX="$2"; shift 2 ;;
         --readonly) READONLY=true; shift ;;
         --output)   OUTPUT_FORMAT="$2"; shift 2 ;;
@@ -206,6 +214,12 @@ fi
 if [[ "$EFFORT_EXPLICIT" != "true" ]]; then
     EFFORT="$TIER_EFFORT"
 fi
+
+# shellcheck source=lib/execute-budget.sh
+source "$SCRIPT_DIR/lib/execute-budget.sh"
+BACKEND="codex"
+md_resolve_budget || exit 1
+
 case "$EFFORT" in
     none|low|medium|high|xhigh|max) ;;
     *)
@@ -418,6 +432,7 @@ when verification is red or omitted.
 
 "
 PROMPT="${RESULT_CONTRACT_PREAMBLE}${PROMPT}"
+md_budget_wrap_prompt
 
 # Liveness watchdog: kill + auto-reset a wedged codex run instead of waiting out
 # the 120-min cap. See lib/stall-watchdog.sh.

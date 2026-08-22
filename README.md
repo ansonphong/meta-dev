@@ -55,6 +55,30 @@ brew install jq shellcheck
 pip install jsonschema
 ```
 
+## Execution budget — do not overthink
+
+Every execute path takes `--budget auto|low|medium|high` (default **`auto`**).
+This is a **depth cap**, not `--effort` (thinking intensity) and not
+`--max-budget-usd` (API spend).
+
+| Level | Turns | Wall | Use when |
+|-------|-------|------|----------|
+| **low** | 12 | 15 min | rename, boilerplate, one-file edit |
+| **medium** | 32 | 45 min | ordinary implementation (auto fallback) |
+| **high** | 80 | 120 min | hard diagnosis, auth/schema/pipeline |
+
+`auto` classifies the **task** before launch. Unsure → medium, never high.
+`/meta-execute --budget low|medium|high` is a **ceiling** for every task in
+that run. Mechanical tasks may still drop to low.
+
+```bash
+/grok-execute --budget low -- "Rename getCwd across the project"
+/meta-execute plans/app/foo --budget medium
+bash plugins/meta-dev/scripts/classify-execute-budget.sh --campaign medium -- "Rename foo"
+```
+
+Doctrine: `plugins/meta-dev/references/execute-budget.md`.
+
 ## Install in Claude Code
 
 ```bash

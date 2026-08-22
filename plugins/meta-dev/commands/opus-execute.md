@@ -1,6 +1,6 @@
 ---
 name: opus-execute
-argument-hint: <task description> [--repo <name>] [--readonly] [--model <model>] [--effort <level>]  # --repo names from .claude/meta-dev-repos.json
+argument-hint: <task description> [--repo <name>] [--readonly] [--budget auto|low|medium|high] [--model <model>] [--effort <level>]  # --repo names from .claude/meta-dev-repos.json
 description: Execute a task via headless Anthropic Opus 5 Claude Code — spawns a SEPARATE Claude Code process so top-tier Anthropic reasoning runs OFF the main thread and the conductor's context window stays lean. Opus 5 is 1M-context on the first-party API.
 ---
 
@@ -48,8 +48,9 @@ Parse these optional flags:
 - `--readonly` — restrict to read-only tools (review/analysis tasks)
 - `--claim <plan-dir>` — **concurrency safety (shared tree):** claim this plan directory before dispatch. The wrapper ABORTS if another live session holds an overlapping scope, and auto-releases on exit. Use whenever the worker edits `plans/**`. (`--claim-warn` warns instead of aborting.) See `references/execute-charter.md` → Concurrency Safety.
 - `--model <model>` — override default model (default: `claude-opus-5`; **do not add `[1m]`** — that opts the worker into the session-wide beta this command exists to avoid)
+- `--budget auto|low|medium|high` — **depth cap** (default `auto`). On this tree Opus is review-only — pick `low` or `medium`, not `high`. Doctrine: `references/execute-budget.md`.
 - `--effort <level>` — thinking/reasoning effort: `low|medium|high|xhigh|max` (**default: `high`**; drop to `medium`/`low` to conserve the Opus cap on lighter work)
-- `--max-turns <n>` — cap agent turns (default: unset — worker runs to completion)
+- `--max-turns <n>` — cap agent turns (default: from `--budget`)
 
 Everything else is the task description. If no task description is provided, ask the user what task to execute.
 
@@ -73,6 +74,7 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/claude-headless-exec \
   --backend opus \
   --repo <repo> \
   ${MODEL:+--model "$MODEL"} \
+  --budget "$BUDGET" \
   ${EFFORT:+--effort "$EFFORT"} \
   ${READONLY:+--readonly} \
   ${MAX_TURNS:+--max-turns "$MAX_TURNS"} \

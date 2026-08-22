@@ -144,7 +144,10 @@ VISION_FLAG=0 # 1 when --vision was passed (sugar for --tier vision)
 MODEL_EXPLICIT=0  # 1 when --model was passed (so --tier cannot override it)
 EFFORT=""    # thinking/reasoning effort; resolved from per-backend default unless --effort given
 EFFORT_EXPLICIT=0   # 1 when the caller passed --effort (so a no-knob backend can warn instead of silently dropping it)
-TIMEOUT=""   # resolved after parse (all backends → 7200000 = 120 min) unless --timeout given
+TIMEOUT=""   # resolved after parse (budget, else 7200000) unless --timeout given
+TIMEOUT_EXPLICIT=0
+BUDGET="auto"        # auto|low|medium|high — depth cap; see references/execute-budget.md
+MAX_TURNS_EXPLICIT=0
 TOOLS="Read,Write,Edit,Bash,Grep,Glob"
 OUTPUT_FORMAT="stream-json"   # streams events → RAW file GROWS incrementally so the
                               # stall-watchdog can tell a hang from a healthy long run.
@@ -189,7 +192,11 @@ Options:
                             (multimodal; JPEG/PNG/GIF/WebP. Exclusive vs --flash/--pro)
   --effort <level>          Thinking effort: low|medium|high|xhigh|max
                             (per-backend default: sonnet/opus/fable=high, glm=high, deep=none)
-  --timeout <ms>            Timeout in ms via API_TIMEOUT_MS (default: 7200000 = 120 min)
+  --budget auto|low|medium|high
+                            Depth cap (default auto → medium at the runner).
+                            Turns/wall/don't-wander rules. NOT --effort and
+                            NOT --max-budget-usd. See references/execute-budget.md
+  --timeout <ms>            Timeout in ms via API_TIMEOUT_MS (default: from --budget)
 
 Liveness watchdog (env knobs — a wedged worker that goes silent is killed and
 auto-reset, instead of idling out the full 120-min cap):
@@ -278,8 +285,13 @@ while [[ $# -gt 0 ]]; do
             EFFORT_EXPLICIT=1
             shift 2
             ;;
+        --budget)
+            BUDGET="$2"
+            shift 2
+            ;;
         --timeout)
             TIMEOUT="$2"
+            TIMEOUT_EXPLICIT=1
             shift 2
             ;;
         --tools)
@@ -296,6 +308,7 @@ while [[ $# -gt 0 ]]; do
             ;;
         --max-turns)
             MAX_TURNS="$2"
+            MAX_TURNS_EXPLICIT=1
             shift 2
             ;;
         --output-file)
@@ -477,12 +490,13 @@ if [[ -n "$EFFORT" && ! "$EFFORT" =~ ^(low|medium|high|xhigh|max)$ ]]; then
     exit 1
 fi
 
-# ── Resolve timeout (per-backend default unless --timeout given) ─────────
-# ALL backends run long-horizon agentic work — deep/glm/sonnet alike can run for
-# an hour or more on a real multi-phase task. Never cap a long-horizon worker low;
-# the wall-clock floor is generous and --timeout overrides for the rare short job.
+# ── Resolve --budget (depth cap). Explicit --effort/--max-turns/--timeout win.
+# shellcheck source=lib/execute-budget.sh
+source "$SCRIPT_DIR/lib/execute-budget.sh"
+md_resolve_budget || exit 1
+
 if [[ -z "$TIMEOUT" ]]; then
-    TIMEOUT=7200000   # 120 min — long-horizon ceiling for every backend
+    TIMEOUT=7200000   # 120 min — only if budget did not set it
 fi
 
 # ── Resolve output ──────────────────────────────────────────────────────
@@ -642,6 +656,7 @@ cat <<EOF
 ║  Work Dir  : ${WORK_DIR}
 ║  Resolved  : ${WORKDIR_ORIGIN}
 ║  Tools     : ${TOOLS}
+║  Budget    : ${BUDGET_RESOLVED:-medium} (turns ${MAX_TURNS:-?})
 ║  Timeout   : ${TIMEOUT}ms
 ║  Budget    : ${MAX_BUDGET_USD:-\$unlimited}
 ║  Output    : ${OUTPUT_FILE}
@@ -688,6 +703,7 @@ blocks DONE/checkbox/remote push, never the local commit. Never push, pull, or
 rebase; the conductor owns the remote. Read-only work creates no empty commit.
 ${VISION_NOTE}
 ${PROMPT}"
+md_budget_wrap_prompt
 
 # ── Output-format-aware liveness config ──────────────────────────────────
 # The stall-watchdog spots a hung worker by watching the RAW file stop GROWING.

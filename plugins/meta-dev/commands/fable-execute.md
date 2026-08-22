@@ -1,6 +1,6 @@
 ---
 name: fable-execute
-argument-hint: <task description> [--repo <name>] [--readonly] [--model <model>] [--effort <level>]  # --repo names from .claude/meta-dev-repos.json
+argument-hint: <task description> [--repo <name>] [--readonly] [--budget auto|low|medium|high] [--model <model>] [--effort <level>]  # --repo names from .claude/meta-dev-repos.json
 description: Execute a task via headless Anthropic Fable 5 Claude Code — spawns a SEPARATE Claude Code process on the real Anthropic backend (ambient login), the top of the ambient ladder. Reach for it on the HARDEST, most-complex tasks that demand extreme reasoning and long-horizon coherence, run off the main thread.
 ---
 
@@ -42,8 +42,9 @@ Parse these optional flags:
 - `--readonly` — restrict to read-only tools (review/analysis tasks)
 - `--claim <plan-dir>` — **concurrency safety (shared tree):** claim this plan directory before dispatch. The wrapper ABORTS if another live session holds an overlapping scope, and auto-releases on exit. Use whenever the worker edits `plans/**`. (`--claim-warn` warns instead of aborting.) See `references/execute-charter.md` → Concurrency Safety.
 - `--model <model>` — override default model (default: `claude-fable-5`; **do not add `[1m]`**)
+- `--budget auto|low|medium|high` — **depth cap** (default `auto`). Fable is for hard work — `high` is the usual pick when Phong named Fable. Doctrine: `references/execute-budget.md`.
 - `--effort <level>` — thinking/reasoning effort: `low|medium|high|xhigh|max` (**default: `high`** — the hardest-task tier thinks hard by default; raise to `xhigh`/`max` for the truly brutal problems)
-- `--max-turns <n>` — cap agent turns (default: unset — worker runs to completion)
+- `--max-turns <n>` — cap agent turns (default: from `--budget`)
 
 Everything else is the task description. If no task description is provided, ask the user what task to execute.
 
@@ -67,6 +68,7 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/claude-headless-exec \
   --backend fable \
   --repo <repo> \
   ${MODEL:+--model "$MODEL"} \
+  --budget "$BUDGET" \
   ${EFFORT:+--effort "$EFFORT"} \
   ${READONLY:+--readonly} \
   ${MAX_TURNS:+--max-turns "$MAX_TURNS"} \

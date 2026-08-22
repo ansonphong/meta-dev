@@ -1,6 +1,6 @@
 ---
 name: codex-execute
-argument-hint: <task description> [--repo <name>] [--readonly] [--tier <spark|luna|terra|sol>] [--effort <none|low|medium|high|xhigh|max>] [--model <model>] [--sandbox <mode>]
+argument-hint: <task description> [--repo <name>] [--readonly] [--budget auto|low|medium|high] [--tier <spark|luna|terra|sol>] [--effort <none|low|medium|high|xhigh|max>] [--model <model>] [--sandbox <mode>]
 description: Run a bounded task with headless OpenAI Codex. Interactive Codex has meta-dev as $meta-dev:<command> skills. Headless cannot type a slash, but the plugin is there — --skill/--command follow the same markdown, plus a harness preamble. Brief a DIRECT task. Review-only on this tree's $20/30-mo plan.
 ---
 
@@ -35,7 +35,8 @@ Parse these flags:
 - `--repo <name>`: target repo; otherwise detect from `pwd`.
 - `--readonly`: force the `read-only` sandbox.
 - `--tier <spark|luna|terra|sol>`: model family selection.
-- `--effort <none|low|medium|high|xhigh|max>`: override the tier's reasoning effort.
+- `--budget auto|low|medium|high`: **depth cap** (default `auto`). Classify before dispatch — review lens → `low` or `medium`, never `high` just because execute was high. Forward the resolved word. Doctrine: `references/execute-budget.md`.
+- `--effort <none|low|medium|high|xhigh|max>`: override the tier's reasoning effort. Explicit `--effort` wins over `--budget`.
 - `--model <model>`: exact Codex model ID; it overrides tier selection but not a supplied effort.
 - `--sandbox <mode>`: `read-only`, `workspace-write`, or `danger-full-access`.
 - `--timeout <ms>`: wall-clock limit; default is `7200000`.
@@ -126,6 +127,7 @@ If the task writes, confirm the requested scope is authorized. If it is destruct
 ```bash
 ${CLAUDE_PLUGIN_ROOT}/scripts/codex-headless-exec \
   ${REPO:+--repo "$REPO"} \
+  --budget "$BUDGET" \
   --tier "$TIER" \
   --effort "$EFFORT" \
   ${MODEL:+--model "$MODEL"} \

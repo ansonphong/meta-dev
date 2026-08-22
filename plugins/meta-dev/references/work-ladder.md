@@ -43,6 +43,11 @@ rungs, ignore them for automatic **execute** selection.
 `meta_dev.ladder.native_only_when_required` (default `true`) says delegation is
 the default posture. See **Stay native only when** below.
 
+**`--budget auto|low|medium|high`** (default `auto`) is the **depth cap** on
+every execute path — turns, wall clock, no rabbit holes. Classify before
+dispatch. Campaign `/meta-execute --budget` is a ceiling. Doctrine:
+`references/execute-budget.md`.
+
 **Explicit flags:** `--deep` / `--grok` are the pooled rungs. `--opus` /
 `--codex` (and `/opus-execute` / `/codex-execute`) are **review-only**.
 `--glm` / `--sonnet` / `--fable` force that backend **only when Phong named it
