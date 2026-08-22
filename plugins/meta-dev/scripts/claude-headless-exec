@@ -13,6 +13,8 @@
 #   --model <model>          Override default model for this backend
 #   --tier <flash|pro>       DeepSeek-only convenience: map to deepseek-v4-flash|pro
 #                            (ignored on other backends; --model wins over --tier)
+#   --flash / --pro          DeepSeek-only boolean sugars for --tier flash|pro
+#                            (default is Pro; --flash is the mechanical downgrade)
 #   --timeout <ms>           Timeout in ms (default: 7200000 = 120 min)
 #   --tools <list>           Comma-separated tool list (default: Read,Write,Edit,Bash,Grep,Glob)
 #   --readonly               Restrict to read-only tools (Read,Bash,Grep)
@@ -23,13 +25,13 @@
 # Examples:
 #   claude-headless-exec --backend deep --repo app -- "Fix all TypeScript errors"
 #   claude-headless-exec --backend glm --repo www --readonly -- "Audit for SQL injection"
-#   claude-headless-exec --backend deep --tier pro -- "Hard multi-step agentic refactor"
-#   claude-headless-exec --backend deep --model deepseek-v4-flash -- "Rename getCwd across the project"
+#   claude-headless-exec --backend deep -- "Hard multi-step agentic refactor"
+#   claude-headless-exec --backend deep --flash -- "Rename getCwd across the project"
 #
 # Backend defaults:
-#   deep   → deepseek-v4-flash (default / haiku / subagent); deepseek-v4-pro (opus escalate)
-#            Flash-0731 (2026-07-31 official) is the bulk workhorse — cheaper + faster + 1M ctx.
-#            Escalate to Pro only when Flash fails hard reasoning.
+#   deep   → deepseek-v4-pro (default primary / opus slot; V4-Pro-0813 GA on this ID)
+#            deepseek-v4-flash for --flash / haiku / nested subagents
+#            Flash-0731 is the mechanical bulk downgrade — cheaper + faster + 1M ctx.
 #   glm    → glm-5.2 (opus/sonnet/subagent), glm-4.5 (haiku) — routed via local beta-strip proxy
 #   sonnet → claude-sonnet-5; REAL Anthropic via ambient login (1M context)
 #   opus   → claude-opus-5;   REAL Anthropic via ambient login (1M context)
@@ -70,13 +72,13 @@ declare -A BACKEND_LABEL
 
 BACKEND_BASE_URL[deep]="https://api.deepseek.com/anthropic"
 BACKEND_AUTH_KEY_ENV[deep]="DEEPSEEK_API_KEY"
-# DeepSeek V4 pair (both 1M context). Flash-0731 (2026-07-31 official public beta)
-# is the bulk default — 284B/13B active, ~3× cheaper than Pro, agent-post-trained.
-# Pro (1.6T/49B active) stays the escalate slot for hard reasoning only.
-BACKEND_OPUS_MODEL[deep]="deepseek-v4-pro"            # hard sub-work escalate
-BACKEND_SONNET_MODEL[deep]="deepseek-v4-flash"         # DEFAULT primary worker
+# DeepSeek V4 pair (both 1M context). Default primary is Pro (V4-Pro-0813 GA
+# served on the stable ID deepseek-v4-pro as of 2026-08-13). Flash-0731 is the
+# --flash / haiku / nested-subagent slot — 284B/13B active, ~3× cheaper.
+BACKEND_OPUS_MODEL[deep]="deepseek-v4-pro"            # hard sub-work (same as default)
+BACKEND_SONNET_MODEL[deep]="deepseek-v4-pro"          # DEFAULT primary worker
 BACKEND_HAIKU_MODEL[deep]="deepseek-v4-flash"
-BACKEND_SUBAGENT_MODEL[deep]="deepseek-v4-flash"       # match default; hard → opus→pro
+BACKEND_SUBAGENT_MODEL[deep]="deepseek-v4-flash"      # nested cheap; primary stays Pro
 BACKEND_EFFORT[deep]=""                               # DECIDED: no effort knob on this backend — see the resolve block, which warns rather than forwarding
 BACKEND_LABEL[deep]="DeepSeek"
 
@@ -134,6 +136,8 @@ BACKEND=""
 REPO=""
 MODEL=""
 TIER=""      # deep-only convenience: flash|pro → deepseek-v4-flash|pro (--model wins)
+FLASH_FLAG=0 # 1 when --flash was passed (sugar for --tier flash)
+PRO_FLAG=0   # 1 when --pro was passed (sugar for --tier pro)
 MODEL_EXPLICIT=0  # 1 when --model was passed (so --tier cannot override it)
 EFFORT=""    # thinking/reasoning effort; resolved from per-backend default unless --effort given
 EFFORT_EXPLICIT=0   # 1 when the caller passed --effort (so a no-knob backend can warn instead of silently dropping it)
@@ -176,6 +180,8 @@ Options:
   --model <model>           Override the default model
   --tier <flash|pro>        DeepSeek-only: deepseek-v4-flash | deepseek-v4-pro
                             (ignored on other backends; --model wins over --tier)
+  --flash                   DeepSeek-only: force deepseek-v4-flash (mechanical)
+  --pro                     DeepSeek-only: force deepseek-v4-pro (already default)
   --effort <level>          Thinking effort: low|medium|high|xhigh|max
                             (per-backend default: sonnet/opus/fable=high, glm=high, deep=none)
   --timeout <ms>            Timeout in ms via API_TIMEOUT_MS (default: 7200000 = 120 min)
@@ -202,8 +208,8 @@ auto-reset, instead of idling out the full 120-min cap):
   -h, --help                Show this help
 
 Backend defaults (model · effort):
-  deep   → deepseek-v4-flash        (DeepSeek API · effort n/a · --tier flash|pro)
-           escalate hard work with --tier pro → deepseek-v4-pro
+  deep   → deepseek-v4-pro          (DeepSeek API · V4-Pro-0813 · effort n/a)
+           --flash / --tier flash → deepseek-v4-flash (mechanical bulk)
   glm    → glm-5.2                    (Z.AI API · effort high · via local beta-strip proxy)
   sonnet → claude-sonnet-5          (Anthropic · ambient login · effort high)
   opus   → claude-opus-5            (Anthropic · ambient login · effort high)
@@ -211,13 +217,14 @@ Backend defaults (model · effort):
 
 Examples:
   claude-headless-exec --backend deep --repo app -- "Fix all TS errors"
+  claude-headless-exec --backend deep --flash -- "Rename getCwd across the project"
   claude-headless-exec --backend deep --tier pro -- "Hard multi-step agentic refactor"
   claude-headless-exec --backend glm --repo www --readonly -- "Audit auth"
   claude-headless-exec --backend sonnet --repo app -- "Review the diff"
   claude-headless-exec --backend opus --repo app -- "Redesign the render-node lineage"
   claude-headless-exec --backend fable --repo app -- "Untangle the hardest coherence bug"
   claude-headless-exec --backend deep --model deepseek-v4-flash -- \
-    "Rename getCwd across the project"
+    "Rename getCwd across the project"  # same as --flash
 
 Prerequisites:
   DEEPSEEK_API_KEY env var (for --backend deep)
@@ -246,6 +253,14 @@ while [[ $# -gt 0 ]]; do
         --tier)
             TIER="$2"
             shift 2
+            ;;
+        --flash)
+            FLASH_FLAG=1
+            shift
+            ;;
+        --pro)
+            PRO_FLAG=1
+            shift
             ;;
         --effort)
             EFFORT="$2"
@@ -374,6 +389,26 @@ if [[ "$READONLY" == "true" ]]; then
 fi
 
 # ── Resolve model ───────────────────────────────────────────────────────
+# --flash / --pro are DeepSeek-only boolean sugars for --tier. --model always
+# wins when both a tier flag and --model are set.
+if [[ "$FLASH_FLAG" == "1" && "$PRO_FLAG" == "1" ]]; then
+    echo "[ERROR] --flash and --pro cannot be combined." >&2
+    exit 1
+fi
+if [[ "$FLASH_FLAG" == "1" ]]; then
+    if [[ -n "$TIER" && "$TIER" != "flash" ]]; then
+        echo "[ERROR] --flash conflicts with --tier '$TIER'." >&2
+        exit 1
+    fi
+    TIER="flash"
+fi
+if [[ "$PRO_FLAG" == "1" ]]; then
+    if [[ -n "$TIER" && "$TIER" != "pro" ]]; then
+        echo "[ERROR] --pro conflicts with --tier '$TIER'." >&2
+        exit 1
+    fi
+    TIER="pro"
+fi
 # --tier is DeepSeek-only sugar (flash|pro). --model always wins when both set.
 if [[ -n "$TIER" ]]; then
     if [[ "$BACKEND" != "deep" ]]; then

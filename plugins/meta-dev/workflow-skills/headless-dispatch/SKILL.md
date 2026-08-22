@@ -75,7 +75,7 @@ run the script directly:
 | `/fable-execute`  | `fable`  | `claude-fable-5`  | hardest tasks — max reasoning, long-horizon coherence |
 | `/opus-execute`   | `opus`   | `claude-opus-5`   | architecture, hardening, review, security |
 | `/sonnet-execute` | `sonnet` | `claude-sonnet-5` | Anthropic judgment, off-thread |
-| `/deep-execute`   | `deep`   | `deepseek-v4-flash` (default; `--tier pro` → `deepseek-v4-pro`) | cheapest bulk; mechanical bounded edits; escalate Pro for hard reasoning |
+| `/deep-execute`   | `deep`   | `deepseek-v4-pro` (default, V4-Pro-0813 GA; `--flash` → `deepseek-v4-flash`) | default reasoning worker; `--flash` for mechanical bulk |
 | `/glm-execute`    | `glm`    | `glm-5.2`         | long-horizon, stateful agentic refactors |
 
 `sonnet`/`opus`/`fable` are **real Anthropic via your ambient Claude login** —
