@@ -56,6 +56,20 @@ long-horizon arc to DeepSeek. Do not send "read the plan file" to Codex.
 The injector adds the harness block. You still write the **task** in that
 row's voice.
 
+## Campaign member conductor (`/runbook execute`)
+
+The campaign thread does **not** implement checkboxes. It spawns one worker per
+READY member. That worker **is** a `/meta-execute` (or `/meta-dev` stages 1–4)
+conductor for one plan.
+
+| Host | Member-conductor brief |
+|------|------------------------|
+| **Grok** | Direct task. Absolute plan path. "Read `<plugin>/commands/meta-execute.md` and run it for this plan. Farm checkboxes with `spawn_subagent`. Git bans + `commit --only`. Return STATE/SHA/SURPRISES." Never "run `/meta-execute`". |
+| **Claude** | `Execute /meta-execute <plan>` (or `/meta-dev --to 4` if not hardened). The child follows the work-ladder. |
+| **Codex** | Direct task. Inline the execute procedure (or `--skill`). Member conductor = sol/high; inner mechanical checkboxes may be spark. Never "read the master and reconstruct." |
+
+Cap **3** member conductors in flight. Nested checkbox cap 8 is the child's job.
+
 ## Injector
 
 Headless runners call `md_brief_wrap_prompt` after the budget wrap.

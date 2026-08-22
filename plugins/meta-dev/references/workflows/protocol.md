@@ -101,9 +101,20 @@ filesystem reads, exact-path edits, shell checks, scoped commits, and optional
 delegation. Missing delegation is a **bug in the host table**, not permission
 to implement on the conductor. Look up `commands/meta-execute.md` Host dispatch
 (Grok Build → `spawn_subagent`, Claude Code → `Agent`, Codex → spark/sol).
-The same table is `/meta-task-agent`. `--inline` is the only legal
-serial-on-conductor path for execute; task-agent has no `--inline`. Permission, result-state,
+The same table is `/meta-task-agent` and `/runbook execute` (member conductors, not
+checkbox workers). `--inline` is the only legal serial-on-conductor path for execute;
+task-agent and runbook have no `--inline`. Permission, result-state,
 review, and verification semantics never change.
+
+### Campaign runbook (`/runbook`)
+
+A campaign runbook sequences N member plans. `/runbook execute` is a **thin campaign
+conductor**: it farms host-native **member conductors** (same Host dispatch table).
+Inner checkboxes stay `/meta-execute`'s job. Grok and Codex get a direct brief that
+names `commands/meta-execute.md` — never a Claude slash. Cap **3** in-flight members
+(each may farm up to 8 checkbox workers). File-disjoint members run in parallel;
+overlapping write-sets serialize. Do not flatten the campaign into a host-specific
+workflow script. The `_runbook-*.md` file plus `planctl` is SSOT.
 
 ## Routing
 

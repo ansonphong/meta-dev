@@ -78,9 +78,11 @@ rationale that cannot be derived from any single member plan.>
 
 ## GATES & INVARIANTS
 
-<Binding campaign-wide rules as bullets. The file-level concurrency rule (parallel members
-welcome; never write a file already dirty on the working tree), the "green before advance"
-gates, any cross-member invariants.>
+<Binding campaign-wide rules as bullets. File-disjoint members run in parallel
+(campaign cap 3 member conductors); overlapping write-sets serialize. Unrelated dirty
+files: commit discrete and keep moving — never stash. Inner checkboxes are each
+member conductor's job (`/meta-execute`). Plus "green before advance" gates and any
+cross-member invariants.>
 
 - …
 ```

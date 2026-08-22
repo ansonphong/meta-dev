@@ -239,7 +239,7 @@ grok plugin update meta-dev
 ```
 
 In a Grok session the plugin's slash commands and skills load as `/meta-dev`,
-`/meta-execute`, `/meta-task-agent`, `/meta-dashboard`, `/meta-planner`, and the
+`/meta-execute`, `/runbook`, `/meta-task-agent`, `/meta-dashboard`, `/meta-planner`, and the
 rest of the waterfall. Grok runs the same six stages as Claude Code and Codex.
 
 ## Quick Start
@@ -423,9 +423,12 @@ plugin root/
 | `/meta-dod` | Generate definition-of-done contracts from task descriptions |
 | `/meta-planner` | Restructure plans for automated execution |
 | `/meta-execute` | Subagent-driven plan execution with verify+commit+push per task |
+| `/runbook` | Campaign of N plans — host-native member conductors, parallel when file-disjoint (cap 3) |
 | `/meta-task-agent` | Async subagent storm — each prompt spawns a background worker until `--end` |
 | `/meta-eval` | Dedicated evaluator — tests implementations against design criteria |
 | `/meta-canary` | Post-deploy health monitor (ops workflow; learned patterns → APP `/release`) |
+
+`/runbook` is **not** a single-plan waterfall. One plan → `/meta-dev`. A set of related plans with a dependency DAG → `/runbook`. `/runbook execute` is a thin campaign conductor: it farms **member conductors** (Grok `spawn_subagent` / Claude `Agent` / Codex sol) that each run `/meta-execute` for one plan. File-disjoint members run in parallel (cap **3** in-flight). Nested checkbox workers stay inside the member (cap 8). Grok and Codex get a direct brief that names the command file — never a slash they cannot run. `--serial` walks members one at a time. Execute still needs a go.
 
 `/meta-task-agent` is **not** plan execute. It opens a session: every following prompt is a **host-native** background subagent (Grok→Grok, Claude→Claude, Codex→Codex). Close with `/meta-task-agent --end`. Each finished worker prints **Found / Do** at the top level — never a truncated `SHA=n/a files=none` line. `--end` restates every report.
 

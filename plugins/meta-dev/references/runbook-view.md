@@ -45,12 +45,20 @@ plans/meta-runbook.md          META runbook — global cross-repo ledger (one en
 
 ## Rules
 
-- **Track it.** Stand up a TaskCreate list (one entry per member) for `execute` runs.
-- **EXECUTE is gated.** `execute` writes code → needs the human approver's explicit "go" per member.
-- **Delegate.** Authoring + topo-sort = Opus. Driving members = the work ladder
-  (`references/work-ladder.md`). Gate reviews = Codex or Grok (cross-family lens;
-  both also execute).
+- **Track it.** `TaskCreate` one entry per member for `execute` runs. Inner checkbox
+  lists belong to each member conductor (`/meta-execute`), never this campaign list.
+- **Thin conductor.** `/runbook execute` farms host-native **member conductors**
+  (Grok `spawn_subagent` / Claude `Agent` / Codex sol). This thread does not
+  implement member tasks. Cap **3** in-flight members; file-disjoint READY members
+  run in parallel; `--serial` disables that. Nested checkbox cap 8 is the child's job.
+- **EXECUTE is gated.** `/runbook execute` / `go` is the campaign go. Re-ask only
+  for auth / schema / payment / cross-repo members.
+- **Brief by host.** Claude may `Execute /meta-execute <plan>`. Grok and Codex get a
+  **direct task** that names `commands/meta-execute.md` — never a slash command.
+- **Delegate inner execute** along `references/work-ladder.md`. Do not pin campaign
+  authoring to Opus.
 - **Status truth lives in member frontmatter + checkboxes** — the sentinel block is
   derived, never authored.
 - **Closeouts** go in the member's master plan (`## Closeout`), never the runbook.
-- **Refresh after each phase/plan** so the dashboard stays live.
+- **Refresh after each member return** so the dashboard stays live. Context-gauge
+  every 3 completed members.
