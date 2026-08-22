@@ -493,6 +493,8 @@ fi
 # ── Resolve --budget (depth cap). Explicit --effort/--max-turns/--timeout win.
 # shellcheck source=lib/execute-budget.sh
 source "$SCRIPT_DIR/lib/execute-budget.sh"
+# shellcheck source=lib/execute-brief.sh
+source "$SCRIPT_DIR/lib/execute-brief.sh"
 md_resolve_budget || exit 1
 
 if [[ -z "$TIMEOUT" ]]; then
@@ -704,6 +706,7 @@ rebase; the conductor owns the remote. Read-only work creates no empty commit.
 ${VISION_NOTE}
 ${PROMPT}"
 md_budget_wrap_prompt
+md_brief_wrap_prompt
 
 # ── Output-format-aware liveness config ──────────────────────────────────
 # The stall-watchdog spots a hung worker by watching the RAW file stop GROWING.

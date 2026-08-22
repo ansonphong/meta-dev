@@ -139,9 +139,12 @@ resolve_prompt "$PROMPT_INPUT_FILE" "grok-headless-exec"
 # ── --budget (depth cap) ───────────────────────────────────────────────
 # shellcheck source=lib/execute-budget.sh
 source "$SCRIPT_DIR/lib/execute-budget.sh"
+# shellcheck source=lib/execute-brief.sh
+source "$SCRIPT_DIR/lib/execute-brief.sh"
 BACKEND="grok"
 md_resolve_budget || exit 1
 md_budget_wrap_prompt
+md_brief_wrap_prompt
 
 # ── Model / effort contract ─────────────────────────────────────────────
 # Menus verified 2026-08-14 against `grok models` + ~/.grok/models_cache.json

@@ -18,7 +18,7 @@ This command spawns **headless** Grok (`grok --prompt-file`). That is still Grok
 
 `/deep-execute`, `/opus-execute`, `/sonnet-execute`, `/fable-execute`, and `/glm-execute` spawn a full **Claude Code** instance — those workers *can* be told "run `/loop-gap` on this plan". A Grok worker cannot.
 
-**Brief this worker with a direct task**, or tell it to follow a named Grok skill / `SKILL.md` path. Say *"Fix the failing test in Z"* or *"Audit X for gap class Y and report findings"* — not *"run `/loop-gap` on this plan"* as if this were Claude Code. Full split: `references/work-ladder.md` → *Who has meta-dev*.
+**Brief this worker with a direct task**, or tell it to follow a named Grok skill / `SKILL.md` path. Say *"Fix the failing test in Z"* or *"Audit X for gap class Y and report findings"* — not *"run `/loop-gap` on this plan"* as if this were Claude Code. Tell it to **farm independent pieces to `spawn_subagent`**. The runner injects a Grok brief (`references/execute-briefs.md`). Do not reuse a DeepSeek or Codex paragraph. Full split: `references/work-ladder.md` → *Who has meta-dev*.
 
 ## When to Use — full execution worker AND cross-family review
 

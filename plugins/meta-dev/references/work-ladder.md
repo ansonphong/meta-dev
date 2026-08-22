@@ -113,9 +113,12 @@ Stay on the conductor when the task:
 - **is interactive vision with Phong** — looking at a screenshot together. Bounded screenshot/UI review that a worker can do alone → `/deep-execute --vision`.
 
 Otherwise, **default to the pool** (DeepSeek if mechanical/bounded, else Grok)
-and use subagents liberally. Independent tracks may run in parallel. Liberal
-fan-out overrides "prefer one subagent over several." Harden / code-review
-gates then add the one Opus + one Codex + one DeepSeek review pass.
+and use **Grok subagents for the pieces**. Independent tracks run in parallel.
+The parent holds verdicts, not diffs. Shape each brief for that backend
+(`references/execute-briefs.md`) — do not paste the same paragraph to Grok,
+DeepSeek, and Codex. Liberal fan-out overrides "prefer one subagent over
+several." Harden / code-review gates then add the one Opus + one Codex + one
+DeepSeek review pass.
 
 ## Who has meta-dev
 

@@ -79,6 +79,18 @@ bash plugins/meta-dev/scripts/classify-execute-budget.sh --campaign medium -- "R
 
 Doctrine: `plugins/meta-dev/references/execute-budget.md`.
 
+## Subagents and per-backend prompts
+
+Use **Grok subagents for the pieces**. The conductor (and a Grok worker that
+gets a multi-piece job) farms independent work to `spawn_subagent` /
+`/grok-execute` and keeps one-line returns. Do not dump a whole plan into one
+context.
+
+Each backend gets its **own brief**. Headless runners inject it. You still
+write the task in that backend's voice: Grok = direct task + git bans;
+DeepSeek = one small unit; Codex = inlined excerpt, never "read the plan."
+Opus = review, one pass. Doctrine: `plugins/meta-dev/references/execute-briefs.md`.
+
 ## Install in Claude Code
 
 ```bash

@@ -24,6 +24,8 @@ This command owns the **EXECUTE** waterfall stage (5/6). Keep `/meta-dashboard` 
 
 You are the conductor. You do **not** implement plan tasks on this thread.
 
+**Farm pieces to Grok subagents.** Independent checkboxes with disjoint files run in parallel. A fat task that is really three pieces becomes three Grok workers. You keep one-line returns. **Shape each brief for that backend** (`references/execute-briefs.md`) — Grok, DeepSeek, and Codex do not get the same paragraph. Headless runners inject the backend block; you still write the task body in that voice.
+
 `--inline` is the ONLY exception, and only when the user passed it.
 
 For each verifiable checkbox:

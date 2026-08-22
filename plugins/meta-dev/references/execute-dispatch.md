@@ -2,6 +2,8 @@
 
 The subagent prompt template used by `/meta-execute` for each task. This is the full text sent to each fresh **host-native worker** (Grok Build `spawn_subagent`, Claude Code `Agent`, Codex spark/sol). Never a hardcoded Sonnet Agent.
 
+**Farm pieces.** Independent work goes to **Grok `spawn_subagent`** (or `/grok-execute`). The parent keeps one-line verdicts. Do not dump a multi-piece job into one context. Per-backend prompt shape: `references/execute-briefs.md`. Headless runners inject the backend block; you still write the **task body** in that backend's voice (Grok = direct + git bans; DeepSeek = small unit; Codex = inlined excerpt, no "read the plan").
+
 ## Law: every worker owns durability for its own edits
 
 **A worker that edits files and returns without committing has created unowned
@@ -37,6 +39,7 @@ stop. You are encoding a tool property in the wrong layer. Fix the executor.
 ```
 You are executing ONE task from a master plan. Plan path: <PLAN_PATH>
 Your task: <TASK_ID> — <TASK_TITLE>
+Backend: <BACKEND> — follow the matching brief in references/execute-briefs.md (Grok farms pieces to spawn_subagent; DeepSeek stays a small unit; Codex does not re-read the plan file).
 Budget: <BUDGET_RESOLVED> (low=12 turns/15m, medium=32/45m, high=80/120m). Do the named task. Do not overthink. Do not open adjacent rabbit holes. <BUDGET_RULES>
 <TASK_PLAN_SECTION>   ← orchestrator INLINES the task's own plan section + acceptance criteria here, verbatim. Inline it; do NOT tell the worker to read the plan file to reconstruct the task — a Codex worker re-reads a referenced plan repeatedly and it dominates its runtime, while a Claude worker just saves a cached Read. Universal, every backend.
 Read any .claude/context/<relevant>.md this task names once, whole, before touching code.

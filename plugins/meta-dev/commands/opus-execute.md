@@ -10,7 +10,7 @@ Spawn a headless Claude Code worker on the **real Anthropic backend**, pinned to
 
 Uses `scripts/claude-headless-exec --backend opus` under the hood.
 
-**Harness:** this worker **is** Claude Code (ambient Anthropic login, model Opus 5). It can run meta-dev slash commands internally (`/meta-execute`, `/loop-gap`, …). Interactive Grok and Codex hosts **also** have this plugin (Grok skills/slash; Codex `$meta-dev:*`). A **headless** `/grok-execute` or `/codex-execute` worker is not Claude Code — brief those with a direct task, not "run `/loop-gap`". Full split: `references/work-ladder.md` → *Who has meta-dev*. On this tree `/opus-execute` is **review-only** (harden / code-review, one pass, prefer `--readonly`).
+**Harness:** this worker **is** Claude Code (ambient Anthropic login, model Opus 5). It can run meta-dev slash commands internally (`/meta-execute`, `/loop-gap`, …). Interactive Grok and Codex hosts **also** have this plugin (Grok skills/slash; Codex `$meta-dev:*`). A **headless** `/grok-execute` or `/codex-execute` worker is not Claude Code — brief those with a direct task, not "run `/loop-gap`". Full split: `references/work-ladder.md` → *Who has meta-dev*. On this tree `/opus-execute` is **review-only** (harden / code-review, one pass, prefer `--readonly`). Brief it as a **review**, not a farm. The runner injects an Opus brief (`references/execute-briefs.md`).
 
 ## Why this exists — context economy
 

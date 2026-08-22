@@ -16,6 +16,8 @@ Uses `scripts/claude-headless-exec --backend deep` under the hood.
 
 **Harness:** this worker **is** Claude Code, so Claude slash commands work inside it. Interactive Grok and Codex hosts **also** have meta-dev (Grok skills/slash; Codex `$meta-dev:*`). A **headless** `/grok-execute` or `/codex-execute` worker is not Claude Code — brief those with a direct task (Codex: `--skill`/`--command`), not "run `/loop-gap`". Full split: `references/work-ladder.md` → *Who has meta-dev*.
 
+**Brief:** one small unit, named files, one acceptance. The runner injects a DeepSeek brief. Do not paste a Grok swarm prompt or a Codex "read the plan" prompt. If the job has independent pieces, **split them to Grok subagents** and give DeepSeek only one leaf. `references/execute-briefs.md`.
+
 ## Pro vs Flash vs Vision — pick the tier
 
 | | **Pro** (`deepseek-v4-pro`) — **default** | **Flash** (`deepseek-v4-flash`) | **Vision** (`deepseek-v4-flash-vision-exp`) |

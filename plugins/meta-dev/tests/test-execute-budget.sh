@@ -100,6 +100,38 @@ else
     bad "runner --budget missing"
 fi
 
+# shellcheck source=../scripts/lib/execute-brief.sh
+source "$PLUGIN_ROOT/scripts/lib/execute-brief.sh"
+BACKEND=grok
+PROMPT="do the thing"
+md_brief_wrap_prompt
+case "$PROMPT" in
+    *"BACKEND BRIEF: Grok"*|*spawn_subagent*) ok "grok brief injected" ;;
+    *) bad "grok brief missing" ;;
+esac
+BACKEND=deep
+PROMPT="do the thing"
+md_brief_wrap_prompt
+case "$PROMPT" in
+    *"BACKEND BRIEF: DeepSeek"*|*"Keep this unit SMALL"*) ok "deep brief injected" ;;
+    *) bad "deep brief missing" ;;
+esac
+BACKEND=codex
+PROMPT="do the thing"
+md_brief_wrap_prompt
+case "$PROMPT" in
+    *"BACKEND BRIEF: Codex"*|*"not Claude Code"*) ok "codex brief injected" ;;
+    *) bad "codex brief missing" ;;
+esac
+
+if grep -q 'md_brief_wrap_prompt' "$PLUGIN_ROOT/scripts/claude-headless-exec" \
+    && grep -q 'md_brief_wrap_prompt' "$PLUGIN_ROOT/scripts/grok-headless-exec" \
+    && grep -q 'md_brief_wrap_prompt' "$PLUGIN_ROOT/scripts/codex-headless-exec"; then
+    ok "three runners wrap per-backend brief"
+else
+    bad "runner brief wrap missing"
+fi
+
 if grep -q -- '--budget' "$PLUGIN_ROOT/commands/meta-execute.md" \
     && grep -q -- '--budget' "$PLUGIN_ROOT/commands/grok-execute.md" \
     && grep -q -- '--budget' "$PLUGIN_ROOT/commands/deep-execute.md" \

@@ -19,7 +19,7 @@ meta-dev is installed on **Claude Code, Codex, and Grok Build**.
 - Every dispatch injects a generated harness preamble: the framework root, the roster of all protocols (`skills/`) and procedures (`commands/`), the binding LAWS (planctl is the only write door; never hand-edit a checkbox; report failures honestly), and a Claude→Codex translation table. So the worker knows the harness exists and is told to use it — rather than freelancing, which is what a bare Codex dispatch does.
 - `--skill` / `--command` hand it the same markdown Claude Code reads, from the source tree. No install, no version-keyed cache to go stale.
 
-**Brief this worker with a direct task** (or `--skill` / `--command`). Never "run `/loop-gap` on this plan" as if this were Claude Code. Claude-family headless (`/deep-execute`, `/opus-execute`, …) *can* run that slash internally. Full split: `references/work-ladder.md` → *Who has meta-dev*.
+**Brief this worker with a direct task** (or `--skill` / `--command`). **Inline** the 30–60 lines that matter — Codex must not re-read a plan file to reconstruct the job. Never "run `/loop-gap` on this plan" as if this were Claude Code. The runner injects a Codex brief (`references/execute-briefs.md`). Claude-family headless (`/deep-execute`, `/opus-execute`, …) *can* run that slash internally. Full split: `references/work-ladder.md` → *Who has meta-dev*.
 
 **Route Spark-first** (see Step 2 — Spark bills to a separate quota, so it is effectively free capacity). The runner's fallback default is `gpt-5.6-terra`/`medium`, but you should be *choosing* a tier every time, not inheriting that. State the selected tier and effort before dispatching. An explicit `--tier`, `--effort`, or `--model` from the user always wins.
 

@@ -217,6 +217,8 @@ fi
 
 # shellcheck source=lib/execute-budget.sh
 source "$SCRIPT_DIR/lib/execute-budget.sh"
+# shellcheck source=lib/execute-brief.sh
+source "$SCRIPT_DIR/lib/execute-brief.sh"
 BACKEND="codex"
 md_resolve_budget || exit 1
 
@@ -433,6 +435,7 @@ when verification is red or omitted.
 "
 PROMPT="${RESULT_CONTRACT_PREAMBLE}${PROMPT}"
 md_budget_wrap_prompt
+md_brief_wrap_prompt
 
 # Liveness watchdog: kill + auto-reset a wedged codex run instead of waiting out
 # the 120-min cap. See lib/stall-watchdog.sh.
