@@ -15,6 +15,7 @@
 #                            (ignored on other backends; --model wins over --tier)
 #   --flash / --pro          DeepSeek-only boolean sugars for --tier flash|pro
 #                            (default is Pro; --flash is the mechanical downgrade)
+#   --vision                 DeepSeek-only: deepseek-v4-flash-vision-exp (multimodal)
 #   --timeout <ms>           Timeout in ms (default: 7200000 = 120 min)
 #   --tools <list>           Comma-separated tool list (default: Read,Write,Edit,Bash,Grep,Glob)
 #   --readonly               Restrict to read-only tools (Read,Bash,Grep)
@@ -32,6 +33,7 @@
 #   deep   → deepseek-v4-pro (default primary / opus slot; V4-Pro-0813 GA on this ID)
 #            deepseek-v4-flash for --flash / haiku / nested subagents
 #            Flash-0731 is the mechanical bulk downgrade — cheaper + faster + 1M ctx.
+#            --vision → deepseek-v4-flash-vision-exp (JPEG/PNG/GIF/WebP; experimental)
 #   glm    → glm-5.2 (opus/sonnet/subagent), glm-4.5 (haiku) — routed via local beta-strip proxy
 #   sonnet → claude-sonnet-5; REAL Anthropic via ambient login (1M context)
 #   opus   → claude-opus-5;   REAL Anthropic via ambient login (1M context)
@@ -135,9 +137,10 @@ BACKEND_LABEL[fable]="Fable-5"
 BACKEND=""
 REPO=""
 MODEL=""
-TIER=""      # deep-only convenience: flash|pro → deepseek-v4-flash|pro (--model wins)
+TIER=""      # deep-only convenience: flash|pro|vision (--model wins)
 FLASH_FLAG=0 # 1 when --flash was passed (sugar for --tier flash)
 PRO_FLAG=0   # 1 when --pro was passed (sugar for --tier pro)
+VISION_FLAG=0 # 1 when --vision was passed (sugar for --tier vision)
 MODEL_EXPLICIT=0  # 1 when --model was passed (so --tier cannot override it)
 EFFORT=""    # thinking/reasoning effort; resolved from per-backend default unless --effort given
 EFFORT_EXPLICIT=0   # 1 when the caller passed --effort (so a no-knob backend can warn instead of silently dropping it)
@@ -178,10 +181,12 @@ Options:
   --repo <name>             Resolve via .claude/meta-dev-repos.json; an
                             unknown name ABORTS. Omit => project root (not cwd).
   --model <model>           Override the default model
-  --tier <flash|pro>        DeepSeek-only: deepseek-v4-flash | deepseek-v4-pro
+  --tier <flash|pro|vision> DeepSeek-only: flash | pro | vision
                             (ignored on other backends; --model wins over --tier)
   --flash                   DeepSeek-only: force deepseek-v4-flash (mechanical)
   --pro                     DeepSeek-only: force deepseek-v4-pro (already default)
+  --vision                  DeepSeek-only: force deepseek-v4-flash-vision-exp
+                            (multimodal; JPEG/PNG/GIF/WebP. Exclusive vs --flash/--pro)
   --effort <level>          Thinking effort: low|medium|high|xhigh|max
                             (per-backend default: sonnet/opus/fable=high, glm=high, deep=none)
   --timeout <ms>            Timeout in ms via API_TIMEOUT_MS (default: 7200000 = 120 min)
@@ -210,6 +215,7 @@ auto-reset, instead of idling out the full 120-min cap):
 Backend defaults (model · effort):
   deep   → deepseek-v4-pro          (DeepSeek API · V4-Pro-0813 · effort n/a)
            --flash / --tier flash → deepseek-v4-flash (mechanical bulk)
+           --vision → deepseek-v4-flash-vision-exp (images; experimental)
   glm    → glm-5.2                    (Z.AI API · effort high · via local beta-strip proxy)
   sonnet → claude-sonnet-5          (Anthropic · ambient login · effort high)
   opus   → claude-opus-5            (Anthropic · ambient login · effort high)
@@ -218,6 +224,7 @@ Backend defaults (model · effort):
 Examples:
   claude-headless-exec --backend deep --repo app -- "Fix all TS errors"
   claude-headless-exec --backend deep --flash -- "Rename getCwd across the project"
+  claude-headless-exec --backend deep --vision -- "Describe the attached screenshot"
   claude-headless-exec --backend deep --tier pro -- "Hard multi-step agentic refactor"
   claude-headless-exec --backend glm --repo www --readonly -- "Audit auth"
   claude-headless-exec --backend sonnet --repo app -- "Review the diff"
@@ -260,6 +267,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --pro)
             PRO_FLAG=1
+            shift
+            ;;
+        --vision)
+            VISION_FLAG=1
             shift
             ;;
         --effort)
@@ -389,10 +400,10 @@ if [[ "$READONLY" == "true" ]]; then
 fi
 
 # ── Resolve model ───────────────────────────────────────────────────────
-# --flash / --pro are DeepSeek-only boolean sugars for --tier. --model always
-# wins when both a tier flag and --model are set.
-if [[ "$FLASH_FLAG" == "1" && "$PRO_FLAG" == "1" ]]; then
-    echo "[ERROR] --flash and --pro cannot be combined." >&2
+# --flash / --pro / --vision are DeepSeek-only boolean sugars for --tier.
+# --model always wins when both a tier flag and --model are set.
+if (( FLASH_FLAG + PRO_FLAG + VISION_FLAG > 1 )); then
+    echo "[ERROR] --flash, --pro, and --vision cannot be combined." >&2
     exit 1
 fi
 if [[ "$FLASH_FLAG" == "1" ]]; then
@@ -409,7 +420,14 @@ if [[ "$PRO_FLAG" == "1" ]]; then
     fi
     TIER="pro"
 fi
-# --tier is DeepSeek-only sugar (flash|pro). --model always wins when both set.
+if [[ "$VISION_FLAG" == "1" ]]; then
+    if [[ -n "$TIER" && "$TIER" != "vision" ]]; then
+        echo "[ERROR] --vision conflicts with --tier '$TIER'." >&2
+        exit 1
+    fi
+    TIER="vision"
+fi
+# --tier is DeepSeek-only sugar (flash|pro|vision). --model always wins when both set.
 if [[ -n "$TIER" ]]; then
     if [[ "$BACKEND" != "deep" ]]; then
         echo "[WARN] --tier '$TIER' ignored: only applies to --backend deep (got '$BACKEND')." >&2
@@ -417,10 +435,11 @@ if [[ -n "$TIER" ]]; then
         echo "[WARN] --tier '$TIER' ignored: --model '$MODEL' already set and wins." >&2
     else
         case "$TIER" in
-            flash) MODEL="deepseek-v4-flash" ;;
-            pro)   MODEL="deepseek-v4-pro" ;;
+            flash)  MODEL="deepseek-v4-flash" ;;
+            pro)    MODEL="deepseek-v4-pro" ;;
+            vision) MODEL="deepseek-v4-flash-vision-exp" ;;
             *)
-                echo "[ERROR] Invalid --tier '$TIER' for deep backend. Use: flash, pro." >&2
+                echo "[ERROR] Invalid --tier '$TIER' for deep backend. Use: flash, pro, vision." >&2
                 exit 1
                 ;;
         esac
@@ -428,6 +447,14 @@ if [[ -n "$TIER" ]]; then
 fi
 if [[ -z "$MODEL" ]]; then
     MODEL="${BACKEND_SONNET_MODEL[$BACKEND]}"
+fi
+# Vision model rejects images on any other DeepSeek ID (HTTP 400). Pin every
+# nested slot so a subagent Read of a screenshot cannot fall through to Flash.
+if [[ "$BACKEND" == "deep" && "$MODEL" == "deepseek-v4-flash-vision-exp" ]]; then
+    BACKEND_OPUS_MODEL[deep]="$MODEL"
+    BACKEND_SONNET_MODEL[deep]="$MODEL"
+    BACKEND_HAIKU_MODEL[deep]="$MODEL"
+    BACKEND_SUBAGENT_MODEL[deep]="$MODEL"
 fi
 
 # ── Resolve effort (per-backend default unless --effort given) ───────────
@@ -647,12 +674,19 @@ START_TIME=$(date +%s)
 # Keeping the two streams apart is what makes OUTPUT_FILE cleanly parseable.
 cd "$WORK_DIR"
 
+VISION_NOTE=""
+if [[ "$MODEL" == "deepseek-v4-flash-vision-exp" ]]; then
+    VISION_NOTE="
+VISION (binding): You are on deepseek-v4-flash-vision-exp. You can Read JPEG, PNG, GIF, and WebP images. Open local image files with Read. Do not farm image inspection to a text-only subagent. Pro and Flash return HTTP 400 on images — you are the vision worker.
+"
+fi
+
 PROMPT="HARD WORKER PERSISTENCE RULE (binding): If you edit any scoped file,
 stage only those exact paths and create a LOCAL commit before every return,
 including red verification, failed review, BLOCKED, or exhausted repair. Red
 blocks DONE/checkbox/remote push, never the local commit. Never push, pull, or
 rebase; the conductor owns the remote. Read-only work creates no empty commit.
-
+${VISION_NOTE}
 ${PROMPT}"
 
 # ── Output-format-aware liveness config ──────────────────────────────────

@@ -1,6 +1,6 @@
 {
   "name": "meta-dev",
-  "version": "1.4.26",
+  "version": "1.4.27",
   "description": "Autonomous dev harness — dashboard, overlord, 6-phase orchestrator, HOTL, changelog, multi-repo versioning.",
   "author": {
     "name": "Phong",
