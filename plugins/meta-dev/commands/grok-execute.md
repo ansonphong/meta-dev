@@ -1,7 +1,7 @@
 ---
 name: grok-execute
 argument-hint: "<task description> [--repo <name>] [--readonly] [--model <grok-4.6|grok-4.5>] [--effort <low|medium|high|xhigh>] [--max-turns <n>]  # --repo names from .claude/meta-dev-repos.json"
-description: "Execute a task via headless xAI Grok (Grok Build CLI). Grok is its OWN harness (like Codex) — it cannot run our slash commands, so give it a DIRECT task. Like Codex, Grok can read AND write, so it serves double duty: a full general-purpose execution worker (the frontier-reasoning rung of meta_dev.ladder.pool, alongside /deep-execute and /codex-execute) AND a third cross-family review lens (xAI family, alongside Anthropic and OpenAI). Default model grok-4.6; grok-4.5 still available. Dispatcher picks --effort per task (xhigh is grok-4.6 only)."
+description: "Execute a task via headless xAI Grok (Grok Build CLI). Grok is its OWN harness (like Codex) — it cannot run our slash commands, so give it a DIRECT task. Like Codex, Grok can read AND write. It is the frontier-reasoning rung of meta_dev.ladder.pool (alongside /deep-execute for mechanical work). Codex and Opus are review-only, not pooled. Default model grok-4.6; grok-4.5 still available. Dispatcher picks --effort per task (xhigh is grok-4.6 only)."
 ---
 
 # /grok-execute — Grok Headless Execution
@@ -23,7 +23,7 @@ Grok occupies a unique slot: it is **both** a general execution tier **and** a c
 - **As an executor:** Grok 4.6 is a frontier-tier model that **can write files** (like Codex under `--sandbox workspace-write`) — so it can do real bounded implementation work (fixes, refactors, scaffolding), not just read-and-report. Use it like `/deep-execute` or `/glm-execute` for a self-contained task where an independent strong model is wanted.
 - **As a reviewer:** Point it (read-only via `--readonly`) at a diff, the changed files, or a specific finding. An xAI-family model reviewing Claude/DeepSeek/OpenAI output is a **third independent family** — it catches failure modes that same-family review (and even the OpenAI/Codex lens) miss. That independent-family lens is the entire value of Grok-as-reviewer.
 
-**Where it sits on the work ladder:** Grok is in the default pool (`meta_dev.ladder.pool` = `deep`, `grok`, `codex`) as the **frontier-reasoning / third-family** rung. **Grok Heavy (since 2026-07-26) gives us a large compute bucket**, and Grok 4.6 is the current frontier default (4.5 remains available via `--model grok-4.5`) — so **spend it**. It is the default answer for gap checks and plan hardening, cross-family review, and bounded implementation that wants a strong independent model. Full routing table: `references/work-ladder.md`.
+**Where it sits on the work ladder:** Grok is the **frontier-reasoning** rung of the execute pool (`meta_dev.ladder.pool` = `deep`, `grok`). DeepSeek is the cheap mechanical rung. Codex and Opus are **not** in the pool — they are extra-family review only ($20/30-mo). **Grok Heavy (since 2026-07-26) gives us a large compute bucket**, and Grok 4.6 is the current frontier default (4.5 remains available via `--model grok-4.5`) — so **spend it** on non-mechanical work. Mechanical / bounded units go to `/deep-execute`. Full routing table: `references/work-ladder.md`.
 
 ## Test discipline — keep every test cycle cheap
 
