@@ -12,6 +12,8 @@ Uses `scripts/claude-headless-exec --backend glm` under the hood.
 
 **The worker is a full Claude Code instance — it is not limited to code execution.** Its "task" can be any prompt (research, design draft, audit, refactor, investigate) **or an explicit meta-dev command to run internally** — `/meta-execute`, `/meta-planner`, `/loop-gap`, `/meta-eval`, `/sniff`, etc. Pair with `--readonly` for read-only ops (research/review/audit). This makes it a general worker for any waterfall stage, not just EXECUTE.
 
+**Harness:** this worker **is** Claude Code, so Claude slash commands work inside it. Interactive Grok and Codex hosts **also** have meta-dev (Grok skills/slash; Codex `$meta-dev:*`). A **headless** `/grok-execute` or `/codex-execute` worker is not Claude Code — brief those with a direct task (Codex: `--skill`/`--command`), not "run `/loop-gap`". Full split: `references/work-ladder.md` → *Who has meta-dev*.
+
 ## When to Use
 
 GLM is the **robust, consistent driver** — it holds a thread across many dependent steps where DeepSeek drifts. Make GLM the executor for any job that is **long-horizon, stateful, or frontend**, and let it farm small mechanical leaves to DeepSeek.
@@ -32,8 +34,10 @@ GLM is the **robust, consistent driver** — it holds a thread across many depen
 When `/auto-execute` (or the user) hands you **one phase/wave file** from a multi-phase meta-planner plan — e.g. `plans/<repo>/<plan-dir>/00-master-plan.md` — that **single phase file is your entire unit of work for the round**. This is GLM's sweet spot: a cohesive, stateful, multi-task phase held on one thread.
 
 - **Follow the phase loop end-to-end.** Do NOT freelance task-by-task — the loop (claim → dispatch → verify → commit) is what keeps you on-thread across the phase's `Task N.1 → N.2 → …` sequence. The conductor owns the checkbox flip; you never edit one.
-  - *Claude Code worker:* run `/meta-execute <phase-file>` internally.
-  - *Any other harness:* read `workflow-skills/agentic-exec-loop/references/loop-protocol.md` and execute it directly — it is the same procedure, and it is the portable form. Name the SKILL, not the slash command: slash commands are Claude-Code-only, skills are not.
+  - *Claude Code worker (this command):* run `/meta-execute <phase-file>` internally.
+  - *Interactive Grok host:* `/meta-execute` is a Grok skill/slash — same plugin.
+  - *Interactive Codex host:* `$meta-dev:meta-execute` — same plugin.
+  - *Headless Grok/Codex worker:* read `workflow-skills/agentic-exec-loop/references/loop-protocol.md` and execute it directly (Codex: `--skill agentic-exec-loop`). Do not say "run `/loop-gap`" as a Claude slash.
 - **Read `00-master-plan.md` first** for cross-phase context, then execute **ONLY the one phase you were given** — never touch other `phase-*.md` files. `/auto-execute` owns phase ordering and reviews each phase between rounds.
 - **Follow the project test policy** — critical-breakage tests only; do not retrofit or over-test.
 - **Report** which tasks landed (SHAs) + anything that blocked, so the conductor can review the phase diff and advance to the next phase.

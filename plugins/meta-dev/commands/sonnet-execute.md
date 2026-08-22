@@ -10,6 +10,8 @@ Spawn a headless Claude Code worker on the **real Anthropic backend**, pinned to
 
 Uses `scripts/claude-headless-exec --backend sonnet` under the hood.
 
+**Harness:** this worker **is** Claude Code (ambient Anthropic login, model Sonnet 5). It can run meta-dev slash commands internally (`/meta-execute`, `/loop-gap`, …). Interactive Grok and Codex hosts **also** have this plugin (Grok skills/slash; Codex `$meta-dev:*`). A **headless** `/grok-execute` or `/codex-execute` worker is not Claude Code — brief those with a direct task, not "run `/loop-gap`". Full split: `references/work-ladder.md` → *Who has meta-dev*. On this tree `/sonnet-execute` is **parked** unless Phong names it this turn.
+
 ## Why this exists — keep the conductor's context lean
 
 When the orchestrating session runs `opus[1m]`, the `[1m]` flag turns on the **1M context beta for the whole session**. A Sonnet **subagent** dispatched via the Agent/Task tool runs *inside* that session beta, so it goes out as **Sonnet-1M** and is billed at the premium long-context tier.

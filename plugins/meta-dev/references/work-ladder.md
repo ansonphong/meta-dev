@@ -1,6 +1,6 @@
 # Work Ladder — the ONE source of truth
 
-> **Last verified:** 2026-08-21
+> **Last verified:** 2026-08-22
 
 Which backends may be **auto-selected** for delegated work, which are
 **review-only**, and when to stay **native**. Every command, skill, and
@@ -100,7 +100,7 @@ mechanical bulk, brainstorm, design, plan writing, or Stage 5 execute.
 Native means the **conductor thread** — not a Claude Task/Agent subagent.
 Stay on the conductor when the task:
 
-- **needs our harness** — it must run a meta-dev slash command or a project skill internally (a Grok worker cannot run `/meta-*`; a DeepSeek worker *can*, because it is Claude Code);
+- **needs this thread's slash palette** — you are the interactive host and the user typed `/meta-*` here. Do **not** stay native just because "Grok/Codex lack meta-dev" — they have the plugin (see **Who has meta-dev** below);
 - **needs tight interactive back-and-forth** with Phong;
 - **is a one-liner** — a single known-file lookup or edit, where dispatch overhead exceeds the work;
 - **is conductor judgment** — Rule #1 permission, waterfall stage gates, integrating worker returns, final synthesis Phong reads;
@@ -112,17 +112,25 @@ and use subagents liberally. Independent tracks may run in parallel. Liberal
 fan-out overrides "prefer one subagent over several." Harden / code-review
 gates then add the one Opus + one Codex + one DeepSeek review pass.
 
-## Foreign harnesses: give them tasks, never commands
+## Who has meta-dev
 
-`--opus` / `/opus-execute` and `--deep` / `/deep-execute` spawn a full
-**Claude Code** instance, so that worker *can* run our slash commands. Still
-brief Opus as a **review**, not a farm. Brief DeepSeek as a **bounded task**.
+meta-dev is installed on **all three hosts**: Claude Code, Codex, and Grok
+Build. "Cannot run slash commands" is **false** for the interactive hosts.
 
-**Grok and Codex cannot run Claude slash commands.** They are their own agents
-— no `/meta-execute` or `/loop-gap`. Give them a direct task ("audit this diff
-for gap class Y and report findings"), never "run `/loop-gap` on this plan".
-Anything needing the Claude command harness stays with the conductor or a
-Claude-harness worker (DeepSeek / Opus).
+| Surface | How meta-dev runs |
+|---|---|
+| **Interactive Claude Code** | Native slash commands (`/meta-execute`, `/loop-gap`, …) |
+| **Interactive Grok Build** | Same plugin as Grok skills / slash commands (`/meta-execute`, `/loop-gap`, …) |
+| **Interactive Codex** | Native skills (`$meta-dev:meta-execute`, `@meta-dev:meta-execute`) |
+| **Headless `/deep-execute` `/opus-execute` `/sonnet-execute` `/fable-execute` `/glm-execute`** | Full **Claude Code** process → **can run Claude slash commands internally** |
+| **Headless `/grok-execute`** | Grok Build (`grok --prompt-file`). Loads the same Grok plugins/skills as the TUI. Does **not** run Claude's slash-command engine. Brief a **direct task**, or name a skill / `SKILL.md` to follow. Never "run `/loop-gap`" as if this were Claude Code. |
+| **Headless `/codex-execute`** | `codex exec`. Interactive Codex has `$meta-dev:*`. Headless cannot invoke by typing `/foo`, but the plugin **is** there: `--skill` / `--command` hand it the same markdown, and the runner injects a harness preamble. Brief a **direct task** (or `--skill`/`--command`). |
+
+**Headless brief rule:** Claude-family workers may be told "run `/loop-gap` on this plan". Grok and Codex headless workers get a **direct task** (or a skill/command path). That is a Claude-engine vs Grok/Codex-engine split, **not** "those hosts lack meta-dev".
+
+`--opus` / `/opus-execute` and `--deep` / `/deep-execute` spawn Claude Code —
+they *can* run slash internally. Still brief Opus as a **review**, not a farm.
+Brief DeepSeek as a **bounded task**.
 
 Grok (and Codex) have no PreToolUse hook here, so git bans reach them as
 **advisory prompt text only**. State the git rules in every Grok/Codex task

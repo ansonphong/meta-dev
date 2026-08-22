@@ -42,7 +42,7 @@ When unsure, **try the native tier first** (no flag) — escalating one rung is 
 
 It remains **also** the cross-family code-review lens — a GPT-class second opinion reviewing a diff at a phase gate / Stage 6, where independent-family review catches what Claude / GLM / DeepSeek share blind spots on. That role is unchanged; it is simply no longer Codex's *only* role.
 
-⚠️ **A Codex worker is OpenAI's own agent, NOT Claude Code** — it canNOT run our slash commands internally (`/meta-execute`, `/loop-gap`, etc.) the way GLM/DeepSeek workers can. Hand it a **direct task** ("apply X to files A/B", or "review this diff for correctness/regressions and report findings"), never a "run `/command`" instruction — though it *can* be pointed at a procedure file to follow (`/codex-execute --skill|--command`). Anything that genuinely needs our slash-command harness goes to the conductor (you) or a claude-harness worker.
+⚠️ **Headless Codex is OpenAI's own agent, NOT Claude Code** — it cannot run Claude slash commands internally the way `/deep-execute` / `/glm-execute` workers can. **Interactive Codex has meta-dev** (`$meta-dev:meta-execute`, `$meta-dev:loop-gap`, …). Headless still has the plugin: brief a **direct task**, or `/codex-execute --skill|--command`. Never "run `/loop-gap`" as a Claude slash. Same split for headless Grok (`/grok-execute`): plugins load, Claude slash engine does not. Full table: `references/work-ladder.md` → *Who has meta-dev*.
 
 ## The Conductor Loop
 
@@ -163,7 +163,7 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/claude-headless-exec \
 
 `OUTPUT_FILE` is clean JSON (`{is_error,result,num_turns,duration_ms,…}`); `.raw` = full trace, `.stderr` = worker stderr. Check `is_error` and exit code (3 = distill failed, 4 = worker error) on every return.
 
-**Codex backend:** dispatch via `scripts/codex-headless-exec` instead (same flags **minus** `--max-turns`; add `--readonly` for audits, `--sandbox workspace-write` for fixes). It emits the **identical `OUTPUT_FILE` contract**, so review it the same way (exit 124 = timed out). Remember: a codex worker can't run our slash commands — give it the task directly, not a `/command`.
+**Codex backend:** dispatch via `scripts/codex-headless-exec` instead (same flags **minus** `--max-turns`; add `--readonly` for audits, `--sandbox workspace-write` for fixes). It emits the **identical `OUTPUT_FILE` contract**, so review it the same way (exit 124 = timed out). Interactive Codex has `$meta-dev:*`. Headless cannot type a Claude slash — give it the task directly, or `--skill`/`--command`.
 
 ## Step 4: Report
 

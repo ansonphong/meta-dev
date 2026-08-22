@@ -1,16 +1,25 @@
 ---
 name: codex-execute
 argument-hint: <task description> [--repo <name>] [--readonly] [--tier <spark|luna|terra|sol>] [--effort <none|low|medium|high|xhigh|max>] [--model <model>] [--sandbox <mode>]
-description: Run a bounded task with headless OpenAI Codex using task-aware GPT model and reasoning-effort routing.
+description: Run a bounded task with headless OpenAI Codex. Interactive Codex has meta-dev as $meta-dev:<command> skills. Headless cannot type a slash, but the plugin is there — --skill/--command follow the same markdown, plus a harness preamble. Brief a DIRECT task. Review-only on this tree's $20/30-mo plan.
 ---
 
 # /codex-execute - GPT Task Runner
 
 Run a direct, bounded task through `codex exec`.
 
-**The worker has the meta-dev framework.** Every dispatch injects a generated harness preamble: the framework root, the roster of all protocols (`skills/`) and procedures (`commands/`), the binding LAWS (planctl is the only write door; never hand-edit a checkbox; report failures honestly), and a Claude→Codex translation table. So the worker knows the harness exists and is told to use it — rather than freelancing its own process, which is what a bare Codex dispatch does.
+## Harness — Codex has meta-dev
 
-Codex cannot invoke a slash command, but it can **follow** any procedure file once handed the path. That is what `--skill` and `--command` do, and it keeps ONE source of truth: Codex reads the same markdown Claude Code does, from the source tree, with no install and no version-keyed cache to go stale.
+meta-dev is installed on **Claude Code, Codex, and Grok Build**.
+
+**Interactive Codex** runs the plugin as native skills: `$meta-dev:meta-execute`, `$meta-dev:loop-gap`, `@meta-dev:meta-execute`, and the rest. That is the same plugin, not a stub.
+
+**This command** is **headless** `codex exec`. It cannot invoke a skill by typing `/loop-gap` the way Claude Code does. It **does** have the plugin:
+
+- Every dispatch injects a generated harness preamble: the framework root, the roster of all protocols (`skills/`) and procedures (`commands/`), the binding LAWS (planctl is the only write door; never hand-edit a checkbox; report failures honestly), and a Claude→Codex translation table. So the worker knows the harness exists and is told to use it — rather than freelancing, which is what a bare Codex dispatch does.
+- `--skill` / `--command` hand it the same markdown Claude Code reads, from the source tree. No install, no version-keyed cache to go stale.
+
+**Brief this worker with a direct task** (or `--skill` / `--command`). Never "run `/loop-gap` on this plan" as if this were Claude Code. Claude-family headless (`/deep-execute`, `/opus-execute`, …) *can* run that slash internally. Full split: `references/work-ladder.md` → *Who has meta-dev*.
 
 **Route Spark-first** (see Step 2 — Spark bills to a separate quota, so it is effectively free capacity). The runner's fallback default is `gpt-5.6-terra`/`medium`, but you should be *choosing* a tier every time, not inheriting that. State the selected tier and effort before dispatching. An explicit `--tier`, `--effort`, or `--model` from the user always wins.
 

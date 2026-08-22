@@ -10,6 +10,8 @@ Spawn a headless Claude Code worker on the **real Anthropic backend**, pinned to
 
 Uses `scripts/claude-headless-exec --backend fable` under the hood.
 
+**Harness:** this worker **is** Claude Code (ambient Anthropic login, model Fable 5). It can run meta-dev slash commands internally (`/meta-execute`, `/loop-gap`, …). Interactive Grok and Codex hosts **also** have this plugin (Grok skills/slash; Codex `$meta-dev:*`). A **headless** `/grok-execute` or `/codex-execute` worker is not Claude Code — brief those with a direct task, not "run `/loop-gap`". Full split: `references/work-ladder.md` → *Who has meta-dev*. On this tree `/fable-execute` is **parked** and **EXPRESS-PERMISSION** even when named.
+
 ## Why this exists
 
 Fable 5 is a **general ambient-Anthropic worker** with a specific edge: it's the tier you escalate to when even Opus-grade judgment is being stretched — the most complex reasoning and the longest coherence chains. `/fable-execute` puts that capability **off the main thread** (subagent-first: the conductor's context stays lean; only a distilled result comes back) via a **fresh `claude -p` process** with `--model claude-fable-5` (**no `[1m]` suffix**) and a scrubbed env — so it can't inherit the session's 1M beta and get billed at the premium long-context rate.

@@ -1,7 +1,7 @@
 ---
 name: grok-execute
 argument-hint: "<task description> [--repo <name>] [--readonly] [--model <grok-4.6|grok-4.5>] [--effort <low|medium|high|xhigh>] [--max-turns <n>]  # --repo names from .claude/meta-dev-repos.json"
-description: "Execute a task via headless xAI Grok (Grok Build CLI). Grok is its OWN harness (like Codex) — it cannot run our slash commands, so give it a DIRECT task. Like Codex, Grok can read AND write. It is the frontier-reasoning rung of meta_dev.ladder.pool (alongside /deep-execute for mechanical work). Codex and Opus are review-only, not pooled. Default model grok-4.6; grok-4.5 still available. Dispatcher picks --effort per task (xhigh is grok-4.6 only)."
+description: "Execute a task via headless xAI Grok (Grok Build CLI). Interactive Grok has meta-dev as skills/slash commands. A headless grok --prompt-file worker is still Grok Build (same plugins), not Claude Code — brief a DIRECT task or a skill to follow, never a Claude slash. Grok can read AND write. Frontier-reasoning rung of meta_dev.ladder.pool (alongside /deep-execute for mechanical work). Codex and Opus are review-only, not pooled. Default model grok-4.6; grok-4.5 still available. Dispatcher picks --effort per task (xhigh is grok-4.6 only)."
 ---
 
 # /grok-execute — Grok Headless Execution
@@ -10,11 +10,15 @@ Spawn a headless **xAI Grok** worker (`grok --prompt-file … --output-format js
 
 Uses `scripts/grok-headless-exec` under the hood, which emits the **same clean result contract** as `claude-headless-exec` and `codex-headless-exec` (`OUTPUT_FILE` = `{is_error, subtype, num_turns, duration_ms, session_id, result, usage, backend, stop_reason}`), so it plugs into `/auto-execute` exactly like `/deep-execute`, `/glm-execute`, and `/codex-execute`.
 
-## ⚠️ Grok is a DIFFERENT harness — not Claude Code
+## Harness — Grok has meta-dev; this worker is not Claude Code
 
-Same structural caveat as `/codex-execute`. `/deep-execute`, `/glm-execute`, and `/sonnet-execute` spawn a full **Claude Code** instance on another model's Anthropic endpoint, so the worker has our whole harness and can **run our slash commands internally** (`/meta-execute`, `/loop-gap`, etc.). **Grok does NOT.** A grok worker is xAI's own agent (the "Grok Build" CLI) — it has no `/meta-execute`, no `/loop-gap`, no project skills.
+meta-dev is installed on **Claude Code, Codex, and Grok Build**. Interactive Grok runs the same plugin as skills / slash commands (`/meta-execute`, `/loop-gap`, `/meta-dev`, …). You have used those in the TUI.
 
-Consequence: **give Grok a direct task, never a "run `/command`" instruction.** Say *"Fix the failing test in Z"* or *"Audit X for gap class Y and report findings"* — not *"run `/loop-gap` on this plan"* (it can't). The conductor (Opus) or a claude-harness worker applies anything that needs our harness.
+This command spawns **headless** Grok (`grok --prompt-file`). That is still Grok Build, so it **loads the same plugins/skills** as the TUI. It is **not** a Claude Code process, so it does **not** run Claude's slash-command engine (`commands/*.md` + `$ARGUMENTS`).
+
+`/deep-execute`, `/opus-execute`, `/sonnet-execute`, `/fable-execute`, and `/glm-execute` spawn a full **Claude Code** instance — those workers *can* be told "run `/loop-gap` on this plan". A Grok worker cannot.
+
+**Brief this worker with a direct task**, or tell it to follow a named Grok skill / `SKILL.md` path. Say *"Fix the failing test in Z"* or *"Audit X for gap class Y and report findings"* — not *"run `/loop-gap` on this plan"* as if this were Claude Code. Full split: `references/work-ladder.md` → *Who has meta-dev*.
 
 ## When to Use — full execution worker AND cross-family review
 
