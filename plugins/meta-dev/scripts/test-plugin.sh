@@ -140,7 +140,7 @@ check_command_frontmatter() {
 import os
 # Heavy procedure-commands carry their full spec in the command body by design
 # (massively-parallel agent swarms, wave protocols). Thin-delegate commands stay <=50.
-HEAVY = {'meta-dev', 'meta-loop-gap', 'meta-probe', 'meta-visual-critique', 'meta-planner', 'meta-execute', 'meta-eval', 'housekeeping', 'deep-execute', 'glm-execute', 'sonnet-execute', 'opus-execute', 'fable-execute', 'codex-execute', 'grok-execute', 'auto-execute', 'meta-task-agent'}
+HEAVY = {'meta-dev', 'meta-loop-gap', 'meta-probe', 'meta-visual-critique', 'meta-planner', 'meta-execute', 'meta-eval', 'housekeeping', 'deep-execute', 'glm-execute', 'sonnet-execute', 'opus-execute', 'fable-execute', 'codex-execute', 'grok-execute', 'antigravity-execute', 'auto-execute', 'meta-task-agent'}
 name = os.path.basename('$cmd_file')[:-3]
 with open('$cmd_file') as f:
     content = f.read()
@@ -255,6 +255,7 @@ check_headless() {
   echo "=== Headless Runner Smoke ==="
   local claude_exec="$PLUGIN_DIR/scripts/claude-headless-exec"
   local codex_exec="$PLUGIN_DIR/scripts/codex-headless-exec"
+  local agy_exec="$PLUGIN_DIR/scripts/agy-headless-exec"
   local topo="$PLUGIN_DIR/scripts/lib/repo-topology.py"
 
   # claude-headless-exec exists, executable, shebang
@@ -289,6 +290,22 @@ check_headless() {
     PASS=$((PASS+1)); green "  PASS shebang: scripts/codex-headless-exec"
   else
     FAIL=$((FAIL+1)); red "  FAIL missing shebang: scripts/codex-headless-exec"
+  fi
+
+  if [ -f "$agy_exec" ]; then
+    PASS=$((PASS+1)); green "  PASS exists: scripts/agy-headless-exec"
+  else
+    FAIL=$((FAIL+1)); red "  FAIL missing: scripts/agy-headless-exec"
+  fi
+  if [ -x "$agy_exec" ]; then
+    PASS=$((PASS+1)); green "  PASS executable: scripts/agy-headless-exec"
+  else
+    FAIL=$((FAIL+1)); red "  FAIL not executable: scripts/agy-headless-exec"
+  fi
+  if head -1 "$agy_exec" | grep -q '^#!/'; then
+    PASS=$((PASS+1)); green "  PASS shebang: scripts/agy-headless-exec"
+  else
+    FAIL=$((FAIL+1)); red "  FAIL missing shebang: scripts/agy-headless-exec"
   fi
 
   # ── Offline topology resolution (NO real backend call) ──────────────────

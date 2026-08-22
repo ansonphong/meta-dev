@@ -94,8 +94,9 @@ got="$("$PLUGIN_ROOT/scripts/classify-execute-budget.sh" --campaign low -- "Fix 
 
 if grep -q -- '--budget' "$PLUGIN_ROOT/scripts/claude-headless-exec" \
     && grep -q -- '--budget' "$PLUGIN_ROOT/scripts/grok-headless-exec" \
-    && grep -q -- '--budget' "$PLUGIN_ROOT/scripts/codex-headless-exec"; then
-    ok "three runners advertise --budget"
+    && grep -q -- '--budget' "$PLUGIN_ROOT/scripts/codex-headless-exec" \
+    && grep -q -- '--budget' "$PLUGIN_ROOT/scripts/agy-headless-exec"; then
+    ok "four runners advertise --budget"
 else
     bad "runner --budget missing"
 fi
@@ -123,11 +124,19 @@ case "$PROMPT" in
     *"BACKEND BRIEF: Codex"*|*"not Claude Code"*) ok "codex brief injected" ;;
     *) bad "codex brief missing" ;;
 esac
+BACKEND=agy
+PROMPT="do the thing"
+md_brief_wrap_prompt
+case "$PROMPT" in
+    *"BACKEND BRIEF: Antigravity"*|*"not Claude Code"*) ok "agy brief injected" ;;
+    *) bad "agy brief missing" ;;
+esac
 
 if grep -q 'md_brief_wrap_prompt' "$PLUGIN_ROOT/scripts/claude-headless-exec" \
     && grep -q 'md_brief_wrap_prompt' "$PLUGIN_ROOT/scripts/grok-headless-exec" \
-    && grep -q 'md_brief_wrap_prompt' "$PLUGIN_ROOT/scripts/codex-headless-exec"; then
-    ok "three runners wrap per-backend brief"
+    && grep -q 'md_brief_wrap_prompt' "$PLUGIN_ROOT/scripts/codex-headless-exec" \
+    && grep -q 'md_brief_wrap_prompt' "$PLUGIN_ROOT/scripts/agy-headless-exec"; then
+    ok "four runners wrap per-backend brief"
 else
     bad "runner brief wrap missing"
 fi
@@ -135,7 +144,8 @@ fi
 if grep -q -- '--budget' "$PLUGIN_ROOT/commands/meta-execute.md" \
     && grep -q -- '--budget' "$PLUGIN_ROOT/commands/grok-execute.md" \
     && grep -q -- '--budget' "$PLUGIN_ROOT/commands/deep-execute.md" \
-    && grep -q -- '--budget' "$PLUGIN_ROOT/commands/codex-execute.md"; then
+    && grep -q -- '--budget' "$PLUGIN_ROOT/commands/codex-execute.md" \
+    && grep -q -- '--budget' "$PLUGIN_ROOT/commands/antigravity-execute.md"; then
     ok "execute commands document --budget"
 else
     bad "command --budget docs missing"

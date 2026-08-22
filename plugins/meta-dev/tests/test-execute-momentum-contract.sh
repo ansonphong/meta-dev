@@ -303,6 +303,7 @@ paths = [
     "commands/fable-execute.md",
     "commands/glm-execute.md",
     "commands/grok-execute.md",
+    "commands/antigravity-execute.md",
     "commands/opus-execute.md",
     "commands/sonnet-execute.md",
 ]

@@ -84,9 +84,10 @@ schema, or render/pipeline work.
 |---|---|---|
 | Mechanical / bulk / bounded: rename, codemod, find-replace, boilerplate, single-file string edit, disjoint fan-out units, narrow one-file transform | **DeepSeek** (`--deep` / `/deep-execute`; `--flash` if clearly mechanical) | **Pooled cheap rung.** Short, self-contained units. DeepSeek drifts on long arcs — keep each unit small. |
 | Screenshots, rendered UI, charts, photos the worker must see | **DeepSeek Vision** (`/deep-execute --vision`) | Only DeepSeek pooled worker that can Read images. Pro/Flash 400. |
+| Whole-repo 1M-context investigation, native video/audio, Search-grounded freshness; or Google-quota Claude as a fourth-family lens | **Antigravity** (`--agy` / `/antigravity-execute`) **only when Phong named it this turn** | Parked. Default Gemini 3.7 Flash (1M, multimodal, Search). `--opus` = Claude Opus 4.6 Thinking on Google quota, not Claude Code. Inner host-native subagents stay Grok/Claude/Codex — do not auto-farm checkboxes to `agy`. |
 | Multi-file investigation, diagnosis, implementation (with go), plan drafting, Grok-swarm gap scans, UI/Svelte, long-horizon / stateful phases, parallel tracks that are not mechanical | **Grok** (`--grok` / `/grok-execute` / Grok `spawn_subagent`) | **Pooled frontier rung.** Spend it. Fan out freely. |
 | Stage 4 harden extra-family pass · Stage 6 / phase-gate **code review** | **One `/opus-execute` + one `/codex-execute` + one `/deep-execute --readonly`** | Cross-family lens. Opus/Codex: $20/30-mo — **one pass each per gate**. DeepSeek: one review pass at the same gate (Pro, not Flash). Grok still does the first named review. |
-| GLM, `/sonnet-execute`, `/fable-execute`, native Claude Task/Agent | **Parked** | Dispatch **only** when Phong names that backend this turn. Fable stays EXPRESS-PERMISSION even then. |
+| GLM, `/sonnet-execute`, `/fable-execute`, `/antigravity-execute`, native Claude Task/Agent | **Parked** | Dispatch **only** when Phong names that backend this turn. Fable stays EXPRESS-PERMISSION even then. Antigravity (`agy`): Gemini 3.7 Flash default (1M context, native multimodal, Search grounding); `--opus` is Claude Opus 4.6 on Google quota, not Claude Code. |
 
 **Do not use DeepSeek for** (route to Grok): long-horizon multi-phase plan
 execution as one worker, tasks where step N must carry context from 1..N-1,
@@ -133,6 +134,7 @@ Build. "Cannot run slash commands" is **false** for the interactive hosts.
 | **Headless `/deep-execute` `/opus-execute` `/sonnet-execute` `/fable-execute` `/glm-execute`** | Full **Claude Code** process → **can run Claude slash commands internally** |
 | **Headless `/grok-execute`** | Grok Build (`grok --prompt-file`). Loads the same Grok plugins/skills as the TUI. Does **not** run Claude's slash-command engine. Brief a **direct task**, or name a skill / `SKILL.md` to follow. Never "run `/loop-gap`" as if this were Claude Code. |
 | **Headless `/codex-execute`** | `codex exec`. Interactive Codex has `$meta-dev:*`. Headless cannot invoke by typing `/foo`, but the plugin **is** there: `--skill` / `--command` hand it the same markdown, and the runner injects a harness preamble. Brief a **direct task** (or `--skill`/`--command`). |
+| **Headless `/antigravity-execute`** | Google Antigravity CLI (`agy --print=`). **Does not load meta-dev.** Direct task only. Default `gemini-3.7-flash-high`. `--opus` = Claude Opus 4.6 Thinking on **Google quota** (not Claude Code, not Opus 5). Never a Claude slash. |
 
 **Headless brief rule:** Claude-family workers may be told "run `/loop-gap` on this plan". Grok and Codex headless workers get a **direct task** (or a skill/command path). That is a Claude-engine vs Grok/Codex-engine split, **not** "those hosts lack meta-dev".
 
@@ -155,6 +157,7 @@ names them this turn:
 | `--glm` / `/glm-execute` | GLM 5.2 |
 | `--sonnet` / `/sonnet-execute` | Anthropic Sonnet 5 headless |
 | `--fable` / `/fable-execute` | Anthropic Fable 5 headless — EXPRESS-PERMISSION even when named |
+| `--agy` / `/antigravity-execute` | Google Antigravity (`agy`). Gemini 3.7 Flash default; `--opus` Claude Opus 4.6 on Google quota. Named-only. |
 | native Task/Agent Haiku/Sonnet/Opus | Claude Pro farm — banned unless named |
 
 `/opus-execute` and `/codex-execute` are **review-only**, not parked.

@@ -2,7 +2,7 @@
 
 The subagent prompt template used by `/meta-execute` for each task. This is the full text sent to each fresh **host-native worker** (Grok Build `spawn_subagent`, Claude Code `Agent`, Codex spark/sol). Never a hardcoded Sonnet Agent.
 
-**Farm pieces.** Independent work goes to **Grok `spawn_subagent`** (or `/grok-execute`). The parent keeps one-line verdicts. Do not dump a multi-piece job into one context. Per-backend prompt shape: `references/execute-briefs.md`. Headless runners inject the backend block; you still write the **task body** in that backend's voice (Grok = direct + git bans; DeepSeek = small unit; Codex = inlined excerpt, no "read the plan").
+**Farm pieces.** Independent work goes to **Grok `spawn_subagent`** (or `/grok-execute`). The parent keeps one-line verdicts. Do not dump a multi-piece job into one context. Per-backend prompt shape: `references/execute-briefs.md`. Headless runners inject the backend block; you still write the **task body** in that backend's voice (Grok = direct + git bans; DeepSeek = small unit; Codex = inlined excerpt, no "read the plan"; Antigravity = direct task, Gemini 3.7 Flash default, no Claude slash). Inner host-native subagents stay Grok/`Agent`/spark unless Phong passed `--agy`.
 
 ## Law: every worker owns durability for its own edits
 

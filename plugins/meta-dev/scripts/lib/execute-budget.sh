@@ -10,7 +10,7 @@
 #   MAX_TURNS_EXPLICIT     0|1
 #   TIMEOUT_EXPLICIT       0|1
 #   EFFORT_EXPLICIT        0|1
-#   BACKEND                deep|glm|sonnet|opus|fable|grok|codex  (optional)
+#   BACKEND                deep|glm|sonnet|opus|fable|grok|codex|agy  (optional)
 #   MAX_TURNS, TIMEOUT, EFFORT, PROMPT
 #
 # md_resolve_budget mutates:

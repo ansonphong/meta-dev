@@ -52,6 +52,7 @@ long-horizon arc to DeepSeek. Do not send "read the plan file" to Codex.
 | **Codex** | Direct task. **Inline** the 30–60 lines that matter. `--skill`/`--command` if a procedure applies. JSON handoff. | "read `00-master-plan.md` and reconstruct"; a Claude slash |
 | **Opus** | Review brief. `--readonly`. One pass. Findings only. | Implement / farm / loop |
 | **Sonnet / Fable / GLM** | Claude Code: slash OK. Still a bounded task. GLM may hold a short stateful phase. | Unrelated refactors |
+| **Antigravity (`agy`)** | Direct task. Absolute paths. Git bans + `commit --only`. Gemini 3.7 Flash default (1M context, native image/video/audio, Search). `--opus` is Google-quota Claude Opus 4.6 — not Claude Code. | "run `/loop-gap`"; farming nested subagents (agy blocks them) |
 
 The injector adds the harness block. You still write the **task** in that
 row's voice.
@@ -74,5 +75,5 @@ Cap **3** member conductors in flight. Nested checkbox cap 8 is the child's job.
 
 Headless runners call `md_brief_wrap_prompt` after the budget wrap.
 `BACKEND` must be set (`grok` / `deep` / `codex` / `opus` / `sonnet` /
-`fable` / `glm`). Host-native `/meta-execute` fills the Backend brief
+`fable` / `glm` / `agy`). Host-native `/meta-execute` fills the Backend brief
 slot in `execute-dispatch.md` from the same table.

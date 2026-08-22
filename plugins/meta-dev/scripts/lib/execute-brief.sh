@@ -4,7 +4,7 @@
 #
 # Doctrine: references/execute-briefs.md
 #
-# Caller sets BACKEND (grok|deep|codex|opus|sonnet|fable|glm) and PROMPT.
+# Caller sets BACKEND (grok|deep|codex|opus|sonnet|fable|glm|agy) and PROMPT.
 # md_brief_wrap_prompt prepends a short harness-specific block.
 # ============================================================================
 
@@ -73,6 +73,19 @@ EOF
 You are Claude Code on GLM. You may hold a short stateful phase.
 Slash commands work. Still no unrelated refactors. Commit-on-red with explicit paths.
 Farm tiny mechanical leaves rather than bloating this thread.
+=== END BRIEF ===
+EOF
+            ;;
+        agy|antigravity)
+            cat <<'EOF'
+=== BACKEND BRIEF: Antigravity ===
+You are Google Antigravity CLI (agy), not Claude Code and not Grok.
+Do the DIRECT task below. You cannot run meta-dev slash commands.
+Gemini 3.7 Flash is the default: 1M context, native image/video/audio, Search grounding.
+Claude Opus 4.6 / Sonnet 4.6 here are Google-quota Claude — not Claude Code (no /meta-execute).
+Git (no PreToolUse): never rebase/stash/add -A/commit -a/bare commit.
+Form: git -C <ABS> add -- <paths> && git -C <ABS> commit --only -m "…" -- <paths>.
+Commit-on-red. Never "run /loop-gap" as a Claude slash.
 === END BRIEF ===
 EOF
             ;;

@@ -239,8 +239,13 @@ grok plugin update meta-dev
 ```
 
 In a Grok session the plugin's slash commands and skills load as `/meta-dev`,
-`/meta-execute`, `/runbook`, `/meta-task-agent`, `/meta-dashboard`, `/meta-planner`, and the
+`/meta-execute`, `/runbook`, `/meta-task-agent`, `/antigravity-execute`, `/meta-dashboard`, `/meta-planner`, and the
 rest of the waterfall. Grok runs the same six stages as Claude Code and Codex.
+
+`/antigravity-execute` (alias `/agy-execute`) is a **named-only** Google worker:
+headless `agy`, default **Gemini 3.7 Flash** (1M context, native multimodal, Search
+grounding). `--opus` is Claude Opus 4.6 Thinking on **Google quota**, not Claude Code.
+Never auto-selected.
 
 ## Quick Start
 

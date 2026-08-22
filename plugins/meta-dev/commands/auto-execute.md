@@ -1,6 +1,6 @@
 ---
 name: auto-execute
-argument-hint: <any task, prompt, plan, or meta-dev op> [--deep|--grok|--codex|--sonnet|--glm] [--flash] [--vision] [--budget auto|low|medium|high] [--effort <level>] [--repo <name>] [--readonly] [--max-turns <n>] [--autonomous]  # --repo names from .claude/meta-dev-repos.json
+argument-hint: <any task, prompt, plan, or meta-dev op> [--deep|--grok|--codex|--sonnet|--glm|--agy] [--flash] [--vision] [--budget auto|low|medium|high] [--effort <level>] [--repo <name>] [--readonly] [--max-turns <n>] [--autonomous]  # --repo names from .claude/meta-dev-repos.json
 description: "Opus-conducted headless work router for ANY task — brainstorm, design, plan, harden, execute, review/audit, or any arbitrary prompt/plan. Decomposes a job into chunks and farms each NATIVELY to the host harness by default (Claude Code → an Agent subagent; Codex → gpt-5.3-codex-spark on its own weekly quota), with --deep (DeepSeek, cheapest external), --grok (independent frontier reasoning + third-family lens), --codex (first-class executor AND the cross-family review lens), --sonnet, and --glm as explicit opt-ins; reviews every round-trip and escalates one rung along meta_dev.ladder.pool on failure (references/work-ladder.md)."
 ---
 
@@ -24,7 +24,7 @@ Unflagged, it delegates **natively to whatever harness you are running in**. Wra
 
 ## The Core Bias — native by default, escalate only when needed
 
-**The unflagged tier is native delegation — no external backend at all.** External backends are **explicit opt-ins** (`--deep`, `--grok`, `--codex`, `--sonnet`, `--glm`). When you do go external, DeepSeek is the cheapest and the right first step; the way to make it viable even for big work is to **break the job into bounded chunks DeepSeek can hold, do one chunk, check it, then the next.**
+**The unflagged tier is native delegation — no external backend at all.** External backends are **explicit opt-ins** (`--deep`, `--grok`, `--codex`, `--sonnet`, `--glm`, `--agy`). `--agy` is parked — never auto-selected. When you do go external, DeepSeek is the cheapest and the right first step; the way to make it viable even for big work is to **break the job into bounded chunks DeepSeek can hold, do one chunk, check it, then the next.**
 
 **Which backends may be auto-selected, and in what order they escalate, is one config key** — resolve it, don't hardcode it:
 
@@ -129,7 +129,7 @@ PY
 
 The user's input is: `$ARGUMENTS`
 
-- `--deep` / `--glm` / `--sonnet` / `--codex` — force a backend, skip routing (still chunk + review). `--sonnet` pins each chunk to a separate headless Anthropic Sonnet 5 worker (`claude-headless-exec --backend sonnet`, `claude-sonnet-5`) — Anthropic-grade judgment in its own process, so the chunk's context churn never lands in the conductor's window. `--codex` is a first-class executor **and** the cross-family review lens (see Core Bias) — route it spark-first and dispatch through `scripts/codex-headless-exec` (`--sandbox workspace-write` when it edits, `--sandbox read-only` when it only reports back). `--deep` defaults to `deepseek-v4-pro` (V4-Pro-0813). Pass `--flash` on a mechanical chunk to force Flash. Pass `--vision` when the chunk must look at images.
+- `--deep` / `--glm` / `--sonnet` / `--codex` / `--agy` — force a backend, skip routing (still chunk + review). `--agy` is **parked**: dispatch only when Phong named Antigravity this turn. Default Gemini 3.7 Flash (1M context, native multimodal, Search). `--opus` on that runner is Claude Opus 4.6 on Google quota, not Claude Code. Route through `scripts/agy-headless-exec` (same `OUTPUT_FILE` contract; `--readonly` → plan mode). `--sonnet` pins each chunk to a separate headless Anthropic Sonnet 5 worker (`claude-headless-exec --backend sonnet`, `claude-sonnet-5`) — Anthropic-grade judgment in its own process, so the chunk's context churn never lands in the conductor's window. `--codex` is a first-class executor **and** the cross-family review lens (see Core Bias) — route it spark-first and dispatch through `scripts/codex-headless-exec` (`--sandbox workspace-write` when it edits, `--sandbox read-only` when it only reports back). `--deep` defaults to `deepseek-v4-pro` (V4-Pro-0813). Pass `--flash` on a mechanical chunk to force Flash. Pass `--vision` when the chunk must look at images.
 - `--flash` — DeepSeek-only. Forwarded as `--flash` on `--deep` workers. Binding when the user passed it; otherwise the conductor may add it only for clearly mechanical/low-reasoning chunks (see `/deep-execute`).
 - `--vision` — DeepSeek-only. Forwarded as `--vision` on `--deep` workers → `deepseek-v4-flash-vision-exp`. Binding when the user passed it; otherwise the conductor may add it only when the chunk must look at images/screenshots (Pro/Flash 400 on images). Exclusive vs `--flash`.
 - `--budget auto|low|medium|high` — **depth cap** (default `auto`). Classify each chunk before dispatch (`low` mechanical, `medium` ordinary, `high` hard). Campaign ceiling if you pass a concrete level. Doctrine: `references/execute-budget.md`.
@@ -166,6 +166,8 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/claude-headless-exec \
 `OUTPUT_FILE` is clean JSON (`{is_error,result,num_turns,duration_ms,…}`); `.raw` = full trace, `.stderr` = worker stderr. Check `is_error` and exit code (3 = distill failed, 4 = worker error) on every return.
 
 **Codex backend:** dispatch via `scripts/codex-headless-exec` instead (same flags **minus** `--max-turns`; add `--readonly` for audits, `--sandbox workspace-write` for fixes). It emits the **identical `OUTPUT_FILE` contract**, so review it the same way (exit 124 = timed out). Interactive Codex has `$meta-dev:*`. Headless cannot type a Claude slash — give it the task directly, or `--skill`/`--command`.
+
+**Antigravity backend (`--agy`):** dispatch via `scripts/agy-headless-exec` (no `--backend`). Same `OUTPUT_FILE` contract. Brief a direct task. Default `gemini-3.7-flash-high`. Never auto-select; never farm inner Grok/`Agent` children onto `agy` unless this flag was passed.
 
 ## Step 4: Report
 

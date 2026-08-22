@@ -1,0 +1,355 @@
+#!/usr/bin/env bash
+# ============================================================================
+# agy-headless-exec — Execute a task via headless Google Antigravity CLI
+#                     (`agy --print=… --output-format json`), emitting the
+#                     SAME clean result contract as grok/codex/claude runners
+#                     so /auto-execute and /meta-execute --agy consume it.
+#
+# Antigravity is Google's own agent harness (NOT Claude Code, NOT the retired
+# Gemini CLI). Default model is pinned gemini-3.7-flash-high so the TUI's last
+# model (often Claude Opus 4.6) cannot leak into a worker.
+#
+# Usage:
+#   agy-headless-exec [options] -- <prompt>
+#
+# Options:
+#   --repo <name>            Resolve via topology config; unresolvable => abort.
+#                            Omit to run at the PROJECT ROOT (never the caller's cwd).
+#   --model <id>             Override model (default: gemini-3.7-flash-high)
+#   --flash                  Gemini 3.7 Flash (default)
+#   --pro                    Gemini 3.1 Pro
+#   --opus                   Claude Opus 4.6 Thinking (Google quota, not Claude Code)
+#   --sonnet                 Claude Sonnet 4.6 (Google quota)
+#   --oss                    GPT-OSS 120B
+#   --effort <level>         low|medium|high (agy has no xhigh; mapped down)
+#   --budget auto|low|medium|high
+#   --timeout <ms>           Wall-clock timeout in ms (default: from --budget)
+#   --readonly               --mode plan (no writes)
+#   --output json|text       Output format (default: json)
+#   --output-file <path>     Write distilled JSON here
+#   --prompt-file <path>     Read the prompt from a file (AUTHORITATIVE)
+#   -h, --help               Show this help
+#
+# Prerequisites: `agy` on PATH (or ~/.local/bin/agy), authenticated
+# (Antigravity Starter / Google AI / GEMINI_API_KEY+modelProvider).
+#
+# NOTE: `agy --print` consumes the NEXT argv as the prompt. Always attach the
+# prompt to `--print=…` so `--output-format` cannot be stolen.
+# ============================================================================
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/plugin-root.sh
+source "$SCRIPT_DIR/lib/plugin-root.sh"
+PLUGIN_ROOT="$(_md_plugin_root)"
+
+REPO=""
+MODEL=""
+MODEL_EXPLICIT=0
+TIER=""
+EFFORT="high"
+EFFORT_EXPLICIT=0
+MAX_TURNS=""
+MAX_TURNS_EXPLICIT=0
+TIMEOUT="7200000"
+TIMEOUT_EXPLICIT=0
+BUDGET="auto"
+READONLY=false
+OUTPUT_FORMAT="json"
+PROMPT=""
+PROMPT_INPUT_FILE=""
+OUTPUT_FILE=""
+
+DEFAULT_MODEL="gemini-3.7-flash-high"
+
+show_help() {
+    cat <<'EOF'
+agy-headless-exec — Execute a task via headless Google Antigravity CLI (`agy`)
+
+Usage:
+  agy-headless-exec [options] -- <prompt>
+
+Options:
+  --repo <name>            Resolve via .claude/meta-dev-repos.json; unknown ABORTS.
+                           Omit => project root (not cwd).
+  --model <id>             Override model (default: gemini-3.7-flash-high, pinned)
+  --flash                  Gemini 3.7 Flash (same as default)
+  --pro                    Gemini 3.1 Pro (gemini-3.1-pro-high)
+  --opus                   Claude Opus 4.6 Thinking (Google quota — not Claude Code)
+  --sonnet                 Claude Sonnet 4.6 (Google quota)
+  --oss                    GPT-OSS 120B (gpt-oss-120b-medium)
+  --effort <level>         low|medium|high (default high). xhigh/max → high.
+  --budget auto|low|medium|high
+                           Depth cap (default auto → medium at the runner).
+  --timeout <ms>           Wall-clock timeout in ms (default: from --budget)
+  --readonly               Plan mode — no writes (audits/reviews)
+  --output json|text       Output format (default: json)
+  --output-file <path>     Write distilled JSON here
+  --prompt-file <path>     Read the prompt from a file (AUTHORITATIVE)
+  -h, --help               Show this help
+
+Default model: gemini-3.7-flash-high (Gemini 3.7 Flash). Named-only — never
+auto-selected. --flash/--pro/--opus/--sonnet/--oss are exclusive.
+The runner attaches the task to agy --print=… so --output-format cannot be stolen.
+
+Emits {is_error, subtype, num_turns, duration_ms, session_id, result, usage,
+backend, stop_reason} so /auto-execute and /meta-execute --agy consume this
+worker identically to grok/deep/codex.
+
+Prerequisites: agy CLI on PATH (install: curl -fsSL https://antigravity.google/cli/install.sh | bash)
+EOF
+    exit 0
+}
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --repo)        REPO="$2"; shift 2 ;;
+        --model)       MODEL="$2"; MODEL_EXPLICIT=1; shift 2 ;;
+        --flash)       TIER="${TIER:+$TIER }flash"; shift ;;
+        --pro)         TIER="${TIER:+$TIER }pro"; shift ;;
+        --opus)        TIER="${TIER:+$TIER }opus"; shift ;;
+        --sonnet)      TIER="${TIER:+$TIER }sonnet"; shift ;;
+        --oss|--gpt)   TIER="${TIER:+$TIER }oss"; shift ;;
+        --effort)      EFFORT="$2"; EFFORT_EXPLICIT=1; shift 2 ;;
+        --budget)      BUDGET="$2"; shift 2 ;;
+        --max-turns)   MAX_TURNS="$2"; MAX_TURNS_EXPLICIT=1; shift 2 ;;
+        --timeout)     TIMEOUT="$2"; TIMEOUT_EXPLICIT=1; shift 2 ;;
+        --readonly)    READONLY=true; shift ;;
+        --output)      OUTPUT_FORMAT="$2"; shift 2 ;;
+        --output-file) OUTPUT_FILE="$2"; shift 2 ;;
+        --prompt-file) PROMPT_INPUT_FILE="$2"; shift 2 ;;
+        -h|--help)     show_help ;;
+        --)            shift; PROMPT="$*"; break ;;
+        *)             PROMPT="$*"; break ;;
+    esac
+done
+
+# Exclusive tier flags (before prompt resolve so --help already returned).
+TIER_COUNT=0
+if [[ -n "$TIER" ]]; then
+    # shellcheck disable=SC2086
+    set -- $TIER
+    TIER_COUNT=$#
+    if [[ $TIER_COUNT -gt 1 ]]; then
+        echo "[ERROR] agy-headless-exec: --flash/--pro/--opus/--sonnet/--oss are exclusive (got: $TIER)." >&2
+        exit 2
+    fi
+    TIER="$1"
+fi
+
+source "$SCRIPT_DIR/lib/read-prompt.sh"
+resolve_prompt "$PROMPT_INPUT_FILE" "agy-headless-exec"
+
+# shellcheck source=lib/execute-budget.sh
+source "$SCRIPT_DIR/lib/execute-budget.sh"
+# shellcheck source=lib/execute-brief.sh
+source "$SCRIPT_DIR/lib/execute-brief.sh"
+BACKEND="agy"
+md_resolve_budget || exit 1
+md_budget_wrap_prompt
+md_brief_wrap_prompt
+
+# agy effort is low|medium|high only. Budget-high suggests xhigh on Grok — map down.
+_normalize_agy_effort() {
+    local effort="$1"
+    case "$effort" in
+        high|medium|low) EFFORT="$effort" ;;
+        xhigh|max)
+            echo "[WARN] agy has no '$effort' — using high" >&2
+            EFFORT="high"
+            ;;
+        none|minimal)
+            echo "[WARN] agy has no '$effort' — using low" >&2
+            EFFORT="low"
+            ;;
+        *)
+            echo "[ERROR] agy --effort must be low|medium|high (got: $effort)" >&2
+            return 2
+            ;;
+    esac
+    return 0
+}
+_normalize_agy_effort "$EFFORT" || exit $?
+
+# Pin the model. Never inherit the TUI last-used model (Opus 4.6 burns the Claude bar).
+_resolve_agy_model() {
+    if [[ "$MODEL_EXPLICIT" -eq 1 && -n "$MODEL" ]]; then
+        case "$MODEL" in
+            flash|gemini-3.7-flash) MODEL="gemini-3.7-flash-${EFFORT}" ;;
+            pro|gemini-3.1-pro)
+                if [[ "$EFFORT" == "low" ]]; then MODEL="gemini-3.1-pro-low"
+                else MODEL="gemini-3.1-pro-high"; fi
+                ;;
+            opus|claude-opus-4-6|claude-opus-4-6-thinking) MODEL="claude-opus-4-6-thinking" ;;
+            sonnet|claude-sonnet-4-6) MODEL="claude-sonnet-4-6" ;;
+            oss|gpt|gpt-oss-120b|gpt-oss-120b-medium) MODEL="gpt-oss-120b-medium" ;;
+        esac
+        return 0
+    fi
+    case "${TIER:-flash}" in
+        pro)
+            if [[ "$EFFORT" == "low" ]]; then MODEL="gemini-3.1-pro-low"
+            else MODEL="gemini-3.1-pro-high"; fi
+            ;;
+        opus)   MODEL="claude-opus-4-6-thinking" ;;
+        sonnet) MODEL="claude-sonnet-4-6" ;;
+        oss)    MODEL="gpt-oss-120b-medium" ;;
+        flash|"")
+            MODEL="gemini-3.7-flash-${EFFORT}"
+            ;;
+        *)
+            echo "[ERROR] unknown --tier '$TIER'" >&2
+            return 2
+            ;;
+    esac
+}
+_resolve_agy_model || exit $?
+
+AGY_BIN="$(command -v agy 2>/dev/null || true)"
+if [[ -z "$AGY_BIN" && -x "${HOME}/.local/bin/agy" ]]; then
+    AGY_BIN="${HOME}/.local/bin/agy"
+fi
+if [[ -z "$AGY_BIN" ]]; then
+    echo "[ERROR] 'agy' CLI not found on PATH (also checked ~/.local/bin/agy)." >&2
+    echo "        Install Antigravity CLI, then authenticate:" >&2
+    echo "        curl -fsSL https://antigravity.google/cli/install.sh | bash" >&2
+    exit 1
+fi
+
+source "$SCRIPT_DIR/lib/resolve-workdir.sh"
+resolve_workdir
+
+if [[ -z "$OUTPUT_FILE" ]]; then
+    TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+    OUTPUT_FILE="/tmp/claude-headless-agy-${TIMESTAMP}-$$.json"
+fi
+RAW_FILE="${OUTPUT_FILE}.raw"
+STDERR_FILE="${OUTPUT_FILE}.stderr"
+PROMPT_FILE="${OUTPUT_FILE}.prompt"
+
+TIMEOUT_S=$(( TIMEOUT / 1000 ))
+[[ "$TIMEOUT_S" -lt 1 ]] && TIMEOUT_S=1
+
+MODE_DESC="execute (accept-edits + skip-permissions)"
+[[ "$READONLY" == "true" ]] && MODE_DESC="read-only (plan mode)"
+cat <<EOF
+
+╔══════════════════════════════════════════════════════════════════════════╗
+║  HEADLESS EXECUTION — Antigravity (agy)
+╠══════════════════════════════════════════════════════════════════════════╣
+║  Backend   : Antigravity
+║  Model     : ${MODEL}
+║  Effort    : ${EFFORT}
+║  Budget    : ${BUDGET_RESOLVED:-medium} (turns ${MAX_TURNS:-n/a — agy has no --max-turns})
+║  Repo      : ${REPO}
+║  Resolved  : ${WORKDIR_ORIGIN}
+║  Work Dir  : ${WORK_DIR}
+║  Mode      : ${MODE_DESC}
+║  Timeout   : ${TIMEOUT}ms (${TIMEOUT_S}s)
+║  Output    : ${OUTPUT_FILE}
+╠══════════════════════════════════════════════════════════════════════════╣
+║  Task:
+║    ${PROMPT:0:70}...
+╚══════════════════════════════════════════════════════════════════════════╝
+
+EOF
+
+echo "[agy-headless-exec] Starting headless Antigravity ($AGY_BIN)..."
+echo "[agy-headless-exec] Working directory: $WORK_DIR"
+echo "[agy-headless-exec] Output file: $OUTPUT_FILE"
+echo ""
+
+cd "$WORK_DIR"
+printf '%s' "$PROMPT" > "$PROMPT_FILE"
+
+# --print MUST carry the prompt as the same argv. Bare --print steals the next flag.
+AGY_ARGS=(
+    --output-format json
+    --model "$MODEL"
+    --effort "$EFFORT"
+    --print-timeout "${TIMEOUT_S}s"
+)
+if [[ "$READONLY" == "true" ]]; then
+    # --disable-slash-commands voids --mode plan. Keep slash expansion so plan mode works.
+    AGY_ARGS+=(--mode plan)
+else
+    AGY_ARGS+=(--mode accept-edits --dangerously-skip-permissions --disable-slash-commands)
+fi
+AGY_ARGS+=(--print="$PROMPT")
+
+_now_ms() {
+    local t
+    if command -v gdate >/dev/null 2>&1; then t=$(gdate +%s%3N 2>/dev/null)
+    else t=$(date +%s%3N 2>/dev/null); fi
+    case "$t" in
+        ''|*[!0-9]*) t=$(python3 -c 'import time;print(int(time.time()*1000))' 2>/dev/null || echo "$(( $(date +%s) * 1000 ))") ;;
+    esac
+    printf '%s' "$t"
+}
+
+START_TIME=$(_now_ms)
+set +e
+timeout "${TIMEOUT_S}s" "$AGY_BIN" "${AGY_ARGS[@]}" \
+    > "$RAW_FILE" 2> "$STDERR_FILE"
+EXIT_CODE=$?
+set -e
+END_TIME=$(_now_ms)
+ELAPSED_MS=$(( END_TIME - START_TIME ))
+ELAPSED_S=$(( ELAPSED_MS / 1000 ))
+
+if [[ $EXIT_CODE -eq 124 ]]; then
+    echo "[WARN] agy timed out after ${TIMEOUT_S}s." >> "$STDERR_FILE"
+fi
+
+RESULT_TEXT=""
+IS_ERROR="unknown"
+PARSE_OK=false
+if [[ "$OUTPUT_FORMAT" == "json" ]]; then
+    if RESULT_TEXT=$(python3 "$SCRIPT_DIR/lib/distill-agy-result.py" \
+            "$RAW_FILE" "$OUTPUT_FILE" "$EXIT_CODE" "$ELAPSED_MS" \
+            2>>"$STDERR_FILE"); then
+        PARSE_OK=true
+        IS_ERROR=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1])).get('is_error'))" "$OUTPUT_FILE" 2>/dev/null || echo unknown)
+    fi
+fi
+if [[ "$PARSE_OK" != "true" ]]; then
+    cp "$RAW_FILE" "$OUTPUT_FILE" 2>/dev/null || true
+    if [[ "$OUTPUT_FORMAT" == "json" ]]; then
+        RESULT_TEXT="[distill failed — inspect raw payload: $RAW_FILE / stderr: $STDERR_FILE]"
+        [[ $EXIT_CODE -eq 0 ]] && EXIT_CODE=3
+    else
+        RESULT_TEXT="$(cat "$RAW_FILE" 2>/dev/null || true)"
+    fi
+fi
+
+if [[ "$IS_ERROR" == "True" && $EXIT_CODE -eq 0 ]]; then
+    EXIT_CODE=4
+fi
+
+echo ""
+echo "────────────────────────────────────────────────────────────────────────"
+echo "  HEADLESS EXECUTION COMPLETE"
+echo "────────────────────────────────────────────────────────────────────────"
+echo "  Backend   : Antigravity (${MODEL})"
+echo "  Exit code : $EXIT_CODE"
+echo "  is_error  : $IS_ERROR"
+echo "  Elapsed   : ${ELAPSED_S}s"
+echo "  Result    : $OUTPUT_FILE   (clean JSON — result/is_error/session_id/stop_reason)"
+echo "  Raw trace : $RAW_FILE"
+echo "  Stderr    : $STDERR_FILE"
+echo "────────────────────────────────────────────────────────────────────────"
+
+if [[ $EXIT_CODE -ne 0 ]]; then
+    echo ""
+    echo "[WARN] Headless execution exit code $EXIT_CODE (is_error=$IS_ERROR)."
+    echo "       Inspect: $STDERR_FILE"
+fi
+
+echo ""
+echo "════════════════════════ RESULT ════════════════════════════════════════"
+printf '%s\n' "$RESULT_TEXT"
+echo "═════════════════════════════════════════════════════════════════════════"
+echo "OUTPUT_FILE=$OUTPUT_FILE"
+
+exit $EXIT_CODE

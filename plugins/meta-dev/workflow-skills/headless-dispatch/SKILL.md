@@ -84,8 +84,11 @@ reports which are visible. All five pin a bare model ID (no `[1m]` — a no-op o
 headless worker cannot inherit a session's 1M beta and get billed at the premium
 rate.
 
-Two commands are **not** on this script and take their own: `/codex-execute` →
-`codex-headless-exec`, `/grok-execute` → `grok-headless-exec`.
+Three commands are **not** on this script and take their own: `/codex-execute` →
+`codex-headless-exec`, `/grok-execute` → `grok-headless-exec`,
+`/antigravity-execute` (`/agy-execute`) → `agy-headless-exec`. Antigravity
+default is Gemini 3.7 Flash (1M context, native multimodal, Search). `--opus`
+there is Claude Opus 4.6 on Google quota, not Claude Code. Parked / named-only.
 
 Full flag reference — the authoritative source, prefer it over this table when
 they disagree:
