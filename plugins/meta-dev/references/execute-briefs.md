@@ -2,13 +2,18 @@
 
 > **Last verified:** 2026-08-22
 
-Two rules for every execute path (`/meta-execute`, `/grok-execute`,
-`/deep-execute`, `/codex-execute`, and the rest):
+Three rules for every execute path (`/meta-execute`, `/grok-execute`,
+`/deep-execute`, `/codex-execute`, `/meta-task-agent`, and the rest):
 
-1. **Farm pieces to Grok subagents.** Do not dump a whole job into one
-   context. Keep the parent as a conductor of verdicts.
+1. **Farm pieces to Grok subagents** (on a Grok host or from `/grok-execute`).
+   Do not dump a whole job into one context. Keep the parent as a conductor
+   of verdicts — not of transcripts.
 2. **Shape the prompt for the backend you are sending it to.** The same
    paragraph is not a good brief for Grok, DeepSeek, and Codex.
+3. **When a worker finishes, the user sees the answer.** Distill — do not
+   dump logs. Do not collapse an investigation to `SHA=n/a files=none`.
+   `/meta-task-agent` prints Found/Do on every return. `/meta-execute`
+   still uses a one-line SHA for the checkbox flip, plus surprises.
 
 The runners inject a short backend block automatically
 (`scripts/lib/execute-brief.sh`). The **task body** is still the
@@ -20,10 +25,13 @@ harness. Doctrine for depth caps: `execute-budget.md`.
 The scarce resource is **parent context**, not wall-clock.
 
 - Independent pieces (disjoint files, parallel greps, separate verify)
-  → **Grok `spawn_subagent`** (or `/grok-execute` from a Claude host).
-- The parent keeps one-line returns. It does not re-read diffs.
+  → **Grok `spawn_subagent`** on a Grok host (or `/grok-execute` from a
+  Claude host that is farming execute work). `/meta-task-agent` stays
+  **host-native**: Grok→Grok subagent, Claude→Claude `Agent`, Codex→`codex exec`.
+- The parent does not re-read diffs or tool transcripts.
 - A Grok **worker** that gets a multi-piece task does the same: spawn
   children for the pieces; do not chew the whole tree on one thread.
+  Integrate their Found/Do; do not throw the answer away.
 - Do **not** farm those pieces to Opus or Codex. Those plans are
   review-only and quota-tight.
 - DeepSeek is for a **small bounded unit**, not a swarm parent.

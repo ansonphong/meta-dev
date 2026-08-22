@@ -81,10 +81,12 @@ Doctrine: `plugins/meta-dev/references/execute-budget.md`.
 
 ## Subagents and per-backend prompts
 
-Use **Grok subagents for the pieces**. The conductor (and a Grok worker that
-gets a multi-piece job) farms independent work to `spawn_subagent` /
-`/grok-execute` and keeps one-line returns. Do not dump a whole plan into one
-context.
+Use **host-native subagents for the pieces**. Grok session → Grok
+`spawn_subagent`. Claude session → Claude `Agent`. Codex session → `codex exec`.
+A conductor (and a Grok worker that gets a multi-piece job) farms independent
+work and does **not** re-read transcripts. Do not dump a whole plan into one
+context. When a worker **finishes**, print the distilled answer (Found / Do /
+SHA) to the user — spawn ACK is one line; a finished investigation is not.
 
 Each backend gets its **own brief**. Headless runners inject it. You still
 write the task in that backend's voice: Grok = direct task + git bans;
@@ -425,7 +427,7 @@ plugin root/
 | `/meta-eval` | Dedicated evaluator — tests implementations against design criteria |
 | `/meta-canary` | Post-deploy health monitor (ops workflow; learned patterns → APP `/release`) |
 
-`/meta-task-agent` is **not** plan execute. It opens a session: every following prompt is a background subagent. Close with `/meta-task-agent --end`.
+`/meta-task-agent` is **not** plan execute. It opens a session: every following prompt is a **host-native** background subagent (Grok→Grok, Claude→Claude, Codex→Codex). Close with `/meta-task-agent --end`. Each finished worker prints **Found / Do** at the top level — never a truncated `SHA=n/a files=none` line. `--end` restates every report.
 
 ```bash
 /meta-task-agent                         # open; next messages spawn workers

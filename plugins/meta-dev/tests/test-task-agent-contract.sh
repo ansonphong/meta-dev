@@ -26,6 +26,11 @@ required = {
         "spawn_subagent",
         "/meta-task-agent --end",
         "This is **not** `/meta-execute`",
+        "Always host-native",
+        "**print the report**",
+        "FOUND:",
+        "SHA=n/a files=none",
+        "restates **every** finished worker",
     ],
     "commands/task-agent.md": [
         "Execute /meta-task-agent $ARGUMENTS",
