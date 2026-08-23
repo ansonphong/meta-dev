@@ -50,14 +50,28 @@ for tmpl in settings.json versioning.json changelog.json state.json inbox.jsonl 
   echo "  CREATED $target"
 done
 
-# Scaffold the neutral topology contract. Claude-host initialization keeps its
-# legacy file so existing installations continue to work; the resolver prefers
-# the neutral contract whenever both are present.
-mkdir -p .meta-dev
+# Scaffold the neutral project contract. Legacy Claude files remain readable
+# compatibility inputs, but AGENTS-first paths are always the initializer output.
+mkdir -p .meta-dev docs/agent-context .agents/skills
 [ -f .meta-dev/repos.json ] || cp "$TEMPLATES_DIR/repo-topology.json" .meta-dev/repos.json
 if [ "$LEGACY_CLAUDE_INIT" = true ]; then
   mkdir -p .claude
   [ -f .claude/meta-dev-repos.json ] || cp "$TEMPLATES_DIR/repo-topology.json" .claude/meta-dev-repos.json
+fi
+
+if [ ! -f AGENTS.md ]; then
+  cat > AGENTS.md <<'EOF'
+# Project Agent Contract
+
+This is the canonical project doctrine. Put durable routed context in
+`docs/agent-context/` and canonical skills in `.agents/skills/`. Vendor
+directories are adapters and must not repeat these rules.
+EOF
+  echo "Created AGENTS.md"
+fi
+
+if [ -f CLAUDE.md ] || { [ -f .claude/CLAUDE.md ] && ! grep -qxF '@../AGENTS.md' .claude/CLAUDE.md; }; then
+  echo "Migration warning: legacy CLAUDE contract detected; AGENTS.md is now canonical"
 fi
 
 # Append .gitignore entries
@@ -70,12 +84,8 @@ if [ -f "$GITIGNORE_SRC" ]; then
   echo "Appended .gitignore entries"
 fi
 
-# Append CLAUDE.md marker
-CLAUDE_MARKER="Harness: meta-dev — config at plans/_dashboard/settings.json"
-if [ -f CLAUDE.md ]; then
-  grep -qF "$CLAUDE_MARKER" CLAUDE.md 2>/dev/null || echo -e "\n$CLAUDE_MARKER" >> CLAUDE.md
-  echo "Added CLAUDE.md marker"
-fi
+# Legacy CLAUDE files are preserved for compatibility. Do not modify or create
+# them here; AGENTS.md is the only preferred contract output.
 
 # Bootstrap changelog
 CHANGELOG_DIR="plans/_archive/changelogs"

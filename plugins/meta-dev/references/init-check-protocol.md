@@ -4,7 +4,7 @@ The full procedure behind `/meta-init-check`. Verifies the dev environment is he
 
 **Design principle:** check, never fix (with two narrow exceptions below). Report a status table and stop on `BLOCKED`. Budget: the entire check completes in **under 30 seconds** — no long-running tests, no service starts.
 
-All project-specifics (repo paths, venv layout, tool names, test commands, expected services) are discovered via the **host-claude-contract fallback chain**: config cascade → host CLAUDE.md → safe defaults → ask. Nothing below hardcodes a project name, path, or platform.
+All project-specifics (repo paths, venv layout, tool names, test commands, expected services) are discovered via the **host-project-contract fallback chain**: config cascade → root AGENTS.md and routed context → safe defaults → ask. Nothing below hardcodes a project name, path, or platform.
 
 ---
 
@@ -17,7 +17,7 @@ Argument selects which checks run (`backend` | `frontend` | `full` | `auto` | `r
    - `bash scripts/config-get.sh meta_dev.init_check` → expected services, per-check timeouts, total budget.
    - `bash scripts/config-get.sh meta_dev.filesystem.git_corruption_mitigations` → the four WSL git keys (consumed by `init-check.sh`).
    - `bash scripts/config-get.sh meta_dev.paths.plans_root` → plans root (the runbook is `<plans_root>/meta-runbook.md`).
-3. If `init_check` config is absent, fall back to host CLAUDE.md (repo list, test/build commands) then to the safe defaults in `host-claude-contract.md`.
+3. If `init_check` config is absent, fall back to root AGENTS.md and `docs/agent-context/` (repo list, test/build commands), then to the safe defaults in `host-project-contract.md`. Legacy CLAUDE files are compatibility input only.
 4. **`auto`**: detect scope from the plan being executed. Read the plan's `Repo:`/scope field; map to the configured repos. A plan that touches both frontend and backend files → treat as `full`.
 5. **`refresh-cache`**: rebuild `.claude/cache/` artifacts only, then exit.
 
@@ -55,7 +55,7 @@ Exit code maps to status: `0=OK`, `1=WARN`, `2=BLOCKED`.
 
 For each in-scope repo, run the probes named in `meta_dev.init_check.services`. Each probe has a `command`, a `pass` criterion, and `required: true|false`. **Graceful degradation:** a failing `required:false` probe → `WARN`, not `BLOCKED`.
 
-Resolve commands via the fallback chain — example shapes (discover real ones from config / host CLAUDE.md):
+Resolve commands via the fallback chain — example shapes (discover real ones from config / project doctrine):
 
 - **Interpreter/venv present** — `test -d <venv>` (venv path from config, default `.venv`). Missing → report `DEPS_MISSING`; do NOT auto-create.
 - **App imports** — run the project's import smoke (e.g. a Flask `create_app` / FastAPI `app` import). Import error → `BLOCKED`.
@@ -69,7 +69,7 @@ Guardrail: **never start a service.** If a required service is down, report it a
 
 ## Step 3 — Frontend toolchain probes — MED
 
-Only for `frontend`/`full`. Tool names come from config / host CLAUDE.md; example shapes:
+Only for `frontend`/`full`. Tool names come from config / project doctrine; example shapes:
 
 - **Deps installed** — `test -d <frontend>/node_modules` (or the project's package dir). Missing → report, do NOT install.
 - **Type/compile check** — the project's typecheck command run at `error` threshold only (e.g. `svelte-check --threshold error`, `tsc --noEmit`). Non-zero → `WARN` with the tail of output.
@@ -106,7 +106,7 @@ Report N collected. Collection error (import failure during discovery) → `WARN
 
 **If any unmatched URL exists → `BLOCKED`.** Do not proceed with execution until resolved.
 
-(Grep patterns are project-shaped; derive call-site and route conventions from host CLAUDE.md / the codebase. Do not hardcode a framework.)
+(Grep patterns are project-shaped; derive call-site and route conventions from the project doctrine / the codebase. Do not hardcode a framework.)
 
 ---
 

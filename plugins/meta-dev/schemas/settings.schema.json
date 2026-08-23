@@ -1384,7 +1384,7 @@
           "properties": {
             "test_policy": {
               "type": "string",
-              "description": "How aggressively planner + execute generate written tests. 'critical-only' (default): write a test ONLY for critical-breakage tasks (data corruption, auth/crypto verify, payment/value transfer, DB migration, serialization round-trip, cross-service API contract); everything else verifies by build/grep/run-by-eye. 'tdd-all': legacy \u2014 every task gets a failing-test-first TDD cycle. 'none': never auto-generate tests; verify by cheap checks only. The host CLAUDE.md testing policy (if present) further refines what counts as critical.",
+              "description": "How aggressively planner + execute generate written tests. 'critical-only' (default): write a test ONLY for critical-breakage tasks (data corruption, auth/crypto verify, payment/value transfer, DB migration, serialization round-trip, cross-service API contract); everything else verifies by build/grep/run-by-eye. 'tdd-all': legacy \u2014 every task gets a failing-test-first TDD cycle. 'none': never auto-generate tests; verify by cheap checks only. The canonical project AGENTS.md testing policy (if present) further refines what counts as critical.",
               "enum": [
                 "critical-only",
                 "tdd-all",
