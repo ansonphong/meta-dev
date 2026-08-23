@@ -12,6 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 # not in the procedures that guide a host project.
 FORBIDDEN = (
     "references/host-claude-contract.md",
+    "host-claude-contract",
     ".claude/context/",
     "host CLAUDE.md",
     "host project's `CLAUDE.md`",

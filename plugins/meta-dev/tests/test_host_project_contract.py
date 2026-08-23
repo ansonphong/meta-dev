@@ -48,17 +48,31 @@ def test_production_classifier_distinguishes_every_discovery_state(tmp_path):
 
 
 def test_initializer_emits_neutral_contract_and_warns_for_legacy_input(tmp_path):
-    project = _project(tmp_path, "legacy-only")
-    result = subprocess.run(
-        ["bash", str(INIT)], cwd=project, env=dict(os.environ, AUTO="true"),
-        capture_output=True, text=True, check=False,
-    )
+    for name, legacy in (
+        ("root-claude", Path("CLAUDE.md")),
+        ("legacy-only", Path(".claude/CLAUDE.md")),
+    ):
+        project = _project(tmp_path, name)
+        doctrine = (project / legacy).read_text(encoding="utf-8")
+        result = subprocess.run(
+            ["bash", str(INIT)], cwd=project, env=dict(os.environ, AUTO="true"),
+            capture_output=True, text=True, check=False,
+        )
 
-    assert result.returncode == 0, result.stderr
-    assert (project / "AGENTS.md").is_file()
-    assert (project / "docs" / "agent-context").is_dir()
-    assert (project / ".agents" / "skills").is_dir()
-    assert "migration warning" in result.stdout.lower()
+        assert result.returncode == 0, result.stderr
+        assert (project / "AGENTS.md").read_text(encoding="utf-8") == doctrine
+        assert not (project / "CLAUDE.md").exists()
+        assert (project / ".claude" / "CLAUDE.md").read_text(encoding="utf-8") == "@../AGENTS.md\n"
+        assert (project / "docs" / "agent-context").is_dir()
+        assert (project / ".agents" / "skills").is_dir()
+        assert "migration warning" in result.stdout.lower()
+        assert classify(project) == "adapter"
+        cutover = subprocess.run(
+            [str(PLUGIN_ROOT / "scripts" / "agent-surface-check"), "--project-root", str(project),
+             "--scope-file", "AGENTS.md", "--check", "instructions"],
+            capture_output=True, text=True, check=False,
+        )
+        assert cutover.returncode == 0, cutover.stderr
 
 
 def test_initializer_refuses_conflict_before_writing(tmp_path):
@@ -70,6 +84,25 @@ def test_initializer_refuses_conflict_before_writing(tmp_path):
     assert result.returncode == 1
     assert "refusing" in result.stderr.lower()
     assert not (project / "plans").exists()
+
+
+def test_initializer_preserves_both_regular_legacy_doctrines(tmp_path):
+    project = tmp_path / "both-legacy"
+    project.mkdir()
+    (project / "CLAUDE.md").write_text("# Root doctrine\n", encoding="utf-8")
+    (project / ".claude").mkdir()
+    (project / ".claude" / "CLAUDE.md").write_text("# Nested doctrine\n", encoding="utf-8")
+
+    result = subprocess.run(
+        ["bash", str(INIT)], cwd=project, env=dict(os.environ, AUTO="true"),
+        capture_output=True, text=True, check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert (project / "AGENTS.md").read_text(encoding="utf-8") == (
+        "# Root doctrine\n\n\n<!-- Migrated from .claude/CLAUDE.md -->\n\n# Nested doctrine\n"
+    )
+    assert classify(project) == "adapter"
 
 
 def test_repository_contract_has_one_canonical_doctrine_and_thin_claude_adapter():

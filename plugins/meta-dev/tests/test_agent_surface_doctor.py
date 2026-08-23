@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -144,3 +145,27 @@ def test_manifest_escape_and_skill_root_symlink_are_rejected(tmp_path):
     symlinked = run("--project-root", str(root), "--check", "skills")
     assert symlinked.returncode == 1
     assert "skill_root_symlink" in symlinked.stdout
+
+
+def test_legacy_symlink_candidates_are_conflicts_without_agents(tmp_path):
+    for legacy in (Path("CLAUDE.md"), Path(".claude") / "CLAUDE.md"):
+        root = tmp_path / legacy.parts[0]
+        root.mkdir()
+        target = tmp_path / f"{legacy.parts[0]}-target.md"
+        target.write_text("legacy\n", encoding="utf-8")
+        path = root / legacy
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.symlink_to(target)
+
+        result = run("--project-root", str(root), "--classify")
+        assert result.returncode == 0, result.stderr
+        contract = json.loads(result.stdout)["projects"][0]["contract"]
+        assert contract["state"] == "conflict"
+        assert contract["reason"] == "legacy_symlink"
+
+        init = subprocess.run(
+            ["bash", str(PLUGIN / "scripts" / "init-project.sh")], cwd=root,
+            env={**os.environ, "AUTO": "true"}, capture_output=True, text=True, check=False,
+        )
+        assert init.returncode == 1
+        assert not (root / "plans").exists()

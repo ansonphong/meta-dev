@@ -18,7 +18,7 @@ as preferred initializer output.
 | --- | --- | --- |
 | canonical | Root `AGENTS.md` resolves normally. | Use it first. |
 | adapter | `.claude/CLAUDE.md` is exactly `@../AGENTS.md`. | Use it only for that host. |
-| compatibility | No canonical doctrine exists and a legacy Claude input is present. | Warn, then create AGENTS-first output on init. |
+| compatibility | No canonical doctrine exists and one or more regular legacy Claude inputs are present. | Warn, then migrate their doctrine into AGENTS-first output on init. |
 | missing | No canonical or legacy contract exists. | Create AGENTS-first output on init. |
 | casefold_alias | A differently cased `AGENTS.md` is the same inode. | Warn and repair the host naming before cutover. |
 | duplicate_copy | A differently cased `AGENTS.md` has the same bytes but a different inode. | Warn and repair the host naming before cutover. |
@@ -30,6 +30,14 @@ and inode are equal. Classify as `duplicate_copy` only when resolved device and
 inode differ but the SHA-256 bytes are equal. Classify as `conflict` when their
 SHA-256 values differ, or when a non-adapter legacy contract disagrees with the
 canonical doctrine. Do not use path spelling alone to infer identity.
+
+Legacy candidates include both root `CLAUDE.md` and `.claude/CLAUDE.md`.
+Either candidate is a `conflict` when it is a symlink (including a dangling
+symlink) or any non-regular file. A successful compatibility initialization
+copies root doctrine first, then nested doctrine when both exist, with a marked
+separator; it removes root `CLAUDE.md` and writes `.claude/CLAUDE.md` exactly
+as `@../AGENTS.md`. This preserves both legacy doctrines and leaves the project
+in the thin `adapter` state.
 
 `agent-surface-doctor.py --classify` is the production discovery routine.
 `init-project.sh` calls it before any write. The `agent-surface-check` cutover

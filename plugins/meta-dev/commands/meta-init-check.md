@@ -10,7 +10,7 @@ model: opus
 
 Pre-execution environment health check. Verifies git health, runtime/service probes, test discoverability, and frontend/backend API contracts before a long `/meta-execute` run, so setup problems surface as a clean report instead of confusing mid-run failures.
 
-Full procedure: `references/init-check-protocol.md`. All project-specifics (repo paths, venv layout, tool names, expected services) are resolved via the host-claude-contract fallback chain — nothing is hardcoded.
+Full procedure: `references/init-check-protocol.md`. All project-specifics (repo paths, venv layout, tool names, expected services) are resolved via the neutral `references/host-project-contract.md` fallback chain — nothing is hardcoded.
 
 ## Modes
 

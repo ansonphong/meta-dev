@@ -64,8 +64,8 @@ for tmpl in settings.json versioning.json changelog.json state.json inbox.jsonl 
   echo "  CREATED $target"
 done
 
-# Scaffold the neutral project contract. Legacy Claude files remain readable
-# compatibility inputs, but AGENTS-first paths are always the initializer output.
+# Scaffold the neutral project contract. Compatibility doctrine is migrated
+# before the initializer writes the canonical output.
 mkdir -p .meta-dev docs/agent-context .agents/skills
 [ -f .meta-dev/repos.json ] || cp "$TEMPLATES_DIR/repo-topology.json" .meta-dev/repos.json
 if [ "$LEGACY_CLAUDE_INIT" = true ]; then
@@ -73,7 +73,26 @@ if [ "$LEGACY_CLAUDE_INIT" = true ]; then
   [ -f .claude/meta-dev-repos.json ] || cp "$TEMPLATES_DIR/repo-topology.json" .claude/meta-dev-repos.json
 fi
 
-if [ "$CONTRACT_STATE" = "missing" ] || [ "$CONTRACT_STATE" = "compatibility" ]; then
+if [ "$CONTRACT_STATE" = "compatibility" ]; then
+  migration_tmp="$(mktemp AGENTS.md.migration.XXXXXX)"
+  cleanup_migration() { rm -f "$migration_tmp"; }
+  trap cleanup_migration EXIT
+  if [ -f CLAUDE.md ]; then
+    cat CLAUDE.md > "$migration_tmp"
+  fi
+  if [ -f .claude/CLAUDE.md ]; then
+    if [ -f CLAUDE.md ]; then
+      printf '\n\n<!-- Migrated from .claude/CLAUDE.md -->\n\n' >> "$migration_tmp"
+    fi
+    cat .claude/CLAUDE.md >> "$migration_tmp"
+  fi
+  mv "$migration_tmp" AGENTS.md
+  trap - EXIT
+  rm -f CLAUDE.md
+  mkdir -p .claude
+  printf '@../AGENTS.md\n' > .claude/CLAUDE.md
+  echo "Migrated legacy Claude doctrine into AGENTS.md"
+elif [ "$CONTRACT_STATE" = "missing" ]; then
   cat > AGENTS.md <<'EOF'
 # Project Agent Contract
 
@@ -93,9 +112,6 @@ if [ -f "$GITIGNORE_SRC" ]; then
   done < "$GITIGNORE_SRC"
   echo "Appended .gitignore entries"
 fi
-
-# Legacy CLAUDE files are preserved for compatibility. Do not modify or create
-# them here; AGENTS.md is the only preferred contract output.
 
 # Bootstrap changelog
 CHANGELOG_DIR="plans/_archive/changelogs"

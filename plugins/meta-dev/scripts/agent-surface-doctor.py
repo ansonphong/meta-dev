@@ -31,7 +31,9 @@ def classify_contract(root: Path) -> dict:
     candidates = [path for path in root.iterdir() if path.name.casefold() == "agents.md"] if root.is_dir() else []
     legacy_root = root / "CLAUDE.md"
     adapter = root / ".claude" / "CLAUDE.md"
-    compatibility = [path for path in (legacy_root, adapter) if path.is_file() and not path.is_symlink()]
+    legacy_candidates = (legacy_root, adapter)
+    legacy_present = [path for path in legacy_candidates if path.exists() or path.is_symlink()]
+    compatibility = [path for path in legacy_present if path.is_file() and not path.is_symlink()]
     result = {"state": "missing", "compatibility_inputs": [path.as_posix() for path in compatibility]}
     if (root / ".agents" / "skills").is_symlink():
         result["state"] = "conflict"
@@ -40,6 +42,14 @@ def classify_contract(root: Path) -> dict:
     if canonical.is_symlink() or (canonical.exists() and not canonical.is_file()):
         result["state"] = "conflict"
         result["reason"] = "canonical_not_regular"
+        return result
+    if any(path.is_symlink() for path in legacy_present):
+        result["state"] = "conflict"
+        result["reason"] = "legacy_symlink"
+        return result
+    if any(not path.is_file() for path in legacy_present):
+        result["state"] = "conflict"
+        result["reason"] = "legacy_not_regular"
         return result
     if canonical.is_file():
         others = [path for path in candidates if path != canonical]
@@ -55,18 +65,15 @@ def classify_contract(root: Path) -> dict:
                 hashes_match &= digest(canonical) == digest(other)
             result["state"] = "casefold_alias" if aliases else "duplicate_copy" if hashes_match else "conflict"
             return result
-        if legacy_root.is_file() and not legacy_root.is_symlink():
+        if legacy_root in compatibility:
             result["state"] = "conflict"
             result["reason"] = "legacy_conflict"
-        elif adapter.is_file() and not adapter.is_symlink():
+        elif adapter in compatibility:
             if adapter.read_bytes() == b"@../AGENTS.md\n":
                 result["state"] = "adapter"
             else:
                 result["state"] = "conflict"
                 result["reason"] = "adapter_content"
-        elif adapter.exists() or adapter.is_symlink():
-            result["state"] = "conflict"
-            result["reason"] = "adapter_not_regular"
         else:
             result["state"] = "canonical"
         return result
