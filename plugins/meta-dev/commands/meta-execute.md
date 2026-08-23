@@ -122,11 +122,11 @@ Call `TaskCreate` once per **checkbox** from the step-1 inventory (every task he
 
 ### 3. Pre-flight gates
 
-- Read branch policy from host `CLAUDE.md` per `references/host-claude-contract.md`
+- Read branch policy from the host project contract: root `AGENTS.md`, then routed `docs/agent-context/`.
 - Working tree: if dirty files overlap plan file set → commit immediately, keep moving
 - Confirm on the host's declared main branch
-- `git fetch origin`, review the ahead commits, then `git merge --ff-only` if
-  behind. Never rebase. Divergence is a genuine conflict and must surface.
+- Do not perform remote Git operations during task execution. Surface divergence
+  for the user or the configured release workflow.
 - If `filesystem.git_corruption_mitigations` config is true → apply host-specific git mitigations
 - Read `references/execute-charter.md` for full pre-flight details
 

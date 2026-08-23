@@ -8,7 +8,7 @@ model: opus
 
 # /meta-security
 
-OWASP Top 10 + STRIDE audit run as a parallel agent swarm. Findings are gated at confidence ≥ 0.8 (false positives waste dev time and erode trust). Project-specific security boundaries are pulled from config / host CLAUDE.md, never hardcoded.
+OWASP Top 10 + STRIDE audit run as a parallel agent swarm. Findings are gated at confidence ≥ 0.8 (false positives waste dev time and erode trust). Project-specific security boundaries are pulled from config and the host project contract, never hardcoded.
 
 Full protocol: `references/security-audit-protocol.md`.
 
@@ -30,10 +30,10 @@ Execute the protocol in `references/security-audit-protocol.md`:
 
 1. **Step 0** — parse args; load confidence gate (`bash scripts/config-get.sh meta_dev.security.confidence_threshold`, default 0.8).
 2. **Step 0.5** — read this protocol's `## Learned Patterns`; fold active patterns into the relevant phases.
-3. **Step 1** — determine scope; honor the meta-eval cache dedup contract (`.claude/cache/input-validation-report.json`).
-4. **Step 2** — dispatch the in-scope phases as parallel grouped agents; also run the **Always-Checked Critical Invariants** (from `bash scripts/config-get.sh meta_dev.security.always_checked_invariants` or host CLAUDE.md) regardless of scope. Tier per group from `meta_dev.security.model_tiers`; money-path + crypto escalate to opus.
+3. **Step 1** — determine scope; honor the configured meta-eval cache dedup contract.
+4. **Step 2** — dispatch the in-scope phases as parallel grouped agents; also run the **Always-Checked Critical Invariants** (from `bash scripts/config-get.sh meta_dev.security.always_checked_invariants` or the host project contract) regardless of scope. Tier per group from `meta_dev.security.model_tiers`; money-path + crypto escalate to opus.
 5. **Step 3** — apply confidence gate, dedup (same file + same vuln type), severity-sort.
-6. **Step 4** — write the report to `{plans_root}/meta/security-audit-{date}.md` and refresh `.claude/cache/input-validation-report.json`. Verdict: any CRITICAL → FAIL.
+6. **Step 4** — write the report to `{plans_root}/meta/security-audit-{date}.md` and refresh the configured dedup cache. Verdict: any CRITICAL → FAIL.
 7. **Step 5** — self-improving detection: if a vuln class recurs across 3+ past audits, append an LP entry.
 8. **Step 6** — if `--fix`: apply fixes ≥ 0.9 confidence, re-run the producing phase, report before/after.
 

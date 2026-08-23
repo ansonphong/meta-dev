@@ -379,7 +379,7 @@ def _parse_git(argv: list[str]) -> tuple[str | None, list[str]]:
     Global options are skipped, never judged.  ``-C`` no longer has to be
     present or absolute: requiring it turned every ordinary ``git status`` in
     the right directory into a policy violation.  Directory discipline is a
-    doctrine matter for CLAUDE.md, not something worth denying a command over.
+    doctrine matter for the host project contract, not something worth denying a command over.
     """
     index = 0
     while index < len(argv):

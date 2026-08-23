@@ -38,7 +38,7 @@ When the user says **autopilot** (or execute / build / implement / "go" / "cruis
 
 1. **HARDEN (before)** — Unless `--no-harden` is present, run `/loop-gap <plan>` to gap-scan the PLAN. Apply auto-fixes (confidence ≥ 0.8), surface blockers for review. This is the "Phase 4 hardening" step that must never be silently skipped.
 2. **EXECUTE** — Run `/meta-execute <plan>` (one fresh host-native subagent per checkbox — Grok `spawn_subagent` / Claude `Agent` / Codex spark-or-sol — worker commits; conductor stays thin).
-3. **CODE REVIEW (after)** — Dispatch the `meta-dev:review-agent` Opus subagent over the produced diff (it computes its own diff). This is a code review of the built code — NOT a second loop-gap pass. Do **not** use `superpowers:requesting-code-review`; it is superseded (host `CLAUDE.md` → Superpowers & Plan Mode).
+3. **CODE REVIEW (after)** — Dispatch the `meta-dev:review-agent` Opus subagent over the produced diff (it computes its own diff). This is a code review of the built code — NOT a second loop-gap pass. Do **not** use `superpowers:requesting-code-review`; it is superseded by the host project's review policy.
 4. **VERDICT** — If review returns blocking issues → fix loop (re-dispatch via `/meta-execute` or `/meta-repair`) before ship. Else green-light → project release path (APP: `/release`; web: `/deploy`).
 
 **Flags:**

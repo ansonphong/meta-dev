@@ -175,7 +175,7 @@ def _offindex_kind(path):
     if not os.path.isfile(full):
         return "missing", None, 0, 0, None
     if "/_archive/" in "/" + path:
-        # Archived is done by doctrine (CLAUDE.md archives only at 100%).
+        # Archived is done by the host project doctrine (only at 100%).
         return "archived", "done", 0, 0, None
     try:
         with open(full, encoding="utf-8", errors="replace") as fh:
@@ -216,7 +216,7 @@ def _child_result_from_plan(conn, path):
 
       * absent            → ``missing``  — genuinely gone, render loud (debt)
       * present, archived → ``archived`` — shipped + filed away; done by
-        doctrine (CLAUDE.md: archive only at 100% complete). ``ledger check``
+        doctrine (archive only at 100% complete). ``ledger check``
         separately nags to re-register it, which is the right place for that.
       * present, boxes    → ``plan``     — a REAL plan sync just doesn't index;
         done only when its own checkboxes are.

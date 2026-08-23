@@ -22,7 +22,7 @@ Full procedure: `references/init-check-protocol.md`. All project-specifics (repo
 
 ## Flow
 
-1. **Resolve scope + config.** Read the env-probe set from `bash scripts/config-get.sh meta_dev.init_check` (expected services, per-check timeouts, <30s budget) and the WSL git keys from `bash scripts/config-get.sh meta_dev.filesystem.git_corruption_mitigations`. Fall back to host CLAUDE.md, then safe defaults.
+1. **Resolve scope + config.** Read the env-probe set from `bash scripts/config-get.sh meta_dev.init_check` (expected services, per-check timeouts, <30s budget) and the WSL git keys from `bash scripts/config-get.sh meta_dev.filesystem.git_corruption_mitigations`. Fall back to root `AGENTS.md` and routed context, then safe defaults.
 2. **Git health (per in-scope repo).** Run `CLAUDE_PLUGIN_ROOT="$CLAUDE_PLUGIN_ROOT" bash scripts/init-check.sh <repo-dir>` — does stale `.git/index.lock` removal (the one safe auto-fix), corruption detection via `git status`, dirty-tree warning, and WSL git-config verify+apply (keys from config).
 3. **Service & runtime probes** (backend modes) — the probe set comes from `meta_dev.init_check.services` config; the host project supplies the actual probes. Examples: import smoke, a DB connection check (e.g. `db.engine.connect()`), a cache/broker ping (e.g. `redis-cli ping`), a task-queue import (e.g. Celery/RQ) + broker-degradation heuristic. `required:false` failures → WARN, not BLOCKED.
 4. **Frontend toolchain** (frontend/full) — deps present, typecheck at error threshold, native toolchain `--version`.

@@ -27,7 +27,7 @@ CAP="${META_DEV_FABLE_CONSULT_CAP:-5}"
 # one durable record the user reads in the morning. Walking up for `plans/`
 # beats asking git: this tree nests four independent repos and
 # `rev-parse --show-toplevel` returns whichever one the shell happens to sit in
-# (the banned-for-cause idiom in CLAUDE.md → Directory Awareness).
+# (the host project's banned-for-cause directory-awareness rule).
 _resolve_project_root() {
   [ -n "${META_DEV_PROJECT_ROOT:-}" ] && { printf '%s' "$META_DEV_PROJECT_ROOT"; return; }
   [ -n "${CLAUDE_PROJECT_DIR:-}" ]    && { printf '%s' "$CLAUDE_PROJECT_DIR";    return; }

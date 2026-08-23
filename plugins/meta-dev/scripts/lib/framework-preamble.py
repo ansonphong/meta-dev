@@ -4,7 +4,7 @@
 Why this exists
 ---------------
 A Claude Code worker is born inside the harness: it has the plugin's skills and
-slash commands, the hooks fire, and CLAUDE.md is in its context. A Codex worker
+slash commands, the hooks fire, and the host project doctrine is loaded. A Codex worker
 has NONE of that. Dispatch it a bare task and it will cheerfully freelance —
 inventing its own review process, hand-editing checkboxes, running `git add -A`
 — because it has no idea a harness exists.

@@ -155,7 +155,7 @@ These run under **every** scope (including `--scope auth|payment`), regardless o
 **Resolution order:**
 
 1. Read `bash scripts/config-get.sh meta_dev.security.always_checked_invariants` — a list of `{ id, description, check }` entries.
-2. If empty/unset, extract security boundaries from the host project's `CLAUDE.md` "Security boundaries" / conventions section (per `references/host-claude-contract.md`).
+2. If empty/unset, extract security boundaries from root `AGENTS.md` and routed security/conventions context, following `references/host-project-contract.md`.
 3. For each invariant, run the described check against the target and report violations through the same confidence gate and severity model as the numbered phases.
 4. If a project defines none, run only the generic OWASP/STRIDE phases above and note "no project invariants configured" in the report.
 
@@ -168,7 +168,7 @@ These run under **every** scope (including `--scope auth|payment`), regardless o
 - File-upload paths sanitized against traversal.
 - Auth / validation / submission endpoints rate-limited.
 
-Never hardcode a specific project's domains, key schemes, or provider names in this file — pull them from config or the host CLAUDE.md.
+Never hardcode a specific project's domains, key schemes, or provider names in this file — pull them from config or the host project contract.
 
 ---
 

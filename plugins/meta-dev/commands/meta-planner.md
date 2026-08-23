@@ -30,7 +30,7 @@ Carry the resolved value into the IR (step 6) so Stages 4 and 5 read the same ti
 
 ### 1. Read input + detect project context
 
-Read the input plan. Load host conventions via `references/host-claude-contract.md`. Read the host repo's `CLAUDE.md` for test commands, branch policy, directory layout.
+Read the input plan. Load host conventions through `references/host-project-contract.md`: root `AGENTS.md`, then routed `docs/agent-context/`, for test commands, branch policy, and directory layout.
 
 ### 2. Inventory tasks, map dependencies, identify phases
 
@@ -56,9 +56,9 @@ Each phase file: Codebase Anchors → task prose (bold headings / plain bullets 
 
 **Verify hooks MUST be focused — broad gates do not belong in execution plans.** Every automated Verify-After names one test file/node or a check explicitly scoped to declared files: `pytest backend/tests/test_<thisfeature>.py -q`, never bare/directory pytest or `-k` without a file. Add `-m "not slow and not gpu and not integration"` where marked. NEVER author `npm run check`, package-wide npm/Vitest/Jest, `svelte-check`, project-wide `tsc`, a build, or a full-suite command—not per task and not in an end-of-phase acceptance section. Those belong to CI, `/ship`, or a separate explicit user request. A phase may name one path-scoped cross-task integration test. Manual/by-eye/GPU gates remain explicit human acceptance items and are never automated by `/meta-execute`. Validate every command with `scripts/verify-scope.py`; only `focused` and `scoped_check` are executable. See `references/execute-charter.md` → Focused Verification Doctrine.
 
-**Tag every task `test: yes` or `test: no` (default `no`).** Read `meta_dev.execute.test_policy` (`bash scripts/config-get.sh meta_dev.execute.test_policy`, default `critical-only`) and the host `CLAUDE.md` testing policy first:
+**Tag every task `test: yes` or `test: no` (default `no`).** Read `meta_dev.execute.test_policy` (`bash scripts/config-get.sh meta_dev.execute.test_policy`, default `critical-only`) and the host `AGENTS.md` testing policy first:
 
-- **`critical-only` (default)** — tag `test: yes` ONLY for critical-breakage tasks: data-corruption paths, auth/crypto verification, payment/value transfer, DB migration, serialization round-trip, cross-service API contract (refined by any critical surfaces the host CLAUDE.md names). Every other task is `test: no`.
+- **`critical-only` (default)** — tag `test: yes` ONLY for critical-breakage tasks: data-corruption paths, auth/crypto verification, payment/value transfer, DB migration, serialization round-trip, cross-service API contract (refined by critical surfaces named in the host project contract). Every other task is `test: no`.
 - **`tdd-all`** — every task `test: yes` (legacy behavior).
 - **`none`** — every task `test: no`.
 

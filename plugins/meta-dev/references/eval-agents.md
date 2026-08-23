@@ -27,7 +27,7 @@ You are a security reviewer. Check the implementation for common vulnerabilities
 - Check: all endpoints have auth where required
 - Check: no secrets/keys in committed code
 - Check: input validation on all user-supplied data
-- **Project-specific boundaries:** Beyond generic OWASP, read the host project's `CLAUDE.md` (and any referenced security/conventions docs) to discover project-specific security boundaries — e.g. license/permission tiers, signature/expiry verification, upload size/MIME limits, cross-subdomain cookie scoping, rate limits — and verify each is enforced where the design requires it. Pull these from the host project's conventions; do not hardcode them.
+- **Project-specific boundaries:** Beyond generic OWASP, read the host project's root `AGENTS.md` and routed security/conventions context to discover project-specific security boundaries — e.g. license/permission tiers, signature/expiry verification, upload size/MIME limits, cross-subdomain cookie scoping, rate limits — and verify each is enforced where the design requires it. Pull these from the host project contract; do not hardcode them.
 - Report: findings by severity (critical/high/medium/low)
 
 ## Agent 4: Error Handling Reviewer

@@ -123,7 +123,7 @@ PY
 
 ## Gating — code-writing executes stay gated
 
-`/auto-execute` inherits the project's hard rule: **design / plan / harden / review / audit chunks flow freely**, but **code-writing plan execution requires the human approver's explicit "go"** (see CLAUDE.md → Action Discernment + the Development Waterfall). Routing through a cheaper backend never relaxes the gate — a DeepSeek worker writing app code is still a plan execution. Read-write chunks outside a gated plan (ad-hoc fixes, refactors you'd normally just do) follow the same >90%-confident / in-scope / reversible discernment as any direct edit.
+`/auto-execute` inherits the host project's explicit-action rule from `AGENTS.md`: **design / plan / harden / review / audit chunks flow freely**, but **code-writing plan execution requires the human approver's explicit "go"**. Routing through a cheaper backend never relaxes the gate — a DeepSeek worker writing app code is still a plan execution. Read-write chunks outside a gated plan (ad-hoc fixes, refactors you'd normally just do) follow the same >90%-confident / in-scope / reversible discernment as any direct edit.
 
 ## Step 1: Parse Arguments
 
@@ -186,4 +186,4 @@ This is the intended substrate for the **entire Development Waterfall**, not jus
 
 **Beyond the waterfall:** any standalone op (`/sniff`, `/meta-security`, `/meta-ux`, `/meta-audit`, `/meta-probe`, changelog, version) and any **arbitrary task or bare prompt** routes the same way. If you can describe it as a self-contained chunk with a deliverable, `/auto-execute` can farm it.
 
-See CLAUDE.md → Development Waterfall + Multi-Model Execution for how this wires in.
+See the host project's `AGENTS.md` for its development workflow and execution routing.

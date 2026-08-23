@@ -62,7 +62,7 @@ Read `target:` from the plan's frontmatter. `--target` overrides it but may only
 | **`standard`** (default) | cats 1-24 + 34 — today's behavior | today's `auto` behavior |
 | `explicit` | all cats 1-24 + 34, no content-based pruning | full per-file fan-out |
 
-**Cats 12 (Verification Soundness) and 13 (Execution Context) stay in the lean set and are never traded for speed** — they fail *silently*, and cat 13 guards the monorepo cwd class the host CLAUDE.md calls the #1 repeated mistake.
+**Cats 12 (Verification Soundness) and 13 (Execution Context) stay in the lean set and are never traded for speed** — they fail *silently*, and cat 13 guards the monorepo cwd class defined by the host project contract.
 
 **Plan target and `--budget` are orthogonal and BOTH apply** — plan target gates *which categories fire*, `--budget` gates *which files escalate*. Same composition as `--scan-model` vs `--fix-backend`. Category gating is **reduction only**: no category is ever deleted from this document, and `explicit` still fires all 25.
 
@@ -106,7 +106,7 @@ Before scanning, read this command's `## Learned Patterns` section (at the botto
 **Plan mode:**
 1. Glob `{TARGET_DIR}/**/*.md` — collect plan files
 2. Extract file paths from `- Files:`, `- Create:`, `- Modify:`, `- Test:` lines → **codebase verification set**
-3. Read CLAUDE.md for repo structure/conventions
+3. Read root `AGENTS.md` and routed `docs/agent-context/` for repository structure and conventions
 4. `git log --since={plan_date} --name-only` for staleness detection
 
 **Feature mode (deep discovery):**
@@ -124,7 +124,7 @@ Before scanning, read this command's `## Learned Patterns` section (at the botto
 3. **Test file matching:** Find test files corresponding to each source file. Add them to the scan set.
 4. **Shared dependencies:** If multiple target files import the same module, add that module as context.
 
-**Project mode:** Read CLAUDE.md, identify major source directories, group into ~5-15 agent groups.
+**Project mode:** Read root `AGENTS.md`, identify major source directories, group into ~5-15 agent groups.
 
 **Always exclude:** `*loop-gap*.md`, `*.gap-report-*.md`, `*.design-review.md`, `*.plan-validation.md`, `.loop-gap-config.md`, `__pycache__/`, `node_modules/`, `.venv/`, `dist/`, `build/` — i.e. **every plan-attached artifact** (`references/plan-artifacts.md`), matched by glob, not by literal filename. A scanner that reads its own prior output as plan content will report the gaps it already logged.
 

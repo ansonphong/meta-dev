@@ -42,9 +42,9 @@ Your task: <TASK_ID> — <TASK_TITLE>
 Backend: <BACKEND> — follow the matching brief in references/execute-briefs.md (Grok farms pieces to spawn_subagent; DeepSeek stays a small unit; Codex does not re-read the plan file).
 Budget: <BUDGET_RESOLVED> (low=12 turns/15m, medium=32/45m, high=80/120m). Do the named task. Do not overthink. Do not open adjacent rabbit holes. <BUDGET_RULES>
 <TASK_PLAN_SECTION>   ← orchestrator INLINES the task's own plan section + acceptance criteria here, verbatim. Inline it; do NOT tell the worker to read the plan file to reconstruct the task — a Codex worker re-reads a referenced plan repeatedly and it dominates its runtime, while a Claude worker just saves a cached Read. Universal, every backend.
-Read any .claude/context/<relevant>.md this task names once, whole, before touching code.
+Read any relevant file under `docs/agent-context/` named by this task once, whole, before touching code.
 
-Hard rules (from host CLAUDE.md + plan, all binding):
+Hard rules (from the host project contract + plan, all binding):
 1. Work on master. No worktrees, no branches, no stashing.
 2. <TEST_DIRECTIVE>   ← orchestrator inserts ONE of the two variants below per the task's `test:` tag.
 3. **COMMIT-ON-RED:** if you edit any declared file, stage only those exact

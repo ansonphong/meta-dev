@@ -212,7 +212,7 @@ plans/app/UNIFIED-EDITING-CANVAS/16-TOOLBAR/followup-1/00-design.md
   plan path).
 - The marker is the **pointer + grouping**: it says "these next plans are driven by that campaign
   runbook." Position relative to the `=== MILESTONE: PRODUCT LAUNCH … ===` marker decides pre/post
-  launch, same as any plan (CLAUDE.md → meta-runbook geography).
+  launch, same as any plan (the host project contract defines meta-runbook geography).
 - Campaign runbook files (`_runbook-*.md`) are themselves **excluded** from the plan scan
   (`plan-index.py` NOISE) — they are orchestration manuscripts, not plans, and carry the campaign
   dashboard in-file.

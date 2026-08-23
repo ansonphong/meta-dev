@@ -176,6 +176,7 @@ if [[ -n "$PROC_MD" ]]; then
 Harness translation — that file is written for Claude Code; you are Codex:
 - \${CLAUDE_PLUGIN_ROOT} means ${PLUGIN_ROOT}
 - \$ARGUMENTS means the Task line below.
+- The host project contract is root AGENTS.md, then docs/agent-context/.
 - Resolve relative references/, workflow-skills/, and skills/ paths against ${PLUGIN_ROOT}.
 - It may tell you to invoke a slash command (/foo) or a named skill, or to use
   the Read/Grep/Glob/Task tools. You have NONE of those. Instead: read files
@@ -349,8 +350,8 @@ cd "$WORK_DIR"
 # prompt rules remain the portable second line of defense.
 # ── Framework preamble: the harness a Codex worker is otherwise blind to ────
 # A Claude Code worker is BORN inside the harness — plugin skills and slash
-# commands are present, hooks fire, CLAUDE.md is in context. A Codex worker does
-# not inherit Claude's command surface or CLAUDE.md; trusted Codex lifecycle
+# commands are present, hooks fire, and the host doctrine is loaded. A Codex worker does
+# not inherit Claude's command surface; trusted Codex lifecycle
 # hooks may still fire, but a bare headless task must receive its procedure.
 # Interactive Codex has @meta-dev and $meta-dev:<skill>; HEADLESS has neither.
 # So we hand it the framework in the one channel headless does have — the

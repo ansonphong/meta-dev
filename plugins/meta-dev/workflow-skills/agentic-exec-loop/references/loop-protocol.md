@@ -34,7 +34,7 @@ releases usable artifacts once, while failure containment follows branches.
   Output → OUTPUT_FILE; conductor reads only the distilled `result`.
 - **Reviewer**: native to the host by default. Given
   {phase_spec, phase_pre_sha, focused_outcomes}, it computes its OWN
-  `git diff <phase_pre_sha>..HEAD` and returns the verdict JSON below. Codex
+  `git -C <absolute-repo> diff <phase_pre_sha>..HEAD` and returns the verdict JSON below. Codex
   uses the configured Sol/high route; Claude Code keeps its configured
   `meta-dev:review-agent`; Grok Build `spawn_subagent`s a reviewer. External
   reviewers run only on an explicit flag. Honor `--review each|phase|end|auto`.
@@ -155,8 +155,8 @@ if [ -n "$RB" ]; then
 fi
 ```
 
-- The render is **idempotent** — if nothing changed it rewrites the same block
-  and the commit is empty (skip it: `git diff --cached --quiet || git -C <absolute-repo> commit --only … -- "$RB"`).
+- The render is **idempotent** — if nothing changed it rewrites the same block;
+  inspect the scoped diff before deciding whether the owning task needs a commit.
 - It writes ONLY the sentineled PROGRESS block; the narrative + CURRENT phase
   tracker (human SHAs) are never touched.
 - Heed its **stderr `⚠ stage-drift`** lines: a plan at ~100% checkboxes still

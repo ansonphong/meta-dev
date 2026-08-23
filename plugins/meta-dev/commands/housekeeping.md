@@ -131,7 +131,7 @@ When dispatching each plan agent, give it this exact brief:
 >
 > **Only if Lock 1 printed `PASS` (exit 0) AND Lock 2 found every deliverable present AND the plan is not active per its YAML `status:` / the meta-runbook Sequence:**
 > 1. If not dry-run: move the plan to `plans/<repo>/_archive/` (preserve directory structure for subfolder plans).
-> 2. Update any context files (`.claude/context/`) that reference this plan — remove stale pointers, update status.
+> 2. Update any routed context files (`docs/agent-context/`) that reference this plan — remove stale pointers, update status.
 > 3. Update any dashboard files (`plans/_dashboard/`) that track this plan.
 > 4. Return: `{plan, repo, archived: true, verified: false, guard: "PASS", destination: "_archive", verified_deliverables: [...], context_files_updated, dashboard_files_updated, notes}`.
 >

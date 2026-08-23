@@ -44,7 +44,7 @@ Override via `/meta-inbox clear --model opus` (forces opus for all) or settings:
 
 - 3 consecutive failures on same item → mark `blocked`, move on
 - Item requires destructive op (rm, drop, force-push) → surface, don't execute
-- Item touches money/auth/migrations → surface, don't execute (hard rule per CLAUDE.md ethical boundary)
+- Item touches money/auth/migrations → surface, don't execute (hard rule from the host project contract)
 - User-set `auto_clear_severity` cap exceeded → stop and surface remainder
 
 ## Invocation Modes

@@ -408,7 +408,7 @@ plugin root/
 
 **Data flow:** hooks write events → `state.events.jsonl` → `state-reduce.py` materializes `state.json` → dashboard/overlord read state. All event-sourced, replayable.
 
-**State layer (`planctl`):** Markdown plan files are git truth; a disposable SQLite read-model at `~/.cache/meta-dev/<project-slug>/` (off-9p, ext4) makes every view fast. `planctl` is the **only write door** for state mutations (check/uncheck, stage, claim, review, runbook). Legacy scripts (`task-done.sh`, `stage-emit.sh`, `worker-claim.sh`) are thin shims over it. Invoke via `bash plugins/meta-dev/scripts/planctl.sh <verb> [--json]`. See `CLAUDE.md` → "State Layer" and `plans/meta/meta-dev-unified-state/` for the design.
+**State layer (`planctl`):** Markdown plan files are git truth; a disposable SQLite read-model at `~/.cache/meta-dev/<project-slug>/` (off-9p, ext4) makes every view fast. `planctl` is the **only write door** for state mutations (check/uncheck, stage, claim, review, runbook). Legacy scripts (`task-done.sh`, `stage-emit.sh`, `worker-claim.sh`) are thin shims over it. Invoke via `bash plugins/meta-dev/scripts/planctl.sh <verb> [--json]`. See `AGENTS.md` and `plans/meta/meta-dev-unified-state/` for the design.
 
 ## Commands
 
@@ -553,7 +553,7 @@ bash plugins/meta-dev/scripts/test-plugin.sh --check-scripts    # scripts only
 
 ## Contributing
 
-See [CLAUDE.md](CLAUDE.md) for plugin architecture, conventions, and development guide.
+See [AGENTS.md](AGENTS.md) for plugin architecture, conventions, and development guide.
 
 ## License
 

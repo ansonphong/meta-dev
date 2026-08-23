@@ -45,7 +45,7 @@ Parse `$ARGUMENTS` into a target + flags.
 Skip on `--depth shallow`. Otherwise dispatch the two agents in parallel. Each has a hard word cap and an explicit extraction list — return only the list, no prose preamble.
 
 ### Agent 1.1 — Design System Audit (max 300 words)
-Read the configured design doc (`DESIGN_DOC`). If `null`, note that and fall back to whatever design/conventions docs the target repo's `CLAUDE.md` points to. Extract:
+Read the configured design doc (`DESIGN_DOC`). If `null`, note that and fall back to the target repo's root `AGENTS.md` and routed design/conventions context. Extract:
 - Color token inventory + usage rules (which token is the accent, where it's allowed)
 - Surface / border / radius conventions
 - Z-index scale and stacking contexts
@@ -56,7 +56,7 @@ Read the configured design doc (`DESIGN_DOC`). If `null`, note that and fall bac
 Return: a token map + any stale/missing tokens.
 
 ### Agent 1.2 — Platform / Surface State (max 300 words)
-Read the target repo's `CLAUDE.md` and context files. Extract:
+Read the target repo's root `AGENTS.md` and routed context files. Extract:
 - Current UX surface (pages, components, routes)
 - Known UX debt / pain points
 - Accessibility baseline (ARIA usage, keyboard nav, screen-reader support)
