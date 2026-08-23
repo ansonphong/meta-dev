@@ -1,0 +1,34 @@
+#!/usr/bin/env python3
+"""Bounded command wrapper for agent-surface-doctor."""
+from __future__ import annotations
+import argparse
+from pathlib import Path
+import subprocess
+import sys
+
+parser = argparse.ArgumentParser()
+group = parser.add_mutually_exclusive_group(required=True)
+group.add_argument("--project-root")
+group.add_argument("--manifest")
+parser.add_argument("--workspace-root", default=".")
+parser.add_argument("--scope-file", action="append", required=True)
+parser.add_argument("--check", action="append")
+args = parser.parse_args()
+root = Path(args.project_root or args.workspace_root).resolve()
+if args.manifest:
+    manifest = Path(args.manifest)
+    if manifest.is_absolute():
+        parser.error("--manifest must be workspace-relative")
+if not args.scope_file:
+    parser.error("one or more --scope-file values are required")
+for value in args.scope_file:
+    path = Path(value)
+    candidate = (root / path).resolve() if not path.is_absolute() else path.resolve()
+    if root != candidate and root not in candidate.parents:
+        parser.error(f"scope outside selected root: {value}")
+doctor = Path(__file__).with_name("agent-surface-doctor.py")
+command = [sys.executable, str(doctor)]
+command += ["--project-root", args.project_root] if args.project_root else ["--manifest", args.manifest, "--workspace-root", args.workspace_root]
+for check in args.check or []:
+    command += ["--check", check]
+raise SystemExit(subprocess.run(command, check=False).returncode)

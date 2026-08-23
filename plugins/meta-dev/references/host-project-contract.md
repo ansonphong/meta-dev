@@ -38,3 +38,20 @@ then ask the user.
 
 Do not hardcode a host project's names, domains, repositories, stacks, brands,
 endpoints, or platform details.
+
+## Canonical skill ABI
+
+`.agents/skills/<name>/` is canonical. Each skill has a regular `SKILL.md`
+with YAML frontmatter and body. The frontmatter uses common identity and
+argument fields; the body states accepted arguments. Optional `scripts/`,
+`references/`, and `assets/` directories are resource roots. All links and
+paths are relative to the skill directory. Symlinks are forbidden in canonical
+or generated skills. Host-only discovery metadata stays in a generated host
+adapter, never in the canonical skill.
+
+`sync-agent-skill-adapters.py` copies complete canonical directories into
+`.claude/skills/` and records SHA-256 values in
+`.agent-skill-adapters.json`. It preserves file modes, has no symlink fallback,
+and check mode rejects missing, unknown, or edited mirror files. Canonical
+skills win on collision: a generated mirror is replaced from its source; a
+hand-authored host mirror is a validation error.
