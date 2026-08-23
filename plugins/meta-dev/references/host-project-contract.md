@@ -17,9 +17,12 @@ as preferred initializer output.
 | State | Meaning | Required response |
 | --- | --- | --- |
 | canonical | Root `AGENTS.md` resolves normally. | Use it first. |
-| adapter | A vendor file imports the canonical doctrine without repeating rules. | Use only for that host. |
-| compatibility | Only a legacy Claude contract is present. | Read it, report migration warning, and create AGENTS-first output on init. |
-| forbidden | A vendor adapter repeats, replaces, or contradicts canonical rules. | Report conflict; do not select a default silently. |
+| adapter | `.claude/CLAUDE.md` is exactly `@../AGENTS.md`. | Use it only for that host. |
+| compatibility | No canonical doctrine exists and a legacy Claude input is present. | Warn, then create AGENTS-first output on init. |
+| missing | No canonical or legacy contract exists. | Create AGENTS-first output on init. |
+| casefold_alias | A differently cased `AGENTS.md` is the same inode. | Warn and repair the host naming before cutover. |
+| duplicate_copy | A differently cased `AGENTS.md` has the same bytes but a different inode. | Warn and repair the host naming before cutover. |
+| conflict | Candidate doctrine, adapter, or skill root is unsafe. | Refuse to select or initialize a default. |
 
 Resolve every discovered candidate before comparison. Classify two candidates as
 `casefold_alias` only when their paths differ by case and their resolved device
@@ -27,6 +30,13 @@ and inode are equal. Classify as `duplicate_copy` only when resolved device and
 inode differ but the SHA-256 bytes are equal. Classify as `conflict` when their
 SHA-256 values differ, or when a non-adapter legacy contract disagrees with the
 canonical doctrine. Do not use path spelling alone to infer identity.
+
+`agent-surface-doctor.py --classify` is the production discovery routine.
+`init-project.sh` calls it before any write. The `agent-surface-check` cutover
+wrapper requires `canonical` or the exact thin `adapter` state. Repository
+values in manifests and wrapper scopes must resolve inside the workspace root;
+`..` escapes are rejected. `.agents/skills` itself, as well as its contents,
+must not be symlinks.
 
 ## Project settings
 

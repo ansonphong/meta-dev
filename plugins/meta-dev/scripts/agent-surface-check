@@ -31,4 +31,5 @@ command = [sys.executable, str(doctor)]
 command += ["--project-root", args.project_root] if args.project_root else ["--manifest", args.manifest, "--workspace-root", args.workspace_root]
 for check in args.check or []:
     command += ["--check", check]
+command += ["--require-canonical"]
 raise SystemExit(subprocess.run(command, check=False).returncode)

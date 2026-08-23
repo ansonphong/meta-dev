@@ -21,6 +21,60 @@ def add(findings, level, code, path, message):
     findings.append({"level": level, "code": code, "path": path.as_posix(), "message": message})
 
 
+def within(root: Path, candidate: Path) -> bool:
+    return candidate == root or root in candidate.parents
+
+
+def classify_contract(root: Path) -> dict:
+    """Classify discovery inputs once for doctor, wrappers, and initializer."""
+    canonical = root / "AGENTS.md"
+    candidates = [path for path in root.iterdir() if path.name.casefold() == "agents.md"] if root.is_dir() else []
+    legacy_root = root / "CLAUDE.md"
+    adapter = root / ".claude" / "CLAUDE.md"
+    compatibility = [path for path in (legacy_root, adapter) if path.is_file() and not path.is_symlink()]
+    result = {"state": "missing", "compatibility_inputs": [path.as_posix() for path in compatibility]}
+    if (root / ".agents" / "skills").is_symlink():
+        result["state"] = "conflict"
+        result["reason"] = "skill_root_symlink"
+        return result
+    if canonical.is_symlink() or (canonical.exists() and not canonical.is_file()):
+        result["state"] = "conflict"
+        result["reason"] = "canonical_not_regular"
+        return result
+    if canonical.is_file():
+        others = [path for path in candidates if path != canonical]
+        if others:
+            canonical_stat = canonical.stat()
+            hashes_match = True
+            aliases = True
+            for other in others:
+                if other.is_symlink() or not other.is_file():
+                    result["state"] = "conflict"; result["reason"] = "instruction_symlink"; return result
+                other_stat = other.stat()
+                aliases &= (canonical_stat.st_dev, canonical_stat.st_ino) == (other_stat.st_dev, other_stat.st_ino)
+                hashes_match &= digest(canonical) == digest(other)
+            result["state"] = "casefold_alias" if aliases else "duplicate_copy" if hashes_match else "conflict"
+            return result
+        if legacy_root.is_file() and not legacy_root.is_symlink():
+            result["state"] = "conflict"
+            result["reason"] = "legacy_conflict"
+        elif adapter.is_file() and not adapter.is_symlink():
+            if adapter.read_bytes() == b"@../AGENTS.md\n":
+                result["state"] = "adapter"
+            else:
+                result["state"] = "conflict"
+                result["reason"] = "adapter_content"
+        elif adapter.exists() or adapter.is_symlink():
+            result["state"] = "conflict"
+            result["reason"] = "adapter_not_regular"
+        else:
+            result["state"] = "canonical"
+        return result
+    if compatibility:
+        result["state"] = "compatibility"
+    return result
+
+
 def projects(args):
     if args.project_root:
         return [("project", Path(args.project_root).resolve())]
@@ -32,13 +86,28 @@ def projects(args):
     repos = data.get("repositories", data.get("projects", {}))
     if not isinstance(repos, dict):
         raise ValueError("manifest repositories must be an object")
-    return [(str(name), (workspace / relative).resolve()) for name, relative in sorted(repos.items())]
+    result = []
+    for name, relative in sorted(repos.items()):
+        if not isinstance(relative, str):
+            raise ValueError(f"manifest repository {name} must be a relative path")
+        candidate = (workspace / relative).resolve()
+        if Path(relative).is_absolute() or not within(workspace, candidate):
+            raise ValueError(f"manifest repository escapes workspace: {name}")
+        result.append((str(name), candidate))
+    return result
 
 
 def check_project(name, root, selected, manifest_data=None):
     findings = []
-    result = {"name": name, "root": str(root), "findings": findings}
+    contract = classify_contract(root)
+    result = {"name": name, "root": str(root), "contract": contract, "findings": findings}
     agents = root / "AGENTS.md"
+    for path in contract["compatibility_inputs"]:
+        add(findings, "warning", "compatibility_input", Path(path), "legacy Claude compatibility input detected")
+    if contract["state"] in {"casefold_alias", "duplicate_copy"}:
+        add(findings, "warning", contract["state"], agents, f"contract classified as {contract['state']}")
+    elif contract["state"] == "conflict":
+        add(findings, "error", contract.get("reason", "conflict"), agents, "contract discovery conflict")
     if "instructions" in selected:
         if not agents.is_file() or agents.is_symlink():
             add(findings, "error", "missing_agents", agents, "root AGENTS.md must be a regular file")
@@ -98,7 +167,9 @@ def check_project(name, root, selected, manifest_data=None):
                     add(findings, "error", "conflict", other, "case-folded instruction content conflicts")
     if "skills" in selected:
         source = root / ".agents" / "skills"
-        if source.exists():
+        if source.is_symlink():
+            add(findings, "error", "skill_root_symlink", source, "canonical skill root must not be a symlink")
+        elif source.exists():
             for skill in sorted(source.iterdir()):
                 marker = skill / "SKILL.md"
                 if not skill.is_dir() or skill.is_symlink() or not marker.is_file() or marker.is_symlink():
@@ -147,6 +218,8 @@ def main(argv=None):
     group.add_argument("--manifest")
     parser.add_argument("--workspace-root", default=".")
     parser.add_argument("--check", choices=CHECKS, action="append")
+    parser.add_argument("--classify", action="store_true", help="emit only contract discovery state")
+    parser.add_argument("--require-canonical", action="store_true", help="fail unless the target is canonical or a thin adapter")
     args = parser.parse_args(argv)
     selected = tuple(args.check or CHECKS)
     try:
@@ -157,8 +230,13 @@ def main(argv=None):
     except (ValueError, OSError, json.JSONDecodeError) as exc:
         parser.error(str(exc))
     findings = [f for project in report_projects for f in project["findings"]]
-    print(json.dumps({"checks": list(selected), "ok": not any(f["level"] == "error" for f in findings), "projects": report_projects}, sort_keys=True, separators=(",", ":")))
-    return 1 if any(f["level"] == "error" for f in findings) else 0
+    if args.classify:
+        print(json.dumps({"projects": report_projects}, sort_keys=True, separators=(",", ":")))
+        return 0
+    canonical = all(project["contract"]["state"] in {"canonical", "adapter"} for project in report_projects)
+    ok = not any(f["level"] == "error" for f in findings) and (canonical or not args.require_canonical)
+    print(json.dumps({"checks": list(selected), "ok": ok, "projects": report_projects}, sort_keys=True, separators=(",", ":")))
+    return 0 if ok else 1
 
 
 if __name__ == "__main__":

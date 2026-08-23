@@ -5,6 +5,7 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import shutil
 
 import pytest
 
@@ -81,14 +82,14 @@ def test_doctor_reports_stable_json_and_boundaries(tmp_path):
 
 def test_case_fold_alias_and_symlink_root(tmp_path):
     root = project(tmp_path)
+    accepted = subprocess.run([str(CHECK), "--project-root", str(root), "--scope-file", "AGENTS.md", "--check", "instructions"], capture_output=True, text=True, check=False)
+    assert accepted.returncode == 0, accepted.stderr
     (root / "agents.md").write_text("other\n", encoding="utf-8")
     assert run("--project-root", str(root), "--check", "case-fold").returncode == 1
     outside = tmp_path / "outside.md"
     outside.write_text("x", encoding="utf-8")
     rejected = subprocess.run([str(CHECK), "--project-root", str(root), "--scope-file", str(outside)], capture_output=True, text=True, check=False)
     assert rejected.returncode == 2
-    accepted = subprocess.run([str(CHECK), "--project-root", str(root), "--scope-file", "AGENTS.md", "--check", "instructions"], capture_output=True, text=True, check=False)
-    assert accepted.returncode == 0, accepted.stderr
 
 
 def test_case_fold_alias_recognizes_case_insensitive_inodes():
@@ -117,11 +118,29 @@ def test_case_fold_alias_recognizes_case_insensitive_inodes():
 
 def test_case_conflict_and_scope_wrapper(tmp_path):
     root = project(tmp_path)
+    accepted = subprocess.run([str(CHECK), "--project-root", str(root), "--scope-file", "AGENTS.md", "--check", "instructions"], capture_output=True, text=True, check=False)
+    assert accepted.returncode == 0, accepted.stderr
     (root / "agents.md").write_text("other\n", encoding="utf-8")
     assert run("--project-root", str(root), "--check", "case-fold").returncode == 1
     outside = tmp_path / "outside.md"
     outside.write_text("x", encoding="utf-8")
     rejected = subprocess.run([str(CHECK), "--project-root", str(root), "--scope-file", str(outside)], capture_output=True, text=True, check=False)
     assert rejected.returncode == 2
-    accepted = subprocess.run([str(CHECK), "--project-root", str(root), "--scope-file", "AGENTS.md", "--check", "instructions"], capture_output=True, text=True, check=False)
-    assert accepted.returncode == 0, accepted.stderr
+
+
+def test_manifest_escape_and_skill_root_symlink_are_rejected(tmp_path):
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    root = project(workspace)
+    manifest = workspace / "repos.json"
+    manifest.write_text(json.dumps({"repositories": {"bad": "../../outside"}}), encoding="utf-8")
+    escaped = run("--manifest", "repos.json", "--workspace-root", str(workspace))
+    assert escaped.returncode == 2
+
+    shutil_target = workspace / "skills-target"
+    shutil_target.mkdir()
+    shutil.rmtree(root / ".agents" / "skills")
+    (root / ".agents" / "skills").symlink_to(shutil_target, target_is_directory=True)
+    symlinked = run("--project-root", str(root), "--check", "skills")
+    assert symlinked.returncode == 1
+    assert "skill_root_symlink" in symlinked.stdout

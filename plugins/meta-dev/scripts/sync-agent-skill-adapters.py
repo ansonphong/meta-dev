@@ -15,6 +15,8 @@ def files(root: Path): return sorted(p for p in root.rglob("*") if p.is_file())
 def expected(root: Path):
     source = root / ".agents" / "skills"
     output = {}
+    if source.is_symlink():
+        raise ValueError(f"skill root symlink forbidden: {source}")
     if source.exists():
         for path in files(source):
             if path.is_symlink(): raise ValueError(f"source symlink forbidden: {path}")

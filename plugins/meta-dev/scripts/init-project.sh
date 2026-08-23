@@ -9,6 +9,20 @@ PLUGIN_ROOT="$(_md_plugin_root)"
 DRY_RUN="${DRY_RUN:-false}"
 AUTO="${AUTO:-false}"
 
+# The doctor is the sole production contract classifier. Do this before any
+# bootstrap write so conflicts never leave a half-initialized project behind.
+CLASSIFICATION="$(python3 "$SCRIPT_DIR/agent-surface-doctor.py" --project-root "$(pwd -P)" --classify)"
+CONTRACT_STATE="$(python3 -c 'import json, sys; print(json.load(sys.stdin)["projects"][0]["contract"]["state"])' <<<"$CLASSIFICATION")"
+case "$CONTRACT_STATE" in
+  missing|canonical|adapter) ;;
+  compatibility) echo "Migration warning: legacy Claude contract detected; AGENTS.md is now canonical" ;;
+  casefold_alias|duplicate_copy|conflict)
+    echo "Refusing to initialize: contract discovery state is $CONTRACT_STATE" >&2
+    exit 1
+    ;;
+  *) echo "Refusing to initialize: unknown contract discovery state $CONTRACT_STATE" >&2; exit 1 ;;
+esac
+
 confirm() { [ "$AUTO" = "true" ] && return 0; read -r -p "$1 [y/N] " r; [[ "$r" =~ ^[Yy]$ ]]; }
 
 # Detect project name
@@ -59,7 +73,7 @@ if [ "$LEGACY_CLAUDE_INIT" = true ]; then
   [ -f .claude/meta-dev-repos.json ] || cp "$TEMPLATES_DIR/repo-topology.json" .claude/meta-dev-repos.json
 fi
 
-if [ ! -f AGENTS.md ]; then
+if [ "$CONTRACT_STATE" = "missing" ] || [ "$CONTRACT_STATE" = "compatibility" ]; then
   cat > AGENTS.md <<'EOF'
 # Project Agent Contract
 
@@ -68,10 +82,6 @@ This is the canonical project doctrine. Put durable routed context in
 directories are adapters and must not repeat these rules.
 EOF
   echo "Created AGENTS.md"
-fi
-
-if [ -f CLAUDE.md ] || { [ -f .claude/CLAUDE.md ] && ! grep -qxF '@../AGENTS.md' .claude/CLAUDE.md; }; then
-  echo "Migration warning: legacy CLAUDE contract detected; AGENTS.md is now canonical"
 fi
 
 # Append .gitignore entries

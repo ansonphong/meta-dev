@@ -28,3 +28,14 @@ def test_sync_mirrors_complete_skill_and_detects_edits(tmp_path):
     assert subprocess.run([sys.executable, str(SYNC), "--project-root", str(root), "--check"], check=False).returncode == 0
     (mirror / "SKILL.md").write_text("edited\n", encoding="utf-8")
     assert subprocess.run([sys.executable, str(SYNC), "--project-root", str(root), "--check"], check=False).returncode == 1
+
+
+def test_sync_rejects_symlinked_skill_root(tmp_path):
+    root = tmp_path / "project"
+    target = tmp_path / "target"
+    target.mkdir()
+    (root / ".agents").mkdir(parents=True)
+    (root / ".agents" / "skills").symlink_to(target, target_is_directory=True)
+    result = subprocess.run([sys.executable, str(SYNC), "--project-root", str(root)], capture_output=True, text=True, check=False)
+    assert result.returncode == 1
+    assert "skill root symlink forbidden" in result.stderr
