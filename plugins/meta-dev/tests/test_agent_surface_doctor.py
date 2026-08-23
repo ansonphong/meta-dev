@@ -96,7 +96,7 @@ def test_case_fold_alias_recognizes_case_insensitive_inodes():
     if not mount.is_dir():
         pytest.skip("/mnt/d is not available for case-insensitive alias fixture")
     with tempfile.TemporaryDirectory(dir=mount, prefix="agent-surface-doctor-") as tmp_root:
-        root = project(Path(tmp_root) / "project")
+        root = project(Path(tmp_root))
         agents = root / "AGENTS.md"
         alias = root / "agents.md"
         alias.write_text(agents.read_text(encoding="utf-8"), encoding="utf-8")
