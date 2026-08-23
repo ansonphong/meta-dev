@@ -77,8 +77,12 @@ def check_project(name, root, selected, manifest_data=None):
             if path.is_symlink() and (path.name.casefold() in {"agents.md", "claude.md"} or "agent-context" in path.parts):
                 add(findings, "error", "instruction_symlink", path, "instruction and context symlinks are forbidden")
     if "case-fold" in selected:
-        candidates = [p for p in root.iterdir() if p.name.casefold() == "agents.md"]
+        candidates = {p for p in root.iterdir() if p.name.casefold() == "agents.md"}
         if agents.exists():
+            for alias_name in {agents.name.lower(), agents.name.upper()}:
+                alias = agents.with_name(alias_name)
+                if alias.is_file() and not alias.is_symlink():
+                    candidates.add(alias)
             for other in candidates:
                 if other == agents:
                     continue
