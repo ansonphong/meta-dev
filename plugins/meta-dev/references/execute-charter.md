@@ -83,7 +83,7 @@ ordinary fixer exhaustion into a whole-run STOP.
 
 **Do not write a test for every task.** Most tasks verify by their cheap `Verify-After` check (build passes, grep is clean, run-by-eye) — not by an authored test. Governed by `meta_dev.execute.test_policy` (default `critical-only`):
 
-- **`critical-only` (default)** — a written test is generated/run ONLY for **critical-breakage** tasks: data-corruption paths, auth/crypto verification, payment/value transfer, DB migration, serialization round-trip, cross-service API contract (refined by the host `CLAUDE.md` testing policy if it names specific critical surfaces). Every other task is verified by its Verify command alone.
+- **`critical-only` (default)** — a written test is generated/run ONLY for **critical-breakage** tasks: data-corruption paths, auth/crypto verification, payment/value transfer, DB migration, serialization round-trip, cross-service API contract (refined by the host `AGENTS.md` testing policy if it names specific critical surfaces). Every other task is verified by its Verify command alone.
 - **`tdd-all`** — legacy: every task runs the full failing-test-first TDD cycle.
 - **`none`** — no authored tests; verify by cheap checks only.
 
@@ -134,7 +134,7 @@ There is no broad acceptance sweep to make the focused results "more green."
 
 ## Conductor law — this thread does not implement
 
-The `/meta-execute` conductor does **not** implement plan tasks. Each verifiable checkbox is a fresh host-native subagent (Grok Build → `spawn_subagent`; Claude Code → `Agent`, or pooled Grok if host `CLAUDE.md` says so; Codex → spark mechanical / sol hard). **Farm pieces to Grok subagents** so the conductor context stays verdicts. Shape each brief for that backend (`references/execute-briefs.md`). The worker commits its own edits. The conductor reads a one-line result and flips `task-done`. `--inline` is the only exception, and only when the user passed it. Missing a worker primitive is a bug in the host table, not permission to type the plan on this thread. When unsure, spawn. Stay native only for **this thread's** slash palette (Claude, Grok, and Codex interactive hosts all have meta-dev), vision, a true one-liner, permission/stage gates, and integrating that one-line return. Headless Grok/Codex get a direct task, not a Claude slash — `references/work-ladder.md` → *Who has meta-dev*.
+The `/meta-execute` conductor does **not** implement plan tasks. Each verifiable checkbox is a fresh host-native subagent (Grok Build → `spawn_subagent`; Claude Code → `Agent`, or pooled Grok if the host `AGENTS.md` says so; Codex → spark mechanical / sol hard). **Farm pieces to Grok subagents** so the conductor context stays verdicts. Shape each brief for that backend (`references/execute-briefs.md`). The worker commits its own edits. The conductor reads a one-line result and flips `task-done`. `--inline` is the only exception, and only when the user passed it. Missing a worker primitive is a bug in the host table, not permission to type the plan on this thread. When unsure, spawn. Stay native only for **this thread's** slash palette (Claude, Grok, and Codex interactive hosts all have meta-dev), vision, a true one-liner, permission/stage gates, and integrating that one-line return. Headless Grok/Codex get a direct task, not a Claude slash — `references/work-ladder.md` → *Who has meta-dev*.
 
 ## Anti-Paranoia Charter
 

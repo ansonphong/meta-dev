@@ -25,6 +25,17 @@ def within(root: Path, candidate: Path) -> bool:
     return candidate == root or root in candidate.parents
 
 
+def resolve_workspace_manifest(workspace_root: str, manifest_value: str) -> tuple[Path, Path]:
+    workspace = Path(workspace_root).resolve()
+    manifest = Path(manifest_value)
+    if manifest.is_absolute():
+        raise ValueError("--manifest must be workspace-relative")
+    target = (workspace / manifest).resolve()
+    if not within(workspace, target):
+        raise ValueError("--manifest resolves outside workspace root")
+    return workspace, target
+
+
 def classify_contract(root: Path) -> dict:
     """Classify discovery inputs once for doctor, wrappers, and initializer."""
     canonical = root / "AGENTS.md"
@@ -85,11 +96,8 @@ def classify_contract(root: Path) -> dict:
 def projects(args):
     if args.project_root:
         return [("project", Path(args.project_root).resolve())]
-    manifest = Path(args.manifest)
-    if manifest.is_absolute():
-        raise ValueError("--manifest must be workspace-relative")
-    workspace = Path(args.workspace_root).resolve()
-    data = json.loads((workspace / manifest).read_text(encoding="utf-8"))
+    workspace, manifest = resolve_workspace_manifest(args.workspace_root, args.manifest)
+    data = json.loads(manifest.read_text(encoding="utf-8"))
     repos = data.get("repositories", data.get("projects", {}))
     if not isinstance(repos, dict):
         raise ValueError("manifest repositories must be an object")
@@ -232,7 +240,8 @@ def main(argv=None):
     try:
         manifest_data = None
         if args.manifest:
-            manifest_data = json.loads((Path(args.workspace_root).resolve() / args.manifest).read_text(encoding="utf-8"))
+            _, manifest = resolve_workspace_manifest(args.workspace_root, args.manifest)
+            manifest_data = json.loads(manifest.read_text(encoding="utf-8"))
         report_projects = [check_project(name, root, selected, manifest_data) for name, root in projects(args)]
     except (ValueError, OSError, json.JSONDecodeError) as exc:
         parser.error(str(exc))

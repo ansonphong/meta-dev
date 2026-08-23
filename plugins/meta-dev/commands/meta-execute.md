@@ -40,7 +40,7 @@ Stay on this thread only for: the slash harness, vision, a true one-liner (one k
 
 ### Host dispatch (unflagged)
 
-Read host `CLAUDE.md` and `references/work-ladder.md`. If the host names a pooled worker (Claude Code on this 360-Hextile tree → Grok), use that instead of a same-family Agent. Otherwise use the table. Never fall through to this thread.
+Read the host root `AGENTS.md` and `references/work-ladder.md`. If the host names a pooled worker (Claude Code on this 360-Hextile tree → Grok), use that instead of a same-family Agent. Otherwise use the table. Never fall through to this thread.
 
 | This host | Per-checkbox worker | How |
 |-----------|---------------------|-----|
@@ -168,7 +168,7 @@ Drain every in-flight **focused** verifier. Finish or park causally red branches
 
 ### 6. Mandatory code review (`--review`)
 
-A run NEVER ends unreviewed. Honor `--review` (default `auto` — see cadence table). Do **not** use `superpowers:requesting-code-review`; it is superseded (see the host `CLAUDE.md` → Superpowers & Plan Mode).
+A run NEVER ends unreviewed. Honor `--review` (default `auto` — see cadence table). Do **not** use `superpowers:requesting-code-review`; it is superseded by `meta-dev:review-agent`.
 
 - **`each`:** already satisfied by the per-task hop in step 4.7. The last task's hop is the closing review (no extra end-of-run pass).
 - **`phase`:** host-native review-agent at each `## Phase N` (once at end if phase-less). The final phase review IS the closing review.
@@ -215,7 +215,7 @@ ALWAYS end with this structured dashboard. The report MUST include every section
 
 | Flag | Effect |
 |------|--------|
-| *(no tier flag)* | **Default — host-native subagent per checkbox, never this thread.** Grok Build → `spawn_subagent`; Claude Code → `Agent` (or pooled Grok if host `CLAUDE.md` / work-ladder says so); Codex → spark mechanical / sol hard. See Host dispatch. Every tier flag below is an explicit *foreign* opt-in; which backends are auto-selectable is `meta_dev.ladder.pool` (`references/work-ladder.md`) |
+| *(no tier flag)* | **Default — host-native subagent per checkbox, never this thread.** Grok Build → `spawn_subagent`; Claude Code → `Agent` (or pooled Grok if the host `AGENTS.md` / work-ladder says so); Codex → spark mechanical / sol hard. See Host dispatch. Every tier flag below is an explicit *foreign* opt-in; which backends are auto-selectable is `meta_dev.ladder.pool` (`references/work-ladder.md`) |
 | `--inline` | Main-thread execution, no subagents. **Only when the user passed it.** Never infer it. |
 | `--review each\|phase\|end\|auto` | Review cadence. Default `auto` (`phase` if ≥2 phases, else `end`; `each` on critical-risk tasks). `each` = one task at a time + review hop (no parallel dispatch). |
 | `--strict` | Serialize focused verification and repair. It never authorizes broad tests, never reruns green, and never turns BASELINE_RED/broad/manual evidence into a task or whole-run blocker. Disjoint READY tasks may still run in parallel. |

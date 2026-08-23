@@ -19,6 +19,7 @@ FORBIDDEN = (
     "Read CLAUDE.md",
     "target repo's `CLAUDE.md`",
     "CLAUDE.md →",
+    "host `CLAUDE.md`",
 )
 
 LIVE_ROOTS = (

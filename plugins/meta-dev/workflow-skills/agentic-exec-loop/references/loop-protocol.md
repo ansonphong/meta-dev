@@ -10,7 +10,7 @@ releases usable artifacts once, while failure containment follows branches.
 - **Worker** — **unflagged = host-native subagent per checkbox, never the conductor thread** (the default): in **Grok Build** a `spawn_subagent`
   (`general-purpose`, inherit model, `background`, `capability_mode: all`) with
   git bans + commit-on-red in the brief; in Claude Code a native `Agent`/Task
-  subagent (or pooled Grok if host `CLAUDE.md` / work-ladder says so); in Codex
+  subagent (or pooled Grok if the host `AGENTS.md` / work-ladder says so); in Codex
   native delegation via `codex exec` — **spark / low** for mechanical (separate
   weekly quota from gpt-5.6), **`gpt-5.6-sol` / high** for cross-module,
   security, migration, or ambiguous root cause. `--inline` is the only

@@ -35,7 +35,7 @@ Patterns are discovered by downstream commands (loop-gap, meta-eval, meta-execut
 ### LP-004: Framework/idiom version awareness — match the target file's existing conventions before generating code
 - **Source:** loop-gap (seen 4x across multiple plans)
 - **Added:** 2026-03-28
-- **Rule:** Before generating code in an existing file, inspect which framework idioms / API version it uses (e.g. reactivity model, module/import syntax, component pattern, ORM style) and match it. New files follow the project's current standard as documented in the host CLAUDE.md. Never mix an old and a new idiom in the same file.
+- **Rule:** Before generating code in an existing file, inspect which framework idioms / API version it uses (e.g. reactivity model, module/import syntax, component pattern, ORM style) and match it. New files follow the project's current standard as documented in the host `AGENTS.md`. Never mix an old and a new idiom in the same file.
 - **Applies to:** During phase file generation (Stage 2) for any framework-coupled source file.
 
 ### LP-005: When a task IS test-worthy, the test should cover edge + error paths — but most tasks are not test-worthy

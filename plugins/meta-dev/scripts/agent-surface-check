@@ -19,6 +19,9 @@ if args.manifest:
     manifest = Path(args.manifest)
     if manifest.is_absolute():
         parser.error("--manifest must be workspace-relative")
+    manifest_target = (root / manifest).resolve()
+    if root != manifest_target and root not in manifest_target.parents:
+        parser.error("--manifest resolves outside workspace root")
 if not args.scope_file:
     parser.error("one or more --scope-file values are required")
 for value in args.scope_file:

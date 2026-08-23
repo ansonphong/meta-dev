@@ -114,7 +114,7 @@ TEST DISCIPLINE (hard rule — every cycle must be CHEAP):
   - Hard rule #2: `No new test for this task — verify by the declared Verify command (build / grep / run / by-eye). Do not author a test.`
   - Step 2: `No test step — go straight to implementation. (Verify via step 6.)`
 
-**What counts as `test: yes` (critical-breakage):** data corruption paths, auth/crypto verification, payment/value transfer, DB migration, serialization round-trip, cross-service API contract — refined by the host `CLAUDE.md` testing policy if it names specific critical surfaces. Everything else is `test: no`. When in doubt, prefer `test: no` and lean on the Verify command — fewer tests is the intended posture.
+**What counts as `test: yes` (critical-breakage):** data corruption paths, auth/crypto verification, payment/value transfer, DB migration, serialization round-trip, cross-service API contract — refined by the host `AGENTS.md` testing policy if it names specific critical surfaces. Everything else is `test: no`. When in doubt, prefer `test: no` and lean on the Verify command — fewer tests is the intended posture.
 
 ## Risk-tag clauses
 
@@ -192,7 +192,7 @@ debt cannot prevent review. This is NON-NEGOTIABLE — every `/meta-execute` run
 ends with an independent code review. No skip conditions.
 
 1. Collect the full run diff: `git log --oneline <start-sha>..HEAD` then `git diff <start-sha>..HEAD`.
-2. **Dispatch the `meta-dev:review-agent` Opus subagent** over the full run diff — it computes its own diff and returns a structured verdict, so the conductor never reads the diff itself. (This replaces `superpowers:requesting-code-review`, which is superseded — host `CLAUDE.md` → Superpowers & Plan Mode. `review-agent` also reports unfiltered findings, where the superpowers path and `feature-dev:code-reviewer` filter by severity and silently drop real ones.)
+2. **Dispatch the `meta-dev:review-agent` Opus subagent** over the full run diff — it computes its own diff and returns a structured verdict, so the conductor never reads the diff itself. (This replaces `superpowers:requesting-code-review`. `review-agent` also reports unfiltered findings, where the superpowers path and `feature-dev:code-reviewer` filter by severity and silently drop real ones.)
 3. Route findings per the review's verdict:
    - **Trivial/mechanical** (lint, format, missing annotation) → fix inline and
      exact-path local commit, then re-run the affected verification and code

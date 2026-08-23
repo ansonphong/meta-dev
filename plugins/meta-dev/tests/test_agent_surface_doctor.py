@@ -138,6 +138,18 @@ def test_manifest_escape_and_skill_root_symlink_are_rejected(tmp_path):
     escaped = run("--manifest", "repos.json", "--workspace-root", str(workspace))
     assert escaped.returncode == 2
 
+    outside_manifest = tmp_path / "outside.json"
+    outside_manifest.write_text(json.dumps({"repositories": {}}), encoding="utf-8")
+    direct_escape = run("--manifest", "../outside.json", "--workspace-root", str(workspace))
+    assert direct_escape.returncode == 2
+    wrapped_escape = subprocess.run(
+        [str(CHECK), "--manifest", "../outside.json", "--workspace-root", str(workspace), "--scope-file", "AGENTS.md"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert wrapped_escape.returncode == 2
+
     shutil_target = workspace / "skills-target"
     shutil_target.mkdir()
     shutil.rmtree(root / ".agents" / "skills")
