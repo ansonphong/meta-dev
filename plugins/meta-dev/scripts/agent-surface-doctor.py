@@ -10,6 +10,8 @@ from pathlib import Path
 import re
 import sys
 
+import yaml
+
 CHECKS = ("inventory", "instructions", "context", "skills", "adapters", "capabilities", "case-fold", "legacy-references")
 ALLOWED_DISPOSITIONS = {
     "canonical",
@@ -19,6 +21,31 @@ ALLOWED_DISPOSITIONS = {
     "personal_local_overlay",
     "retired",
 }
+SKILL_FRONTMATTER_FIELDS = {"name", "description", "license", "compatibility", "metadata", "allowed-tools"}
+SKILL_RESOURCE_ROOTS = {"scripts", "references", "assets"}
+SKILL_NAME_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+MARKDOWN_LINK_RE = re.compile(r"!?\[[^\]]*\]\(([^)]+)\)")
+
+
+class DuplicateKeySafeLoader(yaml.SafeLoader):
+    """Safe YAML loader that rejects duplicate keys at every mapping level."""
+
+
+def construct_unique_mapping(loader, node, deep=False):
+    mapping = {}
+    for key_node, value_node in node.value:
+        key = loader.construct_object(key_node, deep=deep)
+        if not isinstance(key, str):
+            raise yaml.YAMLError("mapping keys must be strings")
+        if key in mapping:
+            raise yaml.YAMLError(f"duplicate mapping key: {key}")
+        mapping[key] = loader.construct_object(value_node, deep=deep)
+    return mapping
+
+
+DuplicateKeySafeLoader.add_constructor(
+    yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, construct_unique_mapping
+)
 
 
 def digest(path: Path) -> str:
@@ -78,6 +105,107 @@ def canonical_skill_tree(root: Path, source: Path) -> tuple[dict[str, str], set[
         elif path.is_file() and not path.is_symlink():
             files[relative] = digest(path)
     return files, directories
+
+
+def skill_frontmatter_and_body(marker: Path) -> tuple[dict, str]:
+    """Read one canonical SKILL.md with an explicit YAML frontmatter fence."""
+    text = marker.read_text(encoding="utf-8")
+    if not text.startswith("---\n"):
+        raise ValueError("SKILL.md requires YAML frontmatter starting on line one")
+    closing = text.find("\n---\n", 4)
+    if closing < 0:
+        raise ValueError("SKILL.md requires a closing YAML frontmatter fence")
+    frontmatter = text[4:closing]
+    body = text[closing + 5:]
+    data = yaml.load(frontmatter, Loader=DuplicateKeySafeLoader)
+    if not isinstance(data, dict):
+        raise ValueError("SKILL.md frontmatter must be a YAML mapping")
+    return data, body
+
+
+def local_markdown_targets(body: str):
+    """Yield portable local Markdown link targets, skipping URLs and anchors."""
+    for match in MARKDOWN_LINK_RE.finditer(body):
+        target = match.group(1).strip()
+        if target.startswith("<") and target.endswith(">"):
+            target = target[1:-1].strip()
+        target = target.split(maxsplit=1)[0]
+        path = target.split("#", 1)[0].split("?", 1)[0]
+        if not path or path.startswith("/") or re.match(r"^[A-Za-z][A-Za-z0-9+.-]*:", path):
+            continue
+        yield path
+
+
+def validate_skill_abi(root: Path, skill: Path, findings) -> None:
+    """Validate the portable Agent Skills ABI for one canonical skill."""
+    marker = skill / "SKILL.md"
+    if not skill.is_dir() or skill.is_symlink() or not marker.is_file() or marker.is_symlink():
+        add(findings, "error", "skill_abi", skill, "skill requires a regular SKILL.md")
+        return
+
+    entries = list(skill.iterdir())
+    for entry in entries:
+        if entry.name == "SKILL.md":
+            continue
+        if entry.name not in SKILL_RESOURCE_ROOTS or not entry.is_dir() or entry.is_symlink():
+            add(findings, "error", "skill_abi", entry, "canonical skill entries must be SKILL.md, scripts/, references/, or assets/")
+
+    try:
+        frontmatter, body = skill_frontmatter_and_body(marker)
+    except (OSError, UnicodeDecodeError, ValueError, yaml.YAMLError) as error:
+        add(findings, "error", "skill_abi", marker, f"invalid portable SKILL.md frontmatter: {error}")
+        frontmatter, body = None, ""
+
+    if frontmatter is not None:
+        unexpected = sorted(set(frontmatter) - SKILL_FRONTMATTER_FIELDS)
+        if unexpected:
+            add(findings, "error", "skill_abi", marker, f"canonical frontmatter has non-standard fields: {', '.join(unexpected)}")
+        name = frontmatter.get("name")
+        if not isinstance(name, str) or not (1 <= len(name) <= 64) or not SKILL_NAME_RE.fullmatch(name):
+            add(findings, "error", "skill_abi", marker, "frontmatter name must be 1-64 lowercase letters, numbers, or single hyphens")
+        elif name != skill.name:
+            add(findings, "error", "skill_abi", marker, "frontmatter name must match the skill directory name")
+        description = frontmatter.get("description")
+        if not isinstance(description, str) or not (1 <= len(description) <= 1024):
+            add(findings, "error", "skill_abi", marker, "frontmatter description must be a non-empty string no longer than 1,024 characters")
+        license_value = frontmatter.get("license")
+        if license_value is not None and (not isinstance(license_value, str) or not license_value.strip()):
+            add(findings, "error", "skill_abi", marker, "frontmatter license must be a non-empty string when provided")
+        compatibility = frontmatter.get("compatibility")
+        if compatibility is not None and (not isinstance(compatibility, str) or not (1 <= len(compatibility) <= 500)):
+            add(findings, "error", "skill_abi", marker, "frontmatter compatibility must be a 1-500 character string when provided")
+        metadata = frontmatter.get("metadata")
+        if metadata is not None and (
+            not isinstance(metadata, dict)
+            or not all(isinstance(key, str) and isinstance(value, str) for key, value in metadata.items())
+        ):
+            add(findings, "error", "skill_abi", marker, "frontmatter metadata must map string keys to string values")
+        allowed_tools = frontmatter.get("allowed-tools")
+        if allowed_tools is not None and (not isinstance(allowed_tools, str) or not allowed_tools.strip()):
+            add(findings, "error", "skill_abi", marker, "frontmatter allowed-tools must be a non-empty string when provided")
+
+        if not body.strip():
+            add(findings, "error", "skill_abi", marker, "SKILL.md requires a non-empty Markdown body")
+        arguments = re.search(r"(?m)^## Arguments\s*$", body)
+        if not arguments:
+            add(findings, "error", "skill_abi", marker, "SKILL.md body requires a portable ## Arguments section")
+        else:
+            section = body[arguments.end():]
+            section = re.split(r"(?m)^##(?:\s|$)", section, maxsplit=1)[0]
+            if not section.strip():
+                add(findings, "error", "skill_abi", marker, "## Arguments must state accepted arguments or None")
+
+        for target in local_markdown_targets(body):
+            candidate = skill / target
+            resolved = candidate.resolve()
+            if not within(skill.resolve(), resolved):
+                add(findings, "error", "skill_abi", marker, f"local skill link escapes the skill root: {target}")
+            elif not candidate.exists() or candidate.is_symlink() or first_repository_symlink(root, candidate):
+                add(findings, "error", "skill_abi", marker, f"local skill link must resolve to a regular in-skill resource: {target}")
+
+    for item in tree_entries(skill):
+        if item.is_symlink():
+            add(findings, "error", "skill_symlink", item, "skill resources cannot be symlinks")
 
 
 def resolve_workspace_manifest(workspace_root: str, manifest_value: str) -> tuple[Path, Path]:
@@ -389,16 +517,7 @@ def check_project(name, root, selected, manifest_data=None):
             add(findings, "error", "skill_root", source, "canonical skill root must be a directory")
         elif source.exists():
             for skill in sorted(source.iterdir()):
-                marker = skill / "SKILL.md"
-                if not skill.is_dir() or skill.is_symlink() or not marker.is_file() or marker.is_symlink():
-                    add(findings, "error", "skill_abi", skill, "skill requires a regular SKILL.md")
-                    continue
-                text = marker.read_text(encoding="utf-8", errors="ignore")
-                if not text.startswith("---\n") or "\n---\n" not in text:
-                    add(findings, "error", "skill_abi", marker, "SKILL.md requires YAML frontmatter")
-                for item in skill.rglob("*"):
-                    if item.is_symlink():
-                        add(findings, "error", "skill_symlink", item, "skill resources cannot be symlinks")
+                validate_skill_abi(root, skill, findings)
     if "adapters" in selected:
         adapter_root = root / ".claude" / "skills"
         manifest = adapter_root / ".agent-skill-adapters.json"

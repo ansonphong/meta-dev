@@ -25,7 +25,11 @@ def project(tmp_path: Path) -> Path:
     (root / "docs" / "agent-context").mkdir(parents=True)
     (root / "docs" / "agent-context" / "note.md").write_text("context\n", encoding="utf-8")
     (root / ".agents" / "skills" / "demo" / "references").mkdir(parents=True)
-    (root / ".agents" / "skills" / "demo" / "SKILL.md").write_text("---\nname: demo\n---\nbody\n", encoding="utf-8")
+    (root / ".agents" / "skills" / "demo" / "SKILL.md").write_text(
+        "---\nname: demo\ndescription: Demonstrates the portable skill ABI for fixture tests.\n---\n"
+        "# Demo\n\n## Arguments\n\nNone\n\nSee [the note](references/note.md).\n",
+        encoding="utf-8",
+    )
     (root / ".agents" / "skills" / "demo" / "references" / "note.md").write_text("x\n", encoding="utf-8")
     return root
 
@@ -102,6 +106,42 @@ def test_doctor_reports_stable_json_and_boundaries(tmp_path):
     at_report = json.loads(at_char_limit.stdout)
     assert at_report["projects"][0]["agents"]["characters"] == 40000
     assert any(finding["code"] == "agents_characters" for finding in at_report["projects"][0]["findings"])
+
+
+def test_doctor_enforces_portable_skill_abi_and_resource_links(tmp_path):
+    root = project(tmp_path)
+    skill = root / ".agents" / "skills" / "demo"
+
+    valid = run("--project-root", str(root), "--check", "skills")
+    assert valid.returncode == 0, valid.stderr
+
+    cases = {
+        "missing-description": "---\nname: demo\n---\n# Demo\n\n## Arguments\n\nNone\n",
+        "bad-name": "---\nname: Demo--skill\ndescription: A valid description.\n---\n# Demo\n\n## Arguments\n\nNone\n",
+        "wrong-directory": "---\nname: other\ndescription: A valid description.\n---\n# Demo\n\n## Arguments\n\nNone\n",
+        "host-only": "---\nname: demo\ndescription: A valid description.\nargument-hint: nope\n---\n# Demo\n\n## Arguments\n\nNone\n",
+        "duplicate": "---\nname: demo\nname: demo\ndescription: A valid description.\n---\n# Demo\n\n## Arguments\n\nNone\n",
+        "no-arguments": "---\nname: demo\ndescription: A valid description.\n---\n# Demo\n\nInstructions.\n",
+        "escape-link": "---\nname: demo\ndescription: A valid description.\n---\n# Demo\n\n## Arguments\n\nNone\n\n[bad](../outside.md)\n",
+        "missing-link": "---\nname: demo\ndescription: A valid description.\n---\n# Demo\n\n## Arguments\n\nNone\n\n[bad](references/missing.md)\n",
+    }
+    marker = skill / "SKILL.md"
+    for label, content in cases.items():
+        marker.write_text(content, encoding="utf-8")
+        result = run("--project-root", str(root), "--check", "skills")
+        assert result.returncode == 1, (label, result.stderr)
+        assert "skill_abi" in result.stdout, label
+
+    marker.write_text(
+        "---\nname: demo\ndescription: A valid description.\nlicense: MIT\n"
+        "compatibility: Requires Python.\nmetadata:\n  author: fixture\n  version: '1'\n"
+        "allowed-tools: Read\n---\n# Demo\n\n## Arguments\n\nNone\n",
+        encoding="utf-8",
+    )
+    (skill / "unexpected.txt").write_text("not a portable resource root\n", encoding="utf-8")
+    unexpected = run("--project-root", str(root), "--check", "skills")
+    assert unexpected.returncode == 1
+    assert "skill_abi" in unexpected.stdout
 
 
 def test_case_fold_alias_and_symlink_root(tmp_path):

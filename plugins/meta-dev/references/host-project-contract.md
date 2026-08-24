@@ -61,12 +61,24 @@ endpoints, or platform details.
 ## Canonical skill ABI
 
 `.agents/skills/<name>/` is canonical. Each skill has a regular `SKILL.md`
-with YAML frontmatter and body. The frontmatter uses common identity and
-argument fields; the body states accepted arguments. Optional `scripts/`,
-`references/`, and `assets/` directories are resource roots. All links and
-paths are relative to the skill directory. Symlinks are forbidden in canonical
-or generated skills. Host-only discovery metadata stays in a generated host
-adapter, never in the canonical skill.
+with standard Agent Skills YAML frontmatter and a nonempty Markdown body.
+Frontmatter requires `name` and `description`. `name` is 1-64 lowercase ASCII
+letters, numbers, and single hyphens; it cannot start or end with a hyphen and
+must match the directory name. `description` is a nonempty string of at most
+1,024 characters. The only optional portable fields are `license`,
+`compatibility` (1-500 characters), `metadata` (string-to-string mapping), and
+experimental `allowed-tools` (a nonempty string). `allowed-tools` is optional,
+not a universal requirement. Duplicate YAML keys, non-standard top-level
+fields, and host-only metadata are invalid in a canonical skill.
+
+The Markdown body must declare accepted input under `## Arguments`; it states
+`None` when the skill accepts no arguments. The only top-level canonical skill
+entries are `SKILL.md`, `scripts/`, `references/`, and `assets/`. The latter
+three are optional directory resource roots. Markdown local links must use
+relative paths that resolve to existing resources within the skill directory.
+Symlinks and root escapes are forbidden in canonical or generated skills.
+Host-only discovery metadata stays in a generated host adapter, never in the
+canonical skill.
 
 `sync-agent-skill-adapters.py` copies complete canonical directories into
 `.claude/skills/` and records SHA-256 values in
