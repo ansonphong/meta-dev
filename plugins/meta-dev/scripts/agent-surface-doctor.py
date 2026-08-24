@@ -11,6 +11,14 @@ import re
 import sys
 
 CHECKS = ("inventory", "instructions", "context", "skills", "adapters", "capabilities", "case-fold", "legacy-references")
+ALLOWED_DISPOSITIONS = {
+    "canonical",
+    "generated_adapter",
+    "host_runtime",
+    "historical_artifact",
+    "personal_local_overlay",
+    "retired",
+}
 
 
 def digest(path: Path) -> str:
@@ -52,15 +60,24 @@ def tree_entries(root: Path):
             yield from tree_entries(entry)
 
 
-def implied_parent_directories(paths: set[str]) -> set[str]:
-    """Return the adapter-relative directories required by declared files."""
-    parents = set()
-    for value in paths:
-        parent = Path(value).parent
-        while parent != Path("."):
-            parents.add(parent.as_posix())
-            parent = parent.parent
-    return parents
+def canonical_skill_tree(root: Path, source: Path) -> tuple[dict[str, str], set[str]]:
+    """Return canonical adapter files and every descendant directory.
+
+    The directory set intentionally includes empty resource directories.  It is
+    relative to ``.agents/skills`` so it has the same stable shape as the
+    generated ``.claude/skills`` mirror and its manifest.
+    """
+    if not source.is_dir() or first_repository_symlink(root, source):
+        return {}, set()
+    files = {}
+    directories = set()
+    for path in tree_entries(source):
+        relative = path.relative_to(source).as_posix()
+        if path.is_dir() and not path.is_symlink():
+            directories.add(relative)
+        elif path.is_file() and not path.is_symlink():
+            files[relative] = digest(path)
+    return files, directories
 
 
 def resolve_workspace_manifest(workspace_root: str, manifest_value: str) -> tuple[Path, Path]:
@@ -186,6 +203,89 @@ def resolve_scope_files(args, report_projects) -> list[str]:
     return resolved
 
 
+def nonempty_string(value) -> bool:
+    return isinstance(value, str) and bool(value.strip())
+
+
+def validate_capability_matrix(manifest_data: dict, repository_ids) -> list[str]:
+    """Validate the committed host-discovery contract without host probes."""
+    errors = []
+    matrix = manifest_data.get("host_capability_matrix")
+    if not isinstance(matrix, dict):
+        return ["manifest lacks a valid host capability matrix"]
+
+    official = matrix.get("official_discovery_semantics")
+    official_ok = isinstance(official, dict)
+    if not official_ok:
+        errors.append("official_discovery_semantics must be an object")
+    else:
+        for host in ("codex", "claude_code", "grok"):
+            details = official.get(host)
+            if not isinstance(details, dict) or not all(nonempty_string(details.get(field)) for field in ("source", "behavior")):
+                errors.append(f"official_discovery_semantics.{host} requires non-empty source and behavior strings")
+
+    live = matrix.get("live_grok_inspect")
+    live_ok = isinstance(live, dict)
+    live_valid = live_ok
+    if not live_ok:
+        errors.append("live_grok_inspect must be an object")
+    else:
+        for field in ("command", "version", "workspace_relative_cwd", "settings_source", "skills_summary", "observed_on"):
+            if not nonempty_string(live.get(field)):
+                errors.append(f"live_grok_inspect.{field} must be a non-empty string")
+                live_valid = False
+        instructions = live.get("project_instructions")
+        if not isinstance(instructions, list) or not instructions or not all(nonempty_string(value) for value in instructions):
+            errors.append("live_grok_inspect.project_instructions must be a non-empty string list")
+            live_valid = False
+        elif not any("AGENTS.md" in value for value in instructions) or not any("CLAUDE.md" in value for value in instructions):
+            errors.append("live_grok_inspect.project_instructions must record AGENTS.md and CLAUDE.md compatibility")
+            live_valid = False
+
+    aliases = matrix.get("case_folded_aliases")
+    expected_ids = {str(identifier) for identifier in repository_ids}
+    if not isinstance(aliases, dict) or set(aliases) != expected_ids:
+        errors.append("case_folded_aliases must contain exactly one entry per manifest repository")
+    elif isinstance(aliases, dict):
+        for identifier in sorted(expected_ids):
+            alias = aliases[identifier]
+            if not isinstance(alias, dict) or alias.get("case_fold") != identifier.casefold() or alias.get("classification") != "unique_ascii_lowercase":
+                errors.append(f"case_folded_aliases.{identifier} must match its repository id")
+
+    entries = manifest_data.get("entries")
+    if not isinstance(entries, list):
+        return errors + ["entries must be a list for capability validation"]
+    settings_source = live.get("settings_source") if live_ok and nonempty_string(live.get("settings_source")) else None
+    grok_contract_ready = official_ok and isinstance(official.get("grok"), dict) and all(
+        nonempty_string(official["grok"].get(field)) for field in ("source", "behavior")
+    ) and live_valid
+    for entry in entries:
+        if not isinstance(entry, dict):
+            errors.append("inventory entry must be an object")
+            continue
+        path = entry.get("path")
+        consumers = entry.get("consumers")
+        grok_consumer = isinstance(consumers, list) and any(
+            isinstance(consumer, str) and consumer.casefold() == "grok" for consumer in consumers
+        )
+        if grok_consumer and not grok_contract_ready:
+            errors.append(f"inventory entry {path!r} claims Grok consumption without a valid Grok matrix")
+        if not isinstance(path, str) or not path.startswith((".claude/", ".grok/", ".agents/")):
+            continue
+        grok_compatibility = entry.get("grok_compatibility")
+        disposition = entry.get("disposition")
+        if not nonempty_string(grok_compatibility):
+            errors.append(f"vendor entry {path} requires grok_compatibility")
+        if not isinstance(consumers, list) or not all(isinstance(consumer, str) for consumer in consumers):
+            errors.append(f"vendor entry {path} requires a string-list consumers field")
+            consumers = []
+        if disposition not in ALLOWED_DISPOSITIONS:
+            errors.append(f"vendor entry {path} has an invalid disposition")
+        if entry.get("tracked") is True and (path == settings_source or path.startswith(".claude/commands/")) and not grok_consumer:
+            errors.append(f"tracked Grok-discovered entry {path} must include Grok as a consumer")
+    return errors
+
+
 def check_project(name, root, selected, manifest_data=None):
     findings = []
     contract = classify_contract(root)
@@ -278,10 +378,7 @@ def check_project(name, root, selected, manifest_data=None):
         adapter_root = root / ".claude" / "skills"
         manifest = adapter_root / ".agent-skill-adapters.json"
         source = root / ".agents" / "skills"
-        canonical_files = (
-            {str(p.relative_to(source)): digest(p) for p in source.rglob("*") if p.is_file() and not p.is_symlink()}
-            if source.is_dir() and not first_repository_symlink(root, source) else {}
-        )
+        canonical_files, canonical_directories = canonical_skill_tree(root, source)
         if not first_repository_symlink(root, source) and source.exists() and not source.is_dir():
             add(findings, "error", "skill_root", source, "canonical skill root must be a directory")
         if first_repository_symlink(root, adapter_root):
@@ -298,18 +395,32 @@ def check_project(name, root, selected, manifest_data=None):
             elif manifest.is_file():
                 try:
                     data = json.loads(manifest.read_text(encoding="utf-8"))
-                    recorded_files = data.get("files")
-                    if not isinstance(recorded_files, dict) or recorded_files != canonical_files:
+                    recorded_files = data.get("files") if isinstance(data, dict) else None
+                    recorded_directories = data.get("directories") if isinstance(data, dict) else None
+                    if (
+                        not isinstance(recorded_files, dict)
+                        or not isinstance(recorded_directories, list)
+                        or not all(isinstance(path, str) for path in recorded_directories)
+                        or recorded_files != canonical_files
+                        or recorded_directories != sorted(canonical_directories)
+                    ):
                         add(findings, "error", "adapter_manifest", manifest, "adapter manifest differs from canonical source")
                     for rel, expected in canonical_files.items():
                         path = adapter_root / rel
                         if not path.is_file() or path.is_symlink() or digest(path) != expected:
                             add(findings, "error", "adapter_mismatch", path, "generated adapter differs from manifest")
+                    actual_directories = {
+                        path.relative_to(adapter_root).as_posix()
+                        for path in tree_entries(adapter_root)
+                        if path.is_dir() and not path.is_symlink()
+                    }
+                    if actual_directories != canonical_directories:
+                        add(findings, "error", "adapter_mismatch", adapter_root, "generated adapter directories differ from canonical source")
                 except (json.JSONDecodeError, OSError):
                     add(findings, "error", "adapter_manifest", manifest, "invalid adapter manifest")
             if adapter_root.is_dir():
                 allowed_files = set(canonical_files)
-                allowed_directories = implied_parent_directories(allowed_files)
+                allowed_directories = canonical_directories
                 for path in tree_entries(adapter_root):
                     rel = path.relative_to(adapter_root).as_posix()
                     if path == manifest:
@@ -331,8 +442,6 @@ def check_project(name, root, selected, manifest_data=None):
                 continue
             if ".claude/context" in file.read_text(encoding="utf-8", errors="ignore") or ".claude/reference" in file.read_text(encoding="utf-8", errors="ignore"):
                 add(findings, "error", "legacy_reference", file, "live file references retired Claude context path")
-    if "capabilities" in selected and manifest_data and not manifest_data.get("host_capability_matrix"):
-        add(findings, "error", "capability_matrix", root, "manifest lacks host capability matrix")
     return result
 
 
@@ -354,6 +463,12 @@ def main(argv=None):
             _, manifest = resolve_workspace_manifest(args.workspace_root, args.manifest)
             manifest_data = json.loads(manifest.read_text(encoding="utf-8"))
         report_projects = [check_project(name, root, selected, manifest_data) for name, root in projects(args)]
+        if "capabilities" in selected and manifest_data:
+            capability_root = Path(report_projects[0]["root"]) if report_projects else Path(args.workspace_root).resolve()
+            repositories = manifest_data.get("repositories", manifest_data.get("projects", {}))
+            repository_ids = repositories.keys() if isinstance(repositories, dict) else []
+            for message in validate_capability_matrix(manifest_data, repository_ids):
+                add(report_projects[0]["findings"] if report_projects else [], "error", "capability_matrix", capability_root, message)
         scope_files = resolve_scope_files(args, report_projects)
     except (ValueError, OSError, json.JSONDecodeError) as exc:
         parser.error(str(exc))

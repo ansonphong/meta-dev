@@ -51,27 +51,39 @@ def regular_directories(root: Path, label: str):
     return result
 
 
-def implied_parent_directories(paths):
-    result = set()
-    for value in paths:
-        parent = Path(value).parent
-        while parent != Path("."):
-            result.add(parent.as_posix())
-            parent = parent.parent
-    return result
-
-
 def expected(root: Path):
+    """Return the complete canonical tree, relative to its skill root."""
     source = root / ".agents" / "skills"
-    output = {}
+    files = {}
+    directories = []
     if symlink := first_repository_symlink(root, source):
         raise ValueError(f"skill root symlink forbidden: {symlink}")
     if source.exists() and not source.is_dir():
         raise ValueError(f"skill root must be a directory: {source}")
     if source.exists():
+        directories = [str(path.relative_to(source)) for path in regular_directories(source, "source")]
         for path in regular_files(source, "source"):
-            output[str(path.relative_to(source))] = sha(path)
-    return output
+            files[str(path.relative_to(source))] = sha(path)
+    return files, sorted(directories)
+
+
+def recorded_tree(manifest: Path):
+    """Read a complete adapter manifest or return ``None`` when it is invalid."""
+    if not manifest.is_file() or manifest.is_symlink():
+        return None
+    try:
+        data = json.loads(manifest.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    files = data.get("files")
+    directories = data.get("directories")
+    if not isinstance(files, dict) or not isinstance(directories, list):
+        return None
+    if not all(isinstance(path, str) for path in directories):
+        return None
+    return files, directories
 
 def main(argv=None):
     parser = argparse.ArgumentParser()
@@ -88,19 +100,19 @@ def main(argv=None):
         print(f"generated adapter root must be a directory: {destination}", file=sys.stderr)
         return 1
     try:
-        wanted = expected(root)
+        wanted_files, wanted_directories = expected(root)
         destination_files = regular_files(destination, "generated adapter") if destination.exists() else []
         destination_directories = regular_directories(destination, "generated adapter") if destination.exists() else []
     except ValueError as exc:
         print(str(exc), file=sys.stderr); return 1
-    actual = {str(p.relative_to(destination)): sha(p) for p in destination_files if p != manifest}
+    actual_files = {str(p.relative_to(destination)): sha(p) for p in destination_files if p != manifest}
     actual_directories = {str(path.relative_to(destination)) for path in destination_directories}
-    recorded = json.loads(manifest.read_text()).get("files", {}) if manifest.is_file() else None
+    recorded = recorded_tree(manifest)
     valid = (
-        actual == wanted
-        and recorded == wanted
-        and actual_directories == implied_parent_directories(wanted)
-        if destination.exists() else not wanted
+        actual_files == wanted_files
+        and actual_directories == set(wanted_directories)
+        and recorded == (wanted_files, wanted_directories)
+        if destination.exists() else not wanted_files and not wanted_directories
     )
     if args.check:
         if not valid: print("adapter mirrors differ from canonical source", file=sys.stderr)
@@ -108,11 +120,16 @@ def main(argv=None):
     if destination.exists(): shutil.rmtree(destination)
     destination.mkdir(parents=True)
     source = root / ".agents" / "skills"
-    for rel in wanted:
+    for rel in wanted_directories:
+        (destination / rel).mkdir(parents=True, exist_ok=True)
+    for rel in wanted_files:
         origin, target = source / rel, destination / rel
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(origin, target)
-    manifest.write_text(json.dumps({"schema_version": 1, "files": wanted}, sort_keys=True, indent=2) + "\n", encoding="utf-8")
+    manifest.write_text(
+        json.dumps({"schema_version": 1, "directories": wanted_directories, "files": wanted_files}, sort_keys=True, indent=2) + "\n",
+        encoding="utf-8",
+    )
     return 0
 
 if __name__ == "__main__": raise SystemExit(main())

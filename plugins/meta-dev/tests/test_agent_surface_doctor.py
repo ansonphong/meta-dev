@@ -38,15 +38,20 @@ def write_generated_adapters(root: Path) -> Path:
     source = root / ".agents" / "skills"
     destination = root / ".claude" / "skills"
     files = {}
+    directories = []
     for origin in source.rglob("*"):
+        relative = origin.relative_to(source)
+        if origin.is_dir():
+            (destination / relative).mkdir(parents=True, exist_ok=True)
+            directories.append(relative.as_posix())
+            continue
         if origin.is_file():
-            relative = origin.relative_to(source)
             target = destination / relative
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes(origin.read_bytes())
             files[relative.as_posix()] = hashlib.sha256(origin.read_bytes()).hexdigest()
     (destination / ".agent-skill-adapters.json").write_text(
-        json.dumps({"schema_version": 1, "files": files}, sort_keys=True), encoding="utf-8"
+        json.dumps({"schema_version": 1, "directories": sorted(directories), "files": files}, sort_keys=True), encoding="utf-8"
     )
     return destination
 
@@ -209,9 +214,29 @@ def test_doctor_requires_manifest_for_empty_adapter_root_and_accepts_explicit_em
     assert "adapter_manifest" in orphan.stdout
 
     manifest = root / ".claude" / "skills" / ".agent-skill-adapters.json"
-    manifest.write_text(json.dumps({"schema_version": 1, "files": {}}), encoding="utf-8")
+    manifest.write_text(json.dumps({"schema_version": 1, "directories": [], "files": {}}), encoding="utf-8")
     explicit_empty = run("--project-root", str(root), "--check", "adapters")
     assert explicit_empty.returncode == 0, explicit_empty.stderr
+
+    manifest.write_text(json.dumps({"schema_version": 1, "files": {}}), encoding="utf-8")
+    missing_directories = run("--project-root", str(root), "--check", "adapters")
+    assert missing_directories.returncode == 1, missing_directories.stderr
+    assert "adapter_manifest" in missing_directories.stdout
+
+
+def test_doctor_requires_complete_canonical_directory_mirror(tmp_path):
+    root = project(tmp_path)
+    source = root / ".agents" / "skills" / "demo" / "empty-resource"
+    source.mkdir()
+    destination = write_generated_adapters(root)
+
+    valid = run("--project-root", str(root), "--check", "adapters")
+    assert valid.returncode == 0, valid.stderr
+
+    (destination / "demo" / "empty-resource").rmdir()
+    missing = run("--project-root", str(root), "--check", "adapters")
+    assert missing.returncode == 1, missing.stderr
+    assert "adapter_mismatch" in missing.stdout
 
 
 def test_doctor_reports_file_shaped_canonical_skill_root_as_json(tmp_path):
@@ -372,3 +397,114 @@ def test_legacy_symlink_candidates_are_conflicts_without_agents(tmp_path):
         )
         assert init.returncode == 1
         assert not (root / "plans").exists()
+
+
+def capability_manifest(tmp_path: Path) -> Path:
+    root = project(tmp_path)
+    manifest = {
+        "repositories": {"demo": "project"},
+        "host_capability_matrix": {
+            "official_discovery_semantics": {
+                "codex": {"source": "codex docs", "behavior": "reads AGENTS.md"},
+                "claude_code": {"source": "claude docs", "behavior": "reads CLAUDE.md"},
+                "grok": {"source": "grok docs", "behavior": "imports compatible skills"},
+            },
+            "live_grok_inspect": {
+                "command": "grok inspect",
+                "version": "1.0.5",
+                "workspace_relative_cwd": ".",
+                "project_instructions": ["AGENTS.md is canonical", "CLAUDE.md remains compatible"],
+                "settings_source": ".claude/settings.local.json",
+                "skills_summary": "one project skill",
+                "observed_on": "2026-08-23",
+            },
+            "case_folded_aliases": {
+                "demo": {"case_fold": "demo", "classification": "unique_ascii_lowercase"},
+            },
+        },
+        "entries": [
+            {
+                "repository": "demo",
+                "path": ".claude/settings.local.json",
+                "tracked": True,
+                "consumers": ["Claude Code", "Grok"],
+                "grok_compatibility": "Grok reads compatible settings",
+                "disposition": "host_runtime",
+            },
+            {
+                "repository": "demo",
+                "path": ".claude/commands/demo.md",
+                "tracked": True,
+                "consumers": ["Claude Code", "Grok"],
+                "grok_compatibility": "Grok imports compatible commands",
+                "disposition": "generated_adapter",
+            },
+            {
+                "repository": "demo",
+                "path": ".agents/skills/demo/SKILL.md",
+                "tracked": True,
+                "consumers": ["Codex", "Grok"],
+                "grok_compatibility": "Grok uses the generated compatible adapter",
+                "disposition": "canonical",
+            },
+        ],
+    }
+    path = tmp_path / "inventory.json"
+    path.write_text(json.dumps(manifest), encoding="utf-8")
+    return path
+
+
+def run_capabilities(tmp_path: Path, manifest: Path):
+    return run("--manifest", manifest.name, "--workspace-root", str(tmp_path), "--check", "capabilities")
+
+
+def test_doctor_validates_a_representative_capability_matrix(tmp_path):
+    manifest = capability_manifest(tmp_path)
+
+    result = run_capabilities(tmp_path, manifest)
+
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout)["ok"] is True
+
+
+def test_doctor_reports_missing_or_malformed_capability_matrix_fields(tmp_path):
+    manifest = capability_manifest(tmp_path)
+    data = json.loads(manifest.read_text(encoding="utf-8"))
+    del data["host_capability_matrix"]["official_discovery_semantics"]["codex"]["source"]
+    data["host_capability_matrix"]["live_grok_inspect"]["project_instructions"] = "AGENTS.md and CLAUDE.md"
+    manifest.write_text(json.dumps(data), encoding="utf-8")
+
+    result = run_capabilities(tmp_path, manifest)
+
+    assert result.returncode == 1, result.stderr
+    assert "capability_matrix" in result.stdout
+    assert "official_discovery_semantics.codex" in result.stdout
+    assert "project_instructions" in result.stdout
+
+
+def test_doctor_reports_case_folded_alias_mismatch(tmp_path):
+    manifest = capability_manifest(tmp_path)
+    data = json.loads(manifest.read_text(encoding="utf-8"))
+    data["host_capability_matrix"]["case_folded_aliases"]["demo"]["case_fold"] = "wrong"
+    manifest.write_text(json.dumps(data), encoding="utf-8")
+
+    result = run_capabilities(tmp_path, manifest)
+
+    assert result.returncode == 1, result.stderr
+    assert "case_folded_aliases.demo" in result.stdout
+
+
+def test_doctor_reports_vendor_capability_metadata_mismatch(tmp_path):
+    manifest = capability_manifest(tmp_path)
+    data = json.loads(manifest.read_text(encoding="utf-8"))
+    command = data["entries"][1]
+    command["consumers"] = ["Claude Code"]
+    command["grok_compatibility"] = ""
+    command["disposition"] = "unknown"
+    manifest.write_text(json.dumps(data), encoding="utf-8")
+
+    result = run_capabilities(tmp_path, manifest)
+
+    assert result.returncode == 1, result.stderr
+    assert "vendor entry .claude/commands/demo.md requires grok_compatibility" in result.stdout
+    assert "tracked Grok-discovered entry .claude/commands/demo.md must include Grok" in result.stdout
