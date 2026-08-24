@@ -96,6 +96,14 @@ def classify_contract(root: Path) -> dict:
         result["state"] = "conflict"
         result["reason"] = "legacy_symlink"
         return result
+    if first_repository_symlink(root, adapter):
+        result["state"] = "conflict"
+        result["reason"] = "claude_adapter_symlink"
+        return result
+    if first_repository_symlink(root, root / ".claude" / "skills"):
+        result["state"] = "conflict"
+        result["reason"] = "adapter_root_symlink"
+        return result
     if any(not path.is_file() for path in legacy_present):
         result["state"] = "conflict"
         result["reason"] = "legacy_not_regular"
@@ -216,7 +224,7 @@ def check_project(name, root, selected, manifest_data=None):
             add(findings, "error", "adapter_bytes", adapter, "adapter exceeds 1,024 bytes")
     if "context" in selected:
         context = root / "docs" / "agent-context"
-        if context.exists() and context.is_symlink():
+        if first_repository_symlink(root, context):
             add(findings, "error", "context_symlink", context, "context must not be a symlink")
         for file in root.rglob("*.md"):
             if ".git" in file.parts or file.is_symlink():

@@ -285,6 +285,19 @@ def test_doctor_rejects_symlinked_repository_ancestors(tmp_path):
     assert "adapter_root_symlink" in adapters.stdout
 
 
+def test_doctor_rejects_symlinked_context_ancestors(tmp_path):
+    root = project(tmp_path)
+    target = root / "real" / "docs"
+    shutil.copytree(root / "docs", target)
+    shutil.rmtree(root / "docs")
+    (root / "docs").symlink_to(target, target_is_directory=True)
+
+    result = run("--project-root", str(root), "--check", "context")
+
+    assert result.returncode == 1, result.stderr
+    assert "context_symlink" in result.stdout
+
+
 def test_scope_symlink_ancestors_are_rejected_by_doctor_and_wrapper(tmp_path):
     root = project(tmp_path)
     target = root / "real" / "docs"

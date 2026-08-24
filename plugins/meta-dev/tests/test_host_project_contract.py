@@ -15,13 +15,17 @@ INIT = PLUGIN_ROOT / "scripts" / "init-project.sh"
 DOCTOR = PLUGIN_ROOT / "scripts" / "agent-surface-doctor.py"
 
 
-def classify(root: Path) -> str:
+def classify_contract(root: Path) -> dict:
     result = subprocess.run(
         [sys.executable, str(DOCTOR), "--project-root", str(root), "--classify"],
         capture_output=True, text=True, check=False,
     )
     assert result.returncode == 0, result.stderr
-    return __import__("json").loads(result.stdout)["projects"][0]["contract"]["state"]
+    return __import__("json").loads(result.stdout)["projects"][0]["contract"]
+
+
+def classify(root: Path) -> str:
+    return classify_contract(root)["state"]
 
 
 def _project(tmp_path: Path, name: str) -> Path:
@@ -84,6 +88,42 @@ def test_initializer_refuses_conflict_before_writing(tmp_path):
     assert result.returncode == 1
     assert "refusing" in result.stderr.lower()
     assert not (project / "plans").exists()
+
+
+def test_classifier_rejects_symlinked_claude_trees_before_initializer_writes(tmp_path):
+    cases = []
+
+    empty_ancestor = tmp_path / "empty-claude-ancestor"
+    empty_ancestor.mkdir()
+    empty_target = empty_ancestor / "target"
+    empty_target.mkdir()
+    (empty_ancestor / ".claude").symlink_to(empty_target, target_is_directory=True)
+    cases.append((empty_ancestor, "claude_adapter_symlink"))
+
+    adapter_skills = tmp_path / "adapter-skills"
+    adapter_skills.mkdir()
+    (adapter_skills / "AGENTS.md").write_text("rules\n", encoding="utf-8")
+    (adapter_skills / ".claude").mkdir()
+    (adapter_skills / ".claude" / "CLAUDE.md").write_text("@../AGENTS.md\n", encoding="utf-8")
+    skills_target = adapter_skills / "skills-target"
+    skills_target.mkdir()
+    (adapter_skills / ".claude" / "skills").symlink_to(skills_target, target_is_directory=True)
+    cases.append((adapter_skills, "adapter_root_symlink"))
+
+    for project, reason in cases:
+        contract = classify_contract(project)
+        assert contract["state"] == "conflict"
+        assert contract["reason"] == reason
+
+        result = subprocess.run(
+            ["bash", str(INIT)], cwd=project, env=dict(os.environ, AUTO="true"),
+            capture_output=True, text=True, check=False,
+        )
+
+        assert result.returncode == 1
+        assert "refusing" in result.stderr.lower()
+        assert not (project / "plans").exists()
+        assert not (project / ".agents").exists()
 
 
 def test_initializer_preserves_both_regular_legacy_doctrines(tmp_path):
