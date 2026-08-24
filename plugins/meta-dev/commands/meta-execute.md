@@ -177,6 +177,12 @@ A run NEVER ends unreviewed. Honor `--review` (default `auto` — see cadence ta
 
 Reviewer is host-native (Claude → `meta-dev:review-agent`; Grok Build → `spawn_subagent` reviewer; Codex → Sol/high). Route findings:
 
+**Codex completion boundary:** one native Sol/high review satisfies this gate.
+Do not add cross-family reviewers unless the user explicitly requested them.
+Stage 6 does not invoke `/meta-eval`, `/meta-audit`, or `/housekeeping`; the
+review and housekeeping sections in this procedure are inline steps of this
+command, not sibling command calls.
+
 - **Trivial/mechanical** (lint, format, missing annotation) → fix inline and
   exact-path local commit; re-run the affected verification and code review;
   push only after both are green

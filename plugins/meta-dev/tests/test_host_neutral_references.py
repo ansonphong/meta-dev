@@ -146,7 +146,7 @@ def test_live_instructions_name_the_host_project_contract():
 def test_portability_release_keeps_manifests_and_marketplaces_in_lockstep():
     claude_manifest = json.loads((ROOT / ".claude-plugin" / "plugin.json").read_text())
     codex_manifest = json.loads((ROOT / ".codex-plugin" / "plugin.json").read_text())
-    assert claude_manifest["version"] == codex_manifest["version"] == "1.4.30"
+    assert claude_manifest["version"] == codex_manifest["version"] == "1.4.31"
 
     repository = ROOT.parents[1]
     agents_marketplace = json.loads(
@@ -162,4 +162,4 @@ def test_portability_release_keeps_manifests_and_marketplaces_in_lockstep():
     assert "version" not in claude_marketplace["plugins"][0]
 
     changelog = (repository / "CHANGELOG.md").read_text(encoding="utf-8")
-    assert "## 1.4.30" in changelog
+    assert "## 1.4.31" in changelog

@@ -13,6 +13,10 @@ quality. Evaluation is report-only by default. `--fix` or an explicit user
 go-word authorizes a separate remediation round; findings alone never authorize
 edits or commits.
 
+**Codex invocation boundary:** this eight-agent evaluator runs only when the
+user explicitly selects `meta-eval`. Reaching Stage 6, passing `--to 6`, or
+running `meta-execute`, review, or harden never implies this command.
+
 ## Dashboard stage signal (waterfall — MANDATORY)
 
 This command owns the **REVIEW** waterfall stage (6/6). Keep `/meta-dashboard` in sync — fire-and-forget, never let it block evaluation:

@@ -10,6 +10,10 @@ model: opus
 
 Post-completion cleanup. **One fresh agent per plan** — each agent gets a single plan and a clean context, so the orchestrator never bloats reading every plan file.
 
+**Codex invocation boundary:** run this multi-plan command only when the user
+explicitly selects `housekeeping`. The housekeeping section inside
+`meta-execute` is an inline completion step, not an invocation of this command.
+
 ## Pattern
 
 ```

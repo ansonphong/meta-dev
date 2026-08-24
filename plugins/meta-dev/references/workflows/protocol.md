@@ -93,6 +93,9 @@ see `workflow-skills/code-review-protocol/`.
 - The review default is native Codex. External/headless reviewers run only when
   the user explicitly selects one; their output never silently replaces the
   native verdict.
+- `references/workflows/command-adapter.md` defines the Codex efficiency
+  boundary. It overrides generic cross-family ladder recipes: stage names do
+  not invoke sibling commands, and ordinary Stage 6 uses one native reviewer.
 
 ### Minimal/headless hosts
 

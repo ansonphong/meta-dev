@@ -17,9 +17,11 @@ DeepSeek command policy (Pro / Flash / Vision flags):
 - **Claude and Codex are $20 / $30-mo plans.** Quota is small. Do not farm
   them for execute, bulk, or swarms.
 - **Cross-family review is what Opus, Codex, and DeepSeek review passes are
-  for.** At harden and code-review gates, fire **one** `/opus-execute`, **one**
-  `/codex-execute`, and **one** `/deep-execute --readonly` so Grok work is not
-  marked by Grok alone. Not a swarm. Not a loop. Not "also implement this."
+  for.** Claude Code and Grok conductors add **one** `/opus-execute`, **one**
+  `/codex-execute`, and **one** `/deep-execute --readonly` at configured
+  harden and code-review gates. Interactive Codex uses its native reviewer
+  unless the user explicitly requests cross-family review. Not a swarm. Not a
+  loop. Not "also implement this."
 - **Claude Pro is the conductor, not a farm.** Do not spawn native Task/Agent
   Haiku/Sonnet/Opus subagents for work DeepSeek or Grok should own.
 
@@ -78,6 +80,12 @@ schema, or render/pipeline work.
 `.grok/rules/host-behavior.md`. Mechanical leaves may still go to
 `/deep-execute`; Grok `spawn_subagent` owns the rest.
 
+**Interactive Codex host:** follow
+`references/workflows/command-adapter.md`. Stage 6 uses one native Sol review.
+Do not layer the Claude/Grok cross-family trio onto Codex unless the user named
+cross-family review. Stage names never imply `meta-eval`, `meta-audit`, or
+standalone `housekeeping`.
+
 ## Route by task shape
 
 | Task shape | Backend | Why |
@@ -86,7 +94,7 @@ schema, or render/pipeline work.
 | Screenshots, rendered UI, charts, photos the worker must see | **DeepSeek Vision** (`/deep-execute --vision`) | Only DeepSeek pooled worker that can Read images. Pro/Flash 400. |
 | Whole-repo 1M-context investigation, native video/audio, Search-grounded freshness; or Google-quota Claude as a fourth-family lens | **Antigravity** (`--agy` / `/antigravity-execute`) **only when Phong named it this turn** | Parked. Default Gemini 3.7 Flash (1M, multimodal, Search). `--opus` = Claude Opus 4.6 Thinking on Google quota, not Claude Code. Inner host-native subagents stay Grok/Claude/Codex — do not auto-farm checkboxes to `agy`. |
 | Multi-file investigation, diagnosis, implementation (with go), plan drafting, Grok-swarm gap scans, UI/Svelte, long-horizon / stateful phases, parallel tracks that are not mechanical | **Grok** (`--grok` / `/grok-execute` / Grok `spawn_subagent`) | **Pooled frontier rung.** Spend it. Fan out freely. |
-| Stage 4 harden extra-family pass · Stage 6 / phase-gate **code review** | **One `/opus-execute` + one `/codex-execute` + one `/deep-execute --readonly`** | Cross-family lens. Opus/Codex: $20/30-mo — **one pass each per gate**. DeepSeek: one review pass at the same gate (Pro, not Flash). Grok still does the first named review. |
+| Claude/Grok Stage 4 harden extra-family pass · Stage 6 / phase-gate **code review** | **One `/opus-execute` + one `/codex-execute` + one `/deep-execute --readonly`** | Cross-family lens for Claude/Grok conductors. Interactive Codex stays native unless the user explicitly selects this lens. |
 | GLM, `/sonnet-execute`, `/fable-execute`, `/antigravity-execute`, native Claude Task/Agent | **Parked** | Dispatch **only** when Phong names that backend this turn. Fable stays EXPRESS-PERMISSION even then. Antigravity (`agy`): Gemini 3.7 Flash default (1M context, native multimodal, Search grounding); `--opus` is Claude Opus 4.6 on Google quota, not Claude Code. |
 
 **Do not use DeepSeek for** (route to Grok): long-horizon multi-phase plan
@@ -118,8 +126,8 @@ and use **Grok subagents for the pieces**. Independent tracks run in parallel.
 The parent holds verdicts, not diffs. Shape each brief for that backend
 (`references/execute-briefs.md`) — do not paste the same paragraph to Grok,
 DeepSeek, and Codex. Liberal fan-out overrides "prefer one subagent over
-several." Harden / code-review gates then add the one Opus + one Codex + one
-DeepSeek review pass.
+several." Claude/Grok harden and code-review gates add the cross-family trio;
+interactive Codex stays on its single native review unless explicitly widened.
 
 ## Who has meta-dev
 

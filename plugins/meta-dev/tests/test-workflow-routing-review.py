@@ -11,6 +11,8 @@ import unittest
 PLUGIN_ROOT = Path(__file__).resolve().parents[1]
 ROUTES_PATH = PLUGIN_ROOT / "references/workflows/routes.json"
 PROTOCOL_PATH = PLUGIN_ROOT / "references/workflows/protocol.md"
+COMMAND_ADAPTER_PATH = PLUGIN_ROOT / "references/workflows/command-adapter.md"
+WORK_LADDER_PATH = PLUGIN_ROOT / "references/work-ladder.md"
 CURATED = {
     "dev",
     "plan",
@@ -83,6 +85,40 @@ class WorkflowRoutingContract(unittest.TestCase):
 
 
 class NativeReviewContract(unittest.TestCase):
+    def test_codex_stage_completion_is_native_and_non_recursive(self) -> None:
+        protocol = PROTOCOL_PATH.read_text(encoding="utf-8")
+        adapter = COMMAND_ADAPTER_PATH.read_text(encoding="utf-8")
+        ladder = WORK_LADDER_PATH.read_text(encoding="utf-8")
+        execute = (PLUGIN_ROOT / "commands/meta-execute.md").read_text(
+            encoding="utf-8"
+        )
+        evaluation = (PLUGIN_ROOT / "commands/meta-eval.md").read_text(
+            encoding="utf-8"
+        )
+        audit = (PLUGIN_ROOT / "commands/meta-audit.md").read_text(
+            encoding="utf-8"
+        )
+        housekeeping = (PLUGIN_ROOT / "commands/housekeeping.md").read_text(
+            encoding="utf-8"
+        )
+
+        for marker in (
+            "## Codex efficiency boundary",
+            "A stage name, section heading, example,",
+            "Stage 6 uses one native Codex review",
+            "Do not infer `meta-eval`, `meta-audit`, or standalone `housekeeping`",
+            "Before dispatching two or more external workers",
+        ):
+            self.assertIn(marker, adapter)
+        self.assertIn("overrides generic cross-family ladder recipes", protocol)
+        self.assertIn("**Interactive Codex host:**", ladder)
+        self.assertIn("Codex → Sol/high", execute)
+        self.assertIn("**Codex completion boundary:**", execute)
+        self.assertIn("Stage 6 does not invoke", execute)
+        self.assertIn("user explicitly selects `meta-eval`", evaluation)
+        self.assertIn("explicitly selects `meta-audit`", audit)
+        self.assertIn("explicitly selects `housekeeping`", housekeeping)
+
     def test_codex_defaults_and_claude_adapter_stay_distinct(self) -> None:
         settings = json.loads(
             (PLUGIN_ROOT / "templates/settings.json").read_text(encoding="utf-8")

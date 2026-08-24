@@ -10,6 +10,10 @@ model: opus
 
 Pipeline health audit. Periodically tests whether pipeline components are still load-bearing or have become overhead.
 
+**Codex invocation boundary:** run this harness audit only when the user
+explicitly selects `meta-audit`. Product Stage 6 and `meta-execute` never imply
+an audit of the Meta-Dev framework.
+
 ## Flow
 
 1. **Component inventory** — per `references/audit-protocol.md`
