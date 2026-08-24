@@ -49,10 +49,14 @@ LIVE_SCRIPT_ROOT = ROOT / "scripts"
 LIVE_SCRIPT_SUFFIXES = {".sh", ".py"}
 
 # The doctor detects legacy context links while it audits a host project.  That
-# exact detector is compatibility logic, not host-project instruction; keep
-# the exception smaller than a whole-script exemption.
-CLAUDE_PATH_COMPATIBILITY_ALLOWLIST = {
-    (Path("scripts/agent-surface-doctor.py"), ".claude/context/"),
+# exact detector is compatibility logic, not host-project instruction.  Allow
+# only its exact stripped line: any other ".claude/context/" occurrence in the
+# doctor must still fail the guard.
+CLAUDE_PATH_CONTEXT_LINE_ALLOWLIST = {
+    (
+        Path("scripts/agent-surface-doctor.py"),
+        r'for target in re.findall(r"(?:docs/agent-context/|\.claude/context/)([^\s)`]+)", file.read_text(encoding="utf-8", errors="ignore")):',
+    ),
 }
 
 # These are the two places where a Claude adapter path is itself the subject:
@@ -90,18 +94,45 @@ def live_script_paths() -> list[Path]:
     ]
 
 
+def forbidden_path_offenders(relative_path: Path, text: str) -> list[str]:
+    """Report forbidden phrases per line, honoring the exact-line context allowlist."""
+    offenders: list[str] = []
+    for index, line in enumerate(text.splitlines()):
+        for phrase in FORBIDDEN:
+            if phrase not in line:
+                continue
+            if (
+                phrase == ".claude/context/"
+                and (relative_path, line.strip())
+                in CLAUDE_PATH_CONTEXT_LINE_ALLOWLIST
+            ):
+                continue
+            offenders.append(f"{relative_path}:{index + 1}: {phrase}")
+    return offenders
+
+
 def test_live_instructions_do_not_restore_claude_first_paths():
     offenders: list[str] = []
     for path in [*live_instruction_paths(), *live_script_paths()]:
-        relative_path = path.relative_to(ROOT)
-        text = path.read_text(encoding="utf-8")
-        for phrase in FORBIDDEN:
-            if (relative_path, phrase) in CLAUDE_PATH_COMPATIBILITY_ALLOWLIST:
-                continue
-            if phrase in text:
-                offenders.append(f"{relative_path}: {phrase}")
+        offenders.extend(
+            forbidden_path_offenders(
+                path.relative_to(ROOT), path.read_text(encoding="utf-8")
+            )
+        )
 
     assert not offenders, "\n".join(offenders)
+
+
+def test_context_path_line_allowlist_reports_extra_doctor_occurrences():
+    relative_path = Path("scripts/agent-surface-doctor.py")
+    (allowed_line,) = (
+        line
+        for (path, line) in CLAUDE_PATH_CONTEXT_LINE_ALLOWLIST
+        if path == relative_path
+    )
+    text = allowed_line + "\n" + "# a second .claude/context/ reference\n"
+    offenders = forbidden_path_offenders(relative_path, text)
+    assert offenders == [f"{relative_path}:2: .claude/context/"]
 
 
 def test_live_script_corpus_includes_the_agent_surface_doctor():
