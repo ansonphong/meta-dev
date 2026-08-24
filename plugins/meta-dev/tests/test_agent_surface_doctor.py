@@ -802,6 +802,36 @@ def test_legacy_references_reject_invalid_inventory_paths(tmp_path, path_value, 
     assert code in codes
 
 
+def test_legacy_references_reject_lexical_in_root_traversal(tmp_path):
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    root = project(workspace)
+    (root / "subdir").mkdir()
+    live = root / "live.md"
+    live.write_text("see .claude/context/old\n", encoding="utf-8")
+    manifest = workspace / "inventory.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "repositories": {"demo": "project"},
+                "entries": [
+                    {"repository": "demo", "path": "subdir/../live.md", "disposition": "host_runtime", "consumers": ["Claude Code"]},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = run("--manifest", "inventory.json", "--workspace-root", str(workspace), "--check", "legacy-references")
+
+    assert result.returncode == 1, result.stderr
+    report = json.loads(result.stdout)
+    findings = report["projects"][0]["findings"]
+    codes = {finding["code"] for finding in findings}
+    assert "inventory_escape" in codes
+    assert "legacy_reference" not in codes
+
+
 def test_legacy_references_reject_symlink_inventory_paths(tmp_path):
     workspace = tmp_path / "workspace"
     workspace.mkdir()

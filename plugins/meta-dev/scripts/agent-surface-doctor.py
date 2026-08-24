@@ -536,9 +536,9 @@ def live_legacy_targets(root: Path, repository, manifest_data, findings) -> list
     host-facing runtime trees, the neutral context, and manifest inventory entries
     that remain live and belong to this repository. The doctor's own source, tests,
     fixtures, historical plans, and migration documentation are not live consumers
-    and must not be scanned. Inventory paths that are absolute, escape the
-    repository root, or pass through a symlink are reported as errors instead of
-    being silently skipped.
+    and must not be scanned. Inventory paths that are absolute, contain a `..`
+    traversal component, escape the repository root, or pass through a symlink are
+    reported as errors instead of being silently skipped.
     """
     seen: set[str] = set()
     targets: list[Path] = []
@@ -570,6 +570,9 @@ def live_legacy_targets(root: Path, repository, manifest_data, findings) -> list
             candidate = root / rel
             if Path(rel).is_absolute():
                 add(findings, "error", "inventory_absolute", candidate, "inventory entry path must be repository-relative")
+                continue
+            if ".." in Path(rel).parts:
+                add(findings, "error", "inventory_escape", candidate, "inventory entry path must not contain a '..' traversal component")
                 continue
             if not within(root, candidate.resolve()):
                 add(findings, "error", "inventory_escape", candidate, "inventory entry path escapes the repository root")
