@@ -42,13 +42,11 @@ LIVE_ROOTS = (
 
 # Scripts are live operational doctrine too.  Do not scan tests or fixtures:
 # they describe guard cases rather than host-project instructions.  The
-# initializer intentionally migrates legacy Claude surfaces, so its
-# compatibility implementation is not a Claude-first instruction to a host.
+# initializer's migration and adapter references are compatibility logic and
+# are recognized semantically by ALLOWED_CLAUDE_CONTEXT, not by a whole-script
+# exemption.
 LIVE_SCRIPT_ROOT = ROOT / "scripts"
 LIVE_SCRIPT_SUFFIXES = {".sh", ".py"}
-SCRIPT_COMPATIBILITY_ALLOWLIST = {
-    Path("scripts/init-project.sh"),
-}
 
 # The doctor detects legacy context links while it audits a host project.  That
 # exact detector is compatibility logic, not host-project instruction; keep
@@ -79,7 +77,6 @@ def live_script_paths() -> list[Path]:
         path
         for path in LIVE_SCRIPT_ROOT.rglob("*")
         if path.suffix in LIVE_SCRIPT_SUFFIXES
-        and path.relative_to(ROOT) not in SCRIPT_COMPATIBILITY_ALLOWLIST
     ]
 
 
@@ -146,7 +143,7 @@ def test_live_instructions_name_the_host_project_contract():
 def test_portability_release_keeps_manifests_and_marketplaces_in_lockstep():
     claude_manifest = json.loads((ROOT / ".claude-plugin" / "plugin.json").read_text())
     codex_manifest = json.loads((ROOT / ".codex-plugin" / "plugin.json").read_text())
-    assert claude_manifest["version"] == codex_manifest["version"] == "1.4.31"
+    assert claude_manifest["version"] == codex_manifest["version"] == "1.4.32"
 
     repository = ROOT.parents[1]
     agents_marketplace = json.loads(
@@ -162,4 +159,4 @@ def test_portability_release_keeps_manifests_and_marketplaces_in_lockstep():
     assert "version" not in claude_marketplace["plugins"][0]
 
     changelog = (repository / "CHANGELOG.md").read_text(encoding="utf-8")
-    assert "## 1.4.31" in changelog
+    assert "## 1.4.32" in changelog
