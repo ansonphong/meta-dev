@@ -144,6 +144,49 @@ def test_doctor_enforces_portable_skill_abi_and_resource_links(tmp_path):
     assert "skill_abi" in unexpected.stdout
 
 
+@pytest.mark.parametrize(
+    "link, target",
+    (
+        ("[outside][guide]\n\n[guide]: ../outside.md\n", "outside.md"),
+        ("![outside][]\n\n[outside]: /tmp/outside.png\n", "outside.png"),
+        ("[outside]\n\n[outside]: /tmp/outside.md\n", "outside.md"),
+        ("[unused]: /tmp/outside.md\n", "outside.md"),
+    ),
+)
+def test_doctor_rejects_unsafe_reference_style_skill_links(tmp_path, link, target):
+    root = project(tmp_path)
+    skill = root / ".agents" / "skills" / "demo"
+    outside = tmp_path / target
+    outside.write_text("outside\n", encoding="utf-8")
+    (skill / "SKILL.md").write_text(
+        "---\nname: demo\ndescription: A valid description.\n---\n"
+        f"# Demo\n\n## Arguments\n\nNone\n\n{link}",
+        encoding="utf-8",
+    )
+
+    result = run("--project-root", str(root), "--check", "skills")
+
+    assert result.returncode == 1, result.stderr
+    assert "skill_abi" in result.stdout
+    assert "local skill link escapes the skill root" in result.stdout
+
+
+def test_doctor_allows_angle_bracket_skill_link_destinations_with_spaces(tmp_path):
+    root = project(tmp_path)
+    skill = root / ".agents" / "skills" / "demo"
+    resource = skill / "references" / "my guide.md"
+    resource.write_text("guide\n", encoding="utf-8")
+    (skill / "SKILL.md").write_text(
+        "---\nname: demo\ndescription: A valid description.\n---\n"
+        "# Demo\n\n## Arguments\n\nNone\n\n[guide](<references/my guide.md>)\n",
+        encoding="utf-8",
+    )
+
+    result = run("--project-root", str(root), "--check", "skills")
+
+    assert result.returncode == 0, result.stderr
+
+
 def test_case_fold_alias_and_symlink_root(tmp_path):
     root = project(tmp_path)
     accepted = subprocess.run([str(CHECK), "--project-root", str(root), "--scope-file", "AGENTS.md", "--check", "instructions"], capture_output=True, text=True, check=False)

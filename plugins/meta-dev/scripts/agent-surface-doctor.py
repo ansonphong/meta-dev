@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 import re
 import sys
+from urllib.parse import unquote
 
 import yaml
 
@@ -24,7 +25,10 @@ ALLOWED_DISPOSITIONS = {
 SKILL_FRONTMATTER_FIELDS = {"name", "description", "license", "compatibility", "metadata", "allowed-tools"}
 SKILL_RESOURCE_ROOTS = {"scripts", "references", "assets"}
 SKILL_NAME_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
-MARKDOWN_LINK_RE = re.compile(r"!?\[[^\]]*\]\(([^)]+)\)")
+REFERENCE_DEFINITION_RE = re.compile(
+    r"(?m)^[ \t]{0,3}\[(?:\\.|[^\]\\\n])+\]:[ \t]*(?:<(?P<angle>(?:\\.|[^>\n])*)>|(?P<plain>(?:\\.|[^\s])+))"
+)
+MARKDOWN_ESCAPE_RE = re.compile(r"\\([!\"#$%&'()*+,\-./:;<=>?@\[\\\]^_`{|}~])")
 
 
 class DuplicateKeySafeLoader(yaml.SafeLoader):
@@ -123,17 +127,99 @@ def skill_frontmatter_and_body(marker: Path) -> tuple[dict, str]:
     return data, body
 
 
-def local_markdown_targets(body: str):
-    """Yield portable local Markdown link targets, skipping URLs and anchors."""
-    for match in MARKDOWN_LINK_RE.finditer(body):
-        target = match.group(1).strip()
-        if target.startswith("<") and target.endswith(">"):
-            target = target[1:-1].strip()
-        target = target.split(maxsplit=1)[0]
-        path = target.split("#", 1)[0].split("?", 1)[0]
-        if not path or path.startswith("/") or re.match(r"^[A-Za-z][A-Za-z0-9+.-]*:", path):
+def unescaped_closing(text: str, start: int, opening: str, closing: str) -> int | None:
+    """Find the matching Markdown delimiter while preserving escaped syntax."""
+    depth = 1
+    index = start + 1
+    while index < len(text):
+        if text[index] == "\\":
+            index += 2
             continue
-        yield path
+        if text[index] == opening:
+            depth += 1
+        elif text[index] == closing:
+            depth -= 1
+            if depth == 0:
+                return index
+        index += 1
+    return None
+
+
+def inline_markdown_destinations(body: str):
+    """Yield raw destinations from inline Markdown links and images."""
+    index = 0
+    while index < len(body):
+        if body[index] != "[" or (index and body[index - 1] == "\\"):
+            index += 1
+            continue
+        label_end = unescaped_closing(body, index, "[", "]")
+        if label_end is None or label_end + 1 >= len(body) or body[label_end + 1] != "(":
+            index += 1
+            continue
+        destination_end = unescaped_closing(body, label_end + 1, "(", ")")
+        if destination_end is None:
+            index = label_end + 1
+            continue
+        yield body[label_end + 2:destination_end]
+        index = destination_end + 1
+
+
+def markdown_destination(value: str) -> str | None:
+    """Extract one destination, excluding an optional CommonMark title."""
+    value = value.strip()
+    if not value:
+        return None
+    if value.startswith("<"):
+        index = 1
+        while index < len(value):
+            if value[index] == "\\":
+                index += 2
+                continue
+            if value[index] == ">":
+                return value[1:index]
+            index += 1
+        return None
+    index = 0
+    while index < len(value):
+        if value[index] == "\\":
+            index += 2
+            continue
+        if value[index].isspace():
+            break
+        index += 1
+    return value[:index] or None
+
+
+def local_markdown_path(destination: str) -> str | None:
+    """Return a local filesystem path from one Markdown destination."""
+    index = 0
+    while index < len(destination):
+        if destination[index] == "\\":
+            index += 2
+            continue
+        if destination[index] in "#?":
+            destination = destination[:index]
+            break
+        index += 1
+    path = unquote(MARKDOWN_ESCAPE_RE.sub(r"\1", destination))
+    if not path:
+        return None
+    if re.match(r"^[A-Za-z]:[\\/]", path):
+        return path
+    if re.match(r"^[A-Za-z][A-Za-z0-9+.-]*:", path):
+        return None
+    return path
+
+
+def local_markdown_targets(body: str):
+    """Yield every local inline or reference-definition Markdown destination."""
+    destinations = [markdown_destination(destination) for destination in inline_markdown_destinations(body)]
+    for match in REFERENCE_DEFINITION_RE.finditer(body):
+        destinations.append(match.group("angle") if match.group("angle") is not None else match.group("plain"))
+    for destination in destinations:
+        path = local_markdown_path(destination or "")
+        if path is not None:
+            yield path
 
 
 def validate_skill_abi(root: Path, skill: Path, findings) -> None:
@@ -198,9 +284,9 @@ def validate_skill_abi(root: Path, skill: Path, findings) -> None:
         for target in local_markdown_targets(body):
             candidate = skill / target
             resolved = candidate.resolve()
-            if not within(skill.resolve(), resolved):
+            if re.match(r"^[A-Za-z]:[\\/]", target) or target.startswith("\\") or not within(skill.resolve(), resolved):
                 add(findings, "error", "skill_abi", marker, f"local skill link escapes the skill root: {target}")
-            elif not candidate.exists() or candidate.is_symlink() or first_repository_symlink(root, candidate):
+            elif not candidate.is_file() or candidate.is_symlink() or first_repository_symlink(root, candidate):
                 add(findings, "error", "skill_abi", marker, f"local skill link must resolve to a regular in-skill resource: {target}")
 
     for item in tree_entries(skill):
