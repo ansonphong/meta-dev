@@ -46,38 +46,64 @@ LIVE_ROOTS = (
     ROOT / "workflow-skills",
 )
 
+# Scripts are live operational doctrine too.  Do not scan tests or fixtures:
+# they describe guard cases rather than host-project instructions.  These two
+# scripts intentionally inspect or migrate legacy Claude surfaces, so their
+# compatibility implementation is not a Claude-first instruction to a host.
+LIVE_SCRIPT_ROOT = ROOT / "scripts"
+LIVE_SCRIPT_SUFFIXES = {".sh", ".py"}
+SCRIPT_COMPATIBILITY_ALLOWLIST = {
+    Path("scripts/agent-surface-doctor.py"),
+    Path("scripts/init-project.sh"),
+}
+
+
+def live_instruction_paths() -> list[Path]:
+    return [
+        path
+        for directory in LIVE_ROOTS
+        for path in directory.rglob("*.md")
+    ]
+
+
+def live_script_paths() -> list[Path]:
+    return [
+        path
+        for path in LIVE_SCRIPT_ROOT.rglob("*")
+        if path.suffix in LIVE_SCRIPT_SUFFIXES
+        and path.relative_to(ROOT) not in SCRIPT_COMPATIBILITY_ALLOWLIST
+    ]
+
 
 def test_live_instructions_do_not_restore_claude_first_paths():
     offenders: list[str] = []
-    for directory in LIVE_ROOTS:
-        for path in directory.rglob("*.md"):
-            text = path.read_text(encoding="utf-8")
-            for phrase in FORBIDDEN:
-                if phrase in text:
-                    offenders.append(f"{path.relative_to(ROOT)}: {phrase}")
+    for path in [*live_instruction_paths(), *live_script_paths()]:
+        text = path.read_text(encoding="utf-8")
+        for phrase in FORBIDDEN:
+            if phrase in text:
+                offenders.append(f"{path.relative_to(ROOT)}: {phrase}")
 
     assert not offenders, "\n".join(offenders)
 
 
 def test_live_instructions_do_not_treat_claude_md_as_authority():
     offenders: list[str] = []
-    for directory in LIVE_ROOTS:
-        for path in directory.rglob("*.md"):
-            lines = path.read_text(encoding="utf-8").splitlines()
-            for index, line in enumerate(lines):
-                start = index
-                while start and lines[start - 1]:
-                    start -= 1
-                end = index + 1
-                while end < len(lines) and lines[end]:
-                    end += 1
-                normalized = "\n".join(lines[start:end]).replace("`", "")
-                line_normalized = line.replace("`", "")
-                if CLAUDE_REFERENCE.search(line_normalized) and (
-                    CLAUDE_AUTHORITY.search(line_normalized)
-                    or not ALLOWED_CLAUDE_CONTEXT.search(normalized)
-                ):
-                    offenders.append(f"{path.relative_to(ROOT)}:{index + 1}: {line.strip()}")
+    for path in [*live_instruction_paths(), *live_script_paths()]:
+        lines = path.read_text(encoding="utf-8").splitlines()
+        for index, line in enumerate(lines):
+            start = index
+            while start and lines[start - 1]:
+                start -= 1
+            end = index + 1
+            while end < len(lines) and lines[end]:
+                end += 1
+            normalized = "\n".join(lines[start:end]).replace("`", "")
+            line_normalized = line.replace("`", "")
+            if CLAUDE_REFERENCE.search(line_normalized) and (
+                CLAUDE_AUTHORITY.search(line_normalized)
+                or not ALLOWED_CLAUDE_CONTEXT.search(normalized)
+            ):
+                offenders.append(f"{path.relative_to(ROOT)}:{index + 1}: {line.strip()}")
 
     assert not offenders, "\n".join(offenders)
 

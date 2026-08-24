@@ -117,8 +117,8 @@ check_skills() {
           references/*) ref_path="$skill_dir/$ref"
                         # A bare references/x.md normally means THIS skill's own
                         # references dir — but plugin-level references/ is an
-                        # equally legitimate home (meta-dev/CLAUDE.md: "references/
-                        # — Plugin-level docs"), and skills do cite those. Fall
+                        # equally legitimate home for plugin-wide docs, and skills
+                        # do cite those. Fall
                         # back there before declaring the reference missing.
                         [ -f "$ref_path" ] || ref_path="$PLUGIN_DIR/$ref" ;;
           workflow-skills/*|skills/*) ref_path="$PLUGIN_DIR/$ref" ;;
