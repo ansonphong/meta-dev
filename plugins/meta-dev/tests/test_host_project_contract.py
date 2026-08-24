@@ -34,6 +34,22 @@ def _project(tmp_path: Path, name: str) -> Path:
     return destination
 
 
+def initialize(project: Path) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["bash", str(INIT)], cwd=project, env=dict(os.environ, AUTO="true"),
+        capture_output=True, text=True, check=False,
+    )
+
+
+def assert_instruction_check_passes(project: Path) -> None:
+    result = subprocess.run(
+        [str(PLUGIN_ROOT / "scripts" / "agent-surface-check"), "--project-root", str(project),
+         "--scope-file", "AGENTS.md", "--check", "instructions"],
+        capture_output=True, text=True, check=False,
+    )
+    assert result.returncode == 0, result.stderr
+
+
 def test_production_classifier_distinguishes_every_discovery_state(tmp_path):
     expected = {
         "agents-first": "canonical",
@@ -58,10 +74,7 @@ def test_initializer_emits_neutral_contract_and_warns_for_legacy_input(tmp_path)
     ):
         project = _project(tmp_path, name)
         doctrine = (project / legacy).read_text(encoding="utf-8")
-        result = subprocess.run(
-            ["bash", str(INIT)], cwd=project, env=dict(os.environ, AUTO="true"),
-            capture_output=True, text=True, check=False,
-        )
+        result = initialize(project)
 
         assert result.returncode == 0, result.stderr
         assert (project / "AGENTS.md").read_text(encoding="utf-8") == doctrine
@@ -71,20 +84,62 @@ def test_initializer_emits_neutral_contract_and_warns_for_legacy_input(tmp_path)
         assert (project / ".agents" / "skills").is_dir()
         assert "migration warning" in result.stdout.lower()
         assert classify(project) == "adapter"
-        cutover = subprocess.run(
-            [str(PLUGIN_ROOT / "scripts" / "agent-surface-check"), "--project-root", str(project),
-             "--scope-file", "AGENTS.md", "--check", "instructions"],
-            capture_output=True, text=True, check=False,
-        )
-        assert cutover.returncode == 0, cutover.stderr
+        assert_instruction_check_passes(project)
+
+
+def test_initializer_creates_thin_adapter_for_a_fresh_missing_project(tmp_path):
+    project = tmp_path / "fresh"
+    project.mkdir()
+
+    result = initialize(project)
+
+    assert result.returncode == 0, result.stderr
+    assert (project / "AGENTS.md").is_file()
+    assert not (project / "CLAUDE.md").exists()
+    assert (project / ".claude" / "CLAUDE.md").read_bytes() == b"@../AGENTS.md\n"
+    assert_instruction_check_passes(project)
+
+
+def test_initializer_adds_adapter_to_canonical_project_without_overwriting_host_settings(tmp_path):
+    project = tmp_path / "canonical"
+    project.mkdir()
+    (project / "AGENTS.md").write_text("# Existing doctrine\n", encoding="utf-8")
+    (project / ".claude").mkdir()
+    settings = project / ".claude" / "settings.json"
+    settings.write_text('{"preserve": true}\n', encoding="utf-8")
+
+    result = initialize(project)
+
+    assert result.returncode == 0, result.stderr
+    assert (project / "AGENTS.md").read_text(encoding="utf-8") == "# Existing doctrine\n"
+    assert settings.read_text(encoding="utf-8") == '{"preserve": true}\n'
+    assert not (project / "CLAUDE.md").exists()
+    assert (project / ".claude" / "CLAUDE.md").read_bytes() == b"@../AGENTS.md\n"
+    assert_instruction_check_passes(project)
+
+
+def test_initializer_leaves_an_existing_exact_adapter_unchanged(tmp_path):
+    project = tmp_path / "adapter"
+    project.mkdir()
+    (project / "AGENTS.md").write_text("# Existing doctrine\n", encoding="utf-8")
+    (project / ".claude").mkdir()
+    adapter = project / ".claude" / "CLAUDE.md"
+    adapter.write_bytes(b"@../AGENTS.md\n")
+    before = adapter.stat().st_mtime_ns
+
+    first = initialize(project)
+    second = initialize(project)
+
+    assert first.returncode == 0, first.stderr
+    assert second.returncode == 0, second.stderr
+    assert adapter.read_bytes() == b"@../AGENTS.md\n"
+    assert adapter.stat().st_mtime_ns == before
+    assert_instruction_check_passes(project)
 
 
 def test_initializer_refuses_conflict_before_writing(tmp_path):
     project = _project(tmp_path, "conflicting")
-    result = subprocess.run(
-        ["bash", str(INIT)], cwd=project, env=dict(os.environ, AUTO="true"),
-        capture_output=True, text=True, check=False,
-    )
+    result = initialize(project)
     assert result.returncode == 1
     assert "refusing" in result.stderr.lower()
     assert not (project / "plans").exists()
@@ -115,10 +170,7 @@ def test_classifier_rejects_symlinked_claude_trees_before_initializer_writes(tmp
         assert contract["state"] == "conflict"
         assert contract["reason"] == reason
 
-        result = subprocess.run(
-            ["bash", str(INIT)], cwd=project, env=dict(os.environ, AUTO="true"),
-            capture_output=True, text=True, check=False,
-        )
+        result = initialize(project)
 
         assert result.returncode == 1
         assert "refusing" in result.stderr.lower()
@@ -133,16 +185,16 @@ def test_initializer_preserves_both_regular_legacy_doctrines(tmp_path):
     (project / ".claude").mkdir()
     (project / ".claude" / "CLAUDE.md").write_text("# Nested doctrine\n", encoding="utf-8")
 
-    result = subprocess.run(
-        ["bash", str(INIT)], cwd=project, env=dict(os.environ, AUTO="true"),
-        capture_output=True, text=True, check=False,
-    )
+    result = initialize(project)
 
     assert result.returncode == 0, result.stderr
     assert (project / "AGENTS.md").read_text(encoding="utf-8") == (
         "# Root doctrine\n\n\n<!-- Migrated from .claude/CLAUDE.md -->\n\n# Nested doctrine\n"
     )
+    assert not (project / "CLAUDE.md").exists()
+    assert (project / ".claude" / "CLAUDE.md").read_bytes() == b"@../AGENTS.md\n"
     assert classify(project) == "adapter"
+    assert_instruction_check_passes(project)
 
 
 def test_repository_contract_has_one_canonical_doctrine_and_thin_claude_adapter():

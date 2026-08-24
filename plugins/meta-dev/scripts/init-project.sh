@@ -23,6 +23,13 @@ case "$CONTRACT_STATE" in
   *) echo "Refusing to initialize: unknown contract discovery state $CONTRACT_STATE" >&2; exit 1 ;;
 esac
 
+# The classifier has already rejected symlinked and non-regular adapter paths.
+# Refuse a non-directory ancestor here as well, before bootstrap writes begin.
+if [ -e .claude ] && [ ! -d .claude ]; then
+  echo "Refusing to initialize: .claude must be a directory" >&2
+  exit 1
+fi
+
 confirm() { [ "$AUTO" = "true" ] && return 0; read -r -p "$1 [y/N] " r; [[ "$r" =~ ^[Yy]$ ]]; }
 
 # Detect project name
@@ -101,6 +108,14 @@ This is the canonical project doctrine. Put durable routed context in
 directories are adapters and must not repeat these rules.
 EOF
   echo "Created AGENTS.md"
+fi
+
+# Every initialized project needs the Claude discovery adapter.  It is created
+# only for states where it was absent, so an exact existing adapter is untouched.
+if [ "$CONTRACT_STATE" = "missing" ] || [ "$CONTRACT_STATE" = "canonical" ]; then
+  mkdir -p .claude
+  printf '@../AGENTS.md\n' > .claude/CLAUDE.md
+  echo "Created .claude/CLAUDE.md adapter"
 fi
 
 # Append .gitignore entries

@@ -9,17 +9,18 @@ the settings cascade and durable rules by this discovery order:
 4. Vendor directories, including `.claude/`, are host adapters.
 
 Root `CLAUDE.md` and `.claude/CLAUDE.md` remain compatibility inputs. Report a
-migration warning when found without a canonical `AGENTS.md`; never create them
-as preferred initializer output.
+migration warning when found without a canonical `AGENTS.md`. Initializers
+never create root `CLAUDE.md`. Their required generated output is the thin
+adapter `.claude/CLAUDE.md` with exactly `@../AGENTS.md` followed by a newline.
 
 ## Contract states
 
 | State | Meaning | Required response |
 | --- | --- | --- |
-| canonical | Root `AGENTS.md` resolves normally. | Use it first. |
-| adapter | `.claude/CLAUDE.md` is exactly `@../AGENTS.md`. | Use it only for that host. |
+| canonical | Root `AGENTS.md` resolves normally and no Claude adapter exists yet. | Use it first; init adds the thin adapter. |
+| adapter | Root `AGENTS.md` resolves normally and `.claude/CLAUDE.md` is exactly `@../AGENTS.md`. | Use the root doctrine first and the adapter only for that host. |
 | compatibility | No canonical doctrine exists and one or more regular legacy Claude inputs are present. | Warn, then migrate their doctrine into AGENTS-first output on init. |
-| missing | No canonical or legacy contract exists. | Create AGENTS-first output on init. |
+| missing | No canonical or legacy contract exists. | Create AGENTS-first output plus the thin adapter on init. |
 | casefold_alias | A differently cased `AGENTS.md` is the same inode. | Warn and repair the host naming before cutover. |
 | duplicate_copy | A differently cased `AGENTS.md` has the same bytes but a different inode. | Warn and repair the host naming before cutover. |
 | conflict | Candidate doctrine, adapter, or skill root is unsafe. | Refuse to select or initialize a default. |
