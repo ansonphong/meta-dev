@@ -49,3 +49,21 @@ def test_sync_rejects_symlinked_claude_ancestor(tmp_path):
 
     assert result.returncode == 1
     assert "generated adapter root symlink forbidden" in result.stderr
+
+
+def test_sync_reports_file_shaped_canonical_skill_root_in_check_and_write_modes(tmp_path):
+    root = tmp_path / "project"
+    source = root / ".agents" / "skills"
+    source.parent.mkdir(parents=True)
+    source.write_text("not a directory\n", encoding="utf-8")
+
+    for args in ((), ("--check",)):
+        result = subprocess.run(
+            [sys.executable, str(SYNC), "--project-root", str(root), *args],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        assert result.returncode == 1
+        assert "skill root must be a directory" in result.stderr

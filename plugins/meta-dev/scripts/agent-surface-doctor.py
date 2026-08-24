@@ -260,6 +260,8 @@ def check_project(name, root, selected, manifest_data=None):
         source = root / ".agents" / "skills"
         if first_repository_symlink(root, source):
             add(findings, "error", "skill_root_symlink", source, "canonical skill root must not be a symlink")
+        elif source.exists() and not source.is_dir():
+            add(findings, "error", "skill_root", source, "canonical skill root must be a directory")
         elif source.exists():
             for skill in sorted(source.iterdir()):
                 marker = skill / "SKILL.md"
@@ -280,6 +282,8 @@ def check_project(name, root, selected, manifest_data=None):
             {str(p.relative_to(source)): digest(p) for p in source.rglob("*") if p.is_file() and not p.is_symlink()}
             if source.is_dir() and not first_repository_symlink(root, source) else {}
         )
+        if not first_repository_symlink(root, source) and source.exists() and not source.is_dir():
+            add(findings, "error", "skill_root", source, "canonical skill root must be a directory")
         if first_repository_symlink(root, adapter_root):
             add(findings, "error", "adapter_root_symlink", adapter_root, "generated adapter root must not be a symlink")
         elif adapter_root.exists() and not adapter_root.is_dir():
@@ -287,6 +291,8 @@ def check_project(name, root, selected, manifest_data=None):
         else:
             if manifest.is_symlink() or (manifest.exists() and not manifest.is_file()):
                 add(findings, "error", "adapter_manifest", manifest, "generated adapter manifest must be a regular file")
+            elif adapter_root.is_dir() and not manifest.is_file():
+                add(findings, "error", "adapter_manifest", manifest, "generated adapter root requires a manifest")
             elif canonical_files and not manifest.is_file():
                 add(findings, "error", "adapter_manifest", manifest, "canonical skills require a generated adapter manifest")
             elif manifest.is_file():

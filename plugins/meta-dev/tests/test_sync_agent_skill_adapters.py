@@ -44,6 +44,24 @@ def test_sync_rejects_symlinked_skill_root(tmp_path):
     assert "skill root symlink forbidden" in result.stderr
 
 
+def test_sync_accepts_explicit_empty_generated_mirror(tmp_path):
+    root = tmp_path / "project"
+    destination = root / ".claude" / "skills"
+    destination.mkdir(parents=True)
+    (destination / ".agent-skill-adapters.json").write_text(
+        '{"schema_version": 1, "files": {}}\n', encoding="utf-8"
+    )
+
+    result = subprocess.run(
+        [sys.executable, str(SYNC), "--project-root", str(root), "--check"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
 def test_sync_rejects_nested_canonical_directory_symlinks(tmp_path):
     for name in ("references", "scripts"):
         root = tmp_path / name

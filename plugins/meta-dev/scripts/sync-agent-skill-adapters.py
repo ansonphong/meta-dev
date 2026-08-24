@@ -66,6 +66,8 @@ def expected(root: Path):
     output = {}
     if symlink := first_repository_symlink(root, source):
         raise ValueError(f"skill root symlink forbidden: {symlink}")
+    if source.exists() and not source.is_dir():
+        raise ValueError(f"skill root must be a directory: {source}")
     if source.exists():
         for path in regular_files(source, "source"):
             output[str(path.relative_to(source))] = sha(path)

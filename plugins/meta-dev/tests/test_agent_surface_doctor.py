@@ -197,6 +197,36 @@ def test_doctor_allows_missing_generated_adapters_without_canonical_skills(tmp_p
     assert result.returncode == 0, result.stderr
 
 
+def test_doctor_requires_manifest_for_empty_adapter_root_and_accepts_explicit_empty_mirror(tmp_path):
+    root = tmp_path / "project"
+    root.mkdir()
+    (root / "AGENTS.md").write_text("rules\n", encoding="utf-8")
+    (root / ".claude" / "skills").mkdir(parents=True)
+    (root / ".claude" / "CLAUDE.md").write_text("@../AGENTS.md\n", encoding="utf-8")
+
+    orphan = run("--project-root", str(root), "--check", "adapters")
+    assert orphan.returncode == 1, orphan.stderr
+    assert "adapter_manifest" in orphan.stdout
+
+    manifest = root / ".claude" / "skills" / ".agent-skill-adapters.json"
+    manifest.write_text(json.dumps({"schema_version": 1, "files": {}}), encoding="utf-8")
+    explicit_empty = run("--project-root", str(root), "--check", "adapters")
+    assert explicit_empty.returncode == 0, explicit_empty.stderr
+
+
+def test_doctor_reports_file_shaped_canonical_skill_root_as_json(tmp_path):
+    root = project(tmp_path)
+    shutil.rmtree(root / ".agents" / "skills")
+    (root / ".agents" / "skills").write_text("not a directory\n", encoding="utf-8")
+
+    for check in ("skills", "adapters"):
+        result = run("--project-root", str(root), "--check", check)
+        assert result.returncode == 1, result.stderr
+        report = json.loads(result.stdout)
+        assert report["checks"] == [check]
+        assert any(finding["code"] == "skill_root" for finding in report["projects"][0]["findings"])
+
+
 def test_doctor_rejects_nonregular_manifest_and_undeclared_adapter_entries(tmp_path):
     manifest_case = tmp_path / "manifest"
     manifest_case.mkdir()
