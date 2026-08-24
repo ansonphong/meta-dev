@@ -24,9 +24,10 @@ Use this contract whenever a native command skill points at a canonical
      follow it inline.
    - Claude command frontmatter such as `allowed-tools:` and `model:` is not a
      Codex capability contract. Use the configured Codex route instead.
-5. In Codex, read applicable `AGENTS.md` files first. Read `CLAUDE.md` only when
-   `AGENTS.md` points to it or the command needs project detail not present in
-   the condensed Codex instructions.
+5. In Codex, read applicable `AGENTS.md` files first, then the project's routed
+   neutral context. Do not consult `CLAUDE.md` for project details. Inspect it
+   only when the command itself explicitly concerns an adapter, compatibility,
+   or migration.
 6. Preserve all permission gates. Planning, review, audit, and diagnosis do not
    authorize source implementation.
 

@@ -29,7 +29,6 @@ FORBIDDEN = (
 CLAUDE_REFERENCE = re.compile(r"\bCLAUDE\.md\b", re.IGNORECASE)
 ALLOWED_CLAUDE_CONTEXT = re.compile(
     r"\b(?:adapter|compatibility|legacy|migration)\b"
-    r"|\b(?:read|use)\s+CLAUDE\.md\s+only\b"
     r"|\bAGENTS\.md\s+(?:points?\s+to|is\s+exactly|constrains?)\b",
     re.IGNORECASE,
 )
@@ -43,6 +42,7 @@ LIVE_ROOTS = (
     ROOT / "agents",
     ROOT / "commands",
     ROOT / "references",
+    ROOT / "templates",
     ROOT / "workflow-skills",
 )
 
