@@ -112,6 +112,24 @@ def projects(args):
     return result
 
 
+def resolve_scope_files(args, report_projects) -> list[str]:
+    """Resolve declared task files and bind them to selected project roots."""
+    if not args.scope_file:
+        return []
+    anchor = Path(args.project_root).resolve() if args.project_root else Path(args.workspace_root).resolve()
+    roots = [Path(project["root"]) for project in report_projects]
+    resolved = []
+    for value in args.scope_file:
+        declared = (anchor / value) if not Path(value).is_absolute() else Path(value)
+        candidate = declared.resolve()
+        if not any(within(root, candidate) for root in roots):
+            raise ValueError(f"scope outside selected root: {value}")
+        if declared.is_symlink() or not declared.is_file():
+            raise ValueError(f"scope must be an existing regular file: {value}")
+        resolved.append(candidate.as_posix())
+    return resolved
+
+
 def check_project(name, root, selected, manifest_data=None):
     findings = []
     contract = classify_contract(root)
@@ -197,16 +215,24 @@ def check_project(name, root, selected, manifest_data=None):
                     if item.is_symlink():
                         add(findings, "error", "skill_symlink", item, "skill resources cannot be symlinks")
     if "adapters" in selected:
-        manifest = root / ".claude" / "skills" / ".agent-skill-adapters.json"
-        if manifest.exists():
+        adapter_root = root / ".claude" / "skills"
+        manifest = adapter_root / ".agent-skill-adapters.json"
+        source = root / ".agents" / "skills"
+        canonical_files = (
+            {str(p.relative_to(source)): digest(p) for p in source.rglob("*") if p.is_file() and not p.is_symlink()}
+            if source.is_dir() and not source.is_symlink() else {}
+        )
+        if adapter_root.is_symlink():
+            add(findings, "error", "adapter_root_symlink", adapter_root, "generated adapter root must not be a symlink")
+        elif canonical_files and not manifest.is_file():
+            add(findings, "error", "adapter_manifest", manifest, "canonical skills require a generated adapter manifest")
+        elif manifest.exists():
             try:
                 data = json.loads(manifest.read_text(encoding="utf-8"))
-                source = root / ".agents" / "skills"
-                canonical = {str(p.relative_to(source)): digest(p) for p in source.rglob("*") if p.is_file()} if source.exists() else {}
-                if data.get("files", {}) != canonical:
+                if data.get("files", {}) != canonical_files:
                     add(findings, "error", "adapter_manifest", manifest, "adapter manifest differs from canonical source")
                 for rel, expected in data.get("files", {}).items():
-                    path = root / ".claude" / "skills" / rel
+                    path = adapter_root / rel
                     if not path.is_file() or path.is_symlink() or digest(path) != expected:
                         add(findings, "error", "adapter_mismatch", path, "generated adapter differs from manifest")
             except (json.JSONDecodeError, OSError):
@@ -233,6 +259,7 @@ def main(argv=None):
     group.add_argument("--manifest")
     parser.add_argument("--workspace-root", default=".")
     parser.add_argument("--check", choices=CHECKS, action="append")
+    parser.add_argument("--scope-file", action="append")
     parser.add_argument("--classify", action="store_true", help="emit only contract discovery state")
     parser.add_argument("--require-canonical", action="store_true", help="fail unless the target is canonical or a thin adapter")
     args = parser.parse_args(argv)
@@ -243,15 +270,16 @@ def main(argv=None):
             _, manifest = resolve_workspace_manifest(args.workspace_root, args.manifest)
             manifest_data = json.loads(manifest.read_text(encoding="utf-8"))
         report_projects = [check_project(name, root, selected, manifest_data) for name, root in projects(args)]
+        scope_files = resolve_scope_files(args, report_projects)
     except (ValueError, OSError, json.JSONDecodeError) as exc:
         parser.error(str(exc))
     findings = [f for project in report_projects for f in project["findings"]]
     if args.classify:
-        print(json.dumps({"projects": report_projects}, sort_keys=True, separators=(",", ":")))
+        print(json.dumps({"projects": report_projects, "scope_files": scope_files}, sort_keys=True, separators=(",", ":")))
         return 0
     canonical = all(project["contract"]["state"] in {"canonical", "adapter"} for project in report_projects)
     ok = not any(f["level"] == "error" for f in findings) and (canonical or not args.require_canonical)
-    print(json.dumps({"checks": list(selected), "ok": ok, "projects": report_projects}, sort_keys=True, separators=(",", ":")))
+    print(json.dumps({"checks": list(selected), "ok": ok, "projects": report_projects, "scope_files": scope_files}, sort_keys=True, separators=(",", ":")))
     return 0 if ok else 1
 
 

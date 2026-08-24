@@ -2,6 +2,7 @@
 """Bounded command wrapper for agent-surface-doctor."""
 from __future__ import annotations
 import argparse
+import json
 from pathlib import Path
 import subprocess
 import sys
@@ -14,24 +15,45 @@ parser.add_argument("--workspace-root", default=".")
 parser.add_argument("--scope-file", action="append", required=True)
 parser.add_argument("--check", action="append")
 args = parser.parse_args()
-root = Path(args.project_root or args.workspace_root).resolve()
+workspace_root = Path(args.workspace_root).resolve()
+scope_anchor = Path(args.project_root).resolve() if args.project_root else workspace_root
+selected_roots = [scope_anchor] if args.project_root else []
 if args.manifest:
     manifest = Path(args.manifest)
     if manifest.is_absolute():
         parser.error("--manifest must be workspace-relative")
-    manifest_target = (root / manifest).resolve()
-    if root != manifest_target and root not in manifest_target.parents:
+    manifest_target = (workspace_root / manifest).resolve()
+    if workspace_root != manifest_target and workspace_root not in manifest_target.parents:
         parser.error("--manifest resolves outside workspace root")
+    try:
+        data = json.loads(manifest_target.read_text(encoding="utf-8"))
+        repositories = data.get("repositories", data.get("projects", {}))
+        if not isinstance(repositories, dict):
+            parser.error("manifest repositories must be an object")
+        for name, relative in repositories.items():
+            if not isinstance(relative, str) or Path(relative).is_absolute():
+                parser.error(f"manifest repository {name} must be a relative path")
+            candidate = (workspace_root / relative).resolve()
+            if workspace_root != candidate and workspace_root not in candidate.parents:
+                parser.error(f"manifest repository escapes workspace: {name}")
+            selected_roots.append(candidate)
+    except (OSError, json.JSONDecodeError) as exc:
+        parser.error(str(exc))
 if not args.scope_file:
     parser.error("one or more --scope-file values are required")
 for value in args.scope_file:
     path = Path(value)
-    candidate = (root / path).resolve() if not path.is_absolute() else path.resolve()
-    if root != candidate and root not in candidate.parents:
+    declared = (scope_anchor / path) if not path.is_absolute() else path
+    candidate = declared.resolve()
+    if not any(candidate == root or root in candidate.parents for root in selected_roots):
         parser.error(f"scope outside selected root: {value}")
+    if declared.is_symlink() or not declared.is_file():
+        parser.error(f"scope must be an existing regular file: {value}")
 doctor = Path(__file__).with_name("agent-surface-doctor.py")
 command = [sys.executable, str(doctor)]
 command += ["--project-root", args.project_root] if args.project_root else ["--manifest", args.manifest, "--workspace-root", args.workspace_root]
+for scope_file in args.scope_file:
+    command += ["--scope-file", scope_file]
 for check in args.check or []:
     command += ["--check", check]
 command += ["--require-canonical"]

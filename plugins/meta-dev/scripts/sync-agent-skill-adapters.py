@@ -31,6 +31,9 @@ def main(argv=None):
     root = Path(args.project_root).resolve()
     destination = root / ".claude" / "skills"
     manifest = destination / ".agent-skill-adapters.json"
+    if destination.is_symlink():
+        print(f"generated adapter root symlink forbidden: {destination}", file=sys.stderr)
+        return 1
     try:
         wanted = expected(root)
     except ValueError as exc:

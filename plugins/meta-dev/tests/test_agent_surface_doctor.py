@@ -129,6 +129,56 @@ def test_case_conflict_and_scope_wrapper(tmp_path):
     assert rejected.returncode == 2
 
 
+def test_scope_wrapper_rejects_nonexistent_file_and_binds_doctor_scope(tmp_path):
+    root = project(tmp_path)
+    missing = subprocess.run(
+        [str(CHECK), "--project-root", str(root), "--scope-file", "missing.md", "--check", "instructions"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert missing.returncode == 2
+    assert "existing regular file" in missing.stderr
+
+    accepted = subprocess.run(
+        [str(CHECK), "--project-root", str(root), "--scope-file", "AGENTS.md", "--check", "instructions"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert accepted.returncode == 0, accepted.stderr
+    assert json.loads(accepted.stdout)["scope_files"] == [(root / "AGENTS.md").as_posix()]
+
+
+def test_doctor_rejects_symlinked_adapter_root_and_missing_manifest(tmp_path):
+    root = project(tmp_path)
+    adapter_root = root / ".claude" / "skills"
+    target = tmp_path / "adapter-target"
+    target.mkdir()
+    adapter_root.symlink_to(target, target_is_directory=True)
+
+    symlinked = run("--project-root", str(root), "--check", "adapters")
+    assert symlinked.returncode == 1, symlinked.stderr
+    assert "adapter_root_symlink" in symlinked.stdout
+
+    adapter_root.unlink()
+    missing = run("--project-root", str(root), "--check", "adapters")
+    assert missing.returncode == 1, missing.stderr
+    assert "adapter_manifest" in missing.stdout
+
+
+def test_doctor_allows_missing_generated_adapters_without_canonical_skills(tmp_path):
+    root = tmp_path / "project"
+    root.mkdir()
+    (root / "AGENTS.md").write_text("rules\n", encoding="utf-8")
+    (root / ".claude").mkdir()
+    (root / ".claude" / "CLAUDE.md").write_text("@../AGENTS.md\n", encoding="utf-8")
+
+    result = run("--project-root", str(root), "--check", "adapters")
+
+    assert result.returncode == 0, result.stderr
+
+
 def test_manifest_escape_and_skill_root_symlink_are_rejected(tmp_path):
     workspace = tmp_path / "workspace"
     workspace.mkdir()
