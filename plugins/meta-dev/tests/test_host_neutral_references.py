@@ -23,15 +23,7 @@ FORBIDDEN = (
     "host `CLAUDE.md`",
 )
 
-# A CLAUDE.md reference is safe only when it describes a host adapter or a
-# compatibility/migration input, or makes AGENTS.md the controlling source.
-# Keep this rule semantic rather than accumulating one-off forbidden phrases.
 CLAUDE_REFERENCE = re.compile(r"\bCLAUDE\.md\b", re.IGNORECASE)
-ALLOWED_CLAUDE_CONTEXT = re.compile(
-    r"\b(?:adapter|compatibility|legacy|migration)\b"
-    r"|\bAGENTS\.md\s+(?:points?\s+to|is\s+exactly|constrains?)\b",
-    re.IGNORECASE,
-)
 LIVE_ROOTS = (
     ROOT / "agents",
     ROOT / "commands",
@@ -43,8 +35,7 @@ LIVE_ROOTS = (
 # Scripts are live operational doctrine too.  Do not scan tests or fixtures:
 # they describe guard cases rather than host-project instructions.  The
 # initializer's migration and adapter references are compatibility logic and
-# are recognized semantically by ALLOWED_CLAUDE_CONTEXT, not by a whole-script
-# exemption.
+# are recognized by CLAUDE_MD_LINE_ALLOWLIST, not by a whole-script exemption.
 LIVE_SCRIPT_ROOT = ROOT / "scripts"
 LIVE_SCRIPT_SUFFIXES = {".sh", ".py"}
 
@@ -71,13 +62,111 @@ CLAUDE_SKILL_ADAPTER_ALLOWLIST = {
     ),
 }
 
-# The doctor enumerates the Claude adapter path as a discovery input, not an
-# authority.  Allow exactly that one line and nothing else in the file; a
-# semantic broadening or a whole-file exemption would defeat the guard.
-CLAUDE_ADAPTER_DISCOVERY_ALLOWLIST = {
+# A CLAUDE.md occurrence is safe only as an exact (relative path, stripped
+# line) compatibility/adapter/detection reference.  Every line that mentions
+# CLAUDE.md must match one of these entries; a new authority-style "Read
+# CLAUDE.md" line anywhere in these files fails the guard.  No semantic
+# paragraph exemption, whole-file skip, or line-number matching.
+CLAUDE_MD_LINE_ALLOWLIST = {
+    # references/host-project-contract.md — describes the Claude adapter and
+    # compatibility/migration inputs, never an authority to consult.
+    (
+        Path("references/host-project-contract.md"),
+        "Root `CLAUDE.md` and `.claude/CLAUDE.md` remain compatibility inputs. Report a",
+    ),
+    (
+        Path("references/host-project-contract.md"),
+        "never create root `CLAUDE.md`. Their required generated output is the thin",
+    ),
+    (
+        Path("references/host-project-contract.md"),
+        "adapter `.claude/CLAUDE.md` with exactly `@../AGENTS.md` followed by a newline.",
+    ),
+    (
+        Path("references/host-project-contract.md"),
+        "| adapter | Root `AGENTS.md` resolves normally and `.claude/CLAUDE.md` is exactly `@../AGENTS.md`. | Use the root doctrine first and the adapter only for that host. |",
+    ),
+    (
+        Path("references/host-project-contract.md"),
+        "Legacy candidates include both root `CLAUDE.md` and `.claude/CLAUDE.md`.",
+    ),
+    (
+        Path("references/host-project-contract.md"),
+        "separator; it removes root `CLAUDE.md` and writes `.claude/CLAUDE.md` exactly",
+    ),
+    # references/workflows/command-adapter.md — tells the Codex adapter not to
+    # treat CLAUDE.md as an authority.
+    (
+        Path("references/workflows/command-adapter.md"),
+        "neutral context. Do not consult `CLAUDE.md` for project details. Inspect it",
+    ),
+    # scripts/agent-surface-doctor.py — detection logic over legacy and adapter
+    # contract inputs, not host-project instruction.
+    (
+        Path("scripts/agent-surface-doctor.py"),
+        'legacy_root = root / "CLAUDE.md"',
+    ),
+    (
+        Path("scripts/agent-surface-doctor.py"),
+        'adapter = root / ".claude" / "CLAUDE.md"',
+    ),
+    (
+        Path("scripts/agent-surface-doctor.py"),
+        'elif not any("AGENTS.md" in value for value in instructions) or not any("CLAUDE.md" in value for value in instructions):',
+    ),
+    (
+        Path("scripts/agent-surface-doctor.py"),
+        'errors.append("live_grok_inspect.project_instructions must record AGENTS.md and CLAUDE.md compatibility")',
+    ),
     (
         Path("scripts/agent-surface-doctor.py"),
         'for rel in ("AGENTS.md", ".claude/CLAUDE.md"):',
+    ),
+    (
+        Path("scripts/agent-surface-doctor.py"),
+        'root_claude = root / "CLAUDE.md"',
+    ),
+    (
+        Path("scripts/agent-surface-doctor.py"),
+        'add(findings, "error", "root_claude", root_claude, "root CLAUDE.md is forbidden")',
+    ),
+    (
+        Path("scripts/agent-surface-doctor.py"),
+        'if path.is_symlink() and (path.name.casefold() in {"agents.md", "claude.md"} or "agent-context" in path.parts):',
+    ),
+    # scripts/init-project.sh — migration writes remove legacy CLAUDE.md and
+    # emit the thin adapter; these are shell operations, not instructions.
+    (
+        Path("scripts/init-project.sh"),
+        'if [ -f CLAUDE.md ]; then',
+    ),
+    (
+        Path("scripts/init-project.sh"),
+        'cat CLAUDE.md > "$migration_tmp"',
+    ),
+    (
+        Path("scripts/init-project.sh"),
+        'if [ -f .claude/CLAUDE.md ]; then',
+    ),
+    (
+        Path("scripts/init-project.sh"),
+        "printf '\\n\\n<!-- Migrated from .claude/CLAUDE.md -->\\n\\n' >> \"$migration_tmp\"",
+    ),
+    (
+        Path("scripts/init-project.sh"),
+        'cat .claude/CLAUDE.md >> "$migration_tmp"',
+    ),
+    (
+        Path("scripts/init-project.sh"),
+        'rm -f CLAUDE.md',
+    ),
+    (
+        Path("scripts/init-project.sh"),
+        "printf '@../AGENTS.md\\n' > .claude/CLAUDE.md",
+    ),
+    (
+        Path("scripts/init-project.sh"),
+        'echo "Created .claude/CLAUDE.md adapter"',
     ),
 }
 
@@ -91,11 +180,27 @@ def live_instruction_paths() -> list[Path]:
 
 
 def live_script_paths() -> list[Path]:
-    return [
-        path
-        for path in LIVE_SCRIPT_ROOT.rglob("*")
-        if path.suffix in LIVE_SCRIPT_SUFFIXES
-    ]
+    """Live scripts include suffixed and suffixless text entry points.
+
+    Suffixless entry points (agent-surface-check, claude-headless-exec, ...)
+    are regular executable text scripts.  Skip symlinks, cache directories,
+    and binary artifacts so only live doctrine is scanned.
+    """
+    paths: list[Path] = []
+    for path in LIVE_SCRIPT_ROOT.rglob("*"):
+        if not path.is_file() or path.is_symlink():
+            continue
+        if "__pycache__" in path.parts:
+            continue
+        if path.suffix in LIVE_SCRIPT_SUFFIXES:
+            paths.append(path)
+        elif path.suffix == "":
+            try:
+                path.read_text(encoding="utf-8")
+            except (UnicodeDecodeError, OSError):
+                continue
+            paths.append(path)
+    return paths
 
 
 def forbidden_path_offenders(relative_path: Path, text: str) -> list[str]:
@@ -127,6 +232,18 @@ def skill_adapter_offenders(relative_path: Path, text: str) -> list[str]:
     return offenders
 
 
+def claude_md_offenders(relative_path: Path, text: str) -> list[str]:
+    """Report every CLAUDE.md line not matched by the exact line allowlist."""
+    offenders: list[str] = []
+    for index, line in enumerate(text.splitlines()):
+        if not CLAUDE_REFERENCE.search(line.replace("`", "")):
+            continue
+        if (relative_path, line.strip()) in CLAUDE_MD_LINE_ALLOWLIST:
+            continue
+        offenders.append(f"{relative_path}:{index + 1}: {line.strip()}")
+    return offenders
+
+
 def test_live_instructions_do_not_restore_claude_first_paths():
     offenders: list[str] = []
     for path in [*live_instruction_paths(), *live_script_paths()]:
@@ -151,30 +268,25 @@ def test_context_path_line_allowlist_reports_extra_doctor_occurrences():
     assert offenders == [f"{relative_path}:2: .claude/context/"]
 
 
-def test_live_script_corpus_includes_the_agent_surface_doctor():
-    assert ROOT / "scripts" / "agent-surface-doctor.py" in live_script_paths()
+def test_live_script_corpus_includes_live_entry_points():
+    scripts = live_script_paths()
+    for name in (
+        "agent-surface-doctor.py",
+        "init-project.sh",
+        "agent-surface-check",
+        "claude-headless-exec",
+    ):
+        assert ROOT / "scripts" / name in scripts, name
 
 
 def test_live_instructions_do_not_treat_claude_md_as_authority():
     offenders: list[str] = []
     for path in [*live_instruction_paths(), *live_script_paths()]:
-        lines = path.read_text(encoding="utf-8").splitlines()
-        for index, line in enumerate(lines):
-            start = index
-            while start and lines[start - 1]:
-                start -= 1
-            end = index + 1
-            while end < len(lines) and lines[end]:
-                end += 1
-            normalized = "\n".join(lines[start:end]).replace("`", "")
-            line_normalized = line.replace("`", "")
-            if (
-                CLAUDE_REFERENCE.search(line_normalized)
-                and not ALLOWED_CLAUDE_CONTEXT.search(normalized)
-                and (path.relative_to(ROOT), line_normalized.strip())
-                not in CLAUDE_ADAPTER_DISCOVERY_ALLOWLIST
-            ):
-                offenders.append(f"{path.relative_to(ROOT)}:{index + 1}: {line.strip()}")
+        offenders.extend(
+            claude_md_offenders(
+                path.relative_to(ROOT), path.read_text(encoding="utf-8")
+            )
+        )
 
     assert not offenders, "\n".join(offenders)
 
@@ -201,6 +313,15 @@ def test_skill_adapter_allowlist_reports_extra_contract_occurrences():
     text = allowed_line + "\n" + "# a second .claude/skills/ reference\n"
     offenders = skill_adapter_offenders(relative_path, text)
     assert offenders == [f"{relative_path}:2: .claude/skills/"]
+
+
+def test_claude_md_allowlist_reports_appended_authority_line():
+    for relative_path in sorted({path for (path, _) in CLAUDE_MD_LINE_ALLOWLIST}):
+        text = "# unrelated line\nRead CLAUDE.md before AGENTS.md.\n"
+        offenders = claude_md_offenders(relative_path, text)
+        assert offenders == [
+            f"{relative_path}:2: Read CLAUDE.md before AGENTS.md."
+        ], offenders
 
 
 def test_live_instructions_name_the_host_project_contract():
