@@ -25,6 +25,25 @@ def within(root: Path, candidate: Path) -> bool:
     return candidate == root or root in candidate.parents
 
 
+def first_repository_symlink(root: Path, path: Path) -> Path | None:
+    """Return the first symlink from the repository root through path.
+
+    ``root`` is already an explicitly selected, resolved project root. This
+    deliberately ignores its filesystem ancestry: only repository-relative
+    components are unsafe.
+    """
+    try:
+        relative = path.relative_to(root)
+    except ValueError:
+        return None
+    current = root
+    for component in relative.parts:
+        current /= component
+        if current.is_symlink():
+            return current
+    return None
+
+
 def tree_entries(root: Path):
     """Yield every entry below root without traversing symlink directories."""
     for entry in sorted(root.iterdir(), key=lambda path: path.name):
@@ -65,7 +84,7 @@ def classify_contract(root: Path) -> dict:
     legacy_present = [path for path in legacy_candidates if path.exists() or path.is_symlink()]
     compatibility = [path for path in legacy_present if path.is_file() and not path.is_symlink()]
     result = {"state": "missing", "compatibility_inputs": [path.as_posix() for path in compatibility]}
-    if (root / ".agents" / "skills").is_symlink():
+    if first_repository_symlink(root, root / ".agents" / "skills"):
         result["state"] = "conflict"
         result["reason"] = "skill_root_symlink"
         return result
@@ -73,7 +92,7 @@ def classify_contract(root: Path) -> dict:
         result["state"] = "conflict"
         result["reason"] = "canonical_not_regular"
         return result
-    if any(path.is_symlink() for path in legacy_present):
+    if any(first_repository_symlink(root, path) for path in legacy_present):
         result["state"] = "conflict"
         result["reason"] = "legacy_symlink"
         return result
@@ -141,8 +160,18 @@ def resolve_scope_files(args, report_projects) -> list[str]:
     for value in args.scope_file:
         declared = (anchor / value) if not Path(value).is_absolute() else Path(value)
         candidate = declared.resolve()
-        if not any(within(root, candidate) for root in roots):
+        selected_root = next((root for root in roots if within(root, candidate)), None)
+        if selected_root is None:
             raise ValueError(f"scope outside selected root: {value}")
+        try:
+            lexical = declared.relative_to(selected_root)
+        except ValueError:
+            # An absolute path may reach the selected root through an external
+            # workspace alias. Do not reject that external ancestry.
+            lexical = candidate.relative_to(selected_root)
+        lexical = selected_root / lexical
+        if first_repository_symlink(selected_root, lexical):
+            raise ValueError(f"scope path contains a symlink component: {value}")
         if declared.is_symlink() or not declared.is_file():
             raise ValueError(f"scope must be an existing regular file: {value}")
         resolved.append(candidate.as_posix())
@@ -179,7 +208,9 @@ def check_project(name, root, selected, manifest_data=None):
         if root_claude.exists() or root_claude.is_symlink():
             add(findings, "error", "root_claude", root_claude, "root CLAUDE.md is forbidden")
         adapter = root / ".claude" / "CLAUDE.md"
-        if not adapter.is_file() or adapter.is_symlink() or adapter.read_bytes() != b"@../AGENTS.md\n":
+        if first_repository_symlink(root, adapter):
+            add(findings, "error", "claude_adapter_symlink", adapter, "adapter path cannot contain symlinks")
+        elif not adapter.is_file() or adapter.is_symlink() or adapter.read_bytes() != b"@../AGENTS.md\n":
             add(findings, "error", "claude_adapter", adapter, "adapter must be exactly @../AGENTS.md")
         elif adapter.stat().st_size > 1024:
             add(findings, "error", "adapter_bytes", adapter, "adapter exceeds 1,024 bytes")
@@ -219,7 +250,7 @@ def check_project(name, root, selected, manifest_data=None):
                     add(findings, "error", "conflict", other, "case-folded instruction content conflicts")
     if "skills" in selected:
         source = root / ".agents" / "skills"
-        if source.is_symlink():
+        if first_repository_symlink(root, source):
             add(findings, "error", "skill_root_symlink", source, "canonical skill root must not be a symlink")
         elif source.exists():
             for skill in sorted(source.iterdir()):
@@ -239,9 +270,9 @@ def check_project(name, root, selected, manifest_data=None):
         source = root / ".agents" / "skills"
         canonical_files = (
             {str(p.relative_to(source)): digest(p) for p in source.rglob("*") if p.is_file() and not p.is_symlink()}
-            if source.is_dir() and not source.is_symlink() else {}
+            if source.is_dir() and not first_repository_symlink(root, source) else {}
         )
-        if adapter_root.is_symlink():
+        if first_repository_symlink(root, adapter_root):
             add(findings, "error", "adapter_root_symlink", adapter_root, "generated adapter root must not be a symlink")
         elif adapter_root.exists() and not adapter_root.is_dir():
             add(findings, "error", "adapter_root", adapter_root, "generated adapter root must be a directory")

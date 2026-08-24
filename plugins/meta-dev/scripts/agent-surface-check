@@ -18,6 +18,22 @@ args = parser.parse_args()
 workspace_root = Path(args.workspace_root).resolve()
 scope_anchor = Path(args.project_root).resolve() if args.project_root else workspace_root
 selected_roots = [scope_anchor] if args.project_root else []
+
+
+def first_repository_symlink(root: Path, path: Path) -> Path | None:
+    """Return a symlink component below the selected repository root only."""
+    try:
+        relative = path.relative_to(root)
+    except ValueError:
+        return None
+    current = root
+    for component in relative.parts:
+        current /= component
+        if current.is_symlink():
+            return current
+    return None
+
+
 if args.manifest:
     manifest = Path(args.manifest)
     if manifest.is_absolute():
@@ -45,8 +61,18 @@ for value in args.scope_file:
     path = Path(value)
     declared = (scope_anchor / path) if not path.is_absolute() else path
     candidate = declared.resolve()
-    if not any(candidate == root or root in candidate.parents for root in selected_roots):
+    selected_root = next((root for root in selected_roots if candidate == root or root in candidate.parents), None)
+    if selected_root is None:
         parser.error(f"scope outside selected root: {value}")
+    try:
+        lexical = declared.relative_to(selected_root)
+    except ValueError:
+        # An absolute path may reach the selected root through an external
+        # workspace alias. Do not reject that external ancestry.
+        lexical = candidate.relative_to(selected_root)
+    lexical = selected_root / lexical
+    if first_repository_symlink(selected_root, lexical):
+        parser.error(f"scope path contains a symlink component: {value}")
     if declared.is_symlink() or not declared.is_file():
         parser.error(f"scope must be an existing regular file: {value}")
 doctor = Path(__file__).with_name("agent-surface-doctor.py")

@@ -26,6 +26,9 @@ def test_sync_mirrors_complete_skill_and_detects_edits(tmp_path):
     assert not (mirror / "scripts" / "read.sh").is_symlink()
     assert (mirror / "scripts" / "read.sh").stat().st_mode & 0o111
     assert subprocess.run([sys.executable, str(SYNC), "--project-root", str(root), "--check"], check=False).returncode == 0
+    (root / ".claude" / "skills" / "empty").mkdir()
+    assert subprocess.run([sys.executable, str(SYNC), "--project-root", str(root), "--check"], check=False).returncode == 1
+    (root / ".claude" / "skills" / "empty").rmdir()
     (mirror / "SKILL.md").write_text("edited\n", encoding="utf-8")
     assert subprocess.run([sys.executable, str(SYNC), "--project-root", str(root), "--check"], check=False).returncode == 1
 

@@ -256,6 +256,57 @@ def test_manifest_escape_and_skill_root_symlink_are_rejected(tmp_path):
     assert "skill_root_symlink" in symlinked.stdout
 
 
+def test_doctor_rejects_symlinked_repository_ancestors(tmp_path):
+    agents_case = tmp_path / "agents-ancestor"
+    agents_case.mkdir()
+    agents_root = project(agents_case)
+    agents_target = agents_root / "real" / ".agents"
+    agents_target.mkdir(parents=True)
+    shutil.rmtree(agents_root / ".agents")
+    (agents_root / ".agents").symlink_to(agents_target, target_is_directory=True)
+
+    skills = run("--project-root", str(agents_root), "--check", "skills")
+    assert skills.returncode == 1, skills.stderr
+    assert "skill_root_symlink" in skills.stdout
+
+    claude_case = tmp_path / "claude-ancestor"
+    claude_case.mkdir()
+    claude_root = project(claude_case)
+    claude_target = claude_root / "real" / ".claude"
+    shutil.copytree(claude_root / ".claude", claude_target)
+    shutil.rmtree(claude_root / ".claude")
+    (claude_root / ".claude").symlink_to(claude_target, target_is_directory=True)
+
+    instructions = run("--project-root", str(claude_root), "--check", "instructions")
+    assert instructions.returncode == 1, instructions.stderr
+    assert "claude_adapter_symlink" in instructions.stdout
+    adapters = run("--project-root", str(claude_root), "--check", "adapters")
+    assert adapters.returncode == 1, adapters.stderr
+    assert "adapter_root_symlink" in adapters.stdout
+
+
+def test_scope_symlink_ancestors_are_rejected_by_doctor_and_wrapper(tmp_path):
+    root = project(tmp_path)
+    target = root / "real" / "docs"
+    shutil.copytree(root / "docs", target)
+    shutil.rmtree(root / "docs")
+    (root / "docs").symlink_to(target, target_is_directory=True)
+    scope = "docs/agent-context/note.md"
+
+    direct = run("--project-root", str(root), "--scope-file", scope, "--check", "context")
+    assert direct.returncode == 2
+    assert "scope path contains a symlink component" in direct.stderr
+
+    wrapped = subprocess.run(
+        [str(CHECK), "--project-root", str(root), "--scope-file", scope, "--check", "context"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert wrapped.returncode == 2
+    assert "scope path contains a symlink component" in wrapped.stderr
+
+
 def test_legacy_symlink_candidates_are_conflicts_without_agents(tmp_path):
     for legacy in (Path("CLAUDE.md"), Path(".claude") / "CLAUDE.md"):
         root = tmp_path / legacy.parts[0]
