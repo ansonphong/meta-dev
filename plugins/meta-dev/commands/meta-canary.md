@@ -43,7 +43,7 @@ thresholds are config-driven — read from `bash scripts/config-get.sh meta_dev.
 5. **Final report** — HEALTHY / DEGRADED / UNHEALTHY verdict with results, timeline,
    and avg/max/P95 latency.
 6. **Pattern detection** — recurring failures (3+ sessions) append Learned Patterns
-   on the APP `/release` skill (`360-HEXTILE-APP/.claude/skills/release.md`) when
+   on the APP `/release` skill (`360-HEXTILE-APP/.agents/skills/release/SKILL.md`) when
    the failure is release-path related; otherwise note them in canary protocol
    Learned Patterns only.
 

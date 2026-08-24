@@ -32,12 +32,6 @@ ALLOWED_CLAUDE_CONTEXT = re.compile(
     r"|\bAGENTS\.md\s+(?:points?\s+to|is\s+exactly|constrains?)\b",
     re.IGNORECASE,
 )
-CLAUDE_AUTHORITY = re.compile(
-    r"\b(?:authorit(?:y|ative)|binding|canonical|convention|constraint|derive|"
-    r"doctrine|follow|grant|govern|permission|require|rule|select|source|toolchain)\w*\b",
-    re.IGNORECASE,
-)
-
 LIVE_ROOTS = (
     ROOT / "agents",
     ROOT / "commands",
@@ -55,6 +49,14 @@ LIVE_SCRIPT_SUFFIXES = {".sh", ".py"}
 SCRIPT_COMPATIBILITY_ALLOWLIST = {
     Path("scripts/agent-surface-doctor.py"),
     Path("scripts/init-project.sh"),
+}
+
+# These are the two places where a Claude adapter path is itself the subject:
+# the host-neutral ABI describes generated adapters, and the generator writes
+# them. Everywhere else, live instructions must name canonical Agent Skills.
+CLAUDE_SKILL_ADAPTER_ALLOWLIST = {
+    Path("references/host-project-contract.md"),
+    Path("scripts/sync-agent-skill-adapters.py"),
 }
 
 
@@ -99,11 +101,23 @@ def test_live_instructions_do_not_treat_claude_md_as_authority():
                 end += 1
             normalized = "\n".join(lines[start:end]).replace("`", "")
             line_normalized = line.replace("`", "")
-            if CLAUDE_REFERENCE.search(line_normalized) and (
-                CLAUDE_AUTHORITY.search(line_normalized)
-                or not ALLOWED_CLAUDE_CONTEXT.search(normalized)
+            if CLAUDE_REFERENCE.search(line_normalized) and not ALLOWED_CLAUDE_CONTEXT.search(
+                normalized
             ):
                 offenders.append(f"{path.relative_to(ROOT)}:{index + 1}: {line.strip()}")
+
+    assert not offenders, "\n".join(offenders)
+
+
+def test_live_instructions_do_not_use_claude_skill_adapters_operationally():
+    offenders: list[str] = []
+    for path in [*live_instruction_paths(), *live_script_paths()]:
+        relative_path = path.relative_to(ROOT)
+        if relative_path in CLAUDE_SKILL_ADAPTER_ALLOWLIST:
+            continue
+        text = path.read_text(encoding="utf-8")
+        if ".claude/skills/" in text:
+            offenders.append(f"{relative_path}: .claude/skills/")
 
     assert not offenders, "\n".join(offenders)
 

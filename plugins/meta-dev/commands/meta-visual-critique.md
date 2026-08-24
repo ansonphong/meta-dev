@@ -33,7 +33,9 @@ Skill: frontend-design:frontend-design
 
 Use the loaded principles as the rubric backbone. Do NOT generate code — critique only.
 
-Optionally read a project-specific design file if present at `.claude/skills/*-frontend-design.md` or `plans/_build/specs/ui-design-language.md`; skip if not.
+Optionally read a project-specific design skill if present at
+`.agents/skills/<name>/SKILL.md`, or a design plan at
+`plans/_build/specs/ui-design-language.md`; skip if neither is present.
 
 ## Step 2: Observe Before Judging
 

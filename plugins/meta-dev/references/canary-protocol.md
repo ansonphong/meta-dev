@@ -237,7 +237,7 @@ Skip if first canary run (no past data) or all checks passed.
    - "Error spike in first 2 minutes then recovery" → release/deploy: "Post-deploy must wait 2 minutes before marking healthy."
 3. **Patch the upstream surface:**
    a. For **APP desktop release** failures → open
-      `360-HEXTILE-APP/.claude/skills/release.md` and append under a
+      `360-HEXTILE-APP/.agents/skills/release/SKILL.md` and append under a
       `## Learned Patterns` section (create it if missing).
    b. For generic web-deploy canaries with no project release skill → append
       under this file's `## Learned Patterns` only.
