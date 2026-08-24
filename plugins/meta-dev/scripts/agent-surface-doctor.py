@@ -256,18 +256,35 @@ def validate_capability_matrix(manifest_data: dict, repository_ids) -> list[str]
     if not isinstance(entries, list):
         return errors + ["entries must be a list for capability validation"]
     settings_source = live.get("settings_source") if live_ok and nonempty_string(live.get("settings_source")) else None
+    commands_visible = live_ok and nonempty_string(live.get("skills_summary")) and (
+        ".claude/commands" in live["skills_summary"] and "visible" in live["skills_summary"].casefold()
+    )
     grok_contract_ready = official_ok and isinstance(official.get("grok"), dict) and all(
         nonempty_string(official["grok"].get(field)) for field in ("source", "behavior")
     ) and live_valid
+    observed_settings_found = False
+    command_entries = []
     for entry in entries:
         if not isinstance(entry, dict):
             errors.append("inventory entry must be an object")
             continue
+        if not entry:
+            errors.append("inventory entry must not be empty")
+        repository = entry.get("repository")
+        repository_valid = nonempty_string(repository) and repository in expected_ids
+        if not nonempty_string(repository):
+            errors.append("inventory entry requires a non-empty repository string")
+        elif repository not in expected_ids:
+            errors.append(f"inventory entry repository {repository!r} is not a manifest repository id")
         path = entry.get("path")
         consumers = entry.get("consumers")
         grok_consumer = isinstance(consumers, list) and any(
             isinstance(consumer, str) and consumer.casefold() == "grok" for consumer in consumers
         )
+        if path == settings_source and repository_valid and grok_consumer:
+            observed_settings_found = True
+        if isinstance(path, str) and path.startswith(".claude/commands/"):
+            command_entries.append(entry)
         if grok_consumer and not grok_contract_ready:
             errors.append(f"inventory entry {path!r} claims Grok consumption without a valid Grok matrix")
         if not isinstance(path, str) or not path.startswith((".claude/", ".grok/", ".agents/")):
@@ -283,6 +300,10 @@ def validate_capability_matrix(manifest_data: dict, repository_ids) -> list[str]
             errors.append(f"vendor entry {path} has an invalid disposition")
         if entry.get("tracked") is True and (path == settings_source or path.startswith(".claude/commands/")) and not grok_consumer:
             errors.append(f"tracked Grok-discovered entry {path} must include Grok as a consumer")
+    if settings_source and not observed_settings_found:
+        errors.append("live_grok_inspect.settings_source requires an inventory entry with a valid repository and Grok consumer")
+    if commands_visible and not command_entries:
+        errors.append("live_grok_inspect.skills_summary claims visible .claude/commands but inventory has no command entries")
     return errors
 
 
@@ -381,6 +402,10 @@ def check_project(name, root, selected, manifest_data=None):
         canonical_files, canonical_directories = canonical_skill_tree(root, source)
         if not first_repository_symlink(root, source) and source.exists() and not source.is_dir():
             add(findings, "error", "skill_root", source, "canonical skill root must be a directory")
+        elif source.is_dir() and not first_repository_symlink(root, source):
+            for path in tree_entries(source):
+                if path.is_symlink():
+                    add(findings, "error", "skill_symlink", path, "canonical skill tree cannot contain symlinks")
         if first_repository_symlink(root, adapter_root):
             add(findings, "error", "adapter_root_symlink", adapter_root, "generated adapter root must not be a symlink")
         elif adapter_root.exists() and not adapter_root.is_dir():

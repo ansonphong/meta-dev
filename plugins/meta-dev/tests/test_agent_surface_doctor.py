@@ -239,6 +239,30 @@ def test_doctor_requires_complete_canonical_directory_mirror(tmp_path):
     assert "adapter_mismatch" in missing.stdout
 
 
+def test_doctor_adapters_check_reports_direct_and_nested_canonical_symlinks(tmp_path):
+    root = project(tmp_path)
+    write_generated_adapters(root)
+    source = root / ".agents" / "skills"
+    target_file = tmp_path / "target.md"
+    target_file.write_text("target\n", encoding="utf-8")
+    target_directory = tmp_path / "target-directory"
+    target_directory.mkdir()
+    direct_file = source / "direct-file.md"
+    nested_directory = source / "demo" / "references" / "nested-directory"
+    direct_file.symlink_to(target_file)
+    nested_directory.symlink_to(target_directory, target_is_directory=True)
+
+    result = run("--project-root", str(root), "--check", "adapters")
+
+    assert result.returncode == 1, result.stderr
+    report = json.loads(result.stdout)
+    assert report["checks"] == ["adapters"]
+    symlink_findings = [
+        finding["path"] for finding in report["projects"][0]["findings"] if finding["code"] == "skill_symlink"
+    ]
+    assert sorted(symlink_findings) == sorted([direct_file.as_posix(), nested_directory.as_posix()])
+
+
 def test_doctor_reports_file_shaped_canonical_skill_root_as_json(tmp_path):
     root = project(tmp_path)
     shutil.rmtree(root / ".agents" / "skills")
@@ -508,3 +532,55 @@ def test_doctor_reports_vendor_capability_metadata_mismatch(tmp_path):
     assert result.returncode == 1, result.stderr
     assert "vendor entry .claude/commands/demo.md requires grok_compatibility" in result.stdout
     assert "tracked Grok-discovered entry .claude/commands/demo.md must include Grok" in result.stdout
+
+
+def test_doctor_rejects_empty_capability_inventory_entry(tmp_path):
+    manifest = capability_manifest(tmp_path)
+    data = json.loads(manifest.read_text(encoding="utf-8"))
+    data["entries"].append({})
+    manifest.write_text(json.dumps(data), encoding="utf-8")
+
+    result = run_capabilities(tmp_path, manifest)
+
+    assert result.returncode == 1, result.stderr
+    assert "inventory entry must not be empty" in result.stdout
+    assert "inventory entry requires a non-empty repository string" in result.stdout
+
+
+def test_doctor_rejects_unknown_capability_inventory_repository(tmp_path):
+    manifest = capability_manifest(tmp_path)
+    data = json.loads(manifest.read_text(encoding="utf-8"))
+    data["entries"][2]["repository"] = "unknown"
+    manifest.write_text(json.dumps(data), encoding="utf-8")
+
+    result = run_capabilities(tmp_path, manifest)
+
+    assert result.returncode == 1, result.stderr
+    assert "inventory entry repository 'unknown' is not a manifest repository id" in result.stdout
+
+
+def test_doctor_requires_observed_grok_settings_inventory_evidence(tmp_path):
+    manifest = capability_manifest(tmp_path)
+    data = json.loads(manifest.read_text(encoding="utf-8"))
+    data["entries"] = [entry for entry in data["entries"] if entry["path"] != ".claude/settings.local.json"]
+    manifest.write_text(json.dumps(data), encoding="utf-8")
+
+    result = run_capabilities(tmp_path, manifest)
+
+    assert result.returncode == 1, result.stderr
+    assert "live_grok_inspect.settings_source requires an inventory entry" in result.stdout
+
+
+def test_doctor_requires_visible_grok_commands_inventory_evidence(tmp_path):
+    manifest = capability_manifest(tmp_path)
+    data = json.loads(manifest.read_text(encoding="utf-8"))
+    data["host_capability_matrix"]["live_grok_inspect"]["skills_summary"] = (
+        "project .claude/commands skills are visible"
+    )
+    data["entries"] = [entry for entry in data["entries"] if not entry["path"].startswith(".claude/commands/")]
+    manifest.write_text(json.dumps(data), encoding="utf-8")
+
+    result = run_capabilities(tmp_path, manifest)
+
+    assert result.returncode == 1, result.stderr
+    assert "live_grok_inspect.skills_summary claims visible .claude/commands" in result.stdout
