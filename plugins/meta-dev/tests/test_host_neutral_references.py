@@ -63,6 +63,16 @@ CLAUDE_SKILL_ADAPTER_ALLOWLIST = {
     Path("scripts/sync-agent-skill-adapters.py"),
 }
 
+# The doctor enumerates the Claude adapter path as a discovery input, not an
+# authority.  Allow exactly that one line and nothing else in the file; a
+# semantic broadening or a whole-file exemption would defeat the guard.
+CLAUDE_ADAPTER_DISCOVERY_ALLOWLIST = {
+    (
+        Path("scripts/agent-surface-doctor.py"),
+        'for rel in ("AGENTS.md", ".claude/CLAUDE.md"):',
+    ),
+}
+
 
 def live_instruction_paths() -> list[Path]:
     return [
@@ -111,8 +121,11 @@ def test_live_instructions_do_not_treat_claude_md_as_authority():
                 end += 1
             normalized = "\n".join(lines[start:end]).replace("`", "")
             line_normalized = line.replace("`", "")
-            if CLAUDE_REFERENCE.search(line_normalized) and not ALLOWED_CLAUDE_CONTEXT.search(
-                normalized
+            if (
+                CLAUDE_REFERENCE.search(line_normalized)
+                and not ALLOWED_CLAUDE_CONTEXT.search(normalized)
+                and (path.relative_to(ROOT), line_normalized.strip())
+                not in CLAUDE_ADAPTER_DISCOVERY_ALLOWLIST
             ):
                 offenders.append(f"{path.relative_to(ROOT)}:{index + 1}: {line.strip()}")
 
