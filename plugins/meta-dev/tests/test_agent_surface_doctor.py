@@ -667,3 +667,68 @@ def test_doctor_requires_visible_grok_commands_inventory_evidence(tmp_path):
 
     assert result.returncode == 1, result.stderr
     assert "live_grok_inspect.skills_summary claims visible .claude/commands" in result.stdout
+
+
+def test_legacy_references_flag_live_consumers(tmp_path):
+    root = project(tmp_path)
+    (root / "AGENTS.md").write_text("see .claude/context/old\n", encoding="utf-8")
+    (root / ".agents" / "skills" / "demo" / "references" / "note.md").write_text(
+        "see .claude/reference/x\n", encoding="utf-8"
+    )
+
+    result = run("--project-root", str(root), "--check", "legacy-references")
+
+    assert result.returncode == 1, result.stderr
+    report = json.loads(result.stdout)
+    codes = {finding["code"] for finding in report["projects"][0]["findings"]}
+    assert "legacy_reference" in codes
+
+
+def test_legacy_references_ignore_non_live_artifacts(tmp_path):
+    root = project(tmp_path)
+    for rel in (
+        "plans/legacy-migration.md",
+        "docs/migration-notes.md",
+        "tools/agent-surface-doctor.py",
+        "tests/fixture.md",
+    ):
+        path = root / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("retired .claude/context and .claude/reference paths\n", encoding="utf-8")
+
+    result = run("--project-root", str(root), "--check", "legacy-references")
+
+    assert result.returncode == 0, result.stderr
+    report = json.loads(result.stdout)
+    assert all(finding["code"] != "legacy_reference" for finding in report["projects"][0]["findings"])
+
+
+def test_legacy_references_scope_inventory_dispositions(tmp_path):
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    root = project(workspace)
+    live = root / "live-notes.md"
+    live.write_text("see .claude/context/old\n", encoding="utf-8")
+    retired = root / "retired-notes.md"
+    retired.write_text("see .claude/context/old\n", encoding="utf-8")
+    manifest = workspace / "inventory.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "repositories": {"demo": "project"},
+                "entries": [
+                    {"repository": "demo", "path": "live-notes.md", "disposition": "host_runtime", "consumers": ["Claude Code"]},
+                    {"repository": "demo", "path": "retired-notes.md", "disposition": "retired", "consumers": ["Claude Code"]},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = run("--manifest", "inventory.json", "--workspace-root", str(workspace), "--check", "legacy-references")
+
+    assert result.returncode == 1, result.stderr
+    report = json.loads(result.stdout)
+    paths = {finding["path"] for finding in report["projects"][0]["findings"] if finding["code"] == "legacy_reference"}
+    assert live.as_posix() in paths
+    assert retired.as_posix() not in paths

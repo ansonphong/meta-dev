@@ -525,6 +525,46 @@ def validate_capability_matrix(manifest_data: dict, repository_ids) -> list[str]
     return errors
 
 
+LEGACY_REFERENCE_TREES = (".agents", ".claude", ".grok", "docs/agent-context")
+LEGACY_NON_LIVE_DISPOSITIONS = {"historical_artifact", "personal_local_overlay", "retired"}
+
+
+def live_legacy_targets(root: Path, manifest_data) -> list[Path]:
+    """Return the live consumer files that must not reference retired context paths.
+
+    Only the operational surface is live: the canonical contract, the adapter, the
+    host-facing runtime trees, the neutral context, and manifest inventory entries
+    that remain live. The doctor's own source, tests, fixtures, historical plans,
+    and migration documentation are not live consumers and must not be scanned.
+    """
+    seen: set[str] = set()
+    targets: list[Path] = []
+
+    def collect(path: Path) -> None:
+        if path.is_file() and not path.is_symlink():
+            key = path.as_posix()
+            if key not in seen:
+                seen.add(key)
+                targets.append(path)
+
+    for rel in ("AGENTS.md", ".claude/CLAUDE.md"):
+        collect(root / rel)
+    for rel in LEGACY_REFERENCE_TREES:
+        base = root / rel
+        if base.is_dir() and not first_repository_symlink(root, base):
+            for path in tree_entries(base):
+                collect(path)
+    entries = (manifest_data or {}).get("entries")
+    if isinstance(entries, list):
+        for entry in entries:
+            if not isinstance(entry, dict) or entry.get("disposition") in LEGACY_NON_LIVE_DISPOSITIONS:
+                continue
+            rel = entry.get("path")
+            if isinstance(rel, str) and not first_repository_symlink(root, root / rel):
+                collect(root / rel)
+    return targets
+
+
 def check_project(name, root, selected, manifest_data=None):
     findings = []
     contract = classify_contract(root)
@@ -671,10 +711,9 @@ def check_project(name, root, selected, manifest_data=None):
         if any(not entry.get("disposition") for entry in entries):
             add(findings, "error", "inventory_disposition", root, "every inventory entry needs a disposition")
     if "legacy-references" in selected:
-        for file in root.rglob("*"):
-            if not file.is_file() or file.is_symlink() or ".git" in file.parts:
-                continue
-            if ".claude/context" in file.read_text(encoding="utf-8", errors="ignore") or ".claude/reference" in file.read_text(encoding="utf-8", errors="ignore"):
+        for file in live_legacy_targets(root, manifest_data):
+            text = file.read_text(encoding="utf-8", errors="ignore")
+            if ".claude/context" in text or ".claude/reference" in text:
                 add(findings, "error", "legacy_reference", file, "live file references retired Claude context path")
     return result
 
