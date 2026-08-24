@@ -41,14 +41,20 @@ LIVE_ROOTS = (
 )
 
 # Scripts are live operational doctrine too.  Do not scan tests or fixtures:
-# they describe guard cases rather than host-project instructions.  These two
-# scripts intentionally inspect or migrate legacy Claude surfaces, so their
+# they describe guard cases rather than host-project instructions.  The
+# initializer intentionally migrates legacy Claude surfaces, so its
 # compatibility implementation is not a Claude-first instruction to a host.
 LIVE_SCRIPT_ROOT = ROOT / "scripts"
 LIVE_SCRIPT_SUFFIXES = {".sh", ".py"}
 SCRIPT_COMPATIBILITY_ALLOWLIST = {
-    Path("scripts/agent-surface-doctor.py"),
     Path("scripts/init-project.sh"),
+}
+
+# The doctor detects legacy context links while it audits a host project.  That
+# exact detector is compatibility logic, not host-project instruction; keep
+# the exception smaller than a whole-script exemption.
+CLAUDE_PATH_COMPATIBILITY_ALLOWLIST = {
+    (Path("scripts/agent-surface-doctor.py"), ".claude/context/"),
 }
 
 # These are the two places where a Claude adapter path is itself the subject:
@@ -80,12 +86,19 @@ def live_script_paths() -> list[Path]:
 def test_live_instructions_do_not_restore_claude_first_paths():
     offenders: list[str] = []
     for path in [*live_instruction_paths(), *live_script_paths()]:
+        relative_path = path.relative_to(ROOT)
         text = path.read_text(encoding="utf-8")
         for phrase in FORBIDDEN:
+            if (relative_path, phrase) in CLAUDE_PATH_COMPATIBILITY_ALLOWLIST:
+                continue
             if phrase in text:
-                offenders.append(f"{path.relative_to(ROOT)}: {phrase}")
+                offenders.append(f"{relative_path}: {phrase}")
 
     assert not offenders, "\n".join(offenders)
+
+
+def test_live_script_corpus_includes_the_agent_surface_doctor():
+    assert ROOT / "scripts" / "agent-surface-doctor.py" in live_script_paths()
 
 
 def test_live_instructions_do_not_treat_claude_md_as_authority():
