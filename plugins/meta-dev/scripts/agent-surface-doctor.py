@@ -25,6 +25,25 @@ def within(root: Path, candidate: Path) -> bool:
     return candidate == root or root in candidate.parents
 
 
+def tree_entries(root: Path):
+    """Yield every entry below root without traversing symlink directories."""
+    for entry in sorted(root.iterdir(), key=lambda path: path.name):
+        yield entry
+        if entry.is_dir() and not entry.is_symlink():
+            yield from tree_entries(entry)
+
+
+def implied_parent_directories(paths: set[str]) -> set[str]:
+    """Return the adapter-relative directories required by declared files."""
+    parents = set()
+    for value in paths:
+        parent = Path(value).parent
+        while parent != Path("."):
+            parents.add(parent.as_posix())
+            parent = parent.parent
+    return parents
+
+
 def resolve_workspace_manifest(workspace_root: str, manifest_value: str) -> tuple[Path, Path]:
     workspace = Path(workspace_root).resolve()
     manifest = Path(manifest_value)
@@ -224,19 +243,39 @@ def check_project(name, root, selected, manifest_data=None):
         )
         if adapter_root.is_symlink():
             add(findings, "error", "adapter_root_symlink", adapter_root, "generated adapter root must not be a symlink")
-        elif canonical_files and not manifest.is_file():
-            add(findings, "error", "adapter_manifest", manifest, "canonical skills require a generated adapter manifest")
-        elif manifest.exists():
-            try:
-                data = json.loads(manifest.read_text(encoding="utf-8"))
-                if data.get("files", {}) != canonical_files:
-                    add(findings, "error", "adapter_manifest", manifest, "adapter manifest differs from canonical source")
-                for rel, expected in data.get("files", {}).items():
-                    path = adapter_root / rel
-                    if not path.is_file() or path.is_symlink() or digest(path) != expected:
-                        add(findings, "error", "adapter_mismatch", path, "generated adapter differs from manifest")
-            except (json.JSONDecodeError, OSError):
-                add(findings, "error", "adapter_manifest", manifest, "invalid adapter manifest")
+        elif adapter_root.exists() and not adapter_root.is_dir():
+            add(findings, "error", "adapter_root", adapter_root, "generated adapter root must be a directory")
+        else:
+            if manifest.is_symlink() or (manifest.exists() and not manifest.is_file()):
+                add(findings, "error", "adapter_manifest", manifest, "generated adapter manifest must be a regular file")
+            elif canonical_files and not manifest.is_file():
+                add(findings, "error", "adapter_manifest", manifest, "canonical skills require a generated adapter manifest")
+            elif manifest.is_file():
+                try:
+                    data = json.loads(manifest.read_text(encoding="utf-8"))
+                    recorded_files = data.get("files")
+                    if not isinstance(recorded_files, dict) or recorded_files != canonical_files:
+                        add(findings, "error", "adapter_manifest", manifest, "adapter manifest differs from canonical source")
+                    for rel, expected in canonical_files.items():
+                        path = adapter_root / rel
+                        if not path.is_file() or path.is_symlink() or digest(path) != expected:
+                            add(findings, "error", "adapter_mismatch", path, "generated adapter differs from manifest")
+                except (json.JSONDecodeError, OSError):
+                    add(findings, "error", "adapter_manifest", manifest, "invalid adapter manifest")
+            if adapter_root.is_dir():
+                allowed_files = set(canonical_files)
+                allowed_directories = implied_parent_directories(allowed_files)
+                for path in tree_entries(adapter_root):
+                    rel = path.relative_to(adapter_root).as_posix()
+                    if path == manifest:
+                        continue
+                    if path.is_symlink():
+                        add(findings, "error", "adapter_unexpected", path, "generated adapter tree cannot contain symlinks")
+                    elif path.is_dir():
+                        if rel not in allowed_directories:
+                            add(findings, "error", "adapter_unexpected", path, "generated adapter tree contains an undeclared directory")
+                    elif not path.is_file() or rel not in allowed_files:
+                        add(findings, "error", "adapter_unexpected", path, "generated adapter tree contains an undeclared file")
     if "inventory" in selected and manifest_data:
         entries = manifest_data.get("entries", [])
         if any(not entry.get("disposition") for entry in entries):

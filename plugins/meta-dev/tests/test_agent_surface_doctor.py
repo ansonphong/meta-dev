@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -31,6 +32,23 @@ def project(tmp_path: Path) -> Path:
 
 def run(*args: str):
     return subprocess.run([sys.executable, str(DOCTOR), *args], capture_output=True, text=True, check=False)
+
+
+def write_generated_adapters(root: Path) -> Path:
+    source = root / ".agents" / "skills"
+    destination = root / ".claude" / "skills"
+    files = {}
+    for origin in source.rglob("*"):
+        if origin.is_file():
+            relative = origin.relative_to(source)
+            target = destination / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(origin.read_bytes())
+            files[relative.as_posix()] = hashlib.sha256(origin.read_bytes()).hexdigest()
+    (destination / ".agent-skill-adapters.json").write_text(
+        json.dumps({"schema_version": 1, "files": files}, sort_keys=True), encoding="utf-8"
+    )
+    return destination
 
 
 def test_doctor_reports_stable_json_and_boundaries(tmp_path):
@@ -177,6 +195,35 @@ def test_doctor_allows_missing_generated_adapters_without_canonical_skills(tmp_p
     result = run("--project-root", str(root), "--check", "adapters")
 
     assert result.returncode == 0, result.stderr
+
+
+def test_doctor_rejects_nonregular_manifest_and_undeclared_adapter_entries(tmp_path):
+    manifest_case = tmp_path / "manifest"
+    manifest_case.mkdir()
+    manifest_root = project(manifest_case)
+    manifest_destination = write_generated_adapters(manifest_root)
+    manifest = manifest_destination / ".agent-skill-adapters.json"
+    manifest_target = tmp_path / "manifest-target.json"
+    manifest_target.write_bytes(manifest.read_bytes())
+    manifest.unlink()
+    manifest.symlink_to(manifest_target)
+    manifest_result = run("--project-root", str(manifest_root), "--check", "adapters")
+    assert manifest_result.returncode == 1, manifest_result.stderr
+    assert "adapter_manifest" in manifest_result.stdout
+
+    for name, make_entry in (
+        ("file", lambda destination: (destination / "hand-authored.md").write_text("x\n", encoding="utf-8")),
+        ("directory", lambda destination: (destination / "empty").mkdir()),
+        ("symlink-directory", lambda destination: (destination / "linked").symlink_to(tmp_path, target_is_directory=True)),
+    ):
+        case = tmp_path / name
+        case.mkdir()
+        root = project(case)
+        destination = write_generated_adapters(root)
+        make_entry(destination)
+        result = run("--project-root", str(root), "--check", "adapters")
+        assert result.returncode == 1, result.stderr
+        assert "adapter_unexpected" in result.stdout
 
 
 def test_manifest_escape_and_skill_root_symlink_are_rejected(tmp_path):

@@ -10,7 +10,19 @@ import sys
 
 
 def sha(path: Path): return hashlib.sha256(path.read_bytes()).hexdigest()
-def files(root: Path): return sorted(p for p in root.rglob("*") if p.is_file())
+
+
+def regular_files(root: Path, label: str):
+    """Collect regular files without traversing or accepting symlinks."""
+    result = []
+    for path in sorted(root.iterdir(), key=lambda item: item.name):
+        if path.is_symlink():
+            raise ValueError(f"{label} symlink forbidden: {path}")
+        if path.is_dir():
+            result.extend(regular_files(path, label))
+        elif path.is_file():
+            result.append(path)
+    return result
 
 def expected(root: Path):
     source = root / ".agents" / "skills"
@@ -18,8 +30,7 @@ def expected(root: Path):
     if source.is_symlink():
         raise ValueError(f"skill root symlink forbidden: {source}")
     if source.exists():
-        for path in files(source):
-            if path.is_symlink(): raise ValueError(f"source symlink forbidden: {path}")
+        for path in regular_files(source, "source"):
             output[str(path.relative_to(source))] = sha(path)
     return output
 
@@ -36,20 +47,18 @@ def main(argv=None):
         return 1
     try:
         wanted = expected(root)
+        destination_files = regular_files(destination, "generated adapter") if destination.exists() else []
     except ValueError as exc:
         print(str(exc), file=sys.stderr); return 1
-    actual = {str(p.relative_to(destination)): sha(p) for p in files(destination) if p != manifest} if destination.exists() else {}
+    actual = {str(p.relative_to(destination)): sha(p) for p in destination_files if p != manifest}
     recorded = json.loads(manifest.read_text()).get("files", {}) if manifest.exists() else None
-    valid = actual == wanted and recorded == wanted and not any(p.is_symlink() for p in destination.rglob("*")) if destination.exists() else not wanted
+    valid = actual == wanted and recorded == wanted if destination.exists() else not wanted
     if args.check:
         if not valid: print("adapter mirrors differ from canonical source", file=sys.stderr)
         return 0 if valid else 1
     if destination.exists(): shutil.rmtree(destination)
     destination.mkdir(parents=True)
     source = root / ".agents" / "skills"
-    if source.exists():
-        for directory in sorted(p for p in source.rglob("*") if p.is_dir()):
-            (destination / directory.relative_to(source)).mkdir(parents=True, exist_ok=True)
     for rel in wanted:
         origin, target = source / rel, destination / rel
         target.parent.mkdir(parents=True, exist_ok=True)
