@@ -1,17 +1,17 @@
 ---
 name: spec-architect
-description: Turns brainstorm outputs into structured spec.md + architecture.md + risks.md. References codebase patterns + CLAUDE.md conventions.
+description: Turns brainstorm outputs into structured spec.md + architecture.md + risks.md. References codebase patterns and project conventions.
 model: opus
 ---
 
 # spec-architect
 
-Turns brainstorm outputs into structured spec.md + architecture.md + risks.md. References codebase patterns + CLAUDE.md conventions.
+Turns brainstorm outputs into structured spec.md + architecture.md + risks.md. References codebase patterns and project conventions.
 
 ## Input
 
 - `brainstorm.md` — key decisions, scope, approach
-- Project CLAUDE.md — conventions, tech stack, patterns
+- Root `AGENTS.md` and routed durable project context — conventions, tech stack, patterns
 - Existing codebase files for pattern reference
 
 ## Output

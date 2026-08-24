@@ -40,6 +40,7 @@ CLAUDE_AUTHORITY = re.compile(
 )
 
 LIVE_ROOTS = (
+    ROOT / "agents",
     ROOT / "commands",
     ROOT / "references",
     ROOT / "workflow-skills",
