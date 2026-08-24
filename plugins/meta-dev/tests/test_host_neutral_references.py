@@ -59,12 +59,16 @@ CLAUDE_PATH_CONTEXT_LINE_ALLOWLIST = {
     ),
 }
 
-# These are the two places where a Claude adapter path is itself the subject:
-# the host-neutral ABI describes generated adapters, and the generator writes
-# them. Everywhere else, live instructions must name canonical Agent Skills.
+# The host-neutral ABI describes generated Claude adapters and names the exact
+# ".claude/skills/" path it hashes.  Allow only that one stripped line; any
+# other ".claude/skills/" occurrence, anywhere in live instructions or scripts,
+# must still fail the guard.  (sync-agent-skill-adapters.py has no literal
+# ".claude/skills/" occurrence and needs no exception.)
 CLAUDE_SKILL_ADAPTER_ALLOWLIST = {
-    Path("references/host-project-contract.md"),
-    Path("scripts/sync-agent-skill-adapters.py"),
+    (
+        Path("references/host-project-contract.md"),
+        "`.claude/skills/` and records SHA-256 values in",
+    ),
 }
 
 # The doctor enumerates the Claude adapter path as a discovery input, not an
@@ -108,6 +112,18 @@ def forbidden_path_offenders(relative_path: Path, text: str) -> list[str]:
             ):
                 continue
             offenders.append(f"{relative_path}:{index + 1}: {phrase}")
+    return offenders
+
+
+def skill_adapter_offenders(relative_path: Path, text: str) -> list[str]:
+    """Report ".claude/skills/" occurrences per line, honoring the exact-line adapter allowlist."""
+    offenders: list[str] = []
+    for index, line in enumerate(text.splitlines()):
+        if ".claude/skills/" not in line:
+            continue
+        if (relative_path, line.strip()) in CLAUDE_SKILL_ADAPTER_ALLOWLIST:
+            continue
+        offenders.append(f"{relative_path}:{index + 1}: .claude/skills/")
     return offenders
 
 
@@ -166,14 +182,25 @@ def test_live_instructions_do_not_treat_claude_md_as_authority():
 def test_live_instructions_do_not_use_claude_skill_adapters_operationally():
     offenders: list[str] = []
     for path in [*live_instruction_paths(), *live_script_paths()]:
-        relative_path = path.relative_to(ROOT)
-        if relative_path in CLAUDE_SKILL_ADAPTER_ALLOWLIST:
-            continue
-        text = path.read_text(encoding="utf-8")
-        if ".claude/skills/" in text:
-            offenders.append(f"{relative_path}: .claude/skills/")
+        offenders.extend(
+            skill_adapter_offenders(
+                path.relative_to(ROOT), path.read_text(encoding="utf-8")
+            )
+        )
 
     assert not offenders, "\n".join(offenders)
+
+
+def test_skill_adapter_allowlist_reports_extra_contract_occurrences():
+    relative_path = Path("references/host-project-contract.md")
+    (allowed_line,) = (
+        line
+        for (path, line) in CLAUDE_SKILL_ADAPTER_ALLOWLIST
+        if path == relative_path
+    )
+    text = allowed_line + "\n" + "# a second .claude/skills/ reference\n"
+    offenders = skill_adapter_offenders(relative_path, text)
+    assert offenders == [f"{relative_path}:2: .claude/skills/"]
 
 
 def test_live_instructions_name_the_host_project_contract():
