@@ -178,6 +178,39 @@ def test_classifier_rejects_symlinked_claude_trees_before_initializer_writes(tmp
         assert not (project / ".agents").exists()
 
 
+def test_initializer_refuses_symlinked_neutral_context_before_writing(tmp_path):
+    cases = []
+
+    docs_ancestor = tmp_path / "docs-ancestor"
+    docs_ancestor.mkdir()
+    docs_target = tmp_path / "docs-target"
+    docs_target.mkdir()
+    (docs_ancestor / "docs").symlink_to(docs_target, target_is_directory=True)
+    cases.append((docs_ancestor, docs_target))
+
+    context_leaf = tmp_path / "context-leaf"
+    context_leaf.mkdir()
+    (context_leaf / "docs").mkdir()
+    context_target = tmp_path / "context-target"
+    context_target.mkdir()
+    (context_leaf / "docs" / "agent-context").symlink_to(context_target, target_is_directory=True)
+    cases.append((context_leaf, context_target))
+
+    for project, target in cases:
+        contract = classify_contract(project)
+        assert contract == {"state": "conflict", "reason": "context_symlink", "compatibility_inputs": []}
+
+        result = initialize(project)
+
+        assert result.returncode == 1
+        assert "refusing" in result.stderr.lower()
+        assert not (project / "plans").exists()
+        assert not (project / "AGENTS.md").exists()
+        assert not (project / ".agents").exists()
+        assert not (project / ".claude").exists()
+        assert not any(target.iterdir())
+
+
 def test_initializer_preserves_both_regular_legacy_doctrines(tmp_path):
     project = tmp_path / "both-legacy"
     project.mkdir()

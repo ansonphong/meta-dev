@@ -121,6 +121,10 @@ def classify_contract(root: Path) -> dict:
         result["state"] = "conflict"
         result["reason"] = "adapter_root_symlink"
         return result
+    if first_repository_symlink(root, root / "docs" / "agent-context"):
+        result["state"] = "conflict"
+        result["reason"] = "context_symlink"
+        return result
     if any(not path.is_file() for path in legacy_present):
         result["state"] = "conflict"
         result["reason"] = "legacy_not_regular"
