@@ -732,3 +732,100 @@ def test_legacy_references_scope_inventory_dispositions(tmp_path):
     paths = {finding["path"] for finding in report["projects"][0]["findings"] if finding["code"] == "legacy_reference"}
     assert live.as_posix() in paths
     assert retired.as_posix() not in paths
+
+
+def test_legacy_references_bind_inventory_entries_to_repository(tmp_path):
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    repo_a = workspace / "repo-a"
+    repo_b = workspace / "repo-b"
+    for repo in (repo_a, repo_b):
+        repo.mkdir()
+        (repo / "AGENTS.md").write_text("rules\n", encoding="utf-8")
+        (repo / ".claude").mkdir()
+        (repo / ".claude" / "CLAUDE.md").write_text("@../AGENTS.md\n", encoding="utf-8")
+    (repo_a / "live.md").write_text("see .claude/context/old\n", encoding="utf-8")
+    (repo_b / "live.md").write_text("see .claude/context/old\n", encoding="utf-8")
+    manifest = workspace / "inventory.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "repositories": {"a": "repo-a", "b": "repo-b"},
+                "entries": [
+                    {"repository": "a", "path": "live.md", "disposition": "host_runtime", "consumers": ["Claude Code"]},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = run("--manifest", "inventory.json", "--workspace-root", str(workspace), "--check", "legacy-references")
+
+    assert result.returncode == 1, result.stderr
+    report = json.loads(result.stdout)
+    projects = {entry["name"]: entry for entry in report["projects"]}
+    a_paths = {finding["path"] for finding in projects["a"]["findings"] if finding["code"] == "legacy_reference"}
+    b_paths = {finding["path"] for finding in projects["b"]["findings"] if finding["code"] == "legacy_reference"}
+    assert (repo_a / "live.md").as_posix() in a_paths
+    assert b_paths == set()
+
+
+@pytest.mark.parametrize(
+    "path_value, code",
+    (
+        ("../outside.md", "inventory_escape"),
+        ("/etc/absolute.md", "inventory_absolute"),
+    ),
+)
+def test_legacy_references_reject_invalid_inventory_paths(tmp_path, path_value, code):
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    project(workspace)
+    manifest = workspace / "inventory.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "repositories": {"demo": "project"},
+                "entries": [
+                    {"repository": "demo", "path": path_value, "disposition": "host_runtime", "consumers": ["Claude Code"]},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = run("--manifest", "inventory.json", "--workspace-root", str(workspace), "--check", "legacy-references")
+
+    assert result.returncode == 1, result.stderr
+    report = json.loads(result.stdout)
+    codes = {finding["code"] for finding in report["projects"][0]["findings"]}
+    assert code in codes
+
+
+def test_legacy_references_reject_symlink_inventory_paths(tmp_path):
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    root = project(workspace)
+    real = root / "real"
+    real.mkdir()
+    (real / "note.md").write_text("see .claude/context/old\n", encoding="utf-8")
+    (root / "linked").symlink_to(real, target_is_directory=True)
+    manifest = workspace / "inventory.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "repositories": {"demo": "project"},
+                "entries": [
+                    {"repository": "demo", "path": "linked/note.md", "disposition": "host_runtime", "consumers": ["Claude Code"]},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = run("--manifest", "inventory.json", "--workspace-root", str(workspace), "--check", "legacy-references")
+
+    assert result.returncode == 1, result.stderr
+    report = json.loads(result.stdout)
+    codes = {finding["code"] for finding in report["projects"][0]["findings"]}
+    assert "inventory_symlink" in codes

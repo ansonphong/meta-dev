@@ -529,13 +529,16 @@ LEGACY_REFERENCE_TREES = (".agents", ".claude", ".grok", "docs/agent-context")
 LEGACY_NON_LIVE_DISPOSITIONS = {"historical_artifact", "personal_local_overlay", "retired"}
 
 
-def live_legacy_targets(root: Path, manifest_data) -> list[Path]:
+def live_legacy_targets(root: Path, repository, manifest_data, findings) -> list[Path]:
     """Return the live consumer files that must not reference retired context paths.
 
     Only the operational surface is live: the canonical contract, the adapter, the
     host-facing runtime trees, the neutral context, and manifest inventory entries
-    that remain live. The doctor's own source, tests, fixtures, historical plans,
-    and migration documentation are not live consumers and must not be scanned.
+    that remain live and belong to this repository. The doctor's own source, tests,
+    fixtures, historical plans, and migration documentation are not live consumers
+    and must not be scanned. Inventory paths that are absolute, escape the
+    repository root, or pass through a symlink are reported as errors instead of
+    being silently skipped.
     """
     seen: set[str] = set()
     targets: list[Path] = []
@@ -559,9 +562,22 @@ def live_legacy_targets(root: Path, manifest_data) -> list[Path]:
         for entry in entries:
             if not isinstance(entry, dict) or entry.get("disposition") in LEGACY_NON_LIVE_DISPOSITIONS:
                 continue
+            if entry.get("repository") != repository:
+                continue
             rel = entry.get("path")
-            if isinstance(rel, str) and not first_repository_symlink(root, root / rel):
-                collect(root / rel)
+            if not isinstance(rel, str):
+                continue
+            candidate = root / rel
+            if Path(rel).is_absolute():
+                add(findings, "error", "inventory_absolute", candidate, "inventory entry path must be repository-relative")
+                continue
+            if not within(root, candidate.resolve()):
+                add(findings, "error", "inventory_escape", candidate, "inventory entry path escapes the repository root")
+                continue
+            if first_repository_symlink(root, candidate):
+                add(findings, "error", "inventory_symlink", candidate, "inventory entry path contains a symlink component")
+                continue
+            collect(candidate)
     return targets
 
 
@@ -711,7 +727,7 @@ def check_project(name, root, selected, manifest_data=None):
         if any(not entry.get("disposition") for entry in entries):
             add(findings, "error", "inventory_disposition", root, "every inventory entry needs a disposition")
     if "legacy-references" in selected:
-        for file in live_legacy_targets(root, manifest_data):
+        for file in live_legacy_targets(root, name, manifest_data, findings):
             text = file.read_text(encoding="utf-8", errors="ignore")
             if ".claude/context" in text or ".claude/reference" in text:
                 add(findings, "error", "legacy_reference", file, "live file references retired Claude context path")
