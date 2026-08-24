@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import re
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -22,6 +23,22 @@ FORBIDDEN = (
     "host `CLAUDE.md`",
 )
 
+# A CLAUDE.md reference is safe only when it describes a host adapter or a
+# compatibility/migration input, or makes AGENTS.md the controlling source.
+# Keep this rule semantic rather than accumulating one-off forbidden phrases.
+CLAUDE_REFERENCE = re.compile(r"\bCLAUDE\.md\b", re.IGNORECASE)
+ALLOWED_CLAUDE_CONTEXT = re.compile(
+    r"\b(?:adapter|compatibility|legacy|migration)\b"
+    r"|\b(?:read|use)\s+CLAUDE\.md\s+only\b"
+    r"|\bAGENTS\.md\s+(?:points?\s+to|is\s+exactly|constrains?)\b",
+    re.IGNORECASE,
+)
+CLAUDE_AUTHORITY = re.compile(
+    r"\b(?:authorit(?:y|ative)|binding|canonical|convention|constraint|derive|"
+    r"doctrine|follow|grant|govern|permission|require|rule|select|source|toolchain)\w*\b",
+    re.IGNORECASE,
+)
+
 LIVE_ROOTS = (
     ROOT / "commands",
     ROOT / "references",
@@ -37,6 +54,29 @@ def test_live_instructions_do_not_restore_claude_first_paths():
             for phrase in FORBIDDEN:
                 if phrase in text:
                     offenders.append(f"{path.relative_to(ROOT)}: {phrase}")
+
+    assert not offenders, "\n".join(offenders)
+
+
+def test_live_instructions_do_not_treat_claude_md_as_authority():
+    offenders: list[str] = []
+    for directory in LIVE_ROOTS:
+        for path in directory.rglob("*.md"):
+            lines = path.read_text(encoding="utf-8").splitlines()
+            for index, line in enumerate(lines):
+                start = index
+                while start and lines[start - 1]:
+                    start -= 1
+                end = index + 1
+                while end < len(lines) and lines[end]:
+                    end += 1
+                normalized = "\n".join(lines[start:end]).replace("`", "")
+                line_normalized = line.replace("`", "")
+                if CLAUDE_REFERENCE.search(line_normalized) and (
+                    CLAUDE_AUTHORITY.search(line_normalized)
+                    or not ALLOWED_CLAUDE_CONTEXT.search(normalized)
+                ):
+                    offenders.append(f"{path.relative_to(ROOT)}:{index + 1}: {line.strip()}")
 
     assert not offenders, "\n".join(offenders)
 

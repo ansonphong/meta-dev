@@ -85,7 +85,7 @@ Self-contained — the consult is a *fresh* process with none of your context:
 - **question** — the single decision, stated as a decision, not a topic
 - **why_blocked** — what the run cannot do until this is answered
 - **options** — every path considered, with the trade-off you already see
-- **constraints** — plan text, conventions, CLAUDE.md rules that bind the answer
+- **constraints** — plan text, conventions, and root AGENTS.md rules that bind the answer
 - **files** — the paths Fable should read to ground itself (be generous)
 - **reversibility** — is the resulting change cheap or expensive to undo?
 
@@ -155,7 +155,7 @@ look at it.
   escalate everything after it. A run burning consults is a run whose plan was
   under-hardened — that is a signal to surface, not to spend through.
 - **Never consult about tree state.** Dirty files, peer sessions, lock
-  contention are not judgment calls. Commit and charge on (CLAUDE.md Rule #2).
+  contention are not judgment calls. Commit and charge on (root AGENTS.md Rule #2).
 
 ## The decision log — the morning report
 

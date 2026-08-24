@@ -9,7 +9,7 @@ reference that talks about delegation order links here — never restates it.
 DeepSeek command policy (Pro / Flash / Vision flags):
 `commands/deep-execute.md`. Do not restate the flag table here.
 
-**Binding doctrine (also `CLAUDE.md` → Delegation Discipline):**
+**Binding doctrine (root `AGENTS.md` → Delegation):**
 
 - **Pooled execute = DeepSeek + Grok.** Cheapest first: mechanical and
   bounded units to DeepSeek; multi-step / long-horizon / UI / design-sensitive

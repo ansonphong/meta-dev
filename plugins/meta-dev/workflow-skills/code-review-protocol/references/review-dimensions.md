@@ -26,7 +26,7 @@ architecture, security, or other human judgment. It never means "silently fix."
 
 | Criterion | Pass | Needs Fix |
 |-----------|------|-----------|
-| Project conventions | Follows CLAUDE.md patterns | Deep import not used, wrong component pattern, old svelte 4 syntax |
+| Project conventions | Follows root AGENTS.md and routed project patterns | Deep import not used, wrong component pattern, old svelte 4 syntax |
 | File organization | Single responsibility per file | Mixed concerns, utility sprawl, >400 line module |
 | Naming | Self-documenting names | Cryptic abbreviation, hungarian notation, misleading name |
 

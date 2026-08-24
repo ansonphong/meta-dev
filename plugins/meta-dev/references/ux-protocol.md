@@ -91,7 +91,9 @@ Cross-reference the UI against the rules extracted in Agent 1.1, **driven by `me
 - **Z-index consistency** — overlays, modals, tooltips, dropdowns use the defined scale, no ad-hoc magic numbers.
 - **Component styling invariants** — e.g. no responsive variants on styled components; shared components reused, not re-implemented.
 
-If `meta_dev.ux.design_system_rules` is empty, derive the checks from the design doc / `CLAUDE.md` conventions discovered in Wave 1, and note that no explicit rule list was configured.
+If `meta_dev.ux.design_system_rules` is empty, derive the checks from the design
+doc, root `AGENTS.md`, and routed conventions discovered in Wave 1, and note
+that no explicit rule list was configured.
 
 ### 2.3 — Accessibility (WCAG-oriented checklist)
 

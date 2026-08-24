@@ -357,7 +357,8 @@ Patterns to detect:
 
 Run developer tools via Bash. Parse output into gap reports at confidence 1.0.
 
-**Detect toolchain** from CLAUDE.md + config files:
+**Detect toolchain** from repository config, package manifests, and installed
+tool declarations:
 - Python: mypy/pyright, ruff/flake8, pytest, bandit/semgrep
 - TS/JS: tsc --noEmit, eslint, npm run build/check, vitest/jest, npm audit
 - Svelte: npx svelte-check --threshold warning

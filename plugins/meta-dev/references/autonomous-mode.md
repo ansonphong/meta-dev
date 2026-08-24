@@ -10,8 +10,9 @@ The user typing `--autonomous` has pre-authorized the whole run and has left.
 Every ambiguity resolves toward *keep going and report in the morning*, and
 every gate that can be deferred is deferred rather than asked.
 
-`--autonomous` **is** the explicit Stage-5 permission (CLAUDE.md's supreme
-banner). It authorizes execution the same way `--to 6` or a spoken "go" does.
+`--autonomous` **is** the explicit Stage-5 permission under the root
+`AGENTS.md` permission policy. It authorizes execution the same way `--to 6`
+or a spoken "go" does.
 
 ## Detection
 
