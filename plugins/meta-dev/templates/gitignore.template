@@ -1,3 +1,10 @@
 # meta-dev harness
 plans/_dashboard/settings.local.json
 plans/_dashboard/overlord/*.cache.json
+plans/_dashboard/inbox/inbox.jsonl
+plans/_dashboard/inbox/inbox.jsonl.*
+plans/_dashboard/state.events.jsonl
+plans/_dashboard/.tmp-*
+plans/_dashboard/.tmp-*/**
+plans/_dashboard/.worker-locks/
+plans/_dashboard/.worker-locks/**

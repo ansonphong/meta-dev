@@ -215,6 +215,15 @@ def build_parser():
     sp.add_argument("--json", action="store_true",
                     help="emit {synced, decisions, rendered, elapsed_ms}")
     sp.set_defaults(func=_dispatch_module("reconcile", "cmd_reconcile"))
+
+    # ── inbox drain — collapse duplicate snapshots ────────────────────────────
+    sp = sub.add_parser("inbox", help="inbox tools (drain duplicate snapshots)")
+    sub_inbox = sp.add_subparsers(dest="inbox_verb", metavar="<sub>", required=True)
+    sp_drain = sub_inbox.add_parser(
+        "drain", help="collapse inbox.jsonl to one snapshot per id")
+    sp_drain.add_argument("--json", action="store_true",
+                          help="emit {kept, overlord, parse_fail, backup}")
+    sp_drain.set_defaults(func=_dispatch_module("inbox", "cmd_inbox_drain"))
     return parser
 
 

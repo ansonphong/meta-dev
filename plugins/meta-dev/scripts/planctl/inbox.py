@@ -11,11 +11,11 @@ Before M4, done-gate items were created with random IDs on every Stop → the
 
   * Deterministic id = ``hashlib.sha256(plan + "\0" + cause)[:24]``
     (prefixed ``"inb_"``).
-  * ``upsert()`` — if an open item already exists for (plan, cause),
-    bump ``seen_count`` + ``updated``; otherwise append a new item.
+  * ``upsert()`` — if an open item already exists for (plan, cause), return
+    that id and do not append. A new id is appended only on first open.
   * ``resolve()`` — append a resolve event so the renderer marks it resolved.
-  * ``drain_backlog()`` — collapse the legacy backlog into one-open-item-per-
-    (plan, cause) with deterministic ids; preserve non-done-gate items.
+  * ``drain_backlog()`` — rewrite the log to one current snapshot per unique
+    id (last-event-wins). Skip corrupt lines. Backup is a gitignored sibling.
 
 All writes to the host inbox file (META repo). planctl's off-9p events.jsonl
 is the audit log; the inbox is the user-facing state.
@@ -25,8 +25,6 @@ Stdlib only.
 import hashlib
 import json
 import os
-import re
-import shutil
 import time
 
 from planctl import statedir
@@ -105,8 +103,8 @@ def read_open_items(root):
 def upsert(root, plan, cause, title, body, severity="medium", tags=None):
     """Upsert a stateful done-gate inbox item keyed by ``hash(plan, cause)``.
 
-    If an open item already exists for this (plan, cause), the item's
-    ``updated`` and ``seen_count`` are bumped (no duplicate created). Otherwise
+    If an open item already exists for this (plan, cause), return that id
+    without appending — Stop-hook reconcile must not grow the log. Otherwise
     a new item is appended with ``auto_clearable=True``.
 
     Returns the item id.
@@ -121,14 +119,7 @@ def upsert(root, plan, cause, title, body, severity="medium", tags=None):
     now = _now_iso()
 
     if existing:
-        existing["updated"] = now
-        existing["seen_count"] = existing.get("seen_count", 1) + 1
-        # Keep the original created timestamp; bump the title/body in case the
-        # decision details changed.
-        existing["title"] = title
-        existing["body"] = body
-        with open(path, "a", encoding="utf-8") as fh:
-            fh.write(json.dumps(existing, ensure_ascii=False) + "\n")
+        return item_id
     else:
         item = {
             "id": item_id,
@@ -194,53 +185,22 @@ def resolve(root, plan, cause, note=None):
 
 # ── backlog drain ────────────────────────────────────────────────────────────────
 
-# Regexes to classify cause from free-text body/title (P4-CAUSE).
-_CAUSE_PATTERNS = {
-    "open_boxes": re.compile(
-        r"(open\s*boxes|fail\s*open\s*boxes|open\s*exec\b)",
-        re.IGNORECASE,
-    ),
-    "review_missing": re.compile(
-        r"(review\s*missing|no\s*review\s*verdict|"
-        r"checkboxes\s*are\s*all\s*flipped|"
-        r"code\s*review\s*not\s*on\s*record)",
-        re.IGNORECASE,
-    ),
-    "docs_missing": re.compile(
-        r"(docs\s*missing|docs\s*evidence\s*missing|"
-        r"context\s*missing|declared\s*path\s*unmodified|"
-        r"declared\s*context\b)",
-        re.IGNORECASE,
-    ),
-}
-
-
-def _classify_cause(text):
-    """Return the cause slug from free text, or ``None`` if unrecognized."""
-    for cname, cpat in _CAUSE_PATTERNS.items():
-        if cpat.search(text):
-            return cname
-    return None
-
-
 def drain_backlog(root):
-    """Collapse the done-gate backlog into one-open-item-per-(plan, cause).
+    """Rewrite inbox.jsonl to one current snapshot per unique id.
 
-    Reads ``inbox.jsonl``, regexes the cause from each done-gate item's free-text
-    body + title, dedupes to one-open-per-key, rewrites with deterministic ids.
-    Non-done-gate items (overlord, manual advisories) and parse-fail lines are
-    PRESERVED verbatim. Items whose cause has long since cleared (resolved) are
-    archived (resolve event appended).
+    Last-event-wins fold: a later snapshot replaces an earlier one; a later
+    resolve marks that snapshot resolved; a snapshot after a resolve reopens.
+    Corrupt JSON lines are skipped (not rewritten) so a bad line cannot zero
+    the open count. The original file is renamed to a gitignored ``.bak-drain-*``
+    sibling, then the compact log is written via ``os.replace``.
 
-    Returns ``{kept, overlord, parse_fail, backup}`` counts for the report.
+    Returns ``{kept, overlord, parse_fail, backup}``.
     """
     path = _inbox_path(root)
     if not os.path.isfile(path):
         return {"kept": 0, "overlord": 0, "parse_fail": 0, "backup": ""}
 
-    # ── Pass 1: collect ──────────────────────────────────────────────────────
-    preserved = []          # non-done-gate items + resolve events (as raw or dict)
-    done_gate_items = {}    # (plan, cause) → latest item dict
+    items = {}
     parse_fail_count = 0
 
     with open(path, encoding="utf-8", errors="ignore") as fh:
@@ -251,80 +211,53 @@ def drain_backlog(root):
             try:
                 rec = json.loads(line)
             except json.JSONDecodeError:
-                preserved.append(line)  # preserve raw parse-fail line
                 parse_fail_count += 1
                 continue
 
-            # Resolve events pass through untouched (they reference random ids
-            # from the legacy era and won't match deterministic ids — they're
-            # harmless noise).
+            eid = rec.get("id") or ""
+            if not eid:
+                continue
+
             if rec.get("event") == "resolve":
-                preserved.append(rec)
+                if eid in items:
+                    folded = dict(items[eid])
+                    folded["status"] = rec.get("status", "resolved")
+                    folded["resolved"] = rec.get("resolved")
+                    folded["resolved_by"] = rec.get("resolved_by")
+                    folded["resolution_note"] = rec.get("resolution_note")
+                    folded["updated"] = rec.get("updated", folded.get("updated"))
+                    items[eid] = folded
+                else:
+                    items[eid] = rec
                 continue
 
-            source = rec.get("source", "")
-            if source != "done-gate":
-                preserved.append(rec)
-                continue
+            items[eid] = rec
 
-            # Extract plan from ref.plan or ref.file
-            ref = rec.get("ref") or {}
-            plan = ref.get("plan") or ref.get("file") or ""
-            if not plan:
-                preserved.append(rec)  # can't classify, preserve as-is
-                continue
-
-            # Classify cause from body + title
-            text = " ".join([
-                rec.get("body", "") or "",
-                rec.get("title", "") or "",
-            ])
-            cause = _classify_cause(text)
-            if cause is None:
-                # Best-effort default: most done-gate items are review_missing
-                cause = "review_missing"
-
-            key = (plan, cause)
-            if key not in done_gate_items:
-                done_gate_items[key] = rec
-            else:
-                # Keep the latest (by created timestamp)
-                existing_ts = done_gate_items[key].get("created", "")
-                new_ts = rec.get("created", "")
-                if new_ts > existing_ts:
-                    done_gate_items[key] = rec
-
-    # ── Pass 2: backup + rewrite ─────────────────────────────────────────────
     stamp = time.strftime("%Y%m%d-%H%M%S")
     backup_path = path + ".bak-drain-" + stamp
-    shutil.copy2(path, backup_path)
+    tmp_path = path + ".tmp-drain-" + stamp
+
+    os.replace(path, backup_path)
+    try:
+        with open(tmp_path, "w", encoding="utf-8") as fh:
+            for eid in sorted(items):
+                fh.write(json.dumps(items[eid], ensure_ascii=False) + "\n")
+        os.replace(tmp_path, path)
+    except Exception:
+        if os.path.isfile(tmp_path):
+            try:
+                os.remove(tmp_path)
+            except OSError:
+                pass
+        if not os.path.isfile(path) and os.path.isfile(backup_path):
+            os.replace(backup_path, path)
+        raise
 
     overlord_count = sum(
-        1 for r in preserved
-        if isinstance(r, dict) and r.get("source") == "overlord"
+        1 for rec in items.values() if rec.get("source") == "overlord"
     )
-
-    with open(path, "w", encoding="utf-8") as fh:
-        for item in preserved:
-            if isinstance(item, str):
-                fh.write(item + "\n")
-            else:
-                fh.write(json.dumps(item, ensure_ascii=False) + "\n")
-
-        for (plan, cause), item in sorted(done_gate_items.items()):
-            new_id = hash_id(plan, cause)
-            item["id"] = new_id
-            item["auto_clearable"] = True
-            item["updated"] = _now_iso()
-            if "plan" not in (item.get("ref") or {}):
-                item.setdefault("ref", {})["plan"] = plan
-            if not item.get("tags"):
-                item["tags"] = ["done-gate", cause]
-            fh.write(json.dumps(item, ensure_ascii=False) + "\n")
-
-    kept = len(done_gate_items)
     return {
-        "kept": kept,
+        "kept": len(items),
         "overlord": overlord_count,
         "parse_fail": parse_fail_count,
         "backup": backup_path,
@@ -340,8 +273,8 @@ def cmd_inbox_drain(args):
     if getattr(args, "json", False):
         print(json.dumps(result))
     else:
-        print("inbox drain: %d stateful items kept (was backlog)" % result["kept"])
-        print("  overlord preserved: %d" % result["overlord"])
-        print("  parse-fail preserved: %d" % result["parse_fail"])
+        print("inbox drain: %d unique ids kept (was backlog)" % result["kept"])
+        print("  overlord kept: %d" % result["overlord"])
+        print("  parse-fail skipped: %d" % result["parse_fail"])
         print("  backup: %s" % result["backup"])
     return 0
