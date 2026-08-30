@@ -89,9 +89,9 @@ if [ "$PLANCTL_RC" -ne 0 ]; then
   exit 0
 fi
 
-# Normal output: let planctl's human-readable summary flow to stdout.
-if [ -n "$PLANCTL_OUT" ]; then
-  printf '%s\n' "$PLANCTL_OUT"
-fi
+# Successful reconciliation is intentionally silent. Codex renders Stop-hook
+# stdout after every assistant response, and planctl's per-plan summary drowns
+# out the response even when nothing changed. Failures still emit the concise
+# warning above.
 
 exit 0

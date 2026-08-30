@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.4.33
+
+- Keep successful Stop-hook reconciliation silent so Codex does not append the full plan-decision list to every response.
+- Preserve the concise warning when reconciliation fails.
+- Release matching Claude and Codex plugin manifests at version 1.4.33.
+
 ## 1.4.32
 
 - Scan the project initializer as live doctrine instead of a whole-script exemption; its migration-detection constructs stay permitted compatibility logic.
