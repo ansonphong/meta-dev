@@ -24,7 +24,7 @@ This command owns the **EXECUTE** waterfall stage (5/6). Keep `/meta-dashboard` 
 
 You are the conductor. You do **not** implement plan tasks on this thread.
 
-**Farm pieces to Grok subagents.** Independent checkboxes with disjoint files run in parallel. A fat task that is really three pieces becomes three Grok workers. You keep one-line returns. **Shape each brief for that backend** (`references/execute-briefs.md`) — Grok, DeepSeek, Codex, and Antigravity do not get the same paragraph. Headless runners inject the backend block; you still write the task body in that voice. Inner host-native subagents stay Grok/`Agent`/spark — do **not** auto-farm checkbox workers to `agy` unless Phong passed `--agy`.
+**Farm pieces.** Independent checkboxes with disjoint files run in parallel. Pick the cheapest rung (`references/work-ladder.md`): grok-4.5 / Spark / Luna for collect and mechanical; grok-4.6 / Terra ordinary; Sol hard. You keep one-line returns. **Shape each brief for that backend** (`references/execute-briefs.md`) — collect is `TASK` + `RETURN`, not a novel. Inner host-native subagents stay Grok/`Agent`/spark — do **not** auto-farm checkbox workers to `agy` unless Phong passed `--agy`. Do not dispatch DeepSeek unless named.
 
 `--inline` is the ONLY exception, and only when the user passed it.
 
@@ -40,13 +40,13 @@ Stay on this thread only for: the slash harness, vision, a true one-liner (one k
 
 ### Host dispatch (unflagged)
 
-Read the host root `AGENTS.md` and `references/work-ladder.md`. If the host names a pooled worker (Claude Code on this 360-Hextile tree → Grok), use that instead of a same-family Agent. Otherwise use the table. Never fall through to this thread.
+Read the host root `AGENTS.md` and `references/work-ladder.md`. Pool is **Grok + Codex**. Pick model/tier from the cost table. Never fall through to this thread. Do not spawn native Claude Task/Agent to "stay local."
 
 | This host | Per-checkbox worker | How |
 |-----------|---------------------|-----|
-| **Grok Build** | `spawn_subagent` | `subagent_type: general-purpose`, inherit model, `background: true`, `capability_mode: all`. Prompt = `references/execute-dispatch.md` with the task section inlined. Put git bans + commit-on-red in every brief (Grok has no PreToolUse). Wait for the one-line return. |
-| **Claude Code** | native `Agent`/Task | Same family as the session. Do not `--inline` to "stay local." |
-| **Codex** | `codex exec` | **spark / low** for mechanical (separate weekly quota). **`gpt-5.6-sol` / high** for cross-module, security, migration, ambiguous root cause. Conductor stays thin. |
+| **Grok Build** | `spawn_subagent` | `subagent_type: general-purpose` (or `explore` for collect), **`model: grok-4.5`** collect/mechanical else **`grok-4.6`**, `background: true`. Prompt = `references/execute-dispatch.md` with the task section inlined. Lean brief. Put git bans + commit-on-red in every **write** brief (Grok has no PreToolUse). Codex Spark/Luna/Terra/Sol when that family is the better fit. |
+| **Claude Code** | pooled Grok / Codex | `/grok-execute` or `/codex-execute` per the cost table. Do not `--inline` to "stay local." |
+| **Codex** | `codex exec` | **Spark / Luna / low** collect + mechanical (Spark is a separate weekly quota). **Terra / medium** ordinary. **Sol / high** hard, security, migration, ambiguous root cause. Conductor stays thin. |
 
 Grok git brief (every spawn): no rebase / stash / `add -A` / `commit -a` / bare commit. Form: `git -C <ABS> add -- <paths> && git -C <ABS> commit --only -m "…" -- <paths>`. Never push.
 

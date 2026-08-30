@@ -1,7 +1,7 @@
 ---
 name: codex-execute
 argument-hint: <task description> [--repo <name>] [--readonly] [--budget auto|low|medium|high] [--tier <spark|luna|terra|sol>] [--effort <none|low|medium|high|xhigh|max>] [--model <model>] [--sandbox <mode>]
-description: Run a bounded task with headless OpenAI Codex. Interactive Codex has meta-dev as $meta-dev:<command> skills. Headless cannot type a slash, but the plugin is there — --skill/--command follow the same markdown, plus a harness preamble. Brief a DIRECT task. Review-only on this tree's $20/30-mo plan.
+description: Run a bounded task with headless OpenAI Codex. Interactive Codex has meta-dev as $meta-dev:<command> skills. Headless cannot type a slash, but the plugin is there — --skill/--command follow the same markdown, plus a harness preamble. Brief a DIRECT task. Pooled with Grok — pick --tier spark|luna|terra|sol and --effort from the task. Spark/Luna for collect and mechanical; Terra ordinary; Sol hard / extra-family review.
 ---
 
 # /codex-execute - GPT Task Runner

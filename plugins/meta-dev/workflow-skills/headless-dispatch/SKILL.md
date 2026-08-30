@@ -72,11 +72,11 @@ run the script directly:
 
 | Claude Code command | `--backend` | Model | Reach for it when |
 |---|---|---|---|
-| `/fable-execute`  | `fable`  | `claude-fable-5`  | hardest tasks — max reasoning, long-horizon coherence |
-| `/opus-execute`   | `opus`   | `claude-opus-5`   | architecture, hardening, review, security |
-| `/sonnet-execute` | `sonnet` | `claude-sonnet-5` | Anthropic judgment, off-thread |
-| `/deep-execute`   | `deep`   | `deepseek-v4-pro` (default, V4-Pro-0813 GA; `--flash` → `deepseek-v4-flash`; `--vision` → `deepseek-v4-flash-vision-exp`) | default reasoning worker; `--flash` for mechanical bulk; `--vision` for images |
-| `/glm-execute`    | `glm`    | `glm-5.2`         | long-horizon, stateful agentic refactors |
+| `/fable-execute`  | `fable`  | `claude-fable-5`  | EXPRESS-PERMISSION — hardest tasks only |
+| `/opus-execute`   | `opus`   | `claude-opus-5`   | rare: extra-family review, hard UI, one pass |
+| `/sonnet-execute` | `sonnet` | `claude-sonnet-5` | rare: UI / design-system craft, one pass |
+| `/deep-execute`   | `deep`   | `deepseek-v4-pro` (`--flash` / `--vision`) | **paused** — only when Phong names DeepSeek this turn |
+| `/glm-execute`    | `glm`    | `glm-5.2`         | named-only |
 
 `sonnet`/`opus`/`fable` are **real Anthropic via your ambient Claude login** —
 no API key. `deep` needs `DEEPSEEK_API_KEY`, `glm` needs `GLM_API_KEY`; the doctor

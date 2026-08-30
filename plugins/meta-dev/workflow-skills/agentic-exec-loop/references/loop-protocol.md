@@ -8,18 +8,16 @@ releases usable artifacts once, while failure containment follows branches.
   phase + each worker's one-line result. NEVER reads a diff, OUTPUT_FILE.raw,
   or the reviewer transcript.
 - **Worker** — **unflagged = host-native subagent per checkbox, never the conductor thread** (the default): in **Grok Build** a `spawn_subagent`
-  (`general-purpose`, inherit model, `background`, `capability_mode: all`) with
-  git bans + commit-on-red in the brief; in Claude Code a native `Agent`/Task
-  subagent (or pooled Grok if the host `AGENTS.md` / work-ladder says so); in Codex
-  native delegation via `codex exec` — **spark / low** for mechanical (separate
-  weekly quota from gpt-5.6), **`gpt-5.6-sol` / high** for cross-module,
+  (`general-purpose` or `explore` for collect, **`model: grok-4.5`** collect/mechanical else **`grok-4.6`**, `background`) with
+  git bans + commit-on-red in write briefs; in Claude Code pooled Grok/Codex (not a same-family Agent); in Codex
+  native `codex exec` — **Spark / Luna / low** collect + mechanical (Spark is a separate
+  weekly quota), **Terra / medium** ordinary, **Sol / high** hard,
   security, migration, or ambiguous root cause. `--inline` is the only
-  conductor-as-worker path, and only when the user passed it. Everything else
-  is an **explicit opt-in** headless process:
-  DeepSeek `--backend deep`, GLM `--backend glm`, or Anthropic Sonnet 5
-  `--backend sonnet` via ${CLAUDE_PLUGIN_ROOT}/scripts/claude-headless-exec;
+  conductor-as-worker path, and only when the user passed it. Named-only
+  headless: DeepSeek `--backend deep` (paused), GLM `--backend glm`, or
+  Anthropic Sonnet 5 `--backend sonnet` via ${CLAUDE_PLUGIN_ROOT}/scripts/claude-headless-exec;
   Codex `--codex` via ${CLAUDE_PLUGIN_ROOT}/scripts/codex-headless-exec (no
-  --backend) — Codex is a first-class executor, not review-only.
+  --backend) — Codex is pooled with Grok, not review-only.
   `--backend sonnet` is a SEPARATE `claude -p` process pinned to
   `claude-sonnet-5` (no `[1m]`). **The 1M caveat is conditional, not a blanket
   ban on native subagents:** ONLY when the conductor session is itself running

@@ -77,7 +77,7 @@ Self-contained. The child does not share this session's memory.
 Include:
 - The user prompt verbatim
 - Absolute repo roots if known
-- The matching **backend brief** from `references/execute-briefs.md` (Grok farms pieces to `spawn_subagent`; DeepSeek stays small; Codex does not re-read a plan file)
+- The matching **backend brief** from `references/execute-briefs.md` (Grok farms pieces to `spawn_subagent`, pick 4.5 vs 4.6; Codex Spark/Luna/Terra/Sol, do not re-read a plan file). DeepSeek is paused.
 - Git: no rebase / stash / `add -A` / `commit -a` / bare commit. Form: `git -C <ABS> add -- <paths> && git -C <ABS> commit --only -m "…" -- <paths>`. Never push.
 - Commit-on-red if any file was edited
 - Focused verify only; no repo-wide suite

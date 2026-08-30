@@ -83,8 +83,8 @@ host-table bug, not permission to implement the member here. `--inline` does not
 
 | This host | Member conductor | How |
 |-----------|------------------|-----|
-| **Grok Build** | `spawn_subagent` | `subagent_type: general-purpose`, inherit model, `background: true`, `capability_mode: all`. Brief a **direct task**. Never "run `/meta-execute`". |
-| **Claude Code** | native `Agent` | Background. `Execute /meta-execute <plan>` or `Execute /meta-dev --to 4 <plan>` is legal **on this host only**. The child follows `references/work-ladder.md` (on 360-Hextile, pooled DeepSeek/Grok — do not stay local). |
+| **Grok Build** | `spawn_subagent` | `subagent_type: general-purpose`, **pick grok-4.5 vs grok-4.6**, `background: true`. Brief a **direct task**. Never "run `/meta-execute`". Codex Terra/Sol when that family is the better fit. |
+| **Claude Code** | pooled Grok / Codex | Background. `Execute /meta-execute <plan>` or `Execute /meta-dev --to 4 <plan>` is legal **on this host only**. The child follows `references/work-ladder.md` (Grok + Codex — do not stay local; DeepSeek paused). |
 | **Codex** | `codex exec` | Member conductor = **sol / high**. Inner mechanical checkboxes may be spark. Inline the execute procedure; never "read the master and reconstruct." |
 
 Shape the brief for that backend (`references/execute-briefs.md` → Campaign member conductor).

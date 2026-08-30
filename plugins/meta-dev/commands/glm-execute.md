@@ -16,7 +16,7 @@ Uses `scripts/claude-headless-exec --backend glm` under the hood.
 
 ## When to Use
 
-GLM is the **robust, consistent driver** — it holds a thread across many dependent steps where DeepSeek drifts. Make GLM the executor for any job that is **long-horizon, stateful, or frontend**, and let it farm small mechanical leaves to DeepSeek.
+GLM is **named-only**. The pooled drivers are Grok 4.6 and Codex Terra/Sol. Mechanical leaves go to Spark / Luna / grok-4.5. Do not auto-select GLM or DeepSeek.
 
 **Reach for GLM when:**
 - **Long-horizon / multi-phase execution** — whole-plan `/meta-execute`, multi-file refactors, anything where step N depends on steps 1..N-1. GLM stays on-task; this is its core edge.
@@ -25,9 +25,9 @@ GLM is the **robust, consistent driver** — it holds a thread across many depen
 - **Cross-backend verification** — have GLM review/verify work DeepSeek did (or vice versa).
 - **High-effort reasoning** — `CLAUDE_CODE_EFFORT_LEVEL=high` is set automatically; 1M context + 50-min timeout handle large, deep tasks.
 
-**Prefer DeepSeek instead when** the work is a *small, bounded, parallelizable* unit (mechanical edit, codemod, narrow single-file transform) and you want the cheapest throughput — fan those out via `/deep-execute`.
+**Prefer the pool instead:** Codex Spark/Luna or grok-4.5 for mechanical/collect; Grok 4.6 or Terra for ordinary. GLM is **named-only**. DeepSeek is paused.
 
-**Rule of thumb:** *keep it whole → GLM; break it small → DeepSeek.* GLM drives the arc; DeepSeek farms the leaves.
+**Rule of thumb:** *keep it whole on Grok 4.6 / Terra; break it small to Spark / Luna / grok-4.5.* GLM only when Phong names it.
 
 ## Executing a phase/wave file (multi-phase meta-planner plans)
 

@@ -6,7 +6,9 @@ description: Execute a task via headless DeepSeek Claude Code — default deepse
 
 # /deep-execute — DeepSeek Headless Execution
 
-Spawn a headless Claude Code worker on the **DeepSeek** backend to execute a task, then report the results back. The worker runs independently — you stay on your current backend (Opus/GLM) for orchestration while DeepSeek does the work.
+> **⛔ PAUSED (2026-08-30).** Do **not** auto-dispatch this command. Grok drives; Codex is used liberally; collect/mechanical is Spark/Luna or grok-4.5. Run `/deep-execute` **only when Phong names DeepSeek this turn**. Ladder: `references/work-ladder.md`.
+
+Spawn a headless Claude Code worker on the **DeepSeek** backend to execute a task, then report the results back. The worker runs independently — you stay on your current backend for orchestration while DeepSeek does the work.
 
 Uses `scripts/claude-headless-exec --backend deep` under the hood.
 

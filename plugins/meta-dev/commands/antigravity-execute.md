@@ -42,7 +42,7 @@ meta-dev is on Claude Code, Codex, and Grok Build. **Antigravity does not load m
 - Search-grounded "what is current" lookup while editing
 - Extra-family review on Google's Claude Opus 4.6 bar (`--opus --readonly`) — one pass, not a swarm
 
-**Prefer the pool instead:** mechanical → `/deep-execute`; multi-file implement → Grok `spawn_subagent` / `/grok-execute`. Antigravity is the Google lens, not the daily executor.
+**Prefer the pool instead:** mechanical/collect → Spark/Luna or grok-4.5; multi-file implement → Grok `spawn_subagent` / `/grok-execute` or Codex Terra. Antigravity is the Google lens, **named-only**, not the daily executor. DeepSeek is paused.
 
 ## Test discipline — keep every test cycle cheap
 

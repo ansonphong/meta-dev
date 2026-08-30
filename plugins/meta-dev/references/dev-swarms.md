@@ -46,13 +46,13 @@ Delegate to `/loop-gap` with the loop-gap config from Stage 3.
 
 **Exit criteria:** Loop-gap reports "NO GAPS REMAINING."
 
-## Stage 4.5: Codex Gap-Scan Pass (`--codex` only — OFF by default)
+## Stage 4.5: extra-family gap-scan — Opus (or Sonnet if UI) + Codex Sol
 
-**Conditional stage — runs ONLY when the user passed `--codex`.** Mirrors the Stage 2.5 design-eval gate: a quality gate slotted in at a decimal stage. Without `--codex`, the waterfall goes straight from Stage 4 → Stage 5 exactly as before.
+**On by default as part of Stage 4 harden.** One pass each. No DeepSeek. No swarm.
 
-**Goal:** an independent **cross-family** read on the hardened plan, right before code gets written. Stage 4 hardening (`/loop-gap`, driven along the work ladder) is largely same-family — Claude-lineage models gap-checking Claude-lineage plans. Codex (GPT) catches the blind spots that same-family review shares. This is the canonical, highest-leverage use of Codex's cross-family review lens: review the *plan that is about to drive execution*. (Codex is also a first-class executor elsewhere in the harness — this stage just happens to be a read-only one.)
+**Goal:** an independent **cross-family** read on the hardened plan, right before code gets written. Stage 4 Grok swarms are same-family. Opus/Sonnet + Codex Sol catch the blind spots.
 
-**Precondition:** Stage 4 has already reported "NO GAPS REMAINING" — i.e. the **final DeepSeek/GLM hardening pass is done**. Codex scans the *already-hardened* plan; it is not a substitute for `/loop-gap`, it is the cross-family confirmation on top of it.
+**Precondition:** Stage 4 Grok swarms have reported "NO GAPS REMAINING" (or run in parallel with the last Grok pass). This is not a substitute for `/loop-gap`.
 
 **The pass (the conductor — Opus — runs this; do NOT hand Codex a `/command`, it can't run our harness):**
 
@@ -60,7 +60,7 @@ Delegate to `/loop-gap` with the loop-gap config from Stage 3.
    > *"Audit these plan files for gaps: missing coverage, internal contradictions, unhardened edge cases, ordering/dependency errors, unstated assumptions, and integration seams between phases. Produce a structured gap report grouped by severity. Read-only — do not edit any file."*
    Write the report per **`references/plan-artifacts.md`** — the one naming rule: directory plan → `<plan-dir>/gap-report-codex.md`; **single-file plan → `<plan-stem>.gap-report-codex.md`**, a sibling carrying the plan's full stem. No date, no counter — a re-scan overwrites its own report and git holds the history.
 2. **Triage (Opus).** Read Codex's report; sort findings into **actionable gaps** vs. noise / false-positives / out-of-scope. Opus judgment, one read — do not blindly pipe every Codex line into a fix.
-3. **Integrate-back (GLM preferred · DeepSeek for mechanical).** Feed the actionable gaps to **GLM** (plan-writing is GLM's lane) — or **DeepSeek** for mechanical/bounded fixes — to integrate into the plan markdown. This is plan-editing, **pre-execution, no source code** — squarely inside the Stage-4 safety boundary.
+3. **Integrate-back (Grok).** Feed the actionable gaps to **Grok** to integrate into the plan markdown. Mechanical stamps may go to Spark / Luna / grok-4.5. This is plan-editing, **pre-execution, no source code** — squarely inside the Stage-4 safety boundary. DeepSeek and GLM are paused / named-only.
 4. **Bounded re-scan (quota-conscious).** If the integrate pass was substantial, optionally run **one** confirming Codex re-scan. **Hard cap: 2 Codex calls total** (1 scan + 1 confirm). Codex runs on a limited Codex Plus quota — never loop it. After the cap, proceed regardless; log any remaining low-severity findings in the report.
 
 **Exit criteria:** Codex reports no material (high/medium) gaps, OR the 2-call cap is hit with remaining findings triaged and logged. Plan markdown reflects the integrated fixes.

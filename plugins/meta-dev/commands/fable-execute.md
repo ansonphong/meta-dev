@@ -27,7 +27,7 @@ Reach for `/fable-execute` when the task is **the hardest kind** and wants the s
 - Long-horizon work that must stay **coherent** across many dependent steps (where DeepSeek drifts and you want maximum reasoning quality)
 - Any hard task you'd otherwise keep on the main thread but that would flood the conductor's context — hand it to Fable and take back a distilled result
 
-For cheap bulk/mechanical work, prefer `/deep-execute` (DeepSeek); for long-horizon agentic work `/glm-execute` (GLM); for Anthropic quality a tier down `/sonnet-execute`; for top-tier Opus off-thread `/opus-execute`. `/fable-execute` is the **hardest-task, maximum-reasoning** tier — use it deliberately, not for routine work.
+For cheap bulk/mechanical work, prefer Codex Spark/Luna or grok-4.5. For ordinary work, Grok 4.6 or Terra. For Anthropic quality a tier down, rare `/sonnet-execute`; for extra-family / hard UI, rare `/opus-execute`. `/fable-execute` is the **hardest-task, maximum-reasoning** tier — EXPRESS-PERMISSION, not routine. DeepSeek is paused. GLM is named-only.
 
 ## Test discipline — keep every test cycle cheap
 

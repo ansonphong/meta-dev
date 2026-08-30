@@ -72,7 +72,6 @@
     },
     "ladder": {
       "pool": [
-        "deep",
         "grok",
         "codex"
       ],

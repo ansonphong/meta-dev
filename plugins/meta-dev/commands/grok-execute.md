@@ -1,7 +1,7 @@
 ---
 name: grok-execute
 argument-hint: "<task description> [--repo <name>] [--readonly] [--model <grok-4.6|grok-4.5>] [--budget auto|low|medium|high] [--effort <low|medium|high|xhigh>] [--max-turns <n>]  # --repo names from .claude/meta-dev-repos.json"
-description: "Execute a task via headless xAI Grok (Grok Build CLI). Interactive Grok has meta-dev as skills/slash commands. A headless grok --prompt-file worker is still Grok Build (same plugins), not Claude Code — brief a DIRECT task or a skill to follow, never a Claude slash. Grok can read AND write. Frontier-reasoning rung of meta_dev.ladder.pool (alongside /deep-execute for mechanical work). Codex and Opus are review-only, not pooled. Default model grok-4.6; grok-4.5 still available. Dispatcher picks --effort per task (xhigh is grok-4.6 only)."
+description: "Execute a task via headless xAI Grok (Grok Build CLI). Interactive Grok has meta-dev as skills/slash commands. A headless grok --prompt-file worker is still Grok Build (same plugins), not Claude Code — brief a DIRECT task or a skill to follow, never a Claude slash. Grok can read AND write. Main driver of meta_dev.ladder.pool (with Codex). Default grok-4.6; grok-4.5 for collect/mechanical. Dispatcher picks --model and --effort per task (xhigh is grok-4.6 only). DeepSeek is paused."
 ---
 
 # /grok-execute — Grok Headless Execution
@@ -24,10 +24,10 @@ This command spawns **headless** Grok (`grok --prompt-file`). That is still Grok
 
 Grok occupies a unique slot: it is **both** a general execution tier **and** a cross-family reviewer.
 
-- **As an executor:** Grok 4.6 is a frontier-tier model that **can write files** (like Codex under `--sandbox workspace-write`) — so it can do real bounded implementation work (fixes, refactors, scaffolding), not just read-and-report. Use it like `/deep-execute` or `/glm-execute` for a self-contained task where an independent strong model is wanted.
+- **As an executor:** Grok 4.6 is a frontier-tier model that **can write files** (like Codex under `--sandbox workspace-write`) — so it can do real bounded implementation work (fixes, refactors, scaffolding), not just read-and-report. Use grok-4.5 / `--effort low` for collect and mechanical; grok-4.6 for ordinary and hard.
 - **As a reviewer:** Point it (read-only via `--readonly`) at a diff, the changed files, or a specific finding. An xAI-family model reviewing Claude/DeepSeek/OpenAI output is a **third independent family** — it catches failure modes that same-family review (and even the OpenAI/Codex lens) miss. That independent-family lens is the entire value of Grok-as-reviewer.
 
-**Where it sits on the work ladder:** Grok is the **frontier-reasoning** rung of the execute pool (`meta_dev.ladder.pool` = `deep`, `grok`). DeepSeek is the cheap mechanical rung. Codex and Opus are **not** in the pool — they are extra-family review only ($20/30-mo). **Grok Heavy (since 2026-07-26) gives us a large compute bucket**, and Grok 4.6 is the current frontier default (4.5 remains available via `--model grok-4.5`) — so **spend it** on non-mechanical work. Mechanical / bounded units go to `/deep-execute`. Full routing table: `references/work-ladder.md`.
+**Where it sits on the work ladder:** Grok is the **main driver** of the execute pool (`meta_dev.ladder.pool` = `grok`, `codex`). Codex is used **liberally** (Spark/Luna collect, Terra ordinary, Sol hard). Opus / Sonnet are rare (UI + extra-family review). **DeepSeek is paused.** **Grok Heavy** is a large compute bucket — spend Grok 4.6 on ordinary and hard work; use **grok-4.5** / `--effort low` for collect and mechanical. Full table: `references/work-ladder.md` · picker: project `.claude/context/harness/subagent-picker.md`.
 
 ## Test discipline — keep every test cycle cheap
 
@@ -50,16 +50,14 @@ Everything else is the task description. If none is given, ask what task to run.
 
 ## Step 2: Select Model and Effort
 
-**Default model is `grok-4.6`.** Keep `grok-4.5` for an explicit compare, a 4.5-only repro, or a user `--model grok-4.5`. Do not pick 4.5 just because older docs mention it.
-
-**You decide `--budget` and `--effort` from the task.** Classify budget first (`low` mechanical, `medium` ordinary, `high` hard — unsure → medium). State model, budget, and effort before dispatching. An explicit user `--budget` / `--effort` always wins. Helper: `scripts/classify-execute-budget.sh`.
+**Pick `--model` and `--effort` from the task every time.** Do not inherit the TUI `xhigh` default. Classify budget first (`low` mechanical, `medium` ordinary, `high` hard — unsure → medium). State model, budget, and effort before dispatching. An explicit user `--budget` / `--effort` / `--model` always wins. Helper: `scripts/classify-execute-budget.sh`.
 
 | Task shape | Model | Effort |
 | --- | --- | --- |
-| Quick lookup, one-file mechanical edit, focused search, cheap fan-out | `grok-4.6` | `low` |
+| Filename collect, grep, inventory, cheap fan-out, one-file mechanical | `grok-4.5` | `low` |
 | Ordinary implementation, focused refactor, standard gap check, standard diff review | `grok-4.6` | `high` |
-| Hard diagnosis, architecture, plan harden, adversarial / cross-family review, anything where being subtly wrong is expensive | `grok-4.6` | `xhigh` |
-| Explicit 4.5 fallback or side-by-side compare | `grok-4.5` | `high` (4.5 has no `xhigh`) |
+| Hard diagnosis, architecture, plan harden, adversarial review, anything where being subtly wrong is expensive | `grok-4.6` | `xhigh` |
+| Images the worker must see | `grok-4.6` | `high` |
 
 `xhigh` is the new 4.6 extra-high reasoning tier. Use it when the task earns it — not as a blanket default. `high` is the omit-fallback on both models.
 
@@ -67,7 +65,7 @@ Everything else is the task description. If none is given, ask what task to run.
 
 Summarize before running:
 - **Backend:** Grok (`grok --output-format json`)
-- **Model:** grok-4.6 (or the `--model` override)
+- **Model:** grok-4.5 (collect/mechanical) or grok-4.6 (ordinary/hard) — the one you classified
 - **Budget:** resolved `low|medium|high` (never leave `auto` for the runner if you classified)
 - **Effort:** the level you selected above (or the user's `--effort`)
 - **Repo / Work dir:** (detected or specified)

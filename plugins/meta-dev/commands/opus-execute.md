@@ -10,7 +10,7 @@ Spawn a headless Claude Code worker on the **real Anthropic backend**, pinned to
 
 Uses `scripts/claude-headless-exec --backend opus` under the hood.
 
-**Harness:** this worker **is** Claude Code (ambient Anthropic login, model Opus 5). It can run meta-dev slash commands internally (`/meta-execute`, `/loop-gap`, …). Interactive Grok and Codex hosts **also** have this plugin (Grok skills/slash; Codex `$meta-dev:*`). A **headless** `/grok-execute` or `/codex-execute` worker is not Claude Code — brief those with a direct task, not "run `/loop-gap`". Full split: `references/work-ladder.md` → *Who has meta-dev*. On this tree `/opus-execute` is **review-only** (harden / code-review, one pass, prefer `--readonly`). Brief it as a **review**, not a farm. The runner injects an Opus brief (`references/execute-briefs.md`).
+**Harness:** this worker **is** Claude Code (ambient Anthropic login, model Opus 5). It can run meta-dev slash commands internally (`/meta-execute`, `/loop-gap`, …). Interactive Grok and Codex hosts **also** have this plugin (Grok skills/slash; Codex `$meta-dev:*`). A **headless** `/grok-execute` or `/codex-execute` worker is not Claude Code — brief those with a direct task, not "run `/loop-gap`". Full split: `references/work-ladder.md` → *Who has meta-dev*. On this tree `/opus-execute` is **rare**: extra-family review (harden / code-review, one pass, prefer `--readonly`) or UI craft that needs an Anthropic eye. Brief it as a **review or one UI pass**, not a farm. Do not send grep here. The runner injects an Opus brief (`references/execute-briefs.md`).
 
 ## Why this exists — context economy
 
@@ -33,7 +33,7 @@ Reach for `/opus-execute` when a task genuinely needs **top-tier Anthropic reaso
 - Any time you'd spawn an Opus subagent from an `opus[1m]` session — use this instead to avoid the 1M bill
 - Architecture / design / security passes where Sonnet's lens isn't enough but you don't want to burn the main window
 
-For cheap bulk/mechanical work, prefer `/deep-execute` (DeepSeek); for long-horizon agentic work `/glm-execute` (GLM); for **Anthropic quality without needing Opus depth**, `/sonnet-execute`. `/opus-execute` is the **top-tier-Anthropic, 200K-priced, off-thread** option; for the very hardest reasoning + long-horizon coherence, `/fable-execute`.
+For cheap bulk/mechanical work, prefer Codex Spark/Luna or grok-4.5. For ordinary work, Grok 4.6 or Codex Terra. For **Anthropic quality without needing Opus depth**, `/sonnet-execute` (still rare, UI). `/opus-execute` is the **top-tier-Anthropic extra-family / hard-UI** option, one pass. DeepSeek is paused. Fable stays EXPRESS-PERMISSION.
 
 ## Test discipline — keep every test cycle cheap
 
@@ -48,7 +48,7 @@ Parse these optional flags:
 - `--readonly` — restrict to read-only tools (review/analysis tasks)
 - `--claim <plan-dir>` — **concurrency safety (shared tree):** claim this plan directory before dispatch. The wrapper ABORTS if another live session holds an overlapping scope, and auto-releases on exit. Use whenever the worker edits `plans/**`. (`--claim-warn` warns instead of aborting.) See `references/execute-charter.md` → Concurrency Safety.
 - `--model <model>` — override default model (default: `claude-opus-5`; **do not add `[1m]`** — that opts the worker into the session-wide beta this command exists to avoid)
-- `--budget auto|low|medium|high` — **depth cap** (default `auto`). On this tree Opus is review-only — pick `low` or `medium`, not `high`. Doctrine: `references/execute-budget.md`.
+- `--budget auto|low|medium|high` — **depth cap** (default `auto`). On this tree Opus is **rare** (review / hard UI, one pass) — pick `low` or `medium`, not `high`. Doctrine: `references/execute-budget.md`.
 - `--effort <level>` — thinking/reasoning effort: `low|medium|high|xhigh|max` (**default: `high`**; drop to `medium`/`low` to conserve the Opus cap on lighter work)
 - `--max-turns <n>` — cap agent turns (default: from `--budget`)
 

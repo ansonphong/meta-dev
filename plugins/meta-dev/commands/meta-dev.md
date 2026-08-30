@@ -26,7 +26,7 @@ Stage definitions in `references/dev-swarms.md`. Each stage delegates to ported 
 2. **Design** → design doc + design-eval quality gate (Stage 2.5)
 3. **Plan** → `/meta-planner` (generates master + phase files + loop-gap config)
 4. **Harden** → `/loop-gap` (gap-scan to "NO GAPS REMAINING")
-   - **4.5. Codex gap-scan** (ONLY if `--codex`) → read-only cross-family (GPT) audit of the hardened plan via `/codex-execute --readonly`, findings integrated back by GLM/DeepSeek. Hard cap 2 Codex calls; pre-execution only. See `references/dev-swarms.md` → "Stage 4.5".
+   - **4.5 extra-family gap-scan** → one read-only `/opus-execute` (Sonnet if UI) + one read-only `/codex-execute` (Sol). Integrate-back via Grok. One pass each. No DeepSeek. See `references/dev-swarms.md` → "Stage 4.5".
 5. **Execute** → `/meta-execute` (subagent-driven, verify + commit per task)
 6. **Review** → `/meta-eval` + `/meta-audit` + `/housekeeping` (archive + sync dashboards)
 

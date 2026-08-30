@@ -10,7 +10,7 @@ Spawn a headless Claude Code worker on the **real Anthropic backend**, pinned to
 
 Uses `scripts/claude-headless-exec --backend sonnet` under the hood.
 
-**Harness:** this worker **is** Claude Code (ambient Anthropic login, model Sonnet 5). It can run meta-dev slash commands internally (`/meta-execute`, `/loop-gap`, …). Interactive Grok and Codex hosts **also** have this plugin (Grok skills/slash; Codex `$meta-dev:*`). A **headless** `/grok-execute` or `/codex-execute` worker is not Claude Code — brief those with a direct task, not "run `/loop-gap`". Full split: `references/work-ladder.md` → *Who has meta-dev*. On this tree `/sonnet-execute` is **parked** unless Phong names it this turn.
+**Harness:** this worker **is** Claude Code (ambient Anthropic login, model Sonnet 5). It can run meta-dev slash commands internally (`/meta-execute`, `/loop-gap`, …). Interactive Grok and Codex hosts **also** have this plugin (Grok skills/slash; Codex `$meta-dev:*`). A **headless** `/grok-execute` or `/codex-execute` worker is not Claude Code — brief those with a direct task, not "run `/loop-gap`". Full split: `references/work-ladder.md` → *Who has meta-dev*. On this tree `/sonnet-execute` is **rare**: UI / design-system craft and UI-heavy extra-family review, **one pass**. Do not farm it for grep or mechanical bulk. Most UI stays Grok 4.6 or Codex Terra.
 
 ## Why this exists — keep the conductor's context lean
 
@@ -32,7 +32,7 @@ Reach for `/sonnet-execute` when you want **Anthropic-grade Sonnet judgment** of
 - Reviews/audits where you want a Sonnet lens but cheaply (`--readonly`)
 - Any time you'd normally spawn a Sonnet subagent from an `opus[1m]` session — use this instead to avoid the 1M bill
 
-For cheap bulk/mechanical work, still prefer `/deep-execute` (DeepSeek); for long-horizon agentic work prefer `/glm-execute` (GLM). `/sonnet-execute` is the **Anthropic-quality** middle option (Sonnet 5 is $3/$15 per MTok, and $2/$10 through 2026-08-31 under introductory pricing).
+For cheap bulk/mechanical work, prefer Codex Spark/Luna or grok-4.5. For ordinary work, Grok 4.6 or Codex Terra. `/sonnet-execute` is the **rare Anthropic-quality UI** option (Sonnet 5 is $3/$15 per MTok). DeepSeek is paused. GLM is named-only.
 
 ## Test discipline — keep every test cycle cheap
 
