@@ -6,7 +6,7 @@ description: Execute a task via headless DeepSeek Claude Code — default deepse
 
 # /deep-execute — DeepSeek Headless Execution
 
-> **⛔ PAUSED (2026-08-30).** Do **not** auto-dispatch this command. Grok drives; Codex is used liberally; collect/mechanical is Spark/Luna or grok-4.5. Run `/deep-execute` **only when Phong names DeepSeek this turn**. Ladder: `references/work-ladder.md`.
+> **⛔ CREDITS EXHAUSTED — NEVER RUN THIS.** `meta_dev.ladder.paused` contains `deep`. Do not auto-dispatch. Do not honor `--deep`. Do not run this command because a plan mentioned it. Route that shape to Codex Spark/Luna or grok-4.5. The rest of this file is for when credits return. Ladder: `references/work-ladder.md`.
 
 Spawn a headless Claude Code worker on the **DeepSeek** backend to execute a task, then report the results back. The worker runs independently — you stay on your current backend for orchestration while DeepSeek does the work.
 

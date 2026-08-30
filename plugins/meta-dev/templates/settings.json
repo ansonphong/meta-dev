@@ -75,6 +75,7 @@
         "grok",
         "codex"
       ],
+      "paused": [],
       "native_only_when_required": true
     },
     "paths": {

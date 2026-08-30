@@ -342,11 +342,28 @@
         },
         "ladder": {
           "type": "object",
-          "description": "The work ladder: which delegation backends may be auto-selected, and in what order they escalate. Doctrine + task-shape routing table: references/work-ladder.md. Explicit flags (--deep/--glm/--codex/--grok/--sonnet/--opus/--fable) always win over this and can reach a backend that is not pooled.",
+          "description": "The work ladder: which delegation backends may be auto-selected, and in what order they escalate. Doctrine + task-shape routing table: references/work-ladder.md. Explicit flags can reach a backend that is not pooled UNLESS it is in ladder.paused — paused backends are never dispatched, flags included.",
           "properties": {
+            "paused": {
+              "type": "array",
+              "description": "Backends that must never be dispatched — not auto-selected, not by --flag, not by /command. Use when credits are exhausted. Empty = none paused.",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "deep",
+                  "glm",
+                  "codex",
+                  "grok",
+                  "sonnet",
+                  "opus",
+                  "fable"
+                ]
+              },
+              "default": []
+            },
             "pool": {
               "type": "array",
-              "description": "Auto-selectable delegation backends, ordered cheapest-first. This order IS the escalation order on a failed review. A backend absent from this array is still reachable by explicit flag but is never auto-selected.",
+              "description": "Auto-selectable delegation backends, ordered cheapest-first. This order IS the escalation order on a failed review. A backend absent from this array is still reachable by explicit flag but is never auto-selected, unless it is also in ladder.paused.",
               "items": {
                 "type": "string",
                 "enum": [

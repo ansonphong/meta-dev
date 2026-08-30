@@ -12,7 +12,8 @@ Task-shape table (effort, lean briefs, Grok 4.5 vs 4.6): project
 → Delegation. Grok host: `.grok/rules/host-behavior.md`.
 
 **Project override 2026-08-30:** **Grok drives. Codex is used liberally.
-Opus / Sonnet are rare (UI craft + extra-family review). DeepSeek is paused.**
+Opus / Sonnet are rare (UI craft + extra-family review). DeepSeek credits
+are exhausted — never dispatch it.** `ladder.paused` = `["deep"]`.
 
 ## Binding doctrine
 
@@ -24,8 +25,10 @@ Opus / Sonnet are rare (UI craft + extra-family review). DeepSeek is paused.**
 - **Opus and Sonnet are rare.** One pass: UI / design-system craft that
   needs an Anthropic eye, or extra-family review. Do not swarm. Do not farm
   them for grep or mechanical bulk.
-- **DeepSeek is paused.** Do not dispatch `/deep-execute` unless Phong names
-  it this turn. The command stays wired.
+- **DeepSeek is dead for now.** Credits are exhausted. Never dispatch
+  `/deep-execute`, `--deep`, or a DeepSeek worker — not auto, not by flag,
+  not "named this turn." Route that shape to Spark / Luna / grok-4.5. The
+  command file stays wired for when credits return.
 - **Claude Pro is the conductor, not a farm.** Do not spawn native
   Task/Agent Haiku/Sonnet/Opus subagents for work Grok or Codex should own.
 
@@ -39,7 +42,7 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/config-get.sh" meta_dev.ladder.pool
 Project layer (`plans/_dashboard/settings.json`):
 
 ```json
-"ladder": { "pool": ["grok", "codex"], "native_only_when_required": true }
+"ladder": { "pool": ["grok", "codex"], "paused": ["deep"], "native_only_when_required": true }
 ```
 
 `native_only_when_required: true` means delegation is the default posture.
@@ -50,9 +53,10 @@ turns, wall clock, no rabbit holes. Classify before dispatch. Campaign
 `/meta-execute --budget` is a ceiling. Doctrine: `references/execute-budget.md`.
 
 **Explicit flags:** `--grok` / `--codex` are pooled. `--opus` / `--sonnet`
-are **rare** (UI + extra-family review). `--deep` / `--glm` / `--fable` /
-`--agy` force that backend **only when Phong named it this turn**. Fable
-stays EXPRESS-PERMISSION even when named.
+are **rare** (UI + extra-family review). `--glm` / `--fable` / `--agy` force
+that backend **only when Phong named it this turn**. Fable stays
+EXPRESS-PERMISSION even when named. **`--deep` does not win.** `ladder.paused`
+contains `deep` — do not run it.
 
 ## Cost per task — pick the cheapest rung that can do it
 
@@ -108,7 +112,8 @@ No DeepSeek.
 | UI / design-system craft (Anthropic eye) | **Sonnet** or **Opus** — rare, one pass | Not a farm. Most UI stays Grok/Terra. |
 | Images the worker must see | **Grok 4.6** | Multimodal. DeepSeek Vision is paused. |
 | Harden / code-review extra family | **one `/opus-execute`** (Sonnet if UI) **+ one `/codex-execute` (Sol)** | One pass each. Not a swarm. No DeepSeek. |
-| GLM, `/fable-execute`, `/antigravity-execute`, `/deep-execute`, native Claude Task/Agent | **Named-only** | Dispatch **only** when Phong names that backend this turn. Fable stays EXPRESS-PERMISSION. Antigravity: Gemini 3.7 Flash default; `--opus` is Claude Opus 4.6 on Google quota. |
+| `/deep-execute` | **Never** | Credits exhausted. `ladder.paused` contains `deep`. Route to Spark / Luna / grok-4.5. |
+| GLM, `/fable-execute`, `/antigravity-execute`, native Claude Task/Agent | **Named-only** | Dispatch **only** when Phong names that backend this turn. Fable stays EXPRESS-PERMISSION. Antigravity: Gemini 3.7 Flash default; `--opus` is Claude Opus 4.6 on Google quota. |
 
 ## Stay native only when
 
@@ -156,7 +161,7 @@ These remain wired. They are **never auto-selected**.
 
 | Flag / command | Backend | When |
 |---|---|---|
-| `/deep-execute` | DeepSeek V4 Pro / Flash / Vision | **Paused.** Phong must name it this turn. |
+| `/deep-execute` | DeepSeek V4 Pro / Flash / Vision | **Credits exhausted. NEVER dispatch.** `ladder.paused` contains `deep`. |
 | `--glm` / `/glm-execute` | GLM 5.2 | Named this turn. |
 | `--fable` / `/fable-execute` | Anthropic Fable 5 | EXPRESS-PERMISSION even when named. |
 | `--agy` / `/antigravity-execute` | Gemini 3.7 Flash (or `--opus` on Google quota) | Named this turn. |
@@ -172,6 +177,6 @@ Edit `meta_dev.ladder.pool` in the project layer
 (`plans/_dashboard/settings.json`) — or the local layer for a machine-only
 change. Cascade: `references/config-cascade.md`.
 
-Keep the execute pool at `["grok", "codex"]` while DeepSeek is paused.
-Do not add `opus` or `sonnet` to the pool — that would farm the $20/mo plan.
-Do not add `deep` back until Phong unpauses it.
+Keep the execute pool at `["grok", "codex"]` and `paused` at `["deep"]` while
+DeepSeek credits are gone. Do not add `opus` or `sonnet` to the pool. Do not
+remove `deep` from `paused` until Phong says credits are back.
