@@ -37,7 +37,7 @@ The `_verify/` bucket exists because "code done but waiting for a human to eyeba
 1. **Discover plans to process** — scoped to current conversation (plans touched this session), or all active plans under `plans/` with `--all`.
 2. **Dispatch one agent per plan** (parallel, independent). Each agent receives ONLY its plan path and the three-outcome brief below. Agents must:
    - **Lock 1:** run `scripts/archive-guard.sh` — a deterministic, non-overridable PASS/BLOCK gate.
-   - **Lock 2:** verify every deliverable exists in the child repo's actual code; confirm the plan's YAML `status:` is not Active/Blocked and it is not on the active `## Sequence` in `plans/meta-runbook.md`.
+   - **Lock 2:** verify every deliverable exists in the child repo's actual code; confirm `planctl status` derives `done` and the plan is not on the active `## Sequence` in `plans/meta-runbook.md`.
    - **If Lock 1 = PASS AND Lock 2 clean** → archive to `_archive/`. Return `{archived: true}`.
    - **If Lock 1 = BLOCK** → classify: is this plan code-complete with ONLY manual/human verification gates remaining? If yes → move to `_verify/`. Return `{verified: true}`.
    - **Otherwise** → leave in place. Return `{archived: false, verified: false}` with `block_reasons`.
@@ -65,7 +65,7 @@ bash scripts/archive-guard.sh <plan-path>
 - Exit **0** + `PASS` → Lock 1 open. Proceed to Lock 2.
 - Exit **non-zero** + `BLOCK: <reasons>` → Archive is blocked. But the plan MAY still qualify for `_verify/` — proceed to the Verify Classification step below. **Do NOT archive. Do NOT rationalize. Do NOT edit the plan to make it pass.**
 
-The guard BLOCKs on ANY of: the plan's YAML `status:` not exactly `Done`; any unchecked `[ ]` checkbox; an active-work marker (`CLAIMED`/`WIP`/🚧/in-progress). These are exactly the signals of "in development / unfinished / in process". The guard fails safe — missing files or unreadable status also BLOCK.
+The guard BLOCKs on ANY of: planctl's direct-from-Markdown status is not `done`; any unchecked `[ ]` checkbox; an explicit task-state `CLAIMED`/`WIP`/🚧 marker; a whole `Status:`/`State:` in-progress marker; or a live Sequence entry. These are signals of "in development / unfinished / in process". The guard fails safe on missing files, parse errors, and unreadable state. Typed `status:` is legacy input and is never truth.
 
 ### 🔒 Lock 2 — Implementation verified in code (judgment, can only BLOCK)
 
@@ -75,17 +75,17 @@ Even with Lock 1 open, **paper status is not proof of code.** Verify the impleme
 2. Extract every concrete deliverable — files created/modified, functions, components, endpoints, config, DB migrations.
 3. `cd` into the child repo and verify each exists on disk (`ls`/`find` for files, `grep` for symbols/components/routes/config, migration file present).
 4. **Any deliverable NOT found → STOP. Return `archived: false`** with a specific missing list `["missing: <path/func>", ...]`.
-5. Also confirm the plan's YAML `status:` is not `Active`/`Blocked` and it is **not** on the active `## Sequence` in `plans/meta-runbook.md`. If it is → STOP, `archived: false`.
+5. Also confirm `planctl status <plan>` derives `done` and the plan is **not** on the active `## Sequence` in `plans/meta-runbook.md`. If either check fails → STOP, `archived: false`.
 
-**Archive ONLY when Lock 1 returned `PASS` AND Lock 2 found every deliverable present AND the plan is not active per its YAML `status:` / the meta-runbook Sequence.** Any failure in either lock → leave the plan exactly where it is.
+**Archive ONLY when Lock 1 returned `PASS` AND Lock 2 found every deliverable present AND the plan is not active per planctl / the meta-runbook Sequence.** Any failure in either lock → leave the plan exactly where it is.
 
 ## Verify Classification — when Lock 1 BLOCKs but code is shipped
 
-When Lock 1 blocks (Status is not "Done" or unchecked checkboxes exist), the plan may still be **code-complete** — all development work is shipped, and the ONLY remaining items are manual/human verification gates. These plans belong in `_verify/`, not cluttering the active directory.
+When Lock 1 blocks (derived state is not `done` or unchecked checkboxes exist), the plan may still be **code-complete** — all development work is shipped, and the ONLY remaining items are manual/human verification gates. These plans belong in `_verify/`, not cluttering the active directory.
 
 The agent applies judgment to classify. ALL of these must be true to move to `_verify/`:
 
-1. **No active-work markers** — no `CLAIMED`, `WIP`, `🚧`, or `in-progress` in the plan. The plan is not currently being worked on.
+1. **No active-work markers** — the guard must not report an explicit `CLAIMED`, `WIP`, `🚧`, or `in-progress` task-state marker. Ordinary prose containing those words is not state.
 2. **Code tasks are complete** — every implementation/development task checkbox is `[x]`. Grep the plan: the only unchecked `[ ]` items are clearly labeled as manual verification gates (GPU smoke test, human acceptance, visual check, in-app verification, manual E2E, hardware gate, operator sign-off, etc.).
 3. **Code deliverables exist** — run the Lock 2 code verification: every file/function/component the plan claims to create actually exists in the child repo. If code is missing, the plan is NOT verify-ready (it's unfinished or abandoned).
 4. **Not on the active `## Sequence` / Critical Path in `plans/meta-runbook.md`** as an active execution dependency (if it's on the critical path and unfinished, it stays put).
@@ -131,9 +131,9 @@ When dispatching each plan agent, give it this exact brief:
 > You may NOT archive on your own judgment. If you did not run the guard, or it did not print `PASS` with exit 0, you may NOT archive — full stop.
 >
 > **🔒 LOCK 2 — Implementation verified in code (MANDATORY, can only block):**
-> Extract every concrete deliverable from the plan (files, functions, components, endpoints, migrations, config). `cd` into the child repo named in the plan's `Repo:` frontmatter and verify each one exists on disk (`ls`, `find`, `grep`). If ANY deliverable is missing → STOP, `archived: false`, `block_reasons: ["missing: <path/func>", ...]`. Then check the plan's YAML `status:` and the `## Sequence` in `plans/meta-runbook.md`: if `status:` is `Active`/`Blocked` or the plan is on the active Sequence → STOP, `archived: false`. Lock 2 can only ever block — it never approves an archive by itself.
+> Extract every concrete deliverable from the plan (files, functions, components, endpoints, migrations, config). `cd` into the child repo named in the plan's `Repo:` frontmatter and verify each one exists on disk (`ls`, `find`, `grep`). If ANY deliverable is missing → STOP, `archived: false`, `block_reasons: ["missing: <path/func>", ...]`. Then run `planctl status <plan>` and check the `## Sequence` in `plans/meta-runbook.md`: if status is not derived `done` or the plan is on the active Sequence → STOP, `archived: false`. Lock 2 can only ever block — it never approves an archive by itself.
 >
-> **Only if Lock 1 printed `PASS` (exit 0) AND Lock 2 found every deliverable present AND the plan is not active per its YAML `status:` / the meta-runbook Sequence:**
+> **Only if Lock 1 printed `PASS` (exit 0) AND Lock 2 found every deliverable present AND the plan is not active per planctl / the meta-runbook Sequence:**
 > 1. If not dry-run: move the plan to `plans/<repo>/_archive/` (preserve directory structure for subfolder plans).
 > 2. Update any routed context files (`docs/agent-context/`) that reference this plan — remove stale pointers, update status.
 > 3. Update any dashboard files (`plans/_dashboard/`) that track this plan.
@@ -145,7 +145,7 @@ When dispatching each plan agent, give it this exact brief:
 >
 > If Lock 1 blocked, the plan might still be **code-complete** — all dev work shipped, only manual/human verification gates remain. These go to `_verify/` (NOT `_archive/`). Check ALL five criteria:
 >
-> 1. **No active-work markers** — grep for `CLAIMED\|WIP\|🚧\|in-progress`. Zero hits required.
+> 1. **No active-work markers** — the guard output must not report an explicit task-state marker. Do not raw-grep ordinary prose for these words.
 > 2. **Code tasks are complete** — read the plan. Every implementation task must be `[x]`. The ONLY unchecked `[ ]` items must be explicitly labeled as manual/human gates (GPU smoke, visual acceptance, human sign-off, manual E2E, operator gate, hardware test, in-app verification). If any unchecked item is a code task (write feature, add test, author docs, make design decision) → NOT verify-ready.
 > 3. **Code deliverables exist** — run Lock 2 verification (extract deliverables, verify in child repo). If code claimed by the plan is missing → NOT verify-ready.
 > 4. **Not on the active `## Sequence` in `plans/meta-runbook.md`** — if it's an unfinished critical-path item → NOT verify-ready.

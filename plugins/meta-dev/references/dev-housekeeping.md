@@ -4,7 +4,7 @@ Post-stage bookkeeping that `/meta-dev` runs after each stage completes (and aft
 
 ## Source-of-truth model
 
-- **Plan YAML frontmatter** (`status`/`stage`/`repo`/`depends`/`blocks`/`why`) is the SINGLE source of truth for a plan's stage and status. Tasks are `- [ ]`/`- [x]` checkboxes inside the plan file.
+- **Plan Markdown** is the SINGLE source of truth: frontmatter declares `stage`/`stage_state`/`override`/`repo`/dependencies, tasks are `- [ ]`/`- [x]`, and planctl derives status from those facts. Never type `status:`.
 - **`plans/meta-runbook.md`** is the ONLY hand-maintained **live** ledger: `## Sequence` (ordered active plan paths), `=== MILESTONE: TYPE · label ===` markers, `## Wave Strategy / Critical Path`, short `## Residual`, and a **Shipped pointer**. It REPLACES the old `STATUS.md` + `exec-order.md` pair.
 - **`plans/meta-runbook-archive.md`** is the **cold history** file: full Shipped prose, dumped dead Sequence blocks, archaeology. Do **not** load it into routine session context. Dashboard scanners do **not** read it.
 - The dashboard computes live state via `scripts/plan-index.py` / planctl (reads plan YAML + checkboxes + Sequence order). There is no plan state stored in the live ledger's parentheticals.
@@ -40,7 +40,7 @@ Stage transitions are written ONLY by `scripts/stage-emit.sh` (a shim over `plan
 
 After Stage 6 (Review) completes successfully:
 
-1. **Confirm the plan is Done:** its YAML `status:` is `done` and all checkboxes are `[x]` (the deterministic gate is `scripts/archive-guard.sh`).
+1. **Confirm the plan is Done:** `scripts/archive-guard.sh` must derive `done`, find every checkbox checked, find no explicit active-task marker, and confirm the plan is absent from the live Sequence.
 
 2. **Archive the plan:**
    ```bash
