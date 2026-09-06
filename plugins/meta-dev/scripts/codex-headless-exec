@@ -15,16 +15,16 @@
 # Options:
 #   --repo <name>            Resolve via topology config; unresolvable => abort.
 #                            Omit to run at the PROJECT ROOT (never the caller's cwd).
-#   --tier <tier>            GPT routing tier: terra | sol (configured roles);
+#   --tier <tier>            GPT routing tier: terra | sol | astra (opt-in);
 #                            spark | luna remain explicit legacy compatibility tiers.
 #                            (fallback default: terra — but CHOOSE, don't inherit)
 #
 #   Terra is the configured execution/default role (medium; low for lightweight
 #   work). Sol is the configured high-judgment role (plan/harden/review). Spark
 #   and Luna are retained only for callers that explicitly request legacy tiers;
-#   they are never the modern default.
-#   --effort <level>         Reasoning: none | low | medium | high | xhigh | max
-#                            (default follows tier; terra = medium)
+#   they are never the modern default. Astra is opt-in quality work (high).
+#   --effort <level>         Reasoning: none | low | medium | high | xhigh | max | ultra
+#                            (default follows tier; terra = medium; Astra rejects none)
 #   --budget auto|low|medium|high
 #                            Depth cap (default auto → medium at the runner).
 #                            See references/execute-budget.md
@@ -203,8 +203,9 @@ case "$TIER" in
     luna)  TIER_MODEL="gpt-5.6-luna";  TIER_EFFORT="low" ;;
     terra) TIER_MODEL="gpt-5.6-terra"; TIER_EFFORT="medium" ;;
     sol)   TIER_MODEL="gpt-5.6-sol";   TIER_EFFORT="high" ;;
+    astra) TIER_MODEL="gpt-6-astra";   TIER_EFFORT="high" ;;
     *)
-        echo "[ERROR] Invalid --tier '$TIER'. Use terra or sol (or explicit legacy spark/luna)." >&2
+        echo "[ERROR] Invalid --tier '$TIER'. Use terra, sol, or astra (or explicit legacy spark/luna)." >&2
         exit 1
         ;;
 esac
@@ -224,12 +225,18 @@ BACKEND="codex"
 md_resolve_budget || exit 1
 
 case "$EFFORT" in
-    none|low|medium|high|xhigh|max) ;;
+    none|low|medium|high|xhigh|max|ultra) ;;
     *)
-        echo "[ERROR] Invalid --effort '$EFFORT'. Use none, low, medium, high, xhigh, or max." >&2
+        echo "[ERROR] Invalid --effort '$EFFORT'. Use none, low, medium, high, xhigh, max, or ultra." >&2
         exit 1
         ;;
 esac
+
+# Validate the effective model so --model overrides retain precedence.
+if [[ "$MODEL" == "gpt-6-astra" && "$EFFORT" == "none" ]]; then
+    echo "[ERROR] gpt-6-astra does not support --effort none. Use low, medium, high, xhigh, max, or ultra." >&2
+    exit 1
+fi
 
 # ── Validate codex CLI ──────────────────────────────────────────────────
 if ! command -v codex &>/dev/null; then

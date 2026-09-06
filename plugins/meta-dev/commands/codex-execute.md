@@ -1,7 +1,7 @@
 ---
 name: codex-execute
-argument-hint: <task description> [--repo <name>] [--readonly] [--budget auto|low|medium|high] [--tier <spark|luna|terra|sol>] [--effort <none|low|medium|high|xhigh|max>] [--model <model>] [--sandbox <mode>]
-description: Run a bounded task with headless OpenAI Codex. Interactive Codex has meta-dev as $meta-dev:<command> skills. Headless cannot type a slash, but the plugin is there — --skill/--command follow the same markdown, plus a harness preamble. Brief a DIRECT task. Pooled with Grok — pick --tier spark|luna|terra|sol and --effort from the task. Spark/Luna for collect and mechanical; Terra ordinary; Sol hard / extra-family review.
+argument-hint: <task description> [--repo <name>] [--readonly] [--budget auto|low|medium|high] [--tier <spark|luna|terra|sol|astra>] [--effort <none|low|medium|high|xhigh|max|ultra>] [--model <model>] [--sandbox <mode>]
+description: Run a bounded task with headless OpenAI Codex. Brief a DIRECT task or use --skill/--command. Select spark|luna|terra|sol|astra and effort explicitly. Terra for ordinary execution; Sol for judgment; Astra for opt-in quality work.
 ---
 
 # /codex-execute - GPT Task Runner
@@ -21,7 +21,7 @@ meta-dev is installed on **Claude Code, Codex, and Grok Build**.
 
 **Brief this worker with a direct task** (or `--skill` / `--command`). **Inline** the 30–60 lines that matter — Codex must not re-read a plan file to reconstruct the job. Never "run `/loop-gap` on this plan" as if this were Claude Code. The runner injects a Codex brief (`references/execute-briefs.md`). Claude-family headless (`/deep-execute`, `/opus-execute`, …) *can* run that slash internally. Full split: `references/work-ladder.md` → *Who has meta-dev*.
 
-**Route Spark-first** (see Step 2 — Spark bills to a separate quota, so it is effectively free capacity). The runner's fallback default is `gpt-5.6-terra`/`medium`, but you should be *choosing* a tier every time, not inheriting that. State the selected tier and effort before dispatching. An explicit `--tier`, `--effort`, or `--model` from the user always wins.
+The runner's fallback remains `gpt-5.6-terra`/`medium`. Configured routes remain Sol for plan/harden/review, Terra for execution/lightweight work, and Spark for mechanical work. Astra is opt-in. State the selected tier and effort before dispatching. An explicit `--tier`, `--effort`, or `--model` from the user always wins, subject to model effort support.
 
 ## Test discipline — keep every test cycle cheap
 
@@ -34,41 +34,22 @@ The user's input is `$ARGUMENTS`.
 Parse these flags:
 - `--repo <name>`: target repo; otherwise detect from `pwd`.
 - `--readonly`: force the `read-only` sandbox.
-- `--tier <spark|luna|terra|sol>`: model family selection.
+- `--tier <spark|luna|terra|sol|astra>`: model family selection.
 - `--budget auto|low|medium|high`: **depth cap** (default `auto`). Classify before dispatch — review lens → `low` or `medium`, never `high` just because execute was high. Forward the resolved word. Doctrine: `references/execute-budget.md`.
-- `--effort <none|low|medium|high|xhigh|max>`: override the tier's reasoning effort. Explicit `--effort` wins over `--budget`.
+- `--effort <none|low|medium|high|xhigh|max|ultra>`: override the tier's reasoning effort. Explicit `--effort` wins over `--budget`. Astra supports every listed effort except `none`; other models depend on their catalog support.
 - `--model <model>`: exact Codex model ID; it overrides tier selection but not a supplied effort.
 - `--sandbox <mode>`: `read-only`, `workspace-write`, or `danger-full-access`.
 - `--timeout <ms>`: wall-clock limit; default is `7200000`.
 - `--skill <name>`: run a meta-dev **protocol** (`workflow-skills/<name>/SKILL.md`).
 - `--command <name>`: run a meta-dev **procedure** (`commands/<name>.md`).
 - `--no-framework`: omit the harness preamble. Only for trivial one-shots (a lookup, a probe) — never for real work.
-- `--multi-agent`: enable Codex `spawn_agent` (4 concurrent). **Parallelism only — spawned agents inherit the parent's model, so this does NOT save quota.** Under-development flag; opt-in deliberately.
+- `--multi-agent`: enable Codex `spawn_agent` (4 concurrent). Native delegation may select models when the host exposes that capability. Under-development flag; opt-in deliberately.
 
-**You may dispatch `--tier spark` directly**, and should whenever the task is mechanical — it is a separate quota (Step 2). Every worker also receives instructions to delegate its own mechanical sub-work to spark via `codex exec -m gpt-5.3-codex-spark`, so a `sol` worker spends its expensive reasoning only on the judgment-bearing part.
+Workers receive delegation guidance using Terra for bounded execution and Sol for judgment. Selecting Astra does not change those defaults.
 
 Everything else is the task. Ask for a task if none is provided.
 
 ## Step 2: Select Model and Effort
-
-### ⚡ SPARK FIRST — it bills to a SEPARATE quota
-
-**Default to `spark` unless the task genuinely needs more.** `codex /status` reports two independent weekly pools: one shared by `gpt-5.6-sol|terra|luna`, and a separate `GPT-5.3-Codex-Spark` pool. **Spark work does not consume the 5.6 budget at all.**
-
-So Spark is not merely "the fast tier" — it is *free capacity running alongside* your main budget. Every mechanical pass Spark absorbs is 5.6 quota preserved for the reasoning-heavy work only `sol` can do. Sending bulk work to `terra` "because it's the default" actively burns the scarce pool to do something the free pool handles fine.
-
-**Ask in this order:**
-1. **Can `spark` do this competently?** → use `spark`. It is coding-tuned and lowest-latency, so it beats `luna` on any bulk *code* pass.
-2. If not, does it need real reasoning (ambiguity, cross-module behaviour, security, architecture)? → `sol`.
-3. Only otherwise → `terra`.
-
-**Spark handles well:** bulk renames, boilerplate, mass lint/format fixes, syntax triage, mechanical multi-file edits, "which file defines X", grep-and-summarize sweeps, fan-out probes, single-file focused edits with clear acceptance criteria.
-
-**Spark is the wrong tool for:** ambiguous root cause, cross-module reasoning, security/reliability review, architecture, migrations, anything where being subtly wrong is expensive. Escalate those to `sol` without hesitation — that is what the preserved budget is *for*.
-
-When work decomposes, split it: let `spark` do the mechanical 80% and spend `sol` only on the judgment-bearing remainder.
-
----
 
 Classify the task by scope, ambiguity, reversibility, and quality sensitivity. Pick the smallest tier and effort that can meet the acceptance criteria. Do not select a higher tier merely because the task has many words.
 
@@ -80,12 +61,21 @@ Classify the task by scope, ambiguity, reversibility, and quality sensitivity. P
 | Cross-module behavior, ambiguous root cause, security/reliability review, migration, architecture work | `sol` / `high` | `read-only` for chat-only verdict; **`workspace-write` if any report/plan file is required** |
 | High-impact or difficult task with measurable quality criteria and evidence that `high` is insufficient | `sol` / `xhigh` | match the requested action (write path → `workspace-write`) |
 | Only the hardest quality-first work, after `xhigh` is demonstrably insufficient | `sol` / `max` | match the requested action (write path → `workspace-write`) |
+| Opt-in GPT-6 quality work: difficult implementation, architecture, or review | `astra` / `high` | match the requested action (write path → `workspace-write`) |
 
-`gpt-5.6-sol` is the flagship model, `gpt-5.6-terra` is the balanced model, `gpt-5.6-luna` is optimized for efficient high-volume work, and `gpt-5.3-codex-spark` is the Codex-specialized speed model — coding-tuned and lowest-latency, so it beats `luna` on bulk mechanical *code* passes while `luna` remains the better generalist for prose/analysis. `high`, `xhigh`, and especially `max` increase latency and usage; use them only when the task's risk or evaluation criteria justify it. Never infer that `danger-full-access` is needed from tier or effort.
+| Tier | Model ID | Default effort |
+| --- | --- | --- |
+| `spark` | `gpt-5.3-codex-spark` | `low` |
+| `luna` | `gpt-5.6-luna` | `low` |
+| `terra` | `gpt-5.6-terra` | `medium` |
+| `sol` | `gpt-5.6-sol` | `high` |
+| `astra` | `gpt-6-astra` | `high` |
 
-**Spark bills to a SEPARATE weekly bucket.** `codex /status` reports two independent pools — one shared by `gpt-5.6-sol|terra|luna`, and a distinct `GPT-5.3-Codex-Spark Weekly limit`. Spark work therefore does not consume the 5.6 budget at all. Route to `spark` whenever it is competent for the task, not merely when latency matters: every mechanical pass it absorbs is 5.6 quota preserved for the reasoning-heavy work only `sol` can do. When choosing between `spark` and `luna` for a bulk *code* pass, prefer `spark` — it is coding-tuned AND free relative to the shared pool.
+Astra supports `low`, `medium`, `high`, `xhigh`, `max`, and `ultra`; it does **not** support `none`. Use `low` for lightweight work, `medium` for balanced reasoning, and `high` for the runner's quality-oriented default. Escalate to `xhigh` or `max` when evaluation criteria justify more reasoning. The Codex catalog describes `ultra` as maximum reasoning with automatic task delegation; select it deliberately for work that warrants that behavior. It does not make the runner enable `--multi-agent` automatically. Never infer sandbox permissions from tier or effort.
 
-**Availability is account-scoped — verified live 2026-07-18 on this ChatGPT account:** `gpt-5.3-codex-spark`, `gpt-5.6-luna|terra|sol` all answer. `gpt-5.6-codex` is **rejected** by the API (*"not supported when using Codex with a ChatGPT account"*), so it is deliberately absent from the ladder. Re-probe before adding any new model ID rather than assuming a newer number is available.
+These tier defaults apply with `--budget auto` or `medium`. Without explicit `--effort`, budget `low` selects `low` and budget `high` selects `xhigh`. `--model` replaces only the model ID; the selected tier/budget still supplies effort unless overridden. Project settings may opt in via `meta_dev.codex.models.<role>`, for example `{"tier":"astra","effort":"ultra"}`; shipped routes remain unchanged.
+
+**Availability is account- and CLI-dependent.** The verified Codex CLI 0.153.4 catalog lists `gpt-6-astra` as visible, with catalog default `medium` and the six efforts above. The runner intentionally defaults the Astra tier to `high`. Catalog visibility is not a live account entitlement check; confirm model access in the target environment. Do not infer quota pools or limits from tier names.
 
 **Routing meta-dev work specifically** (these map to the harness's own stages):
 
@@ -97,6 +87,7 @@ Classify the task by scope, ambiguity, reversibility, and quality sensitivity. P
 | Executing a phase file task-by-task | `terra` / `medium` | `--command meta-execute` |
 | Plan gap-scan (HARDEN) | `sol` / `high` | `--command meta-loop-gap` · **`workspace-write`** (report on disk) |
 | Architecture, security, ambiguous root cause | `sol` / `xhigh` | plain task · `--readonly` only if chat-only; **file/report → no `--readonly`** |
+| Explicit GPT-6 quality evaluation or difficult bounded task | `astra` / `high` (or explicitly selected effort) | plain task · sandbox follows deliverable |
 
 ### ⛔ Sandbox vs deliverable (mandatory)
 
@@ -139,7 +130,16 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/codex-headless-exec \
   -- <direct task with acceptance criteria>
 ```
 
-The runner maps tiers to `gpt-5.3-codex-spark`, `gpt-5.6-luna`, `gpt-5.6-terra`, and `gpt-5.6-sol`, and sends the selected effort through Codex configuration. It validates tier and effort values before starting. For tasks expected to take more than 30 seconds, run in the background.
+The runner maps tiers to the model IDs in Step 2, including `astra` → `gpt-6-astra`, and forwards effort as `model_reasoning_effort`. It validates tier and effort before invoking Codex, rejecting `none` whenever the effective model is `gpt-6-astra`, including an explicit `--model` override. For tasks expected to take more than 30 seconds, run in the background.
+
+```bash
+# Astra tier default: high
+${CLAUDE_PLUGIN_ROOT}/scripts/codex-headless-exec --tier astra --readonly -- "Review the supplied diff for correctness; return findings only."
+# Explicit effort wins even over a low execution budget
+${CLAUDE_PLUGIN_ROOT}/scripts/codex-headless-exec --tier astra --effort ultra --budget low --readonly -- "Evaluate the supplied algorithm against the stated invariants."
+# Exact model override with balanced Astra reasoning
+${CLAUDE_PLUGIN_ROOT}/scripts/codex-headless-exec --model gpt-6-astra --effort medium --readonly -- "Explain the supplied function."
+```
 
 ## Step 4: Report Results
 
