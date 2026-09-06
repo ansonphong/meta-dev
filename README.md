@@ -108,24 +108,74 @@ Verify:
 
 ## Install in Codex
 
-From this repository's root, add the local marketplace described by
-`.agents/plugins/marketplace.json`, then install its available `meta-dev`
-plugin:
+### Public install from GitHub (recommended -- no clone required)
+
+Anyone can install Meta-Dev directly from this public repository. Run these in
+your terminal, not inside an active Codex chat. They work from any directory and
+do not depend on a local checkout:
 
 ```bash
-codex plugin marketplace add .
+codex plugin marketplace add https://github.com/ansonphong/meta-dev.git
 codex plugin add meta-dev@meta-dev
 ```
 
-To refresh an already-installed copy after a push, use the update script — it
-upgrades the marketplace snapshot and reinstalls the current version:
+Verify that Codex registered the `meta-dev` marketplace and installed the
+plugin:
+
+```bash
+codex plugin marketplace list
+codex plugin list
+```
+
+Then exit any Codex session that was already running and start a new one. Plugin
+skills are loaded when a new conversation starts.
+
+### Install from a local checkout
+
+Use this when developing the plugin locally. The marketplace source must be the
+repository root containing `.agents/plugins/marketplace.json` -- not its parent
+directory and not `plugins/meta-dev`:
+
+```bash
+cd /absolute/path/to/meta-dev
+test -f .agents/plugins/marketplace.json
+codex plugin marketplace add "$PWD"
+codex plugin add meta-dev@meta-dev
+```
+
+Do not copy `codex plugin marketplace add .` unless your shell is already in
+the `meta-dev` repository root. Using `$PWD` after the file check makes the
+registered local source unambiguous.
+
+### Update an existing installation
+
+For an installation sourced from GitHub, refresh the marketplace snapshot and
+reinstall the current plugin version:
+
+```bash
+codex plugin marketplace upgrade meta-dev
+codex plugin add meta-dev@meta-dev
+```
+
+If you also have this repository checked out, the bundled helper runs that same
+update flow and reports the installed cache version:
 
 ```bash
 bash plugins/meta-dev/scripts/plugin-refresh.sh
 ```
 
-Restart Codex after installation. Canonical Claude commands are exposed under
-the same names as native Codex skills:
+If `codex plugin marketplace add` reports that `meta-dev` already exists, do
+not add it again. Run the update commands above. If it points to the wrong
+source, replace that registration explicitly:
+
+```bash
+codex plugin marketplace remove meta-dev
+codex plugin marketplace add https://github.com/ansonphong/meta-dev.git
+codex plugin add meta-dev@meta-dev
+```
+
+Start a new Codex session after installing or updating. Canonical Claude
+commands are exposed under the same names as native Codex skills:
 
 ```text
 $meta-dev:meta-planner <request-or-plan>
