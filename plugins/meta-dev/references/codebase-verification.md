@@ -9,7 +9,7 @@ Scan the input plan for every path in:
 - Code blocks (import statements, file paths in comments)
 - Prose descriptions matching file-path patterns
 
-Build a table: path | plan says | action | exists? | current signature
+Build a table: path | plan says | action | exists? | symbol + invariant
 
 ## Step 2: Read and verify each file
 
@@ -17,7 +17,7 @@ Build a table: path | plan says | action | exists? | current signature
 1. Read the actual file
 2. Extract function/class/method signatures the plan mentions
 3. Compare against plan assumptions — note mismatches
-4. Record current signature snapshot (embedded in phase files)
+4. Record the inspected revision, symbol anchor, and relevant invariant; never embed frozen signature dumps or file bodies.
 
 ### For Create files:
 1. Verify parent directory exists

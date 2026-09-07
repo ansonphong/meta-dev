@@ -225,7 +225,7 @@ At end of duration (or on ALERT / early termination):
 **If invoked after a deploy or `/release`:** fold the report into that completion
 summary rather than writing a separate file. **If standalone:** output to conversation.
 
-## Step 6: Pattern Detection & Upstream Improvement (patches APP `/release`)
+## Step 6: Pattern Detection & Upstream Improvement
 
 Skip if first canary run (no past data) or all checks passed.
 
@@ -235,14 +235,13 @@ Skip if first canary run (no past data) or all checks passed.
    - "Health endpoint timeout after migration" → release/deploy: "Pre-deploy must run a migration health check."
    - "SSL cert warning" → release/deploy: "Pre-deploy must verify cert has >30 days validity."
    - "Error spike in first 2 minutes then recovery" → release/deploy: "Post-deploy must wait 2 minutes before marking healthy."
-3. **Patch the upstream surface:**
-   a. For **APP desktop release** failures → open
-      `360-HEXTILE-APP/.agents/skills/release/SKILL.md` and append under a
-      `## Learned Patterns` section (create it if missing).
-   b. For generic web-deploy canaries with no project release skill → append
-      under this file's `## Learned Patterns` only.
+3. **Propose an upstream improvement:**
+   a. Discover the project's release procedure through root `AGENTS.md`, routed
+      context, and canonical skills; never assume a product or path.
+   b. If none exists, propose the configured learned-pattern destination.
+      Do not modify the installed plugin during monitoring.
    c. Check for semantic duplicates before appending.
-   d. Append a new `LP-NNN` entry with **Source:** `meta-canary`.
+   d. With explicit edit authority, append `LP-NNN` with **Source:** `meta-canary`.
    (Commit per the host command's discipline — this reference does not run git itself.)
 
 **Constraints:** 3+ separate sessions; generalized only; max 1 pattern added per session.
@@ -263,5 +262,5 @@ Skip if first canary run (no past data) or all checks passed.
 
 <!-- Auto-maintained by the improvement loop. Generalized only — no project-specific entries. -->
 <!-- Max 20 patterns. meta-audit enforces the cap via consolidation. -->
-<!-- meta-canary detects recurring post-deploy failures and patches APP /release or this file (Step 6). -->
+<!-- meta-canary proposes recurring failure patterns; edits need separate authorization. -->
 <!-- Only meta-audit may remove patterns; all other commands are append-only. -->

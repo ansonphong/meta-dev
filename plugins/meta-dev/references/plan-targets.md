@@ -18,24 +18,28 @@ focused verification are invariant across all three tiers.
 
 | | `lean` | **`standard`** (default) | `explicit` |
 |---|---|---|---|
-| Subtask granularity | none — task-level only | cross-layer propagation only | one per file |
+| Task detail | coherent outcome | cross-layer steps where needed | explicit file-level steps |
 | Code sketches | contract / signature only | sketch where ambiguous | full verified sketch |
 | Ground-truth depth | symbols + data flow | + guards + callers | + full anchor inventory |
-| Verify-hook detail | acceptance condition, agent picks the command | one focused command | command + expected output |
+| Verify-hook detail | focused command + concise acceptance | focused command + acceptance | focused command + expected output and failure cases |
 | Phase-size cap | ~6 tasks | ~3 tasks | ~3 tasks |
 
-Why `lean` exists: OpenAI retired the dev-message "Planning" section for GPT-5-Codex
-because the model plans well unaided, and Anthropic's Opus guidance says explicit
-verification instructions now cause *over*-verification. Prescription that a capable
-model does not need is not free — it is context that competes with the actual work.
+Lean depth reduces repeated instructions for capable executors while retaining
+contracts, anchors, acceptance, and risk gates. It is a configurable efficiency
+hypothesis, not permission to skip evidence or a measured speedup. See
+`references/adaptive-workflow.md` and `references/workflow-evaluation.md`.
 
 ## Tier ↔ backend
 
-| Tier | Expected executor |
+| Profiles | Source |
 |---|---|
-| `lean` | Opus 5 · Grok 4.5 · Codex Sol |
-| `standard` | Sonnet 5 · Codex Terra |
-| `explicit` | DeepSeek · Codex Spark · Luna · Haiku |
+| Exact model IDs and aliases | `meta_dev.workflow.model_profiles` and aliases in the settings cascade |
+
+Run `scripts/workflow-policy.py` to resolve the intended executor before
+choosing depth. Shipped frontier profiles cover Sol/Astra, Opus 4.8/5, and
+Grok 4.6; unknown models use standard/task policy. Do not maintain a second
+backend table here. Existing/explicit targets are carried forward, then risk
+raises depth.
 
 **Capability order is `lean` > `standard` > `explicit` — the INVERSE of depth order.**
 A `lean` plan expects the *most* capable executor and says the *least*. Read that

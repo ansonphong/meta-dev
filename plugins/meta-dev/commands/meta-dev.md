@@ -1,67 +1,58 @@
 ---
 name: meta-dev
-description: Universal development lifecycle orchestrator — pushes any subject through the 6-stage waterfall using agent swarms
-argument-hint: <subject | plan-path | "idea one" "idea two" ...> [--from <stage>] [--to <stage>] [--gate all|exec|none] [--codex] [--autonomous]
+description: Adaptive six-stage development lifecycle with capability-aware planning, bounded ownership, and evidence-backed review
+argument-hint: <subject|plan-path> [--from <stage>] [--to <stage>] [--gate all|exec|none] [--research auto|focused|full] [--harden auto|focused|full] [--granularity auto|task|slice] [--codex] [--autonomous]
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, TaskCreate, TaskUpdate]
 model: opus
 ---
 
 # /meta-dev
 
-6-stage development waterfall orchestrator. Autopilot (cruise control) drives all stages unattended.
+Read `references/workflows/protocol.md`, `references/adaptive-workflow.md`,
+and `references/dev-modes.md`. Resolve the intended executor and risks with
+`scripts/workflow-policy.py` before selecting authoring depth. Stage names
+describe progress; they do not automatically invoke every associated skill.
 
-## Mode Detection
+## Stage pipeline
 
-Read `references/dev-modes.md`. Detect: **autonomous** (`--autonomous`, or prose meaning it), cruise (--cruise flag, keyword, or Accept Edits), interactive (default), or probe-trigger (investigative keywords).
+Follow `references/dev-swarms.md`:
 
-**`--autonomous` supersedes cruise and needs no explanation from the user** — it means "run to the end, I'm asleep." It IS the Stage-5 permission, implies `--gate none` + `--no-pause`, routes judgment calls to `fable-consult` rather than to the user, and defers every human-eyes gate into an end-of-run punch list. The hard floor still holds. Close with the Autonomous Run Report. Contract: `references/autonomous-mode.md`.
+1. Brainstorm: bounded intent, alternatives, and open questions. Research
+   specialists are conditional, not a fixed swarm.
+2. Design: sufficient decisions and contracts; design-eval only when applicable.
+3. Plan: `/meta-planner` with resolved target and deterministic IR rendering.
+4. Harden: `/meta-loop-gap` with resolved depth; no unresolved blockers.
+   Optional Stage 4.5 extra-family review is off by default; `--codex` selects
+   Codex explicitly. Reviewer findings return to the native owner.
+5. Execute: `/meta-execute`, passing resolved granularity and intended model.
+   Keep per-handle visibility even when a capable worker owns a coherent slice.
+6. Review: one native review covering the run and integration seams. Do not
+   infer `meta-eval`, `meta-audit`, or standalone `housekeeping`.
 
-**Quick-fix bypass:** Before detecting mode, triage triviality (see `references/dev-modes.md` → "Quick-Fix Waterfall Bypass"). Trivial work (≤~3 files, no new behavior) skips Stages 1-4 and goes straight to Stage 5; non-trivial (>3 files OR new behavior) runs the full pipeline. When in doubt, treat as non-trivial.
+Reuse existing valid artifacts/evidence. Small changes can satisfy early stages
+compactly without separate agents or commits. High-risk changes retain explicit
+contracts, security checks, and permissions at every depth.
 
-## Stage Pipeline
+## Progress and permissions
 
-Stage definitions in `references/dev-swarms.md`. Each stage delegates to ported plugin commands:
+Use `workflow-skills/waterfall-tracking/SKILL.md` for visible progress when the
+host exposes a tracker; otherwise report stage transitions concisely.
+Emit durable state through:
+`bash ${PLUGIN_ROOT}/scripts/stage-emit.sh "<plan-path>" <stage>
+<in_progress|completed|blocked>`.
+Planctl is the only state write door. Dashboard failures do not fabricate stage
+completion or block otherwise valid implementation.
 
-1. **Brainstorm** → research swarm (Wave 1)
-2. **Design** → design doc + design-eval quality gate (Stage 2.5)
-3. **Plan** → `/meta-planner` (generates master + phase files + loop-gap config)
-4. **Harden** → `/loop-gap` (gap-scan to "NO GAPS REMAINING")
-   - **4.5 extra-family gap-scan** → one read-only `/opus-execute` (Sonnet if UI) + one read-only `/codex-execute` (Sol). Integrate-back via Grok. One pass each. No DeepSeek. See `references/dev-swarms.md` → "Stage 4.5".
-5. **Execute** → `/meta-execute` (subagent-driven, verify + commit per task)
-6. **Review** → `/meta-eval` + `/meta-audit` + `/housekeeping` (archive + sync dashboards)
+The default ceiling is Stage 4. A direct implementation go, `--to 5|6`, or
+explicit scoped autonomous/cruise execution request supplies Stage-5 permission.
+An incidental keyword or Accept Edits setting does not. Stages 1–4 do not write
+source. Unattended mode never adds deployment, spending, or destructive authority.
 
-## Stage Progress Tracking (autopilot/walk — non-negotiable)
+## Delivery
 
-**When the run is autopilot (`cruise`/`autopilot`/`auto`/`walk`/`unattended`/`--cruise`), invoke the `waterfall-tracking` skill BEFORE Stage 1** to stand up a visible 6-stage task list (`TaskCreate`) and keep it live with `TaskUpdate` (`in_progress` on start → `completed` on exit-criteria → `blocked` on halt). The user walks away to watch the waterfall progress, so this tracker is a primary deliverable; no tracker visible = run not started correctly. It is the *stage*-level tracker; Stage 5's `/meta-execute` runs its own *task*-level list — distinct, never mirrored. Detail: skill `waterfall-tracking` (`plugins/meta-dev/workflow-skills/waterfall-tracking/`); exit-criteria table in `references/dev-modes.md`.
-
-**Durable stage signal — emit alongside every `TaskUpdate`.** The `TaskUpdate` tracker is ephemeral (gone when the run ends). So at EACH stage transition, mirror the TaskUpdate with a stage event — non-blocking, never let it stall the run:
-```
-bash ${CLAUDE_PLUGIN_ROOT}/scripts/stage-emit.sh "<plan-path>" <stage> <in_progress|completed|blocked>
-```
-where `<stage>` ∈ `brainstorm|design|plan|harden|execute|review` (1→6). `stage-emit.sh` is a shim over `planctl stage` (the unified state layer's single write door) — it sets the plan's YAML `stage:` frontmatter and appends a stage event to planctl's `events.jsonl`. `/meta-dashboard` then computes live from the plans via planctl's index; there is no separate plan state to maintain. The stage-owning commands (`/meta-planner`, `/loop-gap`, `/meta-execute`, `/meta-eval`) also emit when invoked standalone — emitting twice is harmless (last write wins), so always emit here too for the stages this orchestrator drives directly (brainstorm, design).
-
-## Cruise Control (Autopilot)
-
-Read `references/dev-modes.md` for the full autopilot loop. Key rules:
-- Complete each stage fully (including its internal swarm/gates) before advancing
-- Per-stage exit criteria must be met (see dev-modes.md table)
-- Commit after every stage (minimum 6 commits for a full run)
-- Error isolation: one failing stage halts only that subject, not the whole run
-- Chains the PORTED plugin commands, not local
-
-## Multi-Item Mode
-
-When given multiple subjects: cap 2 concurrent. Each independent pipeline. Queue remainder.
-
-## Post-Stage Housekeeping
-
-After each stage: the stage is already recorded by the `stage-emit.sh`→`planctl stage` call above — no ledger to hand-edit. After Stage 6: full housekeeping per `references/dev-housekeeping.md` (archive, commit). Cross-plan ordering/milestones live in `plans/meta-runbook.md` — edit it only when execution priority or milestones change.
-
-## Safety Invariants
-
-These hold in ALL modes (see `references/dev-modes.md` → "Important Rules"):
-1. **NEVER write code before Stage 5** — Stages 1-4 are pure planning/docs.
-2. **Default stop is Stage 4; execution needs explicit user permission** — this is the safety boundary. Cruise mode defaults its gate to `none`, so invoking cruise/`--to 6` IS that explicit permission; absent it, stop at Stage 4.
-3. **Plans NEVER go in source or doc dirs** — all plan/design/hardening artifacts live under the configured `plans_root`, never in source trees, `docs/`, or child repos.
-
-Config: `bash scripts/config-get.sh` for paths/models/filesystem sections.
+Advance only when required evidence exists. Park blockers honestly and continue
+independent work. Coalesce related artifact commits at safe seams; no minimum
+commit count. Use `references/dev-housekeeping.md` for completion bookkeeping.
+Push only under the user/project release contract; do not infer deployment.
+Read settings through the JSON cascade, project rules through root `AGENTS.md`
+and routed neutral context, never personal vendor paths.

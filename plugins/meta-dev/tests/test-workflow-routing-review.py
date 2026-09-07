@@ -111,9 +111,9 @@ class NativeReviewContract(unittest.TestCase):
         ):
             self.assertIn(marker, adapter)
         self.assertIn("overrides generic cross-family ladder recipes", protocol)
-        self.assertIn("**Interactive Codex host:**", ladder)
-        self.assertIn("Codex → Sol/high", execute)
-        self.assertIn("**Codex completion boundary:**", execute)
+        self.assertIn("host-native configured route", ladder)
+        self.assertIn("configured native", execute)
+        self.assertIn("One native closing review suffices", execute)
         self.assertIn("Stage 6 does not invoke", execute)
         self.assertIn("user explicitly selects `meta-eval`", evaluation)
         self.assertIn("explicitly selects `meta-audit`", audit)
@@ -164,19 +164,20 @@ class NativeReviewContract(unittest.TestCase):
         ).read_text(encoding="utf-8")
         for verdict in ("PASS", "CONDITIONAL_PASS", "FAIL"):
             self.assertIn(verdict, skill)
-            self.assertIn(verdict, loop)
-        self.assertIn("Reviewer**: native to the host by default", loop)
+        self.assertIn("commands/meta-execute.md", loop)
+        self.assertIn("final planctl PASS", loop)
         self.assertNotIn("Reviewer is ALWAYS the Opus", loop)
         self.assertNotIn("single Opus code-review checkpoint", loop)
 
     def test_curated_codex_skills_load_shared_protocol(self) -> None:
+        workflows = json.loads(ROUTES_PATH.read_text())["workflows"]
         for name in CURATED - {"plan", "ops"}:
-            text = (
-                PLUGIN_ROOT / f"skills/{name}/SKILL.md"
-            ).read_text(encoding="utf-8")
-            self.assertIn("../../references/workflows/protocol.md", text, name)
-            self.assertIn("host-neutral", text, name)
-            self.assertIn("slash-command", text, name)
+            text = (PLUGIN_ROOT / workflows[name]["skill"]).read_text()
+            # Generated command adapters load the protocol transitively;
+            # helper skills may reference it directly. Test real route paths.
+            if "../../references/workflows/protocol.md" not in text:
+                self.assertIn("../../references/workflows/command-adapter.md", text, name)
+                self.assertIn("references/workflows/protocol.md", COMMAND_ADAPTER_PATH.read_text())
 
 
 if __name__ == "__main__":

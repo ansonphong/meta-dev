@@ -5,17 +5,17 @@ description: Judgment-based plan quality checks — cross-reference integrity, d
 
 # Plan Validation Skill
 
-Judgment checks that can't be scripted deterministically. Invoked by `/meta-planner` Stage 4.
+Run the renderer and planner validator first; do not repeat passing deterministic checks. This pass evaluates whether the plan actually meets the request.
 
 ## Checks
 
-1. **Cross-reference integrity** — Do master plan task IDs match phase file task IDs 1:1? Are any tasks in master missing from phase files or vice versa?
+1. **Cross-reference integrity** — Use deterministic validator evidence for handle/ledger consistency; inspect only unresolved semantic cross-references.
 
-2. **Dependency ordering** — Does the task order respect declared dependencies? Are there tasks whose `Depends on:` references a task that appears later in the sequence?
+2. **Dependency ordering** — Use renderer dependency validation; judge whether any real producer/consumer dependency was omitted.
 
-3. **Contract completeness** — For every API endpoint in the design doc, is there a corresponding implementation task? For every UI component, is there a corresponding test?
+3. **Contract completeness** — For every API endpoint in the design doc, is there a corresponding implementation task? For every user-visible behavior, is there focused acceptance evidence consistent with the declared test policy? Do not require a test per UI component.
 
-4. **Terminology consistency** — Are naming conventions consistent across all files? PascalCase classes, `Test` prefix, project file naming.
+4. **Terminology consistency** — Are naming conventions consistent across all files? Use the project's naming conventions, without assuming a language or test framework.
 
 5. **File path accuracy** — Do all file paths in the plan match actual project structure? Any stale paths from renames?
 

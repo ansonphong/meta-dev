@@ -1,140 +1,65 @@
-# Dev Modes — Cruise Control, Interactive, Probe Trigger
+# Development modes
 
-How `/meta-dev` operates in different modes.
+Read `references/adaptive-workflow.md` for depth and
+`references/dev-swarms.md` for stage exit criteria. Mode changes prompts and
+stage ceilings, not model capabilities or source permissions.
 
-## Mode Detection
+## Detect intent
 
-At startup, `/meta-dev` detects the mode:
-- **Cruise (autopilot):** `--cruise` flag OR keyword detection in subject ("autopilot", "cruise", "auto", "walk", "unattended") OR Accept Edits permission mode
-- **Interactive:** Default. Stage-by-stage with user confirmation between stages.
-- **Probe-triggered:** Subject contains probe keywords ("why", "stuck", "loop", "keep failing", "wrong", "investigate", "debug")
-- **Autonomous:** `--autonomous` anywhere in the arguments (or prose meaning it — "overnight", "while I sleep", "run to the end unattended"). **Supersedes cruise**: it sets cruise, `--gate none`, `--no-pause`, and turns the Fable consult on. Never ask the user to also pass `--cruise`, and never treat the two as conflicting.
+- Interactive is the default. Pause at material unresolved decisions or the
+  requested gate, not merely because a stage label changed.
+- Explicit `--cruise`/autopilot means proceed through authorized stages without
+  routine transition prompts.
+- `--autonomous` or an unambiguous request to implement unattended supplies
+  execution permission for the declared scope and suppresses routine prompts.
+  Follow `references/autonomous-mode.md`; no automatic paid consultant.
+- Diagnosis/probe requests remain read-only unless fixes were also requested.
+- Accept Edits tool mode and incidental words such as "auto" or "walk" do not
+  independently authorize execution.
 
-**`--autonomous` — run to the end, do not wake the user.** It IS the explicit
-Stage-5 permission, exactly as `--to 6` or a spoken "go" is. Every ambiguity
-resolves toward *keep going and report in the morning*: judgment calls route to
-`fable-consult` instead of the user, and gates needing human eyes are **deferred
-into an end-of-run punch list** rather than asked mid-run. It buys *unattended*,
-never *unsafe* — the hard floor (guard denies, git bans, no deploy/publish/real
-migration, the consult veto list, human-verify boxes left UNCHECKED, TRUE
-BLOCKERs still halting the affected subject) is untouched. The flag is detected
-by the `on-stage-prompt.sh` UserPromptSubmit hook on the raw prompt, so it works
-on every command without per-command parsing. Full contract, punch list and the
-required Autonomous Run Report: `references/autonomous-mode.md`.
+Default `--to` is 4. An explicit implementation request, `--to 5|6`, or a
+scoped cruise/autonomous execution request permits Stage 5. `--gate none`
+alone only removes transition prompts; it does not turn an audit into a fix.
 
-**Independent flag — `--codex` (cross-family gap-scan).** Orthogonal to the mode above; combines with any of them. When present, `/meta-dev` inserts **Stage 4.5: Codex Gap-Scan Pass** between HARDEN (Stage 4) and EXECUTE (Stage 5) — a read-only cross-family (GPT) audit of the hardened plan, with findings fed back to GLM/DeepSeek to integrate. Full procedure: `references/dev-swarms.md` → "Stage 4.5". OFF by default; absent the flag the waterfall runs Stage 4 → Stage 5 unchanged. The pass is entirely pre-execution and does not relax the Stage-5 gate.
+## Depth is independent of mode
 
-## Quick-Fix Waterfall Bypass
+Keep the six-stage progress framework. For a mechanical, understood change,
+Stages 1–4 may be satisfied by a brief intent, contract, and focused check.
+New behavior may use focused planning/hardening when risks are bounded; neither
+three files nor a new module forces a fixed swarm. High-risk work retains its
+contract/security gates. Resolve depth through `scripts/workflow-policy.py`.
 
-**Before mode detection, triage the subject for triviality.** Not every subject deserves the full 6-stage waterfall. Trivial work bypasses Stages 1-4 and goes **straight to Stage 5 (Execute)**.
+## Advance on evidence
 
-A subject is **trivial** (bypass eligible) when ALL of these hold:
-- Touches roughly 3 files or fewer
-- Introduces NO new behavior (typo fix, config change, copy edit, dependency pin, mechanical refactor, version bump, status/doc update)
-- Has an obvious, well-understood implementation with no design questions
+Track stage progress with the native task surface when present and emit state
+through `stage-emit.sh`/planctl. Minimal hosts use concise progress messages;
+do not fail work because a vendor-specific TaskCreate tool is missing.
 
-A subject is **non-trivial** (full waterfall required) when EITHER holds:
-- Touches more than ~3 files, OR
-- Introduces new behavior (new feature, new API surface, new UX flow, schema change, new module)
+For each stage, produce its minimum sufficient artifact, meet exit criteria,
+record state, and advance within the requested ceiling. Related design and
+planning records may share an artifact. Commit meaningful changes at safe seams;
+there is no six-commit minimum and no automatic per-stage push.
 
-**Bypass routing:**
-- Trivial → skip Stages 1-4, run Stage 5 (`/meta-execute`) directly, then Stage 6 review as normal.
-- Non-trivial → run the full 6-stage pipeline.
-- When in doubt, treat as non-trivial (the full pipeline is the safe default).
+A stage blocked after its bounded retries parks that subject, not unrelated
+work. Stage 4 needs no unresolved blocker, not zero cosmetic suggestions.
+A budget cap never converts unresolved material findings into success.
 
-The bypass only skips the *planning/hardening* stages — it never skips execution review or the Stage-5 safety boundary below.
+## Optional extra-family review
 
-## Cruise Control (Autopilot) — THE HEADLINE FEATURE
+`--codex` requests the read-only Stage 4.5 Codex second opinion.
+`--cross-family` uses the configured permitted review route. OFF by default.
+The native owner triages findings, with no mandatory integrate-back vendor.
+See `references/dev-swarms.md`; execution permission is unchanged.
 
-**Cruise mode drives all 6 stages unattended.** It chains: brainstorm → design → plan → harden → execute → review → done. Zero human prompts between stages.
+## Completion
 
-### Stage Progress Task List (autopilot/walk — MANDATORY)
+Stage 6 uses one native covering review, not implicit meta-eval + meta-audit +
+housekeeping calls. Sync relevant context and plan state. Archive only when
+required acceptance/manual gates permit. Push only under explicit user/project
+release authority. Preserve unrelated dirty work rather than requiring a clean
+entire tree.
 
-**Cruise/walk exists so the user can walk away and watch the waterfall progress.** Stand up a visible stage-level task list via `TaskCreate` BEFORE Stage 1 and keep it live with `TaskUpdate` for the whole run — `in_progress` on start, `completed` on exit-criteria, `blocked` on halt. No tracker visible = the run has not started correctly. It is the *stage*-level tracker; Stage 5's `/meta-execute` runs its own *task*-level list, distinct and never mirrored. Interactive mode: recommended but optional; autopilot/walk makes it mandatory.
-
-**The full procedure (entries, dependencies, multi-item, skip/block handling, nesting) lives in the `waterfall-tracking` skill** (`workflow-skills/waterfall-tracking/SKILL.md`) — invoke it; the loop below wires its updates into stage advancement.
-
-### The 6-Stage Complete-Then-Advance Loop
-
-```
-stand up the 6-stage task list (TaskCreate) — autopilot/walk: mandatory
-for each stage in [brainstorm, design, plan, harden, execute, review]:
-  1. TaskUpdate stage → in_progress
-  2. Run the stage's full procedure (see references/dev-swarms.md)
-  3. Check exit criteria (below)
-  4. If criteria met: TaskUpdate stage → completed, commit stage artifacts, advance
-  5. If criteria NOT met after max retries: TaskUpdate stage → blocked, halt this subject's pipeline, report
-# IF --codex was passed: after Stage 4 exits green, run Stage 4.5 (Codex gap-scan) before Stage 5.
-#   It is a conditional sub-stage of harden, not a 7th stage — track it as a nested item under Harden
-#   (or its own row) per the exit-criteria table. Procedure: references/dev-swarms.md → "Stage 4.5".
-```
-
-### Per-Stage Exit Criteria (must be met before advancing)
-
-| Stage | Exit criteria | Max retries |
-|-------|--------------|-------------|
-| 1 Brainstorm | Direction converged (synthesis agent reports convergence) | 2 |
-| 2 Design | Design doc produced + design-quality gate grade ≥ B | 2 |
-| 3 Plan | Master plan + phase files generated + loop-gap config exists | 2 |
-| 4 Harden | Loop-gap reports "NO GAPS REMAINING" | 3 |
-| 4.5 Codex gap-scan (`--codex` only) | Codex reports no material gaps, OR 2-call cap hit with findings triaged + logged; plan reflects integrated fixes | 2 Codex calls (hard cap) |
-| 5 Execute | All tasks DONE, working tree clean | 1 (failures escalate) |
-| 6 Review | Eval grade ≥ B, context synced, plan archived, dashboards updated | 2 |
-
-### commit per stage
-
-After each stage completes (exit criteria met):
-1. `git add <stage artifacts>`
-2. `git commit -m "chore(dev): complete Stage N — <stage-name> for <subject>"`
-3. `git push`
-
-This creates a clean git trail: 6 commits minimum for a full cruise run.
-
-### error isolation
-
-A single failing stage halts only THAT subject's pipeline (halt only that subject, not others). It does not halt the orchestrator.
-- If Stage 4 (harden) fails: subject is left at "plan generated, hardening failed"
-- Other subjects (multi-item mode) continue independently
-- Failed stage emits to inbox with severity based on stage
-
-### Chaining the Ported Commands
-
-Cruise mode chains the PORTED plugin commands (not local):
-- Stage 3 → `/meta-planner` (thin orchestrator, this plugin)
-- Stage 4 → `/loop-gap` (this plugin)
-- Stage 5 → `/meta-execute` (thin orchestrator, this plugin)
-- Stage 6 → `/meta-eval` + `/meta-audit` + `/housekeeping` (this plugin)
-
-## Interactive Mode
-
-Same 6-stage loop, but pauses for user confirmation before each stage transition:
-1. Complete stage N
-2. Report: "Stage N complete. Ready to move to Stage N+1?"
-3. Wait for user GO
-4. Advance
-
-## Probe Trigger
-
-When subject contains probe keywords: delegate to `/meta-probe` FIRST for diagnosis, then return to the waterfall with probe findings injected into Stage 1 (brainstorm).
-
-## Multi-Item Orchestration
-
-When given multiple subjects (comma-separated or quoted list):
-- Cap 2 concurrent subjects (shared context budget)
-- Each subject gets its own independent 6-stage pipeline
-- Error isolation: one subject failing does not affect others
-- Queue remaining subjects; advance next when one completes
-
-## Important Rules (Safety Invariants)
-
-These hold in ALL modes — interactive, cruise, probe, quick-fix bypass, **and
-`--autonomous`**. Autonomous mode suppresses *prompts*, never *invariants*: it
-was given permission to run unattended, not permission to do things the user
-cannot undo in the morning. See `references/autonomous-mode.md` → "The hard
-floor" for the enumerated list.
-
-1. **NEVER write code before Stage 5.** Stages 1-4 (brainstorm, design, plan, harden) are pure documentation/planning. No source files are touched until Execute. (The quick-fix bypass is the only path that reaches Stage 5 early — and only because it has *no* planning stages to write code ahead of.)
-2. **The default stop is Stage 4 — execution requires explicit user permission. This is the safety boundary.** `/meta-dev` defaults to halting after hardening with a runnable, reviewed plan; it does NOT auto-execute unless the user explicitly authorizes Stage 5 (via `--to 5`/`--to 6`, cruise/autopilot, or a direct GO).
-   - **Cruise mode defaults its gate to `none`**, which removes per-stage prompts. That makes restating this Stage-5/Stage-4 boundary MORE important, not less: invoking cruise (or `--to 6`) IS the explicit permission to cross into execution. Absent that explicit signal, stop at Stage 4.
-   - **`--autonomous` is likewise the explicit permission** — it means "run to the end", which is unambiguous authorization to cross Stage 5. It does not weaken the boundary; it satisfies it.
-3. **Plans NEVER go in source or doc directories.** ALL plans, designs, and hardening artifacts live under the configured `plans_root` (`bash scripts/config-get.sh meta_dev.paths.plans_root`). NEVER write them into source trees, `docs/`, or any child/sub-repo. This is non-negotiable across every stage.
+Multiple subjects may proceed independently with disjoint ownership, within the
+same host-wide worker budget. Do not multiply per-subject caps into unbounded
+nested fan-out. Planning artifacts remain under configured plans_root, never
+source directories or vendor context trees.

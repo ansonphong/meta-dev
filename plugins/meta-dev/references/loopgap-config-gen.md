@@ -17,7 +17,7 @@ git_baseline: <SHA>   # VERIFY at generation: run `git -C <repo> rev-parse HEAD`
 ```
 
 ### Codebase Verification Targets
-Table of files the plan references, their action (Create/Modify/Test), and the signature snapshot captured during Stage 1.5.
+Table of files the plan references, their action (Create/Modify/Test), and live symbol anchors plus relevant invariants checked during ground-truth inspection. Do not embed signature dumps or source bodies.
 
 ### Affected Files
 Files NOT in the plan that import/call plan-modified code. From grep during Stage 1.5.
@@ -26,7 +26,7 @@ Files NOT in the plan that import/call plan-modified code. From grep during Stag
 Count table: per-phase pre-hooks and post-hooks.
 
 ### Role Agent Focus Areas
-Specific, non-generic guidance for each role agent (Implementer, Tester, Consumer) about what to watch for.
+Specific unresolved questions for the selected reviewer or targeted specialists. Do not require an agent per role.
 
 ### Gap Categories to Prioritize
 Ordered list based on plan characteristics. Template-heavy → prioritize codebase_mismatch, stale_assumption. New APIs → prioritize contract, test_validity, import_chain.

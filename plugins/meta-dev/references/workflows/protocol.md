@@ -22,6 +22,14 @@ A finding, `NEEDS_FIX`, `CONDITIONAL_PASS`, or `FAIL` is evidence, not permissio
 to edit or commit. With explicit fix authorization, remediation is a separate
 step followed by focused verification and a new review.
 
+## Adaptive depth
+
+Read `references/adaptive-workflow.md` and resolve `scripts/workflow-policy.py`
+before authoring or dispatch. The intended executor selects capability depth;
+risk raises precision and gates. One task handle remains one acceptance record,
+not necessarily one worker. Core permissions, security, ownership, and state
+rules never depend on model strength.
+
 ## Six stages
 
 | Stage | Name | Required artifact | Exit |
@@ -63,7 +71,9 @@ Execution has exactly one causal result:
 - `BROAD_VERIFY_OMITTED`: a broad/manual check was intentionally not used as a
   task gate.
 
-Only `TASK_RED` holds its causal branch. Independent branches continue.
+Only causal failures hold their affected branches; unknown infrastructure or
+omitted/manual evidence never counts as a pass. Independent branches continue
+when their own acceptance is established.
 Review has exactly one uppercase verdict: `PASS`, `CONDITIONAL_PASS`, or `FAIL`;
 see `workflow-skills/code-review-protocol/`.
 
@@ -101,21 +111,19 @@ see `workflow-skills/code-review-protocol/`.
 
 Resolve `routes.json`, read the target procedure, and translate capabilities:
 filesystem reads, exact-path edits, shell checks, scoped commits, and optional
-delegation. Missing delegation is a **bug in the host table**, not permission
-to implement on the conductor. Look up `commands/meta-execute.md` Host dispatch
-(Grok Build → `spawn_subagent`, Claude Code → `Agent`, Codex → spark/sol).
-The same table is `/meta-task-agent` and `/runbook execute` (member conductors, not
-checkbox workers). `--inline` is the only legal serial-on-conductor path for execute;
-task-agent and runbook have no `--inline`. Permission, result-state,
-review, and verification semantics never change.
+delegation. When native delegation is absent or prohibited, use sequential
+scoped ownership for already-authorized implementation and report the host
+limitation. Never invent a tool or silently substitute an external service.
+Permission, result-state, review, and verification semantics never change.
 
 ### Campaign runbook (`/runbook`)
 
 A campaign runbook sequences N member plans. `/runbook execute` is a **thin campaign
 conductor**: it farms host-native **member conductors** (same Host dispatch table).
 Inner checkboxes stay `/meta-execute`'s job. Grok and Codex get a direct brief that
-names `commands/meta-execute.md` — never a Claude slash. Cap **3** in-flight members
-(each may farm up to 8 checkbox workers). File-disjoint members run in parallel;
+names `commands/meta-execute.md` — never a Claude slash. Share the resolved
+host-wide worker budget across members, task/slice workers, and fixers.
+File-disjoint members may run in parallel;
 overlapping write-sets serialize. Do not flatten the campaign into a host-specific
 workflow script. The `_runbook-*.md` file plus `planctl` is SSOT.
 

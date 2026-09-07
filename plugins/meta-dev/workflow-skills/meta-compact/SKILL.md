@@ -17,7 +17,11 @@ Normal `/compact` produces a *backward* summary: "here is what happened." That i
 2. **Proactive watch** — during normal work, when a clean boundary coincides with a heavy context, surface a *single* one-line offer (don't nag):
    > 🪶 Clean boundary + heavy context — good moment to compact forward. Run `/meta-compact` and I'll write the handoff.
    Offer once per boundary. If the user keeps going, drop it until the next boundary.
-3. **Watchdog-triggered (long orchestration runs)** — during a multi-phase `/auto-execute` or `/meta-execute --deep|--glm|--codex` playbook, the conductor checks `scripts/context-gauge.py` at each phase/wave seam. When it reads `CONTEXT_VERDICT=OVER` (default 300000 tokens; `META_DEV_CONTEXT_THRESHOLD` to tune), the loop invokes this skill automatically at that committed boundary. Here the handoff's **▶ NEXT ACTION is "resume the playbook at the next phase/wave"** (name the plan path + next phase file). This pre-empts the harness's blunt hard auto-compact with a graceful forward seam. See agentic-exec-loop → "Context watchdog".
+3. **Watchdog-triggered** — at a committed task/slice or phase seam, use
+   `scripts/context-gauge.py` with exact host/session identity and configured
+   window/threshold. `OVER` requests a forward handoff naming the next handle
+   and outstanding jobs. `UNKNOWN` is nonblocking, never another session's
+   measurement. See agentic-exec-loop → "Context watchdog".
 
 ## When it is a clean boundary (timing judgment — the whole point)
 

@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Workflow comparison run",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["policy", "model", "host", "revision", "task_id", "outcome", "accepted_outcomes", "elapsed_seconds", "input_tokens", "output_tokens", "cost", "rework", "missed_defects", "unnecessary_interruptions"],
+  "properties": {
+    "policy": {"type": "string", "minLength": 1},
+    "model": {"type": "string", "minLength": 1},
+    "host": {"type": "string", "minLength": 1},
+    "revision": {"type": "string", "minLength": 1},
+    "task_id": {"type": "string", "minLength": 1},
+    "outcome": {"enum": ["accepted", "task_red", "infra_red", "blocked"]},
+    "accepted_outcomes": {"type": "integer", "minimum": 0},
+    "elapsed_seconds": {"type": "number", "minimum": 0},
+    "input_tokens": {"type": ["integer", "null"], "minimum": 0},
+    "output_tokens": {"type": ["integer", "null"], "minimum": 0},
+    "cost": {"type": ["number", "null"], "minimum": 0},
+    "currency": {"type": "string", "minLength": 1},
+    "rework": {"type": "integer", "minimum": 0},
+    "missed_defects": {"type": ["integer", "null"], "minimum": 0},
+    "unnecessary_interruptions": {"type": "integer", "minimum": 0},
+    "evidence": {"type": "array", "items": {"type": "string"}}
+  }
+}

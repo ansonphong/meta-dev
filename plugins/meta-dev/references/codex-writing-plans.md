@@ -2,7 +2,7 @@
 
 This is the execution-plan contract for the native Codex `plan` workflow. It
 adapts the useful parts of Superpowers `writing-plans` to meta-dev's centralized
-plan ledger, focused-test policy, shared-worktree git rules, and GPT-5.6.
+plan ledger, focused-test policy, shared-worktree git rules, and capability-aware executors.
 
 ## Contents
 
@@ -18,8 +18,9 @@ plan ledger, focused-test policy, shared-worktree git rules, and GPT-5.6.
 ## 1. Planning boundary
 
 A request to investigate, design, or plan authorizes inspection and writing the
-plan artifact. It does not authorize implementation. Finish by saving the plan
-and reporting its path.
+plan artifact. It does not authorize implementation. A planning-only turn finishes by saving
+the plan and reporting its path; an already-explicit implementation request may
+continue through the execute workflow.
 
 Write for a skilled implementation agent that has no conversation history. The
 plan must carry the context that would otherwise disappear at compaction or in
@@ -60,7 +61,9 @@ Storage rules:
 - Use today's local date and a lowercase kebab-case slug.
 - Do not leave a plan only in chat.
 - Do not write `status:`. Plan state is derived.
-- A single-file plan contains task headings but no Markdown checkbox rows.
+- A single-file plan contains one canonical checkbox ledger plus task detail.
+  Legacy v1.1 files without a ledger must be upgraded through the renderer
+  before execution; never hand-add state marks.
 - In a multi-phase plan, `00-master-plan.md` is the sole checkbox ledger.
 
 Plan target:
@@ -71,7 +74,7 @@ target: lean | standard | explicit    # optional; absent means `standard`
 
 `target` scales authoring depth to the capability of the executing agent.
 `references/plan-targets.md` is the ONE definition of the tiers, the tier-to-backend
-mapping, the capability ordering, and the blast-radius override. Read it and set the
+mapping, the capability ordering, and the blast-radius override. Read it, resolve the intended executor with `scripts/workflow-policy.py`, and set the
 field; do not restate the table in the plan or in this document.
 
 ## 3. Required investigation
@@ -176,10 +179,8 @@ The following make a plan invalid:
 - pasted file contents or signature dumps presented as ground truth. Record the
   symbol and the invariant; everything frozen drifts, not just line numbers.
 
-The expected-result ban binds **whenever a command is given**. At `target: lean` a
-task may instead state an acceptance condition and let the executing agent choose the
-command — that is not a placeholder, and it is the only tier where omitting the
-command is permitted. Every other entry above applies at every tier.
+Every target includes a focused verifier and observable acceptance. Lean
+reduces explanatory detail, not the executable verification contract.
 
 Unknowns that genuinely cannot be resolved during planning are named decisions
 with an owner and a blocking condition, not hidden placeholders.
@@ -202,8 +203,8 @@ Before rendering, review the completed IR with fresh eyes:
 7. **Verification quality:** confirm commands are focused, runnable from the
    stated directory, and include expected results.
 8. **Scope check:** split independent subsystems; remove speculative extras.
-9. **Artifact check:** confirm the dated path, frontmatter, no `status:`, and no
-   single-file checkbox rows.
+9. **Artifact check:** confirm the dated path, frontmatter, no `status:`, and exactly one
+   canonical ledger row per task.
 
 Fix failures inline before saving. Validation is a gate, not a report appendix.
 
@@ -217,5 +218,5 @@ After the renderer succeeds, report:
 - any unresolved blocker;
 - that implementation has not started.
 
-Do not automatically execute the plan. Wait for an explicit implementation
-request.
+Do not infer implementation from a planning-only request. An explicit scoped
+implementation request in the current turn already supplies the go.

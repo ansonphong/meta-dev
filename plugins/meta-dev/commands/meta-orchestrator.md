@@ -14,14 +14,15 @@ Front-door dispatcher. Routes natural language to the correct meta-dev command.
 
 - "new idea" / "brainstorm" / "explore" → `/meta-classify` + `/meta-dev --to 2`
 - "plan" / "restructure" / "master plan" → `/meta-planner`
-- "autopilot" / "cruise control" / "cruise" / "full send" / "build it" / "go" / "execute" / "implement" / "build" → **Autopilot sequence** (see below). NEVER route to `--from 5 --to 5` — that skips hardening.
+- Explicit build/execute/autopilot intent → **Autopilot sequence** below, within
+  the user's requested stage bounds. Incidental keywords are not authorization.
 - "harden" / "gap scan" / "loop-gap" → `/loop-gap`
 - "probe" / "investigate deeply" / "dig into" / "go deep on" / "why does X keep" / "get to the bottom of" → `/meta-probe`
 - "review" / "evaluate" / "grade" → `/meta-eval`
 - "security" / "audit" → `/meta-security`
 - "UX" / "design review" → `/meta-ux` or `/meta-review-design`
-- "ship" / "release" (APP desktop channel build) → APP repo `/release` skill
-- "deploy" (web) → project `/deploy` or `/server-deploy` (not meta-dev ship)
+- "ship" / "release" / "deploy" → discover the project's declared release
+  procedure; do not assume a desktop/web stack or command name.
 - "cleanup" / "housekeeping" / "archive" → `/housekeeping`
 - "dashboard" / "status" → `/meta-dashboard`
 - "config" / "settings" → `/meta-config`
@@ -34,14 +35,21 @@ If ambiguous, present options with confidence scores.
 
 ## Autopilot sequence (execute / build / implement / autopilot intent)
 
-When the user says **autopilot** (or execute / build / implement / "go" / "cruise control"), run these steps **IN ORDER**. Do NOT collapse to execute-only. Narrate each step as you go. This is the default — hardening is included every time unless explicitly skipped.
+Preserve the user's intent and requested stage ceiling. Read
+`references/adaptive-workflow.md`; resolve depth before routing. Reuse valid
+existing hardening/review evidence rather than repeating the same pass.
 
-1. **HARDEN (before)** — Unless `--no-harden` is present, run `/loop-gap <plan>` to gap-scan the PLAN. Apply auto-fixes (confidence ≥ 0.8), surface blockers for review. This is the "Phase 4 hardening" step that must never be silently skipped.
-2. **EXECUTE** — Run `/meta-execute <plan>` (one fresh host-native subagent per checkbox — Grok `spawn_subagent` / Claude `Agent` / Codex spark-or-sol — worker commits; conductor stays thin).
-3. **CODE REVIEW (after)** — Dispatch the `meta-dev:review-agent` Opus subagent over the produced diff (it computes its own diff). This is a code review of the built code — NOT a second loop-gap pass. Do **not** use `superpowers:requesting-code-review`; it is superseded by the host project's review policy.
-4. **VERDICT** — If review returns blocking issues → fix loop (re-dispatch via `/meta-execute` or `/meta-repair`) before ship. Else green-light → project release path (APP: `/release`; web: `/deploy`).
+1. **HARDEN** — If current evidence is absent/stale and hardening is in scope,
+   run `/meta-loop-gap <plan>` at the resolved depth. Source fixes still need
+   implementation authority; confidence is not permission.
+2. **EXECUTE** — Run `/meta-execute <plan>` with resolved task/slice ownership.
+   Preserve per-handle evidence, planctl state, and host-wide worker limits.
+3. **REVIEW** — Use meta-execute's covering native review; do not dispatch a
+   duplicate Opus or cross-family pass merely because execution returned.
+4. **VERDICT** — Report accepted work and blockers. Release/deploy is a separate
+   authorization boundary, not an automatic consequence of a clean review.
 
 **Flags:**
 - `--no-harden` → skip step 1 only. Steps 2–4 still run.
 
-The old `--from 5 --to 5` execute-only shortcut is **REMOVED from front-door routing** because it deterministically skipped hardening. It is still reachable by typing the raw `/meta-dev --from 5 --to 5` if a user explicitly wants execute-only.
+Explicit `--from`/`--to` stage bounds are honored without expanding the task.
