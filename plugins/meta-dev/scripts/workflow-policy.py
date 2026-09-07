@@ -47,6 +47,20 @@ def bound(value, minimum, maximum, name):
     return value
 
 
+def normalize_risk(value):
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError("risk labels must be nonempty strings")
+    label = value.strip().lower().replace("_", "-").replace("/", "-")
+    # Keep the classifier's labels and plan-target terminology interoperable.
+    return {
+        "security-boundary": "security", "crypto": "security",
+        "licensing": "security", "license": "security",
+        "schema-drift": "migration", "schema": "migration", "migrations": "migration",
+        "money-path": "payments", "payment": "payments",
+        "cross-repo": "cross-service", "cross-repository": "cross-service",
+    }.get(label, label)
+
+
 def resolve_policy(settings, *, host="unknown", model=None, target=None, risks=(),
                    granularity=None, research=None, harden=None, cross_family=None,
                    available_workers=None):
@@ -88,10 +102,13 @@ def resolve_policy(settings, *, host="unknown", model=None, target=None, risks=(
     target = choice(target or policy["plan_target"], ("auto", "lean", "standard", "explicit"), "target")
     target = profile_target if target == "auto" else target
     # Built-in safety floors cannot be removed by replacing the configured list.
-    sensitive = {"auth", "authorization", "security", "payment", "payments", "migration",
-                 "cross-service", "destructive", "high", "critical"}
-    sensitive.update(policy.get("sensitive_risks", []))
-    normalized_risks = {risk.strip().lower().replace("_", "-") for risk in risks}
+    sensitive = {"auth", "authorization", "security", "payments", "migration",
+                 "cross-service", "release-stability", "destructive", "high", "critical"}
+    configured_risks = policy.get("sensitive_risks", [])
+    if not isinstance(configured_risks, list):
+        raise ValueError("sensitive_risks must be an array")
+    sensitive.update(normalize_risk(risk) for risk in configured_risks)
+    normalized_risks = {normalize_risk(risk) for risk in risks}
     triggers = sorted(normalized_risks & sensitive)
     if triggers and target == "lean":
         target = "standard"

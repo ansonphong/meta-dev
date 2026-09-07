@@ -31,11 +31,19 @@ def tokens(value):
     return value
 
 
-def context_settings():
+def context_settings(project_root=None):
     """Use the shared validated cascade; invalid config gives UNKNOWN."""
     script = Path(__file__).with_name("config-merge.py")
+    env = None
+    if project_root is not None:
+        root = Path(project_root).resolve()
+        if not root.is_dir():
+            raise ValueError("project root must be an existing directory")
+        env = dict(os.environ, META_DEV_PROJECT_ROOT=str(root))
+        # An explicit CLI project boundary wins over an inherited topology file.
+        env.pop("META_DEV_REPOS_FILE", None)
     result = subprocess.run([sys.executable, str(script)], capture_output=True,
-                            text=True, timeout=10, check=True)
+                            text=True, timeout=10, check=True, env=env)
     return json.loads(result.stdout).get("meta_dev", {}).get("context", {})
 
 
@@ -173,13 +181,13 @@ def evaluate(args, settings):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    for flag in ("host", "session-id", "transcript", "telemetry", "model", "context-window",
+    for flag in ("host", "session-id", "transcript", "telemetry", "model", "project-root", "context-window",
                  "threshold", "threshold-ratio"):
         parser.add_argument("--" + flag)
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args(argv)
     try:
-        result = evaluate(args, context_settings())
+        result = evaluate(args, context_settings(args.project_root))
     except (OSError, ValueError, TypeError, AttributeError, subprocess.SubprocessError) as exc:
         result = {"verdict": "UNKNOWN", "tokens": None, "threshold": None,
                   "transcript": None, "reason": "configuration unavailable: " + str(exc)}

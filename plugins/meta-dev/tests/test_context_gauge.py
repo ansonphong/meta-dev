@@ -3,6 +3,8 @@ import argparse
 import importlib.util
 import json
 from pathlib import Path
+import subprocess
+import sys
 
 import pytest
 
@@ -196,7 +198,7 @@ def test_malformed_latest_record_does_not_reuse_stale_usage(tmp_path):
 
 
 def test_main_exit_contract(tmp_path, monkeypatch, capsys):
-    monkeypatch.setattr(gauge, "context_settings", lambda: {})
+    monkeypatch.setattr(gauge, "context_settings", lambda project_root=None: {})
     cli = ["--host", "grok", "--session-id", "active", "--telemetry", telemetry(tmp_path), "--json"]
     assert gauge.main(cli) == 10
     assert json.loads(capsys.readouterr().out)["verdict"] == "OVER"
@@ -207,8 +209,34 @@ def test_main_exit_contract(tmp_path, monkeypatch, capsys):
 
 
 def test_invalid_settings_never_blocks(monkeypatch, capsys):
-    def invalid():
+    def invalid(project_root=None):
         raise ValueError("bad config")
     monkeypatch.setattr(gauge, "context_settings", invalid)
     assert gauge.main(["--json"]) == 0
+    assert json.loads(capsys.readouterr().out)["verdict"] == "UNKNOWN"
+
+
+def test_project_root_pins_three_layer_cascade(tmp_path, monkeypatch):
+    dashboard = tmp_path / "selected/plans/_dashboard"
+    dashboard.mkdir(parents=True)
+    (dashboard / "settings.json").write_text(json.dumps({"meta_dev": {"context": {"threshold": 900}}}))
+    (dashboard / "settings.local.json").write_text(json.dumps({"meta_dev": {"context": {"threshold": 700}}}))
+    foreign = tmp_path / "foreign.json"
+    foreign.write_text(json.dumps({"root": str(tmp_path / "another-project"), "repos": {}}))
+    monkeypatch.setenv("META_DEV_REPOS_FILE", str(foreign))
+    monkeypatch.setenv("META_DEV_PLUGIN_ROOT", str(SCRIPT.parent.parent))
+    path = telemetry(tmp_path)
+    command = [sys.executable, str(SCRIPT), "--project-root", str(tmp_path / "selected"),
+               "--host", "grok", "--session-id", "active", "--telemetry", path, "--json"]
+    run = subprocess.run(command, text=True, capture_output=True)
+    assert run.returncode == 10, run.stderr
+    assert json.loads(run.stdout)["threshold"] == 700
+    run = subprocess.run(command + ["--threshold", "950"], text=True, capture_output=True)
+    assert run.returncode == 0
+    assert json.loads(run.stdout)["threshold"] == 950
+    assert gauge.os.environ["META_DEV_REPOS_FILE"] == str(foreign)
+
+
+def test_missing_project_root_returns_unknown(tmp_path, capsys):
+    assert gauge.main(["--project-root", str(tmp_path / "missing"), "--json"]) == 0
     assert json.loads(capsys.readouterr().out)["verdict"] == "UNKNOWN"

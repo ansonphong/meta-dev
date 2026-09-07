@@ -65,6 +65,41 @@ def test_risk_floor_survives_configuration(settings, risk):
     assert not result["review"]["cross_family"]
 
 
+@pytest.mark.parametrize("risk,canonical", [
+    ("security-boundary", "security"), ("schema-drift", "migration"),
+    ("money-path", "payments"), ("release-stability", "release-stability"),
+    ("crypto", "security"), ("licensing", "security"), ("schema", "migration"),
+    ("cross-repo", "cross-service"), (" SECURITY_BOUNDARY ", "security"),
+])
+def test_classifier_and_contract_aliases_raise_risk_floor(settings, risk, canonical):
+    settings["meta_dev"]["workflow"]["sensitive_risks"] = []
+    result = POLICY.resolve_policy(settings, model="astra", risks=[risk], granularity="slice")
+    assert result["risk_overrides"] == [canonical]
+    assert result["plan_target"] == "standard"
+    assert result["execution"]["granularity"] == "task"
+    assert result["hardening"]["depth"] == "full"
+
+
+def test_custom_risk_normalization_is_symmetric(settings):
+    settings["meta_dev"]["workflow"]["sensitive_risks"] = [" Export_Control ", "perf_cache"]
+    result = POLICY.resolve_policy(settings, model="astra", risks=["export-control", "perf/cache"])
+    assert result["risk_overrides"] == ["export-control", "perf-cache"]
+    assert result["plan_target"] == "standard"
+
+
+def test_performance_risk_does_not_alone_force_sensitive_policy(settings):
+    result = POLICY.resolve_policy(settings, model="astra", risks=["perf/cache"])
+    assert result["risk_overrides"] == []
+    assert result["plan_target"] == "lean"
+
+
+@pytest.mark.parametrize("value", ["security", [None], [" "]])
+def test_invalid_sensitive_risks_fail_without_schema(settings, value):
+    settings["meta_dev"]["workflow"]["sensitive_risks"] = value
+    with pytest.raises(ValueError):
+        POLICY.resolve_policy(settings)
+
+
 def test_explicit_overrides_and_capacity(settings):
     result = POLICY.resolve_policy(settings, model="astra", target="explicit", granularity="task",
                                    research="full", harden="full", cross_family=True, available_workers=2)
