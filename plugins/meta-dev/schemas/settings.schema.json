@@ -461,7 +461,7 @@
                 "properties": {"plan_target": {"enum": ["lean", "standard", "explicit"]}, "coherent_slices": {"type": "boolean"}}
               }
             },
-            "model_aliases": {"type": "object", "additionalProperties": {"type": "string", "minLength": 1}}
+            "model_aliases": {"type": "object", "description": "Exact case-sensitive aliases; provider IDs are never silently lowercased.", "propertyNames": {"type": "string", "minLength": 1}, "additionalProperties": {"type": "string", "minLength": 1}}
           }
         },
         "context": {
@@ -1390,7 +1390,7 @@
           "properties": {
             "test_policy": {
               "type": "string",
-              "description": "How aggressively planner + execute generate written tests. 'critical-only' (default): write a test ONLY for critical-breakage tasks (data corruption, auth/crypto verify, payment/value transfer, DB migration, serialization round-trip, cross-service API contract); everything else verifies by build/grep/run-by-eye. 'tdd-all': legacy \u2014 every task gets a failing-test-first TDD cycle. 'none': never auto-generate tests; verify by cheap checks only. The canonical project AGENTS.md testing policy (if present) further refines what counts as critical.",
+              "description": "How aggressively planner + execute generate written tests. 'critical-only' (default): write tests for critical-breakage tasks (data corruption, auth/crypto verify, payment/value transfer, DB migration, serialization round-trip, cross-service API contract); other tasks retain focused behavioral acceptance evidence without mandatory new tests. A broad build or grep match is not task acceptance; human verification remains an unresolved human gate until performed. 'tdd-all': every task gets a failing-test-first TDD cycle. 'none': never auto-generate tests, but focused verification remains required. The canonical project AGENTS.md testing policy further refines the task contract.",
               "enum": [
                 "critical-only",
                 "tdd-all",
@@ -1456,6 +1456,7 @@
           "type": "string",
           "enum": [
             "spark",
+            "luna",
             "terra",
             "sol",
             "astra"

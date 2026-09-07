@@ -35,6 +35,7 @@ def test_frontier_profiles(settings, model):
 
 @pytest.mark.parametrize("model,target", [("terra", "standard"), ("sonnet-5", "standard"),
                                          ("luna", "explicit"), ("spark", "explicit"),
+                                         ("gpt-5.3-codex-spark", "explicit"),
                                          ("haiku", "explicit"), ("future-opus", "standard"),
                                          ("opus", "standard")])
 def test_bounded_and_unknown_profiles(settings, model, target):
@@ -145,6 +146,43 @@ def test_alias_cycle(settings):
     settings["meta_dev"]["workflow"]["model_aliases"].update({"a": "b", "b": "a"})
     with pytest.raises(ValueError, match="cycle"):
         POLICY.resolve_policy(settings, model="a")
+
+
+@pytest.mark.parametrize("model", ["Vendor/CustomModel-2026", "ASTRA"])
+def test_unknown_exact_model_id_preserves_case(settings, model):
+    result = POLICY.resolve_policy(settings, model=model)
+    assert result["executor"]["model"] == model
+    assert result["executor"]["profile"] == "unknown"
+    assert result["plan_target"] == "standard"
+
+
+def test_case_sensitive_profile_and_alias(settings):
+    policy = settings["meta_dev"]["workflow"]
+    policy["model_profiles"]["Vendor/CustomModel"] = {"plan_target": "lean", "coherent_slices": True}
+    policy["model_aliases"]["MyModel"] = "Vendor/CustomModel"
+    result = POLICY.resolve_policy(settings, model="MyModel")
+    assert result["executor"]["model"] == "Vendor/CustomModel"
+    assert result["plan_target"] == "lean"
+    assert POLICY.resolve_policy(settings, model="mymodel")["plan_target"] == "standard"
+
+
+@pytest.mark.parametrize("model", ["", " ", " astra", 0, False, []])
+def test_invalid_explicit_model_never_silently_falls_back(settings, model):
+    with pytest.raises(ValueError, match="model"):
+        POLICY.resolve_policy(settings, host="codex", model=model)
+
+
+@pytest.mark.parametrize("aliases", [[], {"": "astra"}, {"x": ""}, {"x": " "}, {"x": 0}])
+def test_invalid_aliases_fail_without_optional_schema(settings, aliases):
+    settings["meta_dev"]["workflow"]["model_aliases"] = aliases
+    with pytest.raises(ValueError, match="model"):
+        POLICY.resolve_policy(settings, model="astra")
+
+
+def test_empty_configured_route_never_silently_falls_back(settings):
+    settings["meta_dev"]["workflow"]["host_execute_models"]["codex"] = ""
+    with pytest.raises(ValueError, match="model"):
+        POLICY.resolve_policy(settings, host="codex")
 
 
 def test_cli_three_layer_cascade_and_exact_project_root(tmp_path):

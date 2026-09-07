@@ -172,7 +172,7 @@ codex_schema = schema["properties"]["meta_dev"]["properties"]["codex"]
 assert codex_schema["properties"]["reviewer"]["default"] == "native"
 assert codex_schema["properties"]["compat_router"]["default"] is True
 route_schema = schema["definitions"]["codex_model_route"]
-assert route_schema["properties"]["tier"]["enum"] == ["spark", "terra", "sol", "astra"]
+assert route_schema["properties"]["tier"]["enum"] == ["spark", "luna", "terra", "sol", "astra"]
 astra_efforts = ["low", "medium", "high", "xhigh", "max", "ultra"]
 assert route_schema["properties"]["effort"]["enum"] == astra_efforts
 for effort in astra_efforts:
@@ -180,12 +180,13 @@ for effort in astra_efforts:
     configured["meta_dev"]["codex"]["models"]["execute"] = {"tier": "astra", "effort": effort}
     jsonschema.validate(configured, schema)
 assert not jsonschema.Draft7Validator(route_schema).is_valid({"tier": "astra", "effort": "none"})
+assert jsonschema.Draft7Validator(route_schema).is_valid({"tier": "luna", "effort": "low"})
 assert set(codex_schema["properties"]["models"]["properties"]) == set(routes["models"])
 for route in routes["models"].values():
     assert route["tier"] in schema["definitions"]["codex_model_route"]["properties"]["tier"]["enum"]
     assert route["effort"] in schema["definitions"]["codex_model_route"]["properties"]["effort"]["enum"]
 runner = require_file("scripts/codex-headless-exec").read_text(encoding="utf-8")
-for model in ("gpt-5.3-codex-spark", "gpt-5.6-terra", "gpt-5.6-sol", "gpt-6-astra"):
+for model in ("gpt-5.3-codex-spark", "gpt-5.6-luna", "gpt-5.6-terra", "gpt-5.6-sol", "gpt-6-astra"):
     assert model in runner, f"Codex runner no longer supports configured model {model}"
 
 hooks = load_json(plugin_root / "hooks/hooks.json")

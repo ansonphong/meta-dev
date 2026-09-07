@@ -111,11 +111,12 @@
         "gpt-5.6-terra": {"plan_target": "standard", "coherent_slices": false},
         "claude-sonnet-5": {"plan_target": "standard", "coherent_slices": false},
         "gpt-5.6-luna": {"plan_target": "explicit", "coherent_slices": false},
-        "spark": {"plan_target": "explicit", "coherent_slices": false},
+        "gpt-5.3-codex-spark": {"plan_target": "explicit", "coherent_slices": false},
         "haiku": {"plan_target": "explicit", "coherent_slices": false}
       },
       "model_aliases": {
         "astra": "gpt-6-astra",
+        "spark": "gpt-5.3-codex-spark",
         "sol": "gpt-5.6-sol",
         "gpt-5.6": "gpt-5.6-sol",
         "terra": "gpt-5.6-terra",

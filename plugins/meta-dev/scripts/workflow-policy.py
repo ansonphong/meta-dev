@@ -61,32 +61,45 @@ def normalize_risk(value):
     }.get(label, label)
 
 
+def model_name(value, field="model"):
+    if not isinstance(value, str) or not value.strip() or value != value.strip():
+        raise ValueError(f"{field} must be a nonempty string without surrounding whitespace")
+    return value  # Provider identifiers and configured aliases are case-sensitive.
+
+
 def resolve_policy(settings, *, host="unknown", model=None, target=None, risks=(),
                    granularity=None, research=None, harden=None, cross_family=None,
                    available_workers=None):
     meta = settings["meta_dev"]
     policy = meta["workflow"]
     host = host.strip().lower()
-    source = "explicit" if model else "fallback"
-    if not model:
+    source = "explicit" if model is not None else "fallback"
+    if model is not None:
+        model = model_name(model)
+    if model is None:
         model = policy.get("host_execute_models", {}).get(host)
-        if model:
+        if model is not None:
             source = "workflow.host_execute_models"
         elif host == "codex":
             route = meta.get("codex", {}).get("models", {}).get("execute", {})
-            model = route.get("model") or route.get("tier")
-            if model:
+            model = route.get("model", route.get("tier"))
+            if model is not None:
                 source = "codex.models.execute"
-        if not model:
+        if model is None:
             model = meta.get("models", {}).get("stage_overrides", {}).get("execute")
-            if model:
+            if model is not None:
                 source = "models.stage_overrides.execute"
-        if not model:
+        if model is None:
             model = meta.get("models", {}).get("default_model")
-            if model:
+            if model is not None:
                 source = "models.default_model"
-    model = (model or "unknown").strip().lower()
+    model = model_name(model) if model is not None else "unknown"
     aliases = policy.get("model_aliases", {})
+    if not isinstance(aliases, dict):
+        raise ValueError("model_aliases must be an object")
+    for alias, destination in aliases.items():
+        model_name(alias, "model alias")
+        model_name(destination, "model alias destination")
     seen = set()
     while model in aliases:
         if model in seen:
@@ -94,6 +107,10 @@ def resolve_policy(settings, *, host="unknown", model=None, target=None, risks=(
         seen.add(model)
         model = aliases[model]
     profiles = policy.get("model_profiles", {})
+    if not isinstance(profiles, dict):
+        raise ValueError("model_profiles must be an object")
+    for name in profiles:
+        model_name(name, "model profile")
     known = model in profiles
     profile = profiles.get(model, {"plan_target": "standard", "coherent_slices": False})
     profile_target = choice(profile["plan_target"], ("lean", "standard", "explicit"), "profile target")
