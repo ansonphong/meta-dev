@@ -376,16 +376,12 @@
                   "fable"
                 ]
               },
-              "default": [
-                "deep",
-                "grok",
-                "codex"
-              ]
+              "default": []
             },
             "native_only_when_required": {
               "type": "boolean",
               "description": "true: delegate by default, and run natively in the host harness only when the task genuinely requires it (needs our slash commands or project skills, needs vision, or needs tight interactive back-and-forth). false: prefer native execution and delegate only on explicit flag.",
-              "default": true
+              "default": false
             }
           }
         },
@@ -432,76 +428,69 @@
             }
           }
         },
+        "workflow": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Adaptive workflow policy. Exact model profiles are configurable capability assumptions, not availability claims. Unknown models use standard planning and task workers.",
+          "properties": {
+            "plan_target": {"enum": ["auto", "lean", "standard", "explicit"], "default": "auto"},
+            "execution_granularity": {"enum": ["auto", "task", "slice"], "default": "auto"},
+            "research_depth": {"enum": ["auto", "focused", "full"], "default": "auto"},
+            "hardening_depth": {"enum": ["auto", "focused", "full"], "default": "auto"},
+            "cross_family_review": {"type": "boolean", "default": false},
+            "max_tasks_per_slice": {"type": "integer", "minimum": 1, "maximum": 6, "default": 3},
+            "max_parallel_workers": {"type": "integer", "minimum": 1, "maximum": 8, "default": 4},
+            "focused_max_reviewers": {"type": "integer", "minimum": 1, "maximum": 4, "default": 1},
+            "full_max_reviewers": {"type": "integer", "minimum": 1, "maximum": 8, "default": 4},
+            "max_review_rounds": {"type": "integer", "minimum": 1, "maximum": 5, "default": 2},
+            "sensitive_risks": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+            "host_execute_models": {"type": "object", "additionalProperties": {"type": "string", "minLength": 1}},
+            "host_capabilities": {
+              "type": "object",
+              "description": "Operator-confirmed host support only; a model profile never implies these capabilities.",
+              "additionalProperties": {
+                "type": "object", "additionalProperties": false,
+                "properties": {"async_tools": {"type": "boolean"}, "dynamic_effort": {"type": "boolean"}}
+              }
+            },
+            "model_profiles": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "object", "additionalProperties": false,
+                "required": ["plan_target", "coherent_slices"],
+                "properties": {"plan_target": {"enum": ["lean", "standard", "explicit"]}, "coherent_slices": {"type": "boolean"}}
+              }
+            },
+            "model_aliases": {"type": "object", "additionalProperties": {"type": "string", "minLength": 1}}
+          }
+        },
+        "context": {
+          "type": "object", "additionalProperties": false,
+          "properties": {
+            "context_window": {"type": ["integer", "null"], "minimum": 1, "default": null},
+            "threshold": {"type": ["integer", "null"], "minimum": 1, "default": null},
+            "threshold_ratio": {"type": "number", "exclusiveMinimum": 0, "maximum": 1, "default": 0.8},
+            "model_windows": {"type": "object", "additionalProperties": {"type": "integer", "minimum": 1}}
+          }
+        },
         "models": {
           "type": "object",
           "properties": {
             "stage_overrides": {
               "type": "object",
+              "additionalProperties": false,
               "properties": {
-                "brainstorm": {
-                  "type": "string",
-                  "enum": [
-                    "haiku",
-                    "sonnet",
-                    "opus"
-                  ],
-                  "default": "sonnet"
-                },
-                "design": {
-                  "type": "string",
-                  "enum": [
-                    "haiku",
-                    "sonnet",
-                    "opus"
-                  ],
-                  "default": "sonnet"
-                },
-                "plan": {
-                  "type": "string",
-                  "enum": [
-                    "haiku",
-                    "sonnet",
-                    "opus"
-                  ],
-                  "default": "sonnet"
-                },
-                "harden": {
-                  "type": "string",
-                  "enum": [
-                    "haiku",
-                    "sonnet",
-                    "opus"
-                  ],
-                  "default": "opus"
-                },
-                "execute": {
-                  "type": "string",
-                  "enum": [
-                    "haiku",
-                    "sonnet",
-                    "opus"
-                  ],
-                  "default": "sonnet"
-                },
-                "review": {
-                  "type": "string",
-                  "enum": [
-                    "haiku",
-                    "sonnet",
-                    "opus"
-                  ],
-                  "default": "opus"
-                }
+                "brainstorm": {"type": "string", "minLength": 1},
+                "design": {"type": "string", "minLength": 1},
+                "plan": {"type": "string", "minLength": 1},
+                "harden": {"type": "string", "minLength": 1},
+                "execute": {"type": "string", "minLength": 1},
+                "review": {"type": "string", "minLength": 1}
               }
             },
             "default_model": {
-              "type": "string",
-              "enum": [
-                "haiku",
-                "sonnet",
-                "opus"
-              ],
-              "default": "sonnet"
+              "type": ["string", "null"],
+              "default": null
             }
           }
         },
@@ -928,7 +917,7 @@
               "properties": {
                 "deps_dir": {
                   "type": "string",
-                  "default": "node_modules"
+                  "default": ""
                 },
                 "typecheck_command": {
                   "type": "string"
