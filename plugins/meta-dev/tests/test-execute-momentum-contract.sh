@@ -266,8 +266,9 @@ def validate(command: str) -> subprocess.CompletedProcess[str]:
         phase = Path(tmp) / "phase-1-test.md"
         phase.write_text(
             "### Task 1.1: focused verification\n\n"
+            "**Files:**\n- `tests/test_folder_nav.py`\n\n"
             "Verify-After:\n\n"
-            f"- [ ] `{command}`\n",
+            f"- `{command}`\n",
             encoding="utf-8",
         )
         return subprocess.run(

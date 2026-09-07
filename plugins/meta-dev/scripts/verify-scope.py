@@ -141,18 +141,38 @@ def _references_allowed_path(tokens: Iterable[str], allowed_paths: Sequence[str]
     return False
 
 
-def _has_pytest_file(args: Sequence[str]) -> bool:
-    return any(_path_candidate(arg).lower().endswith(".py") for arg in args if not arg.startswith("-"))
+def _all_paths_allowed(paths: Sequence[str], allowed_paths: Sequence[str]) -> bool:
+    return bool(paths) and all(_references_allowed_path([path], allowed_paths) for path in paths)
 
 
-def _has_js_test_file(args: Sequence[str]) -> bool:
+def _positionals(args: Sequence[str], value_options: set[str]) -> list[str]:
+    """Extract operands for known command families, not their launcher paths."""
+    result = []
+    skip = False
+    literal = False
     for arg in args:
-        if arg.startswith("-"):
-            continue
-        candidate = _path_candidate(arg).replace("\\", "/")
-        if _JS_TEST_FILE_RE.search(candidate):
-            return True
-    return False
+        if skip:
+            skip = False
+        elif arg == "--" and not literal:
+            literal = True
+        elif not literal and arg in value_options:
+            skip = True
+        elif literal or not arg.startswith("-"):
+            result.append(arg)
+    return result
+
+
+def _test_targets(runner: str, args: Sequence[str]) -> list[str]:
+    options = {
+        "-c", "-o", "-p", "-m", "--override-ini", "--confcutdir", "--rootdir",
+        "--basetemp", "--junitxml", "--tb", "--maxfail", "--color", "--capture",
+        "--durations", "--import-mode", "--config", "--reporter", "--pool",
+        "--maxWorkers", "--minWorkers", "--testTimeout", "--testNamePattern", "-t",
+    }
+    targets = _positionals(args, options)
+    if runner in _JS_TEST_RUNNERS and targets and targets[0] in {"run", "watch"}:
+        targets = targets[1:]
+    return targets
 
 
 def _package_action(tokens: Sequence[str]) -> str | None:
@@ -186,24 +206,40 @@ def _is_project_tsc(tokens: Sequence[str]) -> bool:
 
 def _is_scoped_check(tokens: Sequence[str], allowed_paths: Sequence[str]) -> bool:
     tokens = _strip_wrappers(tokens)
-    if not tokens or not _references_allowed_path(tokens, allowed_paths):
+    if not tokens:
         return False
     first = _basename(tokens[0])
     if first in {"bash", "sh"} and "-n" in tokens[1:]:
-        return True
-    if first in {"grep", "egrep", "fgrep", "rg", "ripgrep", "shellcheck"}:
-        return True
-    return first.endswith("check") or "check" in (token.lower() for token in tokens[1:])
+        return _all_paths_allowed(_positionals(tokens[1:], set()), allowed_paths)
+    if first in {"grep", "egrep", "fgrep", "rg", "ripgrep"}:
+        # Pattern arguments are not inspected files; every file operand is.
+        operands = _positionals(tokens[1:], {"-e", "--regexp", "-g", "--glob", "-t", "--type", "-m", "--max-count"})
+        explicit_pattern = any(token in {"-e", "--regexp", "-f", "--file"} or token.startswith(("--regexp=", "--file=")) for token in tokens[1:])
+        paths = operands if explicit_pattern else operands[1:]
+        paths += [token.split("=", 1)[1] for token in tokens[1:] if token.startswith("--file=")]
+        return _all_paths_allowed(paths, allowed_paths)
+    if first == "shellcheck":
+        return _all_paths_allowed(_positionals(tokens[1:], {"-s", "--shell", "-e", "--exclude", "-f", "--format", "-S", "--severity"}), allowed_paths)
+    if first in {"python", "python3", "node", "ruby", "perl"} and len(tokens) > 3 and tokens[2] == "check" and not tokens[1].startswith("-"):
+        # python scripts/tool.py check <targets>: tool.py is an executable,
+        # not a verification target that needs to be owned by this task.
+        operands = tokens[3:]
+        return _all_paths_allowed(_positionals(operands, set()), allowed_paths)
+    return first.endswith("check") and _all_paths_allowed(_positionals(tokens[1:], set()), allowed_paths)
 
 
 def _classify_segment(tokens: Sequence[str]) -> Classification:
     runner, args = _runner(tokens)
     if runner in _PYTEST_NAMES:
-        if _has_pytest_file(args):
+        targets = _test_targets(runner, args)
+        if "-k" in args or any(arg.startswith("-k=") for arg in args):
+            return Classification("broad", "pytest -k is forbidden; name exact test files/nodes")
+        if targets and all(_path_candidate(arg).lower().endswith(".py") for arg in targets):
             return Classification("focused", "pytest names an explicit Python test file")
-        return Classification("broad", "pytest does not name an explicit Python test file")
+        return Classification("broad", "pytest must name only explicit Python test files/nodes")
     if runner in _JS_TEST_RUNNERS:
-        if _has_js_test_file(args):
+        targets = _test_targets(runner, args)
+        if targets and all(_JS_TEST_FILE_RE.search(_path_candidate(arg).replace("\\", "/")) for arg in targets):
             return Classification("focused", f"{runner.removesuffix('.exe')} names an explicit test file")
         return Classification("broad", f"{runner.removesuffix('.exe')} does not name an explicit test file")
 
@@ -214,7 +250,7 @@ def _classify_segment(tokens: Sequence[str]) -> Classification:
         return Classification("broad", "project-wide type or Svelte check")
 
     command_text = shlex.join(tokens)
-    if _MANUAL_RE.search(command_text):
+    if tokens and tokens[0].lower() in {"manual", "manually", "verify", "check", "run", "launch", "inspect"} and _MANUAL_RE.search(command_text):
         return Classification("manual", "verification requires manual, GPU, or visible-app work")
 
     return Classification("unscoped", "command is not a recognized focused verification")
@@ -231,10 +267,11 @@ def classify(command: str, allowed_paths: Sequence[str]) -> Classification:
     classified: list[Classification] = []
     for segment in segments:
         initial = _classify_segment(segment)
-        if initial.category == "focused" and not _references_allowed_path(segment, allowed_paths):
+        runner, runner_args = _runner(segment)
+        if initial.category == "focused" and not _all_paths_allowed(_test_targets(runner, runner_args), allowed_paths):
             initial = Classification(
                 "unscoped",
-                "named test file is outside the task's allowed paths",
+                "one or more named test files are outside the task's allowed paths",
             )
         if initial.category == "unscoped" and _is_scoped_check(segment, allowed_paths):
             initial = Classification("scoped_check", "check explicitly references an allowed path")
@@ -247,16 +284,16 @@ def classify(command: str, allowed_paths: Sequence[str]) -> Classification:
             reason = f"compound command contains broad segment: {reason}"
         return Classification("broad", reason)
 
-    manual = next((item for item in classified if item.category == "manual"), None)
-    if manual:
-        return manual
-
     unscoped = next((item for item in classified if item.category == "unscoped"), None)
     if unscoped:
         reason = unscoped.reason
         if len(classified) > 1:
             reason = f"compound command contains unscoped segment: {reason}"
         return Classification("unscoped", reason)
+
+    manual = next((item for item in classified if item.category == "manual"), None)
+    if manual:
+        return manual
 
     focused = next((item for item in classified if item.category == "focused"), None)
     if focused:

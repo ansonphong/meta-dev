@@ -55,6 +55,52 @@ def test_named_test_file_outside_allowed_paths_is_unscoped():
     assert "outside" in payload["reason"]
 
 
+@pytest.mark.parametrize("command", [
+    "pytest tests/test_owned.py tests/test_other.py -q",
+    "npx vitest run src/owned.test.ts src/other.test.ts",
+    "bash -n src/owned.test.ts scripts/other.sh",
+    "rg pattern src/owned.test.ts other/private.txt",
+    "shellcheck scripts/owned.sh scripts/other.sh",
+    "python3 scripts/checker.py check scripts/owned.sh scripts/other.sh",
+    "rg -f other/patterns.txt src/owned.test.ts",
+    "rg --file=other/patterns.txt src/owned.test.ts",
+    "rm check scripts/owned.sh",
+])
+def test_one_owned_path_cannot_authorize_other_targets(command):
+    _, payload = run_classifier(command, "tests/test_owned.py", "src/owned.test.ts", "scripts/owned.sh")
+    assert payload["class"] == "unscoped"
+
+
+@pytest.mark.parametrize("command", [
+    "pytest tests/test_owned.py tests/ -q",
+    "pytest tests/test_owned.py -k selected -q",
+    "npx vitest run src/owned.test.ts src/",
+])
+def test_named_file_cannot_hide_directory_sweep_or_pytest_selection(command):
+    _, payload = run_classifier(command, "tests/test_owned.py", "src/owned.test.ts")
+    assert payload["class"] == "broad"
+
+
+def test_interpreter_check_tool_is_not_an_owned_target():
+    _, payload = run_classifier("python3 tooling/validator.py check src/owned.json", "src/owned.json")
+    assert payload["class"] == "scoped_check"
+
+
+def test_all_declared_test_paths_and_plugin_options_are_accepted():
+    _, payload = run_classifier("python3 -m pytest -p no:cacheprovider tests/test_a.py tests/test_b.py -q", "tests/test_a.py", "tests/test_b.py")
+    assert payload["class"] == "focused"
+
+
+@pytest.mark.parametrize("command", [
+    "verify manually by eye && arbitrary_unknown_command",
+    "arbitrary_unknown_command && inspect visible-app manually",
+    "echo manual && arbitrary_unknown_command",
+])
+def test_manual_language_cannot_mask_unscoped_commands(command):
+    _, payload = run_classifier(command)
+    assert payload["class"] == "unscoped"
+
+
 @pytest.mark.parametrize(
     "command",
     [
