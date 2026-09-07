@@ -14,8 +14,9 @@ it.
     bash <plugin-root>/scripts/codex-doctor.sh
 
 The doctor checks the plugin cache, local tooling, credentials, and two sandbox
-preconditions — **network egress** and **`.git` writability**. Continue only when
-both pass.
+preconditions — **network egress** and **`.git` writability**. Network access is
+required for remote workers; `.git` writability is required only for authorized
+implementation work that must commit, not a read-only review.
 
 ### `.git` writability — the second sandbox precondition
 
@@ -48,7 +49,8 @@ The direct network probe is:
 
     curl -s -o /dev/null -w "%{http_code}" --max-time 10 https://api.anthropic.com/v1/models
 
-`000` means your sandbox blocks DNS and every worker will die at `rc=6`.
+`000` means the connectivity probe failed; inspect its error to distinguish
+DNS, network policy, authentication transport, and service availability.
 **STOP; do not dispatch a worker from this session.** An already-running blocked
 session cannot grant itself network access. Choose a policy and restart Codex:
 
@@ -72,17 +74,22 @@ run the script directly:
 
 | Claude Code command | `--backend` | Model | Reach for it when |
 |---|---|---|---|
-| `/fable-execute`  | `fable`  | `claude-fable-5`  | EXPRESS-PERMISSION — hardest tasks only |
-| `/opus-execute`   | `opus`   | `claude-opus-5`   | rare: extra-family review, hard UI, one pass |
-| `/sonnet-execute` | `sonnet` | `claude-sonnet-5` | rare: UI / design-system craft, one pass |
-| `/deep-execute`   | `deep`   | `deepseek-v4-pro` (`--flash` / `--vision`) | **paused** — only when Phong names DeepSeek this turn |
-| `/glm-execute`    | `glm`    | `glm-5.2`         | named-only |
+| `/fable-execute`  | `fable`  | `claude-fable-5`  | explicit user authorization |
+| `/opus-execute`   | `opus`   | `claude-opus-5`   | bounded implementation slice or independent review |
+| `/sonnet-execute` | `sonnet` | `claude-sonnet-5` | bounded implementation or review |
+| `/deep-execute`   | `deep`   | `deepseek-v4-pro` (`--flash` / `--vision`) | selected by user or configured eligible pool |
+| `/glm-execute`    | `glm`    | `glm-5.2`         | selected by user or configured eligible pool |
+
+Resolve backend eligibility and pauses from the JSON cascade. No account-specific
+quota restriction ships in the plugin. Resolve the actual executor and risk with
+`scripts/workflow-policy.py` before assigning task or slice ownership. Preserve
+per-task verification and progress without forcing a nested worker per checkbox.
+See `references/work-ladder.md` and `references/adaptive-workflow.md`.
 
 `sonnet`/`opus`/`fable` are **real Anthropic via your ambient Claude login** —
 no API key. `deep` needs `DEEPSEEK_API_KEY`, `glm` needs `GLM_API_KEY`; the doctor
-reports which are visible. All five pin a bare model ID (no `[1m]` — a no-op on first-party, where the 5-family is always 1M), so a
-headless worker cannot inherit a session's 1M beta and get billed at the premium
-rate.
+reports which are visible. Confirm actual model access, supported context size,
+and billing with the target host. A separate process is not a cost guarantee.
 
 Three commands are **not** on this script and take their own: `/codex-execute` →
 `codex-headless-exec`, `/grok-execute` → `grok-headless-exec`,
@@ -99,17 +106,17 @@ they disagree:
 
     bash <plugin-root>/scripts/claude-headless-exec \
       --backend opus \
-      --repo app \
+      --repo <configured-alias> \
       --effort high \
       '<complete, self-contained task spec with acceptance criteria>'
 
-Resolve `<plugin-root>` rather than hand-typing it — the cache path is
-version-pinned and moves on every patch bump:
+Use the plugin root supplied by the loaded skill or `META_DEV_PLUGIN_ROOT`;
+do not scan versioned caches and accidentally select a different installation.
+Discover repository aliases through `.meta-dev/repos.json` and the topology
+helper; legacy `.claude/meta-dev-repos.json` is compatibility-only.
 
-    PLUGIN_ROOT="$(ls -d "${CODEX_HOME:-$HOME/.codex}"/plugins/cache/meta-dev/meta-dev/*/ | sort -V | tail -1)"
-
-`--repo <alias>` takes the lowercase alias (`app`/`www`/`gallery`/`meta`), never a
-directory name. Add `--readonly` when the worker only investigates and reports —
+`--repo <alias>` takes a configured alias, not an assumed project directory.
+Add `--readonly` when the worker only investigates and reports —
 a read-only worker cannot write, so handing it a code-writing task fails.
 
 The worker shares no context with you: give it a complete, self-contained task

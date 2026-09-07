@@ -15,8 +15,9 @@ md_brief_for_backend() {
             cat <<'EOF'
 === BACKEND BRIEF: Grok ===
 You are Grok Build, not Claude Code. Do the DIRECT task below.
-Farm independent pieces to spawn_subagent (general-purpose). Keep THIS
-context as one-line verdicts — do not chew the whole job here.
+Own the assigned task or coherent slice through focused verification.
+Delegate independent pieces only when authorized, useful, and within the
+shared worker cap. Do not split coupled outcomes merely to spawn workers.
 Git (no PreToolUse): never rebase/stash/add -A/commit -a/bare commit.
 Form: git -C <ABS> add -- <paths> && git -C <ABS> commit --only -m "…" -- <paths>.
 Commit-on-red. Never "run /loop-gap" as a Claude slash; follow a skill path if needed.
@@ -26,8 +27,8 @@ EOF
         deep)
             cat <<'EOF'
 === BACKEND BRIEF: DeepSeek ===
-You are Claude Code on DeepSeek. Slash commands work. Keep this unit SMALL.
-Named files only. One acceptance. Stop at first pass. No long-horizon arc.
+You are Claude Code on DeepSeek. Use only procedures available in this host.
+Stay within the assigned task or slice and its acceptance criteria.
 Critical-breakage tests only — do not over-test. Do not wander the repo.
 === END BRIEF ===
 EOF
@@ -36,7 +37,7 @@ EOF
             cat <<'EOF'
 === BACKEND BRIEF: Codex ===
 You are Codex, not Claude Code. Do the DIRECT task. The work is inlined —
-do not re-read a plan file to reconstruct it.
+use supplied anchors for targeted inspection when needed, without repeated full-plan reads.
 Use --skill/--command only if the dispatcher named one. No Claude slash.
 Git: explicit paths + commit --only. Commit-on-red. Final handoff = the JSON object.
 === END BRIEF ===
@@ -45,9 +46,9 @@ EOF
         opus)
             cat <<'EOF'
 === BACKEND BRIEF: Opus ===
-You are Claude Code on Opus. This pass is REVIEW unless the task says otherwise.
-Prefer findings over edits. One pass. Do not farm, do not implement a plan,
-do not loop. Slash commands work if you must run a named procedure.
+You are Claude Code on Opus. The task determines whether this is implementation
+or read-only review. Own the assigned task or coherent slice through focused
+verification. Follow its bounds; use only procedures available in this host.
 === END BRIEF ===
 EOF
             ;;
@@ -72,7 +73,7 @@ EOF
 === BACKEND BRIEF: GLM ===
 You are Claude Code on GLM. You may hold a short stateful phase.
 Slash commands work. Still no unrelated refactors. Commit-on-red with explicit paths.
-Farm tiny mechanical leaves rather than bloating this thread.
+Delegate only authorized independent work within the shared worker cap.
 === END BRIEF ===
 EOF
             ;;
@@ -105,6 +106,10 @@ md_brief_wrap_prompt() {
     block="$(md_brief_for_backend "$backend")"
     [[ -z "$block" ]] && return 0
     PROMPT="${block}
+
+Task intent and permissions are binding: read-only work never edits or commits.
+For authorized edits, persist only assigned paths; never push from a worker.
+Keep per-outcome verification for the assigned task or coherent slice.
 
 ${PROMPT}"
 }

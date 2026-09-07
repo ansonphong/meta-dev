@@ -163,7 +163,8 @@ assert routes["models"] == {
     "mechanical": {"tier": "spark", "effort": "low"},
 }
 assert routes["reviewer"] == "native" and routes["compat_router"] is True
-assert settings["meta_dev"]["models"]["stage_overrides"]["plan"] == "sonnet"
+assert settings["meta_dev"]["models"]["stage_overrides"] == {}
+assert settings["meta_dev"]["models"]["default_model"] is None
 
 schema = json.loads((plugin_root / "schemas/settings.schema.json").read_text())
 jsonschema.validate(settings, schema)

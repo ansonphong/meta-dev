@@ -1,12 +1,12 @@
 ---
 name: grok-execute
-argument-hint: "<task description> [--repo <name>] [--readonly] [--model <grok-4.6|grok-4.5>] [--budget auto|low|medium|high] [--effort <low|medium|high|xhigh>] [--max-turns <n>]  # --repo names from .claude/meta-dev-repos.json"
-description: "Execute a task via headless xAI Grok (Grok Build CLI). Interactive Grok has meta-dev as skills/slash commands. A headless grok --prompt-file worker is still Grok Build (same plugins), not Claude Code — brief a DIRECT task or a skill to follow, never a Claude slash. Grok can read AND write. Main driver of meta_dev.ladder.pool (with Codex). Default grok-4.6; grok-4.5 for collect/mechanical. Dispatcher picks --model and --effort per task (xhigh is grok-4.6 only). DeepSeek is paused."
+argument-hint: "<task description> [--repo <name>] [--readonly] [--model <grok-4.6|grok-4.5>] [--budget auto|low|medium|high] [--effort <low|medium|high|xhigh>] [--max-turns <n>]  # --repo names from .meta-dev/repos.json"
+description: "Run a bounded direct task with headless Grok Build. Default grok-4.6; select model, effort, and workflow depth from configured policy. Preserve sandbox and scope boundaries."
 ---
 
 # /grok-execute — Grok Headless Execution
 
-Spawn a headless **xAI Grok** worker (`grok --prompt-file … --output-format json`) to run a task, then report the result back. You stay on your current backend (Opus) for orchestration while Grok does a bounded, focused job.
+Spawn a headless **xAI Grok** worker (`grok --prompt-file … --output-format json`) to run a task, then report the result back. You stay on your current host for orchestration while Grok does a bounded, focused job.
 
 Uses `scripts/grok-headless-exec` under the hood, which emits the **same clean result contract** as `claude-headless-exec` and `codex-headless-exec` (`OUTPUT_FILE` = `{is_error, subtype, num_turns, duration_ms, session_id, result, usage, backend, stop_reason}`), so it plugs into `/auto-execute` exactly like `/deep-execute`, `/glm-execute`, and `/codex-execute`.
 
@@ -18,27 +18,27 @@ This command spawns **headless** Grok (`grok --prompt-file`). That is still Grok
 
 `/deep-execute`, `/opus-execute`, `/sonnet-execute`, `/fable-execute`, and `/glm-execute` spawn a full **Claude Code** instance — those workers *can* be told "run `/loop-gap` on this plan". A Grok worker cannot.
 
-**Brief this worker with a direct task**, or tell it to follow a named Grok skill / `SKILL.md` path. Say *"Fix the failing test in Z"* or *"Audit X for gap class Y and report findings"* — not *"run `/loop-gap` on this plan"* as if this were Claude Code. Tell it to **farm independent pieces to `spawn_subagent`**. The runner injects a Grok brief (`references/execute-briefs.md`). Do not reuse a DeepSeek or Codex paragraph. Full split: `references/work-ladder.md` → *Who has meta-dev*.
+**Brief this worker with a direct task**, or tell it to follow a named Grok skill / `SKILL.md` path. Say *"Fix the failing test in Z"* or *"Audit X for gap class Y and report findings"* — not *"run `/loop-gap` on this plan"* as if this were Claude Code. Let it own the assigned coherent slice. Delegate only authorized independent work within the shared worker cap. The runner injects a Grok brief (`references/execute-briefs.md`). Do not reuse a DeepSeek or Codex paragraph. Host loading and routing: `references/work-ladder.md` and `references/adaptive-workflow.md`.
 
 ## When to Use — full execution worker AND cross-family review
 
 Grok occupies a unique slot: it is **both** a general execution tier **and** a cross-family reviewer.
 
 - **As an executor:** Grok 4.6 is a frontier-tier model that **can write files** (like Codex under `--sandbox workspace-write`) — so it can do real bounded implementation work (fixes, refactors, scaffolding), not just read-and-report. Use grok-4.5 / `--effort low` for collect and mechanical; grok-4.6 for ordinary and hard.
-- **As a reviewer:** Point it (read-only via `--readonly`) at a diff, the changed files, or a specific finding. An xAI-family model reviewing Claude/DeepSeek/OpenAI output is a **third independent family** — it catches failure modes that same-family review (and even the OpenAI/Codex lens) miss. That independent-family lens is the entire value of Grok-as-reviewer.
+- **As a reviewer:** Point it (read-only via `--readonly`) at a diff, the changed files, or a specific finding. A different model family can provide independent evidence, but this is an optional risk-based review, not a guaranteed defect detector or mandatory extra pass.
 
-**Where it sits on the work ladder:** Grok is the **main driver** of the execute pool (`meta_dev.ladder.pool` = `grok`, `codex`). Codex is used **liberally** (Spark/Luna collect, Terra ordinary, Sol hard). Opus / Sonnet are rare (UI + extra-family review). **DeepSeek is paused.** **Grok Heavy** is a large compute bucket — spend Grok 4.6 on ordinary and hard work; use **grok-4.5** / `--effort low` for collect and mechanical. Full table: `references/work-ladder.md` · picker: project `.claude/context/harness/subagent-picker.md`.
+**Routing:** resolve `meta_dev.ladder` and `meta_dev.workflow` through the shared settings cascade. Grok is an available backend, not a mandatory default pool member. Select it based on verified access and task fit; quota, provider preference, and cross-family review are opt-in configuration. See `references/work-ladder.md` and `references/adaptive-workflow.md`.
 
 ## Test discipline — keep every test cycle cheap
 
-When the task runs tests, **focus-scope, always.** Run only the named test file/node. NEVER bare/directory pytest, `-k` without a file, package-wide npm/Vitest/Jest, `npm run check`, `svelte-check`, project-wide `tsc`, a build, or a full suite—not per task and not at phase end. Those belong to CI/ship or a separate explicit request. One green is green; never rerun it. Unrelated/unchanged `BASELINE_RED` never blocks optimistic momentum. (Grok cannot rely on reading the charter internally, so this clause IS the rule for Grok runs.)
+When the task runs tests, **focus-scope, always.** Run only the named test file/node. NEVER bare/directory pytest, `-k` without a file, package-wide npm/Vitest/Jest, `npm run check`, `svelte-check`, project-wide `tsc`, a build, or a full suite—not per task and not at phase end. Those belong to CI/ship or a separate explicit request. Reuse green evidence only while its relevant code and dependencies remain unchanged. Unrelated/unchanged `BASELINE_RED` never blocks optimistic momentum. (Grok cannot rely on reading the charter internally, so this clause IS the rule for Grok runs.)
 
 ## Step 1: Parse Arguments
 
 The user's input is: `$ARGUMENTS`
 
 Parse these optional flags:
-- `--repo <name>` — target repo (default: auto-detect from cwd; names from .claude/meta-dev-repos.json)
+- `--repo <name>` — target repo (default: auto-detect from cwd; names from .meta-dev/repos.json)
 - `--readonly` — enforced read-only (deny Write/Edit). Use for all audits/reviews. Grok's deny-rule sandbox blocks every write path (write tool, shell redirection, search_replace) — verified empirically.
 - `--model <grok-4.6|grok-4.5>` — override grok model (default: `grok-4.6`, pinned). `grok-4.5` is still supported. An explicit `--model` from the user always wins.
 - `--budget auto|low|medium|high` — **depth cap** (default `auto`). Classify the task before dispatch: mechanical → `low`, ordinary → `medium`, hard/auth/schema/pipeline → `high`. Unsure → `medium`. Forward the **resolved** word (`low|medium|high`), never `auto`, unless you want the runner's medium fallback. Caps turns and wall clock so the worker cannot wander. Not `--effort`. Doctrine: `references/execute-budget.md`.
@@ -79,7 +79,7 @@ If the task is destructive or writes outside the repo, confirm with the user fir
 Run the headless worker. For tasks expected to take >30s, use `run_in_background: true` so the session stays responsive.
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/grok-headless-exec \
+${PLUGIN_ROOT}/scripts/grok-headless-exec \
   ${REPO:+--repo "$REPO"} \
   ${MODEL:+--model "$MODEL"} \
   --budget "$BUDGET" \
@@ -115,4 +115,4 @@ When execution completes:
 - `--readonly` enforces read-only via Grok's deny rules (`--deny Write --deny Edit`), which block every write path including shell redirections. It is NOT paired with `bypassPermissions` (that would defeat it).
 - Execute mode uses `--permission-mode bypassPermissions --always-approve` — full autonomy to edit files **and to commit**. The worker **must** `git -C <ABS> add -- <paths> && git -C <ABS> commit --only -m "…" -- <paths>` before returning (commit-on-red). Never push; the conductor owns the remote.
 - Uncommitted Grok edits are a **bug**, not a feature. Do not write "the conductor commits" into a Grok brief.
-- **Budget is not the constraint** — the grok.com account is on **Grok Heavy**, a large compute bucket, so route work here liberally rather than rationing it. The one thing that still matters is scoping: a well-specified task returns a better result than a vague one, on any model.
+- Account access, quota, and concurrency limits vary. Check the target environment; never assume a subscription or unlimited capacity.

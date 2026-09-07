@@ -1,59 +1,35 @@
 ---
 name: glm-execute
-argument-hint: <task description> [--repo <name>] [--readonly] [--budget auto|low|medium|high] [--model <model>]  # --repo names from .claude/meta-dev-repos.json
+argument-hint: <task description> [--repo <name>] [--readonly] [--budget auto|low|medium|high] [--model <model>]  # --repo names from .meta-dev/repos.json
 description: Execute a task via headless GLM Claude Code — spawns a separate Claude Code instance on the GLM (Z.AI) backend, executes the task, and reports results
 ---
 
 # /glm-execute — GLM Headless Execution
 
-Spawn a headless Claude Code worker on the **GLM (Z.AI)** backend to execute a task, then report the results back. The worker runs independently — you stay on your current backend (Opus/DeepSeek) for orchestration while GLM handles the execution with its strong frontend/Svelte capabilities.
+Spawn a headless Claude Code worker on the **GLM (Z.AI)** backend to execute a task, then report the results back. The worker runs independently — you stay on your current host for orchestration while GLM handles the assigned task.
 
 Uses `scripts/claude-headless-exec --backend glm` under the hood.
 
 **The worker is a full Claude Code instance — it is not limited to code execution.** Its "task" can be any prompt (research, design draft, audit, refactor, investigate) **or an explicit meta-dev command to run internally** — `/meta-execute`, `/meta-planner`, `/loop-gap`, `/meta-eval`, `/sniff`, etc. Pair with `--readonly` for read-only ops (research/review/audit). This makes it a general worker for any waterfall stage, not just EXECUTE.
 
-**Harness:** this worker **is** Claude Code, so Claude slash commands work inside it. Interactive Grok and Codex hosts **also** have meta-dev (Grok skills/slash; Codex `$meta-dev:*`). A **headless** `/grok-execute` or `/codex-execute` worker is not Claude Code — brief those with a direct task (Codex: `--skill`/`--command`), not "run `/loop-gap`". Full split: `references/work-ladder.md` → *Who has meta-dev*.
+**Harness:** this worker **is** Claude Code, so Claude slash commands work inside it. Interactive Grok and Codex hosts **also** have meta-dev (Grok skills/slash; Codex `$meta-dev:*`). A **headless** `/grok-execute` or `/codex-execute` worker is not Claude Code — brief those with a direct task (Codex: `--skill`/`--command`), not "run `/loop-gap`". Host loading and routing: `references/work-ladder.md` and `references/adaptive-workflow.md`.
 
-## When to Use
+## Scope and routing
 
-GLM is **named-only**. The pooled drivers are Grok 4.6 and Codex Terra/Sol. Mechanical leaves go to Spark / Luna / grok-4.5. Do not auto-select GLM or DeepSeek.
+Use GLM when selected by the user or configured backend pool and supported by current credentials. Do not assume a project stack or personal backend preference. Use measured task fit and `references/work-ladder.md` plus `references/adaptive-workflow.md`.
 
-**Reach for GLM when:**
-- **Long-horizon / multi-phase execution** — whole-plan `/meta-execute`, multi-file refactors, anything where step N depends on steps 1..N-1. GLM stays on-task; this is its core edge.
-- **Frontend / Svelte / Flask** — GLM 5.2 excels at Svelte 5 runes and Flask template work and keeps design consistency across components.
-- **Hardening / review where judgment matters** — in head-to-head it found the subtler gap in fewer turns.
-- **Cross-backend verification** — have GLM review/verify work DeepSeek did (or vice versa).
-- **High-effort reasoning** — `CLAUDE_CODE_EFFORT_LEVEL=high` is set automatically; 1M context + 50-min timeout handle large, deep tasks.
-
-**Prefer the pool instead:** Codex Spark/Luna or grok-4.5 for mechanical/collect; Grok 4.6 or Terra for ordinary. GLM is **named-only**. DeepSeek is paused.
-
-**Rule of thumb:** *keep it whole on Grok 4.6 / Terra; break it small to Spark / Luna / grok-4.5.* GLM only when Phong names it.
-
-## Executing a phase/wave file (multi-phase meta-planner plans)
-
-When `/auto-execute` (or the user) hands you **one phase/wave file** from a multi-phase meta-planner plan — e.g. `plans/<repo>/<plan-dir>/00-master-plan.md` — that **single phase file is your entire unit of work for the round**. This is GLM's sweet spot: a cohesive, stateful, multi-task phase held on one thread.
-
-- **Follow the phase loop end-to-end.** Do NOT freelance task-by-task — the loop (claim → dispatch → verify → commit) is what keeps you on-thread across the phase's `Task N.1 → N.2 → …` sequence. The conductor owns the checkbox flip; you never edit one.
-  - *Claude Code worker (this command):* run `/meta-execute <phase-file>` internally.
-  - *Interactive Grok host:* `/meta-execute` is a Grok skill/slash — same plugin.
-  - *Interactive Codex host:* `$meta-dev:meta-execute` — same plugin.
-  - *Headless Grok/Codex worker:* read `workflow-skills/agentic-exec-loop/references/loop-protocol.md` and execute it directly (Codex: `--skill agentic-exec-loop`). Do not say "run `/loop-gap`" as a Claude slash.
-- **Read `00-master-plan.md` first** for cross-phase context, then execute **ONLY the one phase you were given** — never touch other `phase-*.md` files. `/auto-execute` owns phase ordering and reviews each phase between rounds.
-- **Follow the project test policy** — critical-breakage tests only; do not retrofit or over-test.
-- **Report** which tasks landed (SHAs) + anything that blocked, so the conductor can review the phase diff and advance to the next phase.
-
-**Empirical (2026-06-26, identical hardening-audit task):** GLM-5.2 — 9 turns · 178s, found a subtle runtime-binding gap. DeepSeek-V4-pro — 20 turns · 209s. GLM converged in ~½ the turns with sharper single-shot judgment — consistent with its long-horizon robustness.
+A worker may own its assigned bounded task or slice through focused verification. Keep per-task acceptance records and use `planctl` for state writes. A phase assignment does not authorize a recursive worker swarm; invoke `/meta-execute` internally only when orchestration was explicitly requested.
 
 ## Test discipline — keep every test cycle cheap
 
-When the task runs tests, **focus-scope, always.** Run only the named test file/node. NEVER bare/directory pytest, `-k` without a file, package-wide npm/Vitest/Jest, `npm run check`, `svelte-check`, project-wide `tsc`, a build, or a full suite—not per task and not at phase end. Those belong to CI/ship or a separate explicit request. One green is green; never rerun it. Unrelated/unchanged `BASELINE_RED` never blocks optimistic momentum. (Canonical: `references/execute-charter.md` → Focused Verification Doctrine.)
+When the task runs tests, **focus-scope, always.** Run only the named test file/node. NEVER bare/directory pytest, `-k` without a file, package-wide npm/Vitest/Jest, `npm run check`, `svelte-check`, project-wide `tsc`, a build, or a full suite—not per task and not at phase end. Those belong to CI/ship or a separate explicit request. Reuse green evidence only while its relevant code and dependencies remain unchanged. Unrelated/unchanged `BASELINE_RED` never blocks optimistic momentum. (Canonical: `references/execute-charter.md` → Focused Verification Doctrine.)
 
 ## Step 1: Parse Arguments
 
 The user's input is: `$ARGUMENTS`
 
 Parse these optional flags:
-- `--repo <name>` — target repo (default: auto-detect from cwd; names from .claude/meta-dev-repos.json)
+- `--repo <name>` — target repo (default: auto-detect from cwd; names from .meta-dev/repos.json)
 - `--readonly` — restrict to read-only tools (review/analysis tasks)
 - `--claim <plan-dir>` — **concurrency safety (shared tree):** claim this plan directory before dispatch. The wrapper ABORTS if another live session holds an overlapping scope, and auto-releases on exit. Use whenever the worker edits `plans/**`. (`--claim-warn` warns instead of aborting.) See `references/execute-charter.md` → Concurrency Safety.
 - `--model <model>` — override default model (default: `glm-5.2`; haiku-tier: `glm-4.5`)
@@ -78,21 +54,11 @@ If the task is destructive (deletes files, drops data, modifies prod), confirm w
 
 Run the headless worker. For tasks expected to take >30 seconds, use `run_in_background: true` so the session stays responsive.
 
-**GLM concurrency pre-flight — the ~3-slot ceiling.** Z.AI's `glm-5.2` allows only **~3 concurrent requests for the whole account**, shared with ALL your live GLM sessions (interactive Claude Code + headless workers). Before launching, count active GLM sessions:
-
-```bash
-# each live claude proc pointed at Z.AI eats one of the ~3 slots
-active=$(for p in $(pgrep -x claude); do
-  tr '\0' '\n' < /proc/$p/environ 2>/dev/null | grep -q '^ANTHROPIC_BASE_URL=https://api.z.ai' && echo x
-done | wc -l)
-echo "active GLM sessions: $active (ceiling ~3)"
-```
-
-If `$active` is already **3**, do NOT launch yet — the worker will oversubscribe and risk a slow 529 timeout. Wait for a slot to free (close/idle another GLM session) or queue the task. At 0–2 active, launch freely: the beta-strip proxy now retries `[1305]` for ~2 min, so a worker usually survives bursty contention by catching gaps between your sessions' requests. **Never fan out multiple GLM workers in parallel — serialize them** (see agentic-exec-loop protocol).
+**Concurrency preflight:** verify account and host capacity, then clamp the shared worker cap to available slots. If capacity is unknown, serialize this backend conservatively. Do not inspect other sessions' environment contents or assume a universal account quota. Queue work when no slot is available.
 
 ```bash
 # Build the command
-${CLAUDE_PLUGIN_ROOT}/scripts/claude-headless-exec \
+${PLUGIN_ROOT}/scripts/claude-headless-exec \
   --backend glm \
   --repo <repo> \
   --model <model> \
@@ -122,12 +88,12 @@ When execution completes:
 1. **Read `OUTPUT_FILE`** (or the printed `RESULT` block) — it is already clean JSON; no array-parsing needed.
 2. **Check `is_error`** (and the `Exit code`/`is_error` lines in the summary) — exit `3` = distill failed (inspect `.raw`), exit `4` = the worker reported `is_error:true`.
 3. **Summarize** — what the worker did, files touched, any issues.
-4. **Next steps** — if the worker left work incomplete, suggest what to do next; remind the user changes are **not** auto-committed.
+4. **Next steps** — report scoped commit SHAs, per-outcome verification, and unfinished work. Do not push from the worker.
 
 ## Safety Notes
 
 - The headless worker runs with the tools specified (default: Read,Write,Edit,Bash,Grep,Glob)
 - `--readonly` restricts to Read,Bash,Grep — use for audits/reviews
-- The worker's changes are NOT automatically committed — remind the user to review and commit
+- For authorized edits, the worker commits only its scoped files; read-only work creates no commit.
 - GLM API key must be set (`GLM_API_KEY` env var) — the script checks this
 - GLM workers automatically get `CLAUDE_CODE_EFFORT_LEVEL=high` and `API_TIMEOUT_MS=7200000` (120 min)

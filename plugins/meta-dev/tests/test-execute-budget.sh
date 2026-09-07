@@ -132,6 +132,21 @@ case "$PROMPT" in
     *) bad "agy brief missing" ;;
 esac
 
+for BACKEND in grok deep codex opus sonnet fable glm agy; do
+    PROMPT="Review the supplied contract without edits."
+    md_brief_wrap_prompt
+    case "$PROMPT" in
+        *"read-only work never edits or commits"*"per-outcome verification"*"Review the supplied contract without edits."*)
+            ok "$BACKEND preserves intent, slice evidence, and task" ;;
+        *) bad "$BACKEND lost task intent or slice evidence" ;;
+    esac
+    case "$PROMPT" in
+        *"Farm independent pieces"*|*"REVIEW unless"*|*"One acceptance."*)
+            bad "$BACKEND imposes conflicting delegation or role" ;;
+        *) ok "$BACKEND leaves ownership and role to task" ;;
+    esac
+done
+
 if grep -q 'md_brief_wrap_prompt' "$PLUGIN_ROOT/scripts/claude-headless-exec" \
     && grep -q 'md_brief_wrap_prompt' "$PLUGIN_ROOT/scripts/grok-headless-exec" \
     && grep -q 'md_brief_wrap_prompt' "$PLUGIN_ROOT/scripts/codex-headless-exec" \

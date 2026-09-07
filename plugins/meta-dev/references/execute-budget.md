@@ -37,7 +37,7 @@ Everything else is **medium**.
 Helper (prints one word: `low|medium|high`):
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/classify-execute-budget.sh" \
+bash "${PLUGIN_ROOT}/scripts/classify-execute-budget.sh" \
   --campaign auto -- "Rename getCwd across the project"
 ```
 
@@ -45,17 +45,23 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/classify-execute-budget.sh" \
 
 Campaign budget is a **ceiling**:
 
-- omitted / `auto` → classify **each task** independently
+- omitted / `auto` → classify each task; a coherent slice uses its highest member's classification
 - `low|medium|high` → no task may exceed that level; a mechanical task may still drop to low
 
 Forward the **resolved** `--budget low|medium|high` to every worker (headless
 flag, or the Budget block in `references/execute-dispatch.md` for host-native
 spawn). Do not dispatch uncapped.
 
-Review-only Opus/Codex passes on this tree stay one pass each. Budget `low`
-is enough for a `--readonly` extra-family scan unless the gate is genuinely
-hard — then `medium`. Never `high` on a review lens just because the execute
-wave was high.
+Review budget follows the review's ambiguity and risk, not its provider or the
+implementation budget. Start with a bounded pass and add specialists only for
+unresolved risks. A difficult security review can warrant `high`; model family
+alone cannot. Resolve reviewer counts and slice bounds through
+`references/adaptive-workflow.md`; backend availability and user limits come
+from `references/work-ladder.md` and the JSON settings cascade.
+
+Task visibility and focused evidence remain per outcome when one worker owns a
+slice. A larger context window does not raise the worker count, budget ceiling,
+or permissions. Host async tools and dynamic effort require confirmed support.
 
 ## Who classifies
 

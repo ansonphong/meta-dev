@@ -19,13 +19,13 @@ meta-dev is installed on **Claude Code, Codex, and Grok Build**.
 - Every dispatch injects a generated harness preamble: the framework root, the roster of all protocols (`skills/`) and procedures (`commands/`), the binding LAWS (planctl is the only write door; never hand-edit a checkbox; report failures honestly), and a Claude→Codex translation table. So the worker knows the harness exists and is told to use it — rather than freelancing, which is what a bare Codex dispatch does.
 - `--skill` / `--command` hand it the same markdown Claude Code reads, from the source tree. No install, no version-keyed cache to go stale.
 
-**Brief this worker with a direct task** (or `--skill` / `--command`). **Inline** the 30–60 lines that matter — Codex must not re-read a plan file to reconstruct the job. Never "run `/loop-gap` on this plan" as if this were Claude Code. The runner injects a Codex brief (`references/execute-briefs.md`). Claude-family headless (`/deep-execute`, `/opus-execute`, …) *can* run that slash internally. Full split: `references/work-ladder.md` → *Who has meta-dev*.
+**Brief this worker with a direct task** (or `--skill` / `--command`). **Inline** the 30–60 lines that matter — supply the acceptance contract and live-code anchors, with targeted reads when needed. Never "run `/loop-gap` on this plan" as if this were Claude Code. The runner injects a Codex brief (`references/execute-briefs.md`). Claude-family headless (`/deep-execute`, `/opus-execute`, …) *can* run that slash internally. Host loading and routing: `references/work-ladder.md` and `references/adaptive-workflow.md`.
 
 The runner's fallback remains `gpt-5.6-terra`/`medium`. Configured routes remain Sol for plan/harden/review, Terra for execution/lightweight work, and Spark for mechanical work. Astra is opt-in. State the selected tier and effort before dispatching. An explicit `--tier`, `--effort`, or `--model` from the user always wins, subject to model effort support.
 
 ## Test discipline — keep every test cycle cheap
 
-When the task runs tests, **focus-scope, always.** Run only the named test file/node — `pytest path/to/test_x.py -q` (add `-m "not slow and not gpu and not integration"` if the suite marks them). NEVER bare/directory pytest, `pytest -k` without a file, package-wide npm/Vitest/Jest, `npm run check`, `svelte-check`, project-wide `tsc`, a build, or a full suite—not per task and not at phase end. Those belong to CI/ship or a separate explicit user request. One green is green; worker and conductor never repeat it. Classify results as `FOCUSED_PASS`, causally proven `TASK_RED`, unrelated/unchanged `BASELINE_RED`, `INFRA_RED`, or `BROAD_VERIFY_OMITTED`. Only `TASK_RED` repairs/defer its direct branch; optimistic momentum continues everywhere else. (Codex cannot rely on reading the charter internally, so this clause IS the rule for Codex runs; the dispatcher also injects it.)
+When the task runs tests, **focus-scope, always.** Run only the named test file/node — `pytest path/to/test_x.py -q` (add `-m "not slow and not gpu and not integration"` if the suite marks them). NEVER bare/directory pytest, `pytest -k` without a file, package-wide npm/Vitest/Jest, `npm run check`, `svelte-check`, project-wide `tsc`, a build, or a full suite—not per task and not at phase end. Those belong to CI/ship or a separate explicit user request. Reuse green evidence only while its relevant code and dependencies remain unchanged. Classify results as `FOCUSED_PASS`, causally proven `TASK_RED`, unrelated/unchanged `BASELINE_RED`, `INFRA_RED`, or `BROAD_VERIFY_OMITTED`. Only `TASK_RED` repairs/defer its direct branch; optimistic momentum continues everywhere else. (Codex cannot rely on reading the charter internally, so this clause IS the rule for Codex runs; the dispatcher also injects it.)
 
 ## Step 1: Parse Arguments
 
@@ -35,7 +35,7 @@ Parse these flags:
 - `--repo <name>`: target repo; otherwise detect from `pwd`.
 - `--readonly`: force the `read-only` sandbox.
 - `--tier <spark|luna|terra|sol|astra>`: model family selection.
-- `--budget auto|low|medium|high`: **depth cap** (default `auto`). Classify before dispatch — review lens → `low` or `medium`, never `high` just because execute was high. Forward the resolved word. Doctrine: `references/execute-budget.md`.
+- `--budget auto|low|medium|high`: depth cap (default `auto`). Classify this task or review's scope and risk; do not inherit implementation depth for a simple review. See `references/execute-budget.md`.
 - `--effort <none|low|medium|high|xhigh|max|ultra>`: override the tier's reasoning effort. Explicit `--effort` wins over `--budget`. Astra supports every listed effort except `none`; other models depend on their catalog support.
 - `--model <model>`: exact Codex model ID; it overrides tier selection but not a supplied effort.
 - `--sandbox <mode>`: `read-only`, `workspace-write`, or `danger-full-access`.
@@ -45,7 +45,7 @@ Parse these flags:
 - `--no-framework`: omit the harness preamble. Only for trivial one-shots (a lookup, a probe) — never for real work.
 - `--multi-agent`: enable Codex `spawn_agent` (4 concurrent). Native delegation may select models when the host exposes that capability. Under-development flag; opt-in deliberately.
 
-Workers receive delegation guidance using Terra for bounded execution and Sol for judgment. Selecting Astra does not change those defaults.
+Resolve ownership and worker caps through `references/adaptive-workflow.md`. A Sol/Astra worker may own a bounded coherent slice; do not require nested delegation per checkbox. Model selection does not imply host async tools, dynamic effort, or additional permissions.
 
 Everything else is the task. Ask for a task if none is provided.
 
@@ -97,9 +97,9 @@ These tier defaults apply with `--budget auto` or `medium`. Without explicit `--
 |-----------|---------|
 | Pure analysis; answer only in the worker return; no file, no commit | `--readonly` OK |
 | Any on-disk deliverable: gap report, plan/brainstorm/design edit, code, commit, fixture, artifact under `plans/` | **`workspace-write` (omit `--readonly`)** |
-| User said `--readonly` but task needs a file | workspace-write, **or** demand the **entire report in the final message** — never “write X.md” under readonly |
+| User said `--readonly` but task needs a file | Keep read-only and return the report in the final message, or ask for permission to write; never silently widen the sandbox |
 
-Hard rules: brief says “write X.md” / “commit” / “gap-report” → **no `--readonly`**. Gap scans and reviews-with-artifact default **workspace-write**. Under readonly, results live in the return only. `workspace-write` must allow `.git` when commits are required — never “conductor commits for Codex.”
+When writes are authorized, a named on-disk artifact needs **workspace-write**. An explicit read-only restriction remains binding: return results in the final message or ask for write permission. `workspace-write` must allow `.git` when commits are required — never “conductor commits for Codex.”
 
 For a review, explanation, or diagnosis **with no artifact**, make no changes and select `--readonly`. For gap reports, plan harden artifacts, or any named output path, use **`workspace-write`**. For a change, build, or fix request, make only the in-scope local changes and run relevant non-destructive, path-scoped validation. Require confirmation for external writes, destructive operations, purchases, or a material scope expansion.
 
@@ -111,12 +111,12 @@ Before running, summarize:
 - **Task:** direct bounded instruction with success criteria and relevant paths.
 - **Sandbox:** read-only or workspace-write, with the reason.
 
-**Inline the task — do not reference it.** Put the acceptance criteria and the relevant plan/design excerpt directly in the task text you pass with `--`. Do not point Codex at a plan file to reconstruct what to do: it will re-read that file repeatedly and the re-reads dominate the run. Paste the ~30–60 lines that matter — far cheaper than a dozen re-reads of the whole file.
+**Inline the task contract.** Include acceptance criteria, task handles, scoped paths, and relevant plan/design excerpts in the text passed with `--`. Include live-code anchors for targeted inspection. Avoid repeated full-plan reads; do not forbid the reads needed to verify a stale anchor or dependency. A coherent slice retains an acceptance record for each outcome.
 
 If the task writes, confirm the requested scope is authorized. If it is destructive or writes outside the repo, obtain explicit confirmation.
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/codex-headless-exec \
+${PLUGIN_ROOT}/scripts/codex-headless-exec \
   ${REPO:+--repo "$REPO"} \
   --budget "$BUDGET" \
   --tier "$TIER" \
@@ -134,11 +134,11 @@ The runner maps tiers to the model IDs in Step 2, including `astra` → `gpt-6-a
 
 ```bash
 # Astra tier default: high
-${CLAUDE_PLUGIN_ROOT}/scripts/codex-headless-exec --tier astra --readonly -- "Review the supplied diff for correctness; return findings only."
+${PLUGIN_ROOT}/scripts/codex-headless-exec --tier astra --readonly -- "Review the supplied diff for correctness; return findings only."
 # Explicit effort wins even over a low execution budget
-${CLAUDE_PLUGIN_ROOT}/scripts/codex-headless-exec --tier astra --effort ultra --budget low --readonly -- "Evaluate the supplied algorithm against the stated invariants."
+${PLUGIN_ROOT}/scripts/codex-headless-exec --tier astra --effort ultra --budget low --readonly -- "Evaluate the supplied algorithm against the stated invariants."
 # Exact model override with balanced Astra reasoning
-${CLAUDE_PLUGIN_ROOT}/scripts/codex-headless-exec --model gpt-6-astra --effort medium --readonly -- "Explain the supplied function."
+${PLUGIN_ROOT}/scripts/codex-headless-exec --model gpt-6-astra --effort medium --readonly -- "Explain the supplied function."
 ```
 
 ## Step 4: Report Results

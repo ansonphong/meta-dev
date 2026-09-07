@@ -1,6 +1,6 @@
 ---
 name: antigravity-execute
-argument-hint: "<task description> [--repo <name>] [--readonly] [--flash|--pro|--opus|--sonnet|--oss] [--model <id>] [--budget auto|low|medium|high] [--effort low|medium|high]  # --repo names from .claude/meta-dev-repos.json"
+argument-hint: "<task description> [--repo <name>] [--readonly] [--flash|--pro|--opus|--sonnet|--oss] [--model <id>] [--budget auto|low|medium|high] [--effort low|medium|high]  # --repo names from .meta-dev/repos.json"
 description: "Execute a task via headless Google Antigravity CLI (agy). NOT Claude Code and NOT the retired Gemini CLI. Default gemini-3.7-flash-high (1M context, native multimodal, Search grounding). --opus is Claude Opus 4.6 Thinking on Google quota. Named-only — never pooled. Brief a DIRECT task, never a Claude slash."
 ---
 
@@ -19,41 +19,41 @@ Alias: `/agy-execute` (identical).
 | **Harness** | Google Antigravity CLI (`agy` 1.1+). Same agent core as Antigravity 2.0. **Not** Claude Code. **Not** the retired `gemini` CLI. |
 | **Default** | `gemini-3.7-flash-high` — **Gemini 3.7 Flash**, GA coding/agent workhorse. Pinned so the TUI's last model cannot leak. |
 | **Gemini strengths** | **1M-token** whole-repo investigation; **native** image / video / audio (no `--vision` flag — Flash already sees); **Google Search grounding**; Flash-speed agent loop; `--pro` → Gemini 3.1 Pro for harder reasoning. |
-| **Claude on Google's dime** | `--opus` → **Claude Opus 4.6 (Thinking)**; `--sonnet` → **Claude Sonnet 4.6**. Billed against **Antigravity / Google AI quota**, not Anthropic. Separate Claude+GPT bar from Gemini. **Not Claude Code** — no `/meta-execute` inside, Opus **4.6** not 4.8/5. Starter quota dies fast on Opus — do not farm it. |
+| **Claude on Google's dime** | `--opus` → **Claude Opus 4.6 (Thinking)**; `--sonnet` → **Claude Sonnet 4.6**. Billed against **Antigravity / Google AI quota**, not Anthropic. Separate Claude+GPT bar from Gemini. **Not Claude Code** — no `/meta-execute` inside, Opus **4.6** not 4.8/5. Verify model access and account limits before dispatch. |
 | **Also** | `--oss` → GPT-OSS 120B (same Claude+GPT quota bar). |
 | **Writes** | Yes (`--mode accept-edits --dangerously-skip-permissions`). `--readonly` → `--mode plan`. Commit-on-red. |
-| **Pool** | **Parked / named-only.** Never auto-selected. Never added to `meta_dev.ladder.pool`. Dispatch only when Phong named `/antigravity-execute` / `--agy` this turn. |
+| **Pool** | **Parked / named-only.** Never auto-selected. Never added to `meta_dev.ladder.pool`. Dispatch only when the user named `/antigravity-execute` / `--agy` this turn. |
 | **Cannot** | Run Claude slash commands. Nested subagents (agy blocks child-spawns). Be a 4th interactive host. |
 
-Reach for it when the **task** wants Gemini's 1M context, Search-grounded freshness, or native video/audio — or when Phong wants Google-quota Claude as a fourth-family lens. Do **not** reach for it as a Grok substitute. Do **not** auto-farm inner checkbox workers here.
+Use this explicitly selected backend when its verified capabilities fit the task. Do not assume account quota or create nested workers; follow `references/adaptive-workflow.md` for bounded ownership.
 
 ## Harness — this worker is not Claude Code
 
 meta-dev is on Claude Code, Codex, and Grok Build. **Antigravity does not load meta-dev.** Headless `agy` is Google's harness.
 
-**Brief a DIRECT task.** Say *"Audit X and report findings"* — never *"run `/loop-gap`"*. Do not point it at a meta-dev `SKILL.md`. The runner injects an Antigravity brief (`references/execute-briefs.md`). Full split: `references/work-ladder.md` → *Who has meta-dev*.
+**Brief a DIRECT task.** Say *"Audit X and report findings"* — never *"run `/loop-gap`"*. Do not point it at a meta-dev `SKILL.md`. The runner injects an Antigravity brief (`references/execute-briefs.md`). Host loading and routing: `references/work-ladder.md` and `references/adaptive-workflow.md`.
 
 ## When to Use
 
-**Reach for Antigravity when Phong named it, and the shape matches:**
+**Reach for Antigravity when the user explicitly selected it, and the shape matches:**
 
 - Whole-repo / monorepo investigation that wants **1M context**
 - Native multimodal (screenshot **and** video/audio — DeepSeek Vision is images-only)
 - Search-grounded "what is current" lookup while editing
 - Extra-family review on Google's Claude Opus 4.6 bar (`--opus --readonly`) — one pass, not a swarm
 
-**Prefer the pool instead:** mechanical/collect → Spark/Luna or grok-4.5; multi-file implement → Grok `spawn_subagent` / `/grok-execute` or Codex Terra. Antigravity is the Google lens, **named-only**, not the daily executor. DeepSeek is paused.
+**Other routes:** use the configured pool and capability policy in `references/work-ladder.md`. No backend is globally paused by account-specific assumptions.
 
 ## Test discipline — keep every test cycle cheap
 
-When the task runs tests, **focus-scope, always.** Run only the named test file/node. NEVER bare/directory pytest, `-k` without a file, package-wide npm/Vitest/Jest, `npm run check`, `svelte-check`, project-wide `tsc`, a build, or a full suite—not per task and not at phase end. Those belong to CI/ship or a separate explicit request. One green is green; never rerun it. Unrelated/unchanged `BASELINE_RED` never blocks optimistic momentum. (Antigravity cannot rely on reading the charter internally, so this clause IS the rule for agy runs.)
+When the task runs tests, **focus-scope, always.** Run only the named test file/node. NEVER bare/directory pytest, `-k` without a file, package-wide npm/Vitest/Jest, `npm run check`, `svelte-check`, project-wide `tsc`, a build, or a full suite—not per task and not at phase end. Those belong to CI/ship or a separate explicit request. Reuse green evidence only while its relevant code and dependencies remain unchanged. Unrelated/unchanged `BASELINE_RED` never blocks optimistic momentum. (Antigravity cannot rely on reading the charter internally, so this clause IS the rule for agy runs.)
 
 ## Step 1: Parse Arguments
 
 The user's input is: `$ARGUMENTS`
 
 Parse these optional flags:
-- `--repo <name>` — target repo (default: auto-detect; names from `.claude/meta-dev-repos.json`)
+- `--repo <name>` — target repo (default: auto-detect; names from `.meta-dev/repos.json`)
 - `--readonly` — plan mode, no writes (audits/reviews)
 - `--flash` — Gemini 3.7 Flash (default)
 - `--pro` — Gemini 3.1 Pro
@@ -98,7 +98,7 @@ If the task is destructive or writes outside the repo, confirm first. For review
 For tasks expected to take >30s, use `run_in_background: true`.
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/agy-headless-exec \
+${PLUGIN_ROOT}/scripts/agy-headless-exec \
   ${REPO:+--repo "$REPO"} \
   ${MODEL:+--model "$MODEL"} \
   ${FLASH:+--flash} ${PRO:+--pro} ${OPUS:+--opus} ${SONNET:+--sonnet} ${OSS:+--oss} \
@@ -132,4 +132,4 @@ When execution completes:
 - `--readonly` is `--mode plan`. Do not pair it with `--disable-slash-commands` (that voids plan mode).
 - Execute mode uses `--dangerously-skip-permissions`. The worker **must** `git -C <ABS> add -- <paths> && git -C <ABS> commit --only -m "…" -- <paths>` before returning. Never push.
 - Uncommitted agy edits are a **bug**. Do not write "the conductor commits" into an Antigravity brief.
-- **Quota is the constraint** — Starter is weekly and small. Gemini Flash is the spendable default. Opus/Sonnet share a **separate** Claude+GPT bar that dies in minutes on agent work. Do not swarm `--opus`.
+- Quotas vary by account and provider route. Confirm available capacity; never assume starter-tier limits or a universal quota pool.
