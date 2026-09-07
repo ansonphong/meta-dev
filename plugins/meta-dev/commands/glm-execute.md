@@ -20,6 +20,18 @@ Use GLM when selected by the user or configured backend pool and supported by cu
 
 A worker may own its assigned bounded task or slice through focused verification. Keep per-task acceptance records and use `planctl` for state writes. A phase assignment does not authorize a recursive worker swarm; invoke `/meta-execute` internally only when orchestration was explicitly requested.
 
+## Read-only evidence
+
+`--readonly` overrides `--tools` in either argument order and exposes only
+Read, Glob, and Grep. It disables shell commands, delegation, skill execution,
+MCP integrations, and ambient customization sources; it does not use permission
+bypass. Supply a scoped diff artifact and relevant files in the brief, because
+this worker cannot run `git diff` or tests. If evidence requires commands, use
+an authorized native reviewer with verified read-only tooling, or have the
+caller produce the artifact. Missing evidence must be reported, not invented.
+The launcher still writes its own result/log artifacts; the worker cannot edit
+project files through its available tools.
+
 ## Test discipline — keep every test cycle cheap
 
 When the task runs tests, **focus-scope, always.** Run only the named test file/node. NEVER bare/directory pytest, `-k` without a file, package-wide npm/Vitest/Jest, `npm run check`, `svelte-check`, project-wide `tsc`, a build, or a full suite—not per task and not at phase end. Those belong to CI/ship or a separate explicit request. Reuse green evidence only while its relevant code and dependencies remain unchanged. Unrelated/unchanged `BASELINE_RED` never blocks optimistic momentum. (Canonical: `references/execute-charter.md` → Focused Verification Doctrine.)
@@ -30,7 +42,7 @@ The user's input is: `$ARGUMENTS`
 
 Parse these optional flags:
 - `--repo <name>` — target repo (default: auto-detect from cwd; names from .meta-dev/repos.json)
-- `--readonly` — restrict to read-only tools (review/analysis tasks)
+- `--readonly` — expose only Read,Glob,Grep (no shell, writes, delegation, MCP, or skills)
 - `--claim <plan-dir>` — **concurrency safety (shared tree):** claim this plan directory before dispatch. The wrapper ABORTS if another live session holds an overlapping scope, and auto-releases on exit. Use whenever the worker edits `plans/**`. (`--claim-warn` warns instead of aborting.) See `references/execute-charter.md` → Concurrency Safety.
 - `--model <model>` — override default model (default: `glm-5.2`; haiku-tier: `glm-4.5`)
 - `--budget auto|low|medium|high` — **depth cap** (default `auto`). Classify before dispatch. Doctrine: `references/execute-budget.md`.
@@ -93,7 +105,7 @@ When execution completes:
 ## Safety Notes
 
 - The headless worker runs with the tools specified (default: Read,Write,Edit,Bash,Grep,Glob)
-- `--readonly` restricts to Read,Bash,Grep — use for audits/reviews
+- `--readonly` restricts to Read,Glob,Grep — use for audits/reviews
 - For authorized edits, the worker commits only its scoped files; read-only work creates no commit.
 - GLM API key must be set (`GLM_API_KEY` env var) — the script checks this
 - GLM workers automatically get `CLAUDE_CODE_EFFORT_LEVEL=high` and `API_TIMEOUT_MS=7200000` (120 min)

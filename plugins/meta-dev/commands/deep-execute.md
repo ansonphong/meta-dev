@@ -55,6 +55,18 @@ For a delegated phase, retain its explicit scope and per-task acceptance records
 
 See `references/work-ladder.md` and `references/adaptive-workflow.md` for routing, risk floors, ownership, and resource caps.
 
+## Read-only evidence
+
+`--readonly` overrides `--tools` in either argument order and exposes only
+Read, Glob, and Grep. It disables shell commands, delegation, skill execution,
+MCP integrations, and ambient customization sources; it does not use permission
+bypass. Supply a scoped diff artifact and relevant files in the brief, because
+this worker cannot run `git diff` or tests. If evidence requires commands, use
+an authorized native reviewer with verified read-only tooling, or have the
+caller produce the artifact. Missing evidence must be reported, not invented.
+The launcher still writes its own result/log artifacts; the worker cannot edit
+project files through its available tools.
+
 ## Test discipline — keep every test cycle cheap
 
 When the task runs tests, **focus-scope, always.** Run only the named test file/node. NEVER bare/directory pytest, `-k` without a file, package-wide npm/Vitest/Jest, `npm run check`, `svelte-check`, project-wide `tsc`, a build, or a full suite—not per task and not at phase end. Those belong to CI/ship or a separate explicit request. Reuse green evidence only while its relevant code and dependencies remain unchanged. Unrelated/unchanged `BASELINE_RED` never blocks optimistic momentum. (Canonical: `references/execute-charter.md` → Focused Verification Doctrine.)
@@ -65,7 +77,7 @@ The user's input is: `$ARGUMENTS`
 
 Parse these optional flags:
 - `--repo <name>` — target repo (default: auto-detect from cwd; names from .meta-dev/repos.json)
-- `--readonly` — restrict to read-only tools (review/analysis tasks)
+- `--readonly` — expose only Read,Glob,Grep (no shell, writes, delegation, MCP, or skills)
 - `--claim <plan-dir>` — **concurrency safety (shared tree):** claim this plan directory before dispatch. The wrapper ABORTS if another live session holds an overlapping scope, and auto-releases on exit. Use whenever the worker edits `plans/**`. (`--claim-warn` warns instead of aborting.) See `references/execute-charter.md` → Concurrency Safety.
 - `--flash` — force Flash (`deepseek-v4-flash`). Alias of `--tier flash`. Binding when the user passed it.
 - `--pro` — force Pro (`deepseek-v4-pro`). Redundant with the default; use it to lock Pro against a Flash or Vision judgment.
@@ -134,6 +146,6 @@ When execution completes:
 ## Safety Notes
 
 - The headless worker runs with the tools specified (default: Read,Write,Edit,Bash,Grep,Glob)
-- `--readonly` restricts to Read,Bash,Grep — use for audits/reviews
+- `--readonly` restricts to Read,Glob,Grep — use for audits/reviews
 - For authorized edits, the worker commits only its scoped files; read-only work creates no commit.
 - DeepSeek API key must be set (`DEEPSEEK_API_KEY` env var) — the script checks this

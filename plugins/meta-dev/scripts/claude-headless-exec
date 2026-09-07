@@ -18,7 +18,7 @@
 #   --vision                 DeepSeek-only: deepseek-v4-flash-vision-exp (multimodal)
 #   --timeout <ms>           Timeout in ms (default: 7200000 = 120 min)
 #   --tools <list>           Comma-separated tool list (default: Read,Write,Edit,Bash,Grep,Glob)
-#   --readonly               Restrict to read-only tools (Read,Bash,Grep)
+#   --readonly               Restrict available tools to Read,Glob,Grep (no shell/delegation)
 #   --output json|text       Output format (default: json)
 #   --max-turns <n>          Max agent turns for the headless worker (default: unset)
 #   -h, --help               Show this help
@@ -206,7 +206,9 @@ auto-reset, instead of idling out the full 120-min cap):
                             exhaustion the run STOPS with exit 125 for review
   STALL_POLL_SECS=<s>       Output-size poll interval (default 30)
   --tools <list>            Comma-separated tools (default: Read,Write,Edit,Bash,Grep,Glob)
-  --readonly                Restrict to Read,Bash,Grep only
+  --readonly                Expose only Read,Glob,Grep; no shell, writes, or delegation.
+                            Overrides --tools regardless of argument order.
+                            Supply a diff artifact for reviews; the worker cannot run git.
   --claim <dir>             Claim this plan-dir scope in the cross-session
                             registry before dispatch; auto-released on exit.
                             ABORTS (no dispatch) if another live session holds
@@ -408,8 +410,19 @@ if ! command -v claude &>/dev/null; then
 fi
 
 # ── Readonly override ───────────────────────────────────────────────────
+PERMISSION_MODE="bypassPermissions"
+READONLY_FLAGS=()
 if [[ "$READONLY" == "true" ]]; then
-    TOOLS="Read,Bash,Grep"
+    # --allowedTools is an auto-approval rule, not the available tool set.
+    # Remove arbitrary execution and delegation at the CLI surface itself.
+    # Disable ambient MCP/skills/settings so they cannot restore write tools.
+    TOOLS="Read,Glob,Grep"
+    PERMISSION_MODE="dontAsk"
+    READONLY_FLAGS=(
+        --tools "$TOOLS"
+        --strict-mcp-config --mcp-config '{"mcpServers":{}}'
+        --disable-slash-commands --setting-sources "" --no-chrome
+    )
 fi
 
 # ── Resolve model ───────────────────────────────────────────────────────
@@ -686,7 +699,8 @@ START_TIME=$(date +%s)
 # Run headless Claude Code with the backend-specific env vars.
 # env(1) sets vars for just this child process — no shell-state leak.
 #   --no-session-persistence            Don't clutter the session resume list
-#   --permission-mode bypassPermissions Trust the --allowedTools gate
+# Write mode preserves its configured tool/permission behavior. Read-only mode
+# uses an explicit available-tool set and never bypasses permission checks.
 # stdout (the JSON payload) → RAW_FILE ; stderr (warnings) → STDERR_FILE.
 # Keeping the two streams apart is what makes OUTPUT_FILE cleanly parseable.
 cd "$WORK_DIR"
@@ -705,6 +719,13 @@ blocks DONE/checkbox/remote push, never the local commit. Never push, pull, or
 rebase; the conductor owns the remote. Read-only work creates no empty commit.
 ${VISION_NOTE}
 ${PROMPT}"
+if [[ "$READONLY" == "true" ]]; then
+    PROMPT="READ-ONLY WORKER: Only Read, Glob, and Grep are available. No shell,
+write, delegation, skill execution, browser, or MCP tools. Inspect supplied
+files and diff artifacts; if required evidence is absent, report the missing
+evidence instead of attempting a command or claiming an independent check.
+${PROMPT}"
+fi
 md_budget_wrap_prompt
 md_brief_wrap_prompt
 
@@ -734,9 +755,10 @@ stall_launch_worker() {
             "${STREAM_FLAGS[@]+"${STREAM_FLAGS[@]}"}" \
             --model "$MODEL" \
             --allowedTools "$TOOLS" \
+            "${READONLY_FLAGS[@]+"${READONLY_FLAGS[@]}"}" \
             --settings "$WORKER_SETTINGS_FILE" \
             --no-session-persistence \
-            --permission-mode bypassPermissions \
+            --permission-mode "$PERMISSION_MODE" \
             ${MAX_TURNS:+--max-turns "$MAX_TURNS"} \
             ${MAX_BUDGET_USD:+--max-budget-usd "$MAX_BUDGET_USD"} \
             > "$RAW_FILE" 2> "$STDERR_FILE" &
