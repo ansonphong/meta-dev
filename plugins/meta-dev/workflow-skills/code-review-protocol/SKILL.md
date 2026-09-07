@@ -14,7 +14,7 @@ across the five dimensions below.
 1. **Correctness** — Does it work? Logic errors, race conditions, off-by-one, type mismatches.
 2. **Safety** — Edge cases, auth bypass, data leakage, injection, money-path errors.
 3. **Patterns** — Follows project conventions? Naming, error handling, logging, module structure.
-4. **Coverage** — Tests added/updated? Edge cases covered? Snapshot drift explained?
+4. **Coverage** — Declared test policy and acceptance evidence satisfied? Relevant failure cases covered?
 5. **Scope** — Touches only declared files? No drive-by changes.
 
 See `references/review-dimensions.md` for full rubric.

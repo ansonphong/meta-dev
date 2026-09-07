@@ -18,7 +18,7 @@ architecture, security, or other human judgment. It never means "silently fix."
 | Criterion | Pass | Needs Fix |
 |-----------|------|-----------|
 | Auth check | Every mutation endpoint checks permissions | Missing permission decorator, user ID from URL not verified |
-| Input validation | Pydantic/schema validation on all public inputs | Raw user input passed to query, missing length limit |
+| Input validation | Boundary validation matches the project's contracts | Raw user input passed to query, missing required bounds |
 | Data leakage | No PII in logs, error messages, or responses | Stack trace in response, email in log, internal ID exposed |
 | Money path | Payment/balance operations idempotent | Race condition on balance update, no rollback on failure |
 
@@ -26,17 +26,22 @@ architecture, security, or other human judgment. It never means "silently fix."
 
 | Criterion | Pass | Needs Fix |
 |-----------|------|-----------|
-| Project conventions | Follows root AGENTS.md and routed project patterns | Deep import not used, wrong component pattern, old svelte 4 syntax |
-| File organization | Single responsibility per file | Mixed concerns, utility sprawl, >400 line module |
+| Project conventions | Follows root AGENTS.md and routed project patterns | Violates a declared interface or framework convention |
+| File organization | Responsibilities and boundaries are coherent | Mixed concerns that create a concrete maintenance or correctness risk |
 | Naming | Self-documenting names | Cryptic abbreviation, hungarian notation, misleading name |
 
 ## 4. Coverage
 
 | Criterion | Pass | Needs Fix |
 |-----------|------|-----------|
-| New code tested | Corresponding tests added | No tests for new functionality |
-| Edge cases | null/empty/unauthorized tested | Only happy path covered |
-| Existing evidence | Declared focused verifier is green or omission is explicit | Focused evidence is missing, unsound, or broken by the change |
+| Declared test policy | Required tests and focused acceptance evidence exist | A required test or acceptance check is missing |
+| Edge cases | Relevant boundary/failure cases have evidence proportional to risk | A critical reachable failure lacks required coverage |
+| Existing evidence | Task acceptance is established; omissions are honestly recorded | Evidence is missing, unsound, or broken by the change; omission is presented as a pass |
+
+Read the task's `test:` tag, project/user testing requirements, and configured
+test policy. Ordinary `test: no` work may pass using existing focused checks or
+other declared evidence; do not demand a new test per function or UI component.
+Required critical tests and human gates remain mandatory.
 
 ## 5. Scope
 

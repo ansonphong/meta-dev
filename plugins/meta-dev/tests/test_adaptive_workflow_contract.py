@@ -62,3 +62,11 @@ def test_measurement_preserves_unknown_usage_and_failure():
         jsonschema.validate(dict(record, accepted_outcomes=-1), schema)
     with pytest.raises(jsonschema.ValidationError):
         jsonschema.validate(dict(record, elapsed_seconds=-1), schema)
+
+
+def test_closing_review_uses_declared_policy_not_a_new_test_quota():
+    rubric = (ROOT / "workflow-skills/code-review-protocol/references/review-dimensions.md").read_text()
+    assert "Declared test policy" in rubric
+    assert "Ordinary `test: no` work may pass" in rubric
+    assert "No tests for new functionality" not in rubric
+    assert "Required critical tests and human gates remain mandatory" in rubric
