@@ -66,6 +66,7 @@ def _run_reconcile(monkeypatch, capsys, rel, checked):
     monkeypatch.setattr(reconcile.sync, "_needs_full", lambda _conn, _root: False)
     monkeypatch.setattr(
         reconcile, "_build_review_cache", lambda: {rel: ("pass", 1.0)})
+    monkeypatch.setattr(reconcile, "_lookup_review_verdict", lambda _cache, _rel: "pass")
     monkeypatch.setattr(reconcile, "_build_stage5_ts_cache", lambda: {})
     monkeypatch.setattr(
         reconcile, "_docs_evidence_gate",

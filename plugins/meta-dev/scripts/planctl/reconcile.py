@@ -33,7 +33,7 @@ import subprocess
 import sys
 import time
 
-from planctl import db, derive, events, inbox, parse, runbook, statedir, sync
+from planctl import db, derive, events, inbox, parse, review_evidence, runbook, statedir, sync
 
 
 
@@ -90,11 +90,11 @@ def _quiet_stdout(enabled):
 # ── Cached dual-log readers (read ONCE, not per-plan) ──────────────────────────
 
 def _build_review_cache():
-    """Read BOTH event logs ONCE; return ``{plan_rel: ('pass'|'fail', ts)}``.
+    """Read BOTH event logs ONCE; return ``{plan_rel: (verdict, ts, evidence)}``.
 
-    Until M4 flips to new-log-only, BOTH logs are authoritative. Later ``ts``
-    in either log wins per plan."""
-    cache = {}  # plan_rel → (verdict, ts_float)
+    Later timestamps win across both logs, but unbound legacy PASS does not
+    authorize a new completion. FAIL remains authoritative."""
+    cache = {}  # plan_rel → (verdict, ts_float, scoped evidence or None)
 
     # ── New log (planctl events.jsonl) ─────────────────────────────────────
     for rec in events.query(event="review_verdict"):
@@ -108,7 +108,7 @@ def _build_review_cache():
         except (TypeError, ValueError):
             ts = 0
         if plan not in cache or ts > cache[plan][1]:
-            cache[plan] = (v, ts)
+            cache[plan] = (v, ts, data.get("evidence"))
 
     # ── Legacy log (state.events.jsonl) ────────────────────────────────────
     root = statedir.project_root()
@@ -135,7 +135,7 @@ def _build_review_cache():
                     # the LATER line wins — matching the legacy hook, which
                     # overwrote ``latest`` on every match (last wins).
                     if plan not in cache or ts_f >= cache[plan][1]:
-                        cache[plan] = (v, ts_f)
+                        cache[plan] = (v, ts_f, None)
         except OSError:
             pass
     return cache
@@ -211,7 +211,35 @@ def _lookup_review_verdict(cache, plan_rel):
     entry = cache.get(plan_rel)
     if entry is None:
         return None
+    if entry[0] == "pass":
+        evidence = entry[2] if len(entry) > 2 else None
+        if not review_evidence.is_current(os.path.join(statedir.project_root(), plan_rel), evidence):
+            return None  # Unbound legacy PASS and changed scope require fresh review.
     return entry[0]
+
+
+def _reopen_stale_reviews(conn, root, cache, json_out):
+    """Reopen completed, content-bound reviews when their declared scope changes.
+
+    Legacy stage-6 records are left alone; they cannot authorize a new completion.
+    Explicit overrides and archived plans remain outside automatic reopening.
+    """
+    from types import SimpleNamespace
+    from planctl import stage
+    for rel, entry in cache.items():
+        if entry[0] != "pass" or len(entry) < 3 or not entry[2]:
+            continue
+        row = conn.execute(
+            "SELECT stage,stage_state,override FROM plans WHERE path=?", (rel,)).fetchone()
+        if not row or row[0] < 6 or row[1] == "active" or row[2]:
+            continue
+        if "_archive" in rel.split("/") or not os.path.isfile(os.path.join(root, rel)):
+            continue
+        if not review_evidence.is_current(os.path.join(root, rel), entry[2]):
+            with _quiet_stdout(json_out):
+                stage.cmd_stage(SimpleNamespace(plan=rel, stage="6", status="in_progress", json=False))
+            events.append({"event": "review_invalidated", "plan": rel,
+                           "data": {"reason": "reviewed scope or plan contract changed"}})
 
 
 def _lookup_stage5_ts(cache, plan_rel):
@@ -545,6 +573,7 @@ def cmd_reconcile(args):
         # ── 2. Pre-build caches (read logs ONCE, not per-plan) ──────────────
         review_cache = _build_review_cache()
         stage5_ts_cache = _build_stage5_ts_cache()
+        _reopen_stale_reviews(conn, root, review_cache, json_out)
 
         # ── 3. DONE-gate decision matrix ────────────────────────────────────
         decisions = []

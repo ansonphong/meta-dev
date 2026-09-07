@@ -201,13 +201,17 @@ def _emit(args, payload):
 def _resolve_plan_arg(plan_arg):
     """``(rel, abs_path)`` for a plan-path STRING resolved against the project root.
 
-    Returns ``(None, None)`` if the file does not exist (caller emits a
+    A directory resolves to its canonical ``00-master-plan.md``. Returns
+    ``(None, None)`` if the file does not exist (caller emits a
     plan_not_found skip). Shared by every verb that resolves a plan —
     ``cmd_override`` passes a string (its clear-form arg shuffling yields the
     real plan path late); most verbs pass ``args.plan`` via ``_resolve_plan``."""
     root = statedir.project_root()
     rel = sync._normalize_arg_path(plan_arg, root)
     abs_path = os.path.join(root, rel)
+    if os.path.isdir(abs_path):
+        abs_path = os.path.join(abs_path, "00-master-plan.md")
+        rel = sync._normalize_arg_path(abs_path, root)
     if not os.path.isfile(abs_path):
         return None, None
     return rel, abs_path

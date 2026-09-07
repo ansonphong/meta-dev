@@ -10,8 +10,7 @@ only appends an event (no markdown change).
     ``stage`` in frontmatter. Accepts BOTH names (``brainstorm|design|plan|
     harden|execute|review``) and numbers 1–6 (the name→number map ported from
     ``stage-emit.sh``, W3A-1). **NEVER writes ``status:`` or ``updated:``**
-    (W3A-2 — status is DERIVED, never typed). Carries the ``exec-order-2026-06-26.md``
-    skip guard (event yes, frontmatter patch no — mirrors stage-emit.sh).
+    (W3A-2 — status is DERIVED, never typed).
   * ``cmd_override`` — ``planctl override <plan> blocked|parked|superseded
     --note "…"`` / ``override clear <plan>``: set/clear ``override:``+``note:``.
     **Schema gate (I7):** a value outside the canon is rejected with a loud
@@ -48,11 +47,6 @@ OVERRIDE_CANON = ("blocked", "parked", "superseded")
 # stage_state from the stage it just left. For a durable halt use `override`,
 # which outranks stage_state in derive precedence.
 STATUS_CANON = ("in_progress", "completed", "blocked")
-
-# Off-limits: never patch this file's frontmatter (event append still ok) —
-# mirrors stage-emit.sh's GUARDED.
-_GUARDED_BASENAME = "exec-order-2026-06-26.md"
-
 
 # ── frontmatter patch helper ─────────────────────────────────────────────────
 def _frontmatter_bounds(lines):
@@ -139,11 +133,6 @@ def _resolve_stage(arg):
     return None
 
 
-def _is_guarded(rel):
-    base = rel.rsplit("/", 1)[-1] if rel else ""
-    return base == _GUARDED_BASENAME
-
-
 def cmd_stage(args):
     """``planctl stage <plan> <1-6|name>`` — set the declared stage (name or number)."""
     n = _resolve_stage(args.stage)
@@ -173,63 +162,36 @@ def cmd_stage(args):
                 % (status_val, "|".join(STATUS_CANON)))
             return 2
 
-    guarded = _is_guarded(rel)
-    patched = False
-    if guarded:
-        # exec-order skip guard: event YES, frontmatter patch NO (mirrors
-        # stage-emit.sh). Still emit the event below.
-        sys.stderr.write("[planctl stage] guardrail: skipping frontmatter patch "
-                         "for %s\n" % rel)
-    else:
-        with mutate.mutation_lock(abs_path):
-            # Re-read and check bounds UNDER the lock (F16 — close the TOCTOU window).
-            with open(abs_path, "r", encoding="utf-8") as _f:
-                _raw = _f.read()
-            if _frontmatter_bounds(_raw.split("\n")) is None:
-                sys.stderr.write(
-                    "planctl stage: no valid frontmatter in %s — "
-                    "refusing to synthesize one (add a --- … --- block first).\n" % rel)
-                return 1
-            def mutator(lines):
-                set_map = {"stage": str(n)}
-                remove_set = set()
-                # The stage_state write is UNCONDITIONAL when --status is given:
-                # only "completed" means the stage's work is finished; every other
-                # status (in_progress, blocked) means it is still open. Omitting
-                # the write would let a new stage inherit the previous stage's
-                # bit -- e.g. a FAILED review (`stage-emit.sh ... review blocked`)
-                # landing at stage 6 with a stale `done` and deriving "done".
-                if status_val is not None:
-                    set_map["stage_state"] = (
-                        "done" if status_val == "completed" else "active")
-                else:
-                    # No status declared -> drop the key rather than carry a stale
-                    # one; absent == legacy semantics (stage reached).
-                    remove_set.add("stage_state")
-                return _patch_frontmatter_keys(
-                    lines, set_map=set_map, remove_set=remove_set)
-            mutate.atomic_write_md(abs_path, mutator)
-            sync.sync_one(rel)
-            patched = True
-            # Event append MUST be inside the lock — two concurrent stage writes
-            # can otherwise interleave so markdown says stage 6 while the event
-            # chronology ends at 5 (mirrors cmd_check's shape in mutate.py).
-            events.append({"event": "stage", "plan": rel,
-                           "data": {"stage": n, "name": name, "patched": patched,
-                                    "status": status_val}})
+    with mutate.mutation_lock(abs_path):
+        with open(abs_path, "r", encoding="utf-8") as handle:
+            raw = handle.read()
+        if _frontmatter_bounds(raw.split("\n")) is None:
+            sys.stderr.write(
+                "planctl stage: no valid frontmatter in %s — "
+                "refusing to synthesize one (add a --- … --- block first).\n" % rel)
+            return 1
 
-    if guarded:
+        def mutator(lines):
+            set_map = {"stage": str(n)}
+            remove_set = set()
+            if status_val is not None:
+                set_map["stage_state"] = "done" if status_val == "completed" else "active"
+            else:
+                remove_set.add("stage_state")
+            return _patch_frontmatter_keys(lines, set_map=set_map, remove_set=remove_set)
+
+        mutate.atomic_write_md(abs_path, mutator)
+        sync.sync_one(rel)
+        # Keep event chronology and Markdown mutation under the same lock.
         events.append({"event": "stage", "plan": rel,
-                       "data": {"stage": n, "name": name, "patched": False,
+                       "data": {"stage": n, "name": name, "patched": True,
                                 "status": status_val}})
 
     if getattr(args, "json", False):
         print(json.dumps({"stage": n, "stage_num": n, "name": name,
-                          "patched": patched, "guarded": guarded}))
+                          "patched": True, "guarded": False}))
     else:
-        print("planctl stage: %s → stage %d (%s)%s" % (
-            rel, n, name, "  [frontmatter patch skipped: guarded file]"
-            if guarded else ""))
+        print("planctl stage: %s → stage %d (%s)" % (rel, n, name))
     return 0
 
 
@@ -306,19 +268,33 @@ def cmd_override(args):
 
 # ── review ───────────────────────────────────────────────────────────────────
 def cmd_review(args):
-    """``planctl review <plan> pass|fail --by <who>`` — append a review_verdict.
+    """Append a verdict; PASS requires explicit refs and content-bound file scope.
 
     The ONLY writer of ``review_verdict`` to the new ``events.jsonl`` (R5/W3B-1/
     DR-2). No markdown change — review is an event-only record the DONE-gate
-    reads (``events.query(event='review_verdict', plan=…)``)."""
-    root = statedir.project_root()
-    rel = sync._normalize_arg_path(args.plan, root)
+    reads (``events.query(event='review_verdict', plan=…)``). Unbound legacy
+    PASS remains historical evidence, not permission to complete a new run."""
+    from planctl import review_evidence
+    rel, abs_path = mutate._resolve_plan(args)
+    if abs_path is None:
+        sys.stderr.write("planctl review: plan not found: %s\n" % args.plan)
+        return 1
     by = getattr(args, "by", None) or os.environ.get("USER") or "unknown"
     verdict = args.verdict  # argparse choices=("pass","fail") enforces the canon
-    events.append({"event": "review_verdict", "plan": rel,
-                   "data": {"verdict": verdict, "by": by}})
+    data = {"verdict": verdict, "by": by}
+    with mutate.mutation_lock(abs_path):
+        if verdict == "pass":
+            try:
+                data["evidence"] = review_evidence.capture(
+                    abs_path, getattr(args, "repo_root", None) or statedir.project_root(),
+                    getattr(args, "scope", []), getattr(args, "base_ref", None),
+                    getattr(args, "target_ref", None))
+            except (ValueError, OSError, UnicodeError) as exc:
+                sys.stderr.write("planctl review: %s\n" % exc)
+                return 2
+        events.append({"event": "review_verdict", "plan": rel, "data": data})
     if getattr(args, "json", False):
-        print(json.dumps({"verdict": verdict, "by": by, "plan": rel}))
+        print(json.dumps({**data, "plan": rel}))
     else:
         print("planctl review: %s → %s (by %s)" % (rel, verdict, by))
     return 0

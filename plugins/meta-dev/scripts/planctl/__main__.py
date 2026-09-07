@@ -153,6 +153,10 @@ def build_parser():
     sp.add_argument("plan", help="plan path (repo-relative or absolute)")
     sp.add_argument("verdict", choices=("pass", "fail"), help="review outcome")
     sp.add_argument("--by", default=None, help="reviewer (default $USER)")
+    sp.add_argument("--repo-root", default=None, help="source repository root (default project root)")
+    sp.add_argument("--base-ref", default=None, help="review starting commit/ref (required for PASS)")
+    sp.add_argument("--target-ref", default=None, help="reviewed commit/ref (required for PASS)")
+    sp.add_argument("--scope", action="append", default=[], help="exact source-repo-relative reviewed file; repeat for each file (required for PASS)")
     sp.add_argument("--json", action="store_true", help="emit {verdict, by}")
     sp.set_defaults(func=_dispatch_module("stage", "cmd_review"))
 
