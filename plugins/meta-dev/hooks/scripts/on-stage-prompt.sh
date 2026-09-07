@@ -27,7 +27,8 @@ set -uo pipefail
 # injection in (3) after (1) had already decided to emit it.
 
 PAYLOAD=$(cat)
-PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-.}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="${META_DEV_PLUGIN_ROOT:-${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-$(cd "$SCRIPT_DIR/../.." && pwd)}}}"
 CONTEXT=""
 
 PROMPT=$(printf '%s' "$PAYLOAD" | jq -r '.prompt // ""' 2>/dev/null || echo "")
@@ -39,39 +40,39 @@ if printf '%s' "$PROMPT" | grep -qiE '(^|[[:space:]])--autonomous([[:space:]]|$)
   CONTEXT=$(cat <<'AUTOEOF'
 ⟡ AUTONOMOUS MODE ENGAGED — `--autonomous` is present in this prompt.
 
-It means one thing: **run to the end, do not wake the user.** They have
-pre-authorized this run and left. `--autonomous` IS the explicit Stage-5
-permission — it authorizes execution exactly as "go" or `--to 6` does. It
-implies cruise mode, `--gate none`, and `--no-pause`; do not ask for those too.
+Continue unattended within the selected task's existing scope. Classify that
+task first: an audit, review, diagnosis, explanation, or plan stays read-only.
+The flag does not authorize implementation of findings, external services, or
+scope expansion. It supplies Stage-5 permission only for a scoped implementation
+request. Neither `--autonomous` nor a stage ceiling turns read-only work into edits.
 
-RESOLVE EVERY AMBIGUITY TOWARD "keep going and report in the morning."
-- Do NOT ask "proceed?", "ready?", "shall I dispatch?" — the flag is the GO.
-- Do NOT stop between stages, phases, or tasks for confirmation.
-- A judgment call you would otherwise ask about goes to `fable-consult` FIRST:
-  bash ${CLAUDE_PLUGIN_ROOT}/scripts/fable-consult.sh --question "..." --autonomous
-  exit 0=adopt · 10/11=escalate · 12=defer(REVIEW-ME) · 2=error→escalate.
-- Gates needing human eyes are DEFERRED to a punch list, never asked mid-run.
+It implies cruise mode, `--gate none`, and `--no-pause` for optional cadence
+prompts only. Existing permission boundaries and human acceptance gates remain.
+- Do not ask routine "proceed?" questions for already-authorized work.
+- Make reversible decisions within granted scope and record the rationale.
+- Park material ambiguity, new permission requirements, or unsafe work with
+  evidence; continue independent authorized subjects.
+- External consultants are optional and require separate configured authorization.
+  No automatic Fable consultation or paid dispatch follows from this flag.
+  A consultant's confidence never replaces security or acceptance evidence.
+- Gates needing human eyes are deferred to a punch list, never marked complete.
 
-THE HARD FLOOR — `--autonomous` buys *unattended*, never *unsafe*. None of
-these is a question about the user's preference; each is a thing that cannot be
-undone in the morning. They hold exactly as they always do:
+THE HARD FLOOR — unattended never means unsafe:
   1. Guard-hook denies + every git ban (rebase/stash/amend/force-push/tree-wide add).
   2. No deploy, ship, publish, release, or real migration. Prepare, then stop.
-  3. The fable-consult veto list — destructive, security, money-path, schema,
+  3. The safety veto list — destructive, security, money-path, schema,
      cross-repo contract, spend-or-send, scope expansion → park the subject.
   4. Human-verify boxes (`by eye`/`by hand`/`gpu`/`manual`) stay UNCHECKED.
      NEVER pass `--human` to planctl. Flipping the user's own smoke test while
-     they sleep forges a verification rather than automating one. Defer it.
+     unattended forges a verification rather than automating one. Defer it.
   5. TRUE BLOCKERs still halt — but they park THAT SUBJECT ONLY and the run
      continues elsewhere. Halting is not the same as asking.
 
-CLOSE WITH THE AUTONOMOUS RUN REPORT — landed / decided (with Fable's real
-confidences) / parked / your-eyes punch list / residual risk. The user was
-asleep; this report is the entire record of the night, so it must be honest.
-A red test says red. A skipped step says skipped.
+CLOSE WITH THE AUTONOMOUS RUN REPORT — completed / decisions and evidence /
+parked / human-verification punch list / residual risk. Report only work and
+consultations that occurred. A red test says red. A skipped step says skipped.
 
 Full contract: meta-dev `references/autonomous-mode.md`.
-Consult contract + calibration guard: skill `fable-consult`.
 AUTOEOF
 )
 fi
