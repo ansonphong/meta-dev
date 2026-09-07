@@ -208,7 +208,8 @@ renderer = require_file("scripts/plan-artifact-render.py").read_text(encoding="u
 assert 'VERSIONS = {"1.0", "1.1"}' in renderer and "--validate" in renderer
 plan_skill = require_file("skills/plan/SKILL.md").read_text(encoding="utf-8")
 assert "version `1.1`, `single-file`" in plan_skill
-assert "Do not implement the plan" in plan_skill
+assert "planning-only request stops" in plan_skill
+assert "already explicitly requested scoped" in plan_skill
 plan_contract = require_file("references/codex-writing-plans.md").read_text(encoding="utf-8")
 for marker in (
     "skilled implementation agent that has no conversation history",
@@ -265,6 +266,7 @@ if codex_cli:
             env=environment, text=True, capture_output=True, check=False,
         )
         assert install.returncode == 0, install.stdout + install.stderr
+        installed_path = Path(json.loads(install.stdout)["installedPath"]).resolve()
         prompt = subprocess.run(
             [codex_cli, "debug", "prompt-input", "$meta-dev:meta-planner test"],
             cwd=repo_root, env=environment, text=True, capture_output=True, check=False,
@@ -272,10 +274,42 @@ if codex_cli:
         assert prompt.returncode == 0, prompt.stdout + prompt.stderr
         for marker in (
             "meta-dev:meta-planner",
-            "skills/meta-planner/SKILL.md",
             "Run meta-planner in Codex",
         ):
             assert marker in prompt.stdout, f"installed selector omitted {marker!r}"
+
+        # Codex may shorten discovery paths through the skill roots table.
+        # Validate the resolved installed target, not a formatting-dependent
+        # contiguous suffix that disappears in `r2/meta-planner/SKILL.md`.
+        def prompt_texts(value):
+            if isinstance(value, dict):
+                for key, item in value.items():
+                    if key == "text" and isinstance(item, str):
+                        yield item
+                    else:
+                        yield from prompt_texts(item)
+            elif isinstance(value, list):
+                for item in value:
+                    yield from prompt_texts(item)
+
+        expected_skill = installed_path / "skills/meta-planner/SKILL.md"
+        resolved_skills = []
+        for text in prompt_texts(json.loads(prompt.stdout)):
+            roots = dict(re.findall(r"(?m)^- `([^`]+)` = `([^`]+)`\s*$", text))
+            for raw_path in re.findall(
+                r"(?m)^- meta-dev:meta-planner:.*\(file: ([^)]+)\)\s*$", text
+            ):
+                raw_path = raw_path.strip().strip("`")
+                alias, separator, suffix = raw_path.partition("/")
+                if alias in roots and separator:
+                    path = Path(roots[alias]) / suffix
+                else:
+                    path = Path(raw_path)
+                    assert path.is_absolute(), f"unresolved installed skill alias: {raw_path!r}"
+                resolved_skills.append(path.resolve())
+        assert resolved_skills, "installed selector omitted the meta-planner skill entry"
+        assert all(path == expected_skill for path in resolved_skills), resolved_skills
+        assert expected_skill.is_file(), f"installed skill target missing: {expected_skill}"
 else:
     print("SKIP: Codex CLI unavailable; local package ingestion was not exercised")
 
