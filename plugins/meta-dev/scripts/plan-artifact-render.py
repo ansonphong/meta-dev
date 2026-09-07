@@ -125,6 +125,34 @@ def validate_handle(task: dict[str, Any], path: str, errors: list[str], handles:
         handles.add(handle)
 
 
+def validate_dependency_graph(tasks: list[dict[str, Any]], errors: list[str]) -> None:
+    """Check explicit task references; prose-only external prerequisites stay prose."""
+    graph = {task["handle"]: set() for task in tasks}
+    for task in tasks:
+        handle = task["handle"]
+        for dependency in task.get("dependencies", []):
+            for reference in re.findall(r"\bT[0-9A-Za-z]+\.[0-9]+\b", dependency):
+                if reference not in graph:
+                    fail(errors, f"{handle}.dependencies", f"missing task dependency {reference}")
+                elif reference == handle:
+                    fail(errors, f"{handle}.dependencies", "self dependency is forbidden")
+                else:
+                    graph[handle].add(reference)
+    ready = [handle for handle, dependencies in graph.items() if not dependencies]
+    settled = set()
+    while ready:
+        handle = ready.pop()
+        settled.add(handle)
+        for dependent, dependencies in graph.items():
+            if handle in dependencies:
+                dependencies.remove(handle)
+                if not dependencies and dependent not in settled:
+                    ready.append(dependent)
+    cyclic = sorted(set(graph) - settled)
+    if cyclic:
+        fail(errors, "task dependencies", "cycle blocks " + ", ".join(cyclic))
+
+
 def validate_verify(
     verifies: Any,
     path: str,
@@ -436,6 +464,9 @@ def validate_ir(ir: Any) -> dict[str, Any]:
             for index, task in enumerate(tasks):
                 validator = validate_task_v11 if version == "1.1" else validate_task_v10
                 validator(task, f"IR.tasks[{index}]", errors, handles)
+    if not errors:
+        tasks = ir["tasks"] if layout == "single-file" else [task for phase in ir["phases"] for task in phase["tasks"]]
+        validate_dependency_graph(tasks, errors)
     if errors:
         raise ValidationError("\n".join(errors))
     return ir
@@ -657,7 +688,9 @@ def render_single_v11(ir: dict[str, Any]) -> str:
         "",
     ]
     lines += render_file_structure(ir["files"])
-    lines += ["## Implementation Tasks", ""]
+    lines += ["## Task Checklist", ""]
+    lines.extend(task_checkbox(task) for task in ir["tasks"])
+    lines += ["", "## Implementation Tasks", ""]
     for task in ir["tasks"]:
         lines += render_task_details_v11(task)
     lines += [
@@ -687,7 +720,8 @@ def render_single_v11(ir: dict[str, Any]) -> str:
         "## Execution Handoff",
         "",
         "- This plan is self-contained for a fresh implementation agent.",
-        "- Execute tasks in order and use planctl for state; do not add Markdown checkbox rows.",
+        "- The Task Checklist is the sole state ledger; use planctl to update its existing handles.",
+        "- Follow dependency order and the resolved task/slice ownership policy; keep per-handle evidence.",
         "- Planning does not authorize implementation. Start only after an explicit go.",
         "",
     ]
@@ -695,7 +729,7 @@ def render_single_v11(ir: dict[str, Any]) -> str:
 
 
 def render_loop_gap(baseline: dict[str, Any]) -> str:
-    lines = ["# Loop-Gap Configuration", "", "## Baseline", "", baseline["summary"], "", "## Signature Snapshots", ""]
+    lines = ["# Loop-Gap Configuration", "", "## Baseline", "", baseline["summary"], "", "## Codebase Anchors", ""]
     lines += lines_list(baseline["signatures"])
     lines += ["", "## Affected Files", ""]
     lines += lines_list((f"`{path}`" for path in baseline["affected_files"]))

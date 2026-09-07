@@ -234,7 +234,7 @@ why: \"Keep Claude and Codex plan artifacts byte-stable.\"
 
 Existing planner output has host-specific drift.
 
-## Signature Snapshots
+## Codebase Anchors
 
 - render_plan(ir)
 
@@ -306,7 +306,7 @@ Existing planner output has host-specific drift.
     assert not (tmp_path / "plans/meta/renderer-contract").exists()
 
 
-def test_v11_single_file_is_execution_grade_and_checkbox_free(tmp_path: Path):
+def test_v11_single_file_is_execution_grade_with_one_state_ledger(tmp_path: Path):
     ir = rich_ir()
     schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
     jsonschema.validate(ir, schema)
@@ -321,6 +321,7 @@ def test_v11_single_file_is_execution_grade_and_checkbox_free(tmp_path: Path):
         "## Codebase Ground Truth",
         "## Decisions",
         "## Non-Goals",
+        "## Task Checklist",
         "## Implementation Tasks",
         "## Failure Modes",
         "## Blast Radius",
@@ -333,8 +334,55 @@ def test_v11_single_file_is_execution_grade_and_checkbox_free(tmp_path: Path):
     assert "Expected: FAIL because null is not yet resolved." in artifact
     assert "git -C /workspace/app commit --only -m 'feat: add processor-aware prompt cutoff' -- backend/prompt.py backend/tests/test_prompt.py" in artifact
     assert "status:" not in artifact
-    assert "- [ ]" not in artifact
+    assert artifact.count("- [ ]") == len(ir["tasks"])
     assert "- [x]" not in artifact
+    assert "resolved task/slice ownership" in artifact
+
+
+def test_v11_ledger_round_trips_through_planctl_parser_and_mutator(tmp_path: Path, monkeypatch):
+    monkeypatch.syspath_prepend(str(SCRIPT.parent))
+    from planctl import mutate, parse
+
+    ir = rich_ir()
+    result = run_renderer(tmp_path, ir)
+    assert result.returncode == 0, result.stderr
+    body = (tmp_path / ir["artifact_path"]).read_text(encoding="utf-8")
+    tasks, error = parse.parse_tasks(body)
+    assert error is None
+    assert [task.alias for task in tasks] == [task["handle"] for task in ir["tasks"]]
+    selected = mutate._match_task(tasks, "T1.1")
+    assert selected is not None and not selected.checked
+    lines = body.splitlines()
+    lines[selected.line_no - 1], changed = mutate._flip_line(lines[selected.line_no - 1], True)
+    assert changed
+    updated, error = parse.parse_tasks("\n".join(lines))
+    assert error is None
+    assert updated[0].checked
+    assert updated[0].tid == selected.tid
+    assert updated[0].alias == "T1.1"
+
+
+def test_renderer_rejects_missing_self_and_cyclic_dependencies(tmp_path: Path):
+    for dependencies, expected in [(["T9.9"], "missing task dependency"), (["T1.1"], "self dependency")]:
+        ir = base_ir("multi-phase")
+        ir["phases"][0]["tasks"][0]["dependencies"] = dependencies
+        result = run_renderer(tmp_path, ir, validate=True)
+        assert result.returncode == 2
+        assert expected in result.stderr
+    ir = base_ir("multi-phase")
+    ir["phases"][0]["tasks"][0]["dependencies"] = ["T2.1"]
+    ir["phases"][1]["tasks"][0]["dependencies"] = ["T1.1"]
+    result = run_renderer(tmp_path, ir, validate=True)
+    assert result.returncode == 2
+    assert "cycle blocks" in result.stderr
+
+
+def test_renderer_accepts_dependency_dag_with_external_prerequisite(tmp_path: Path):
+    ir = base_ir("multi-phase")
+    ir["phases"][0]["tasks"][0]["dependencies"] = ["Deployment access approved by owner"]
+    ir["phases"][1]["tasks"][0]["dependencies"] = ["T1.1 (IR contract)"]
+    result = run_renderer(tmp_path, ir, validate=True)
+    assert result.returncode == 0, result.stderr
 
 
 def test_v11_rejects_thin_or_misplaced_plans_without_writing(tmp_path: Path):

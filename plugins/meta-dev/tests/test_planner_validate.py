@@ -139,3 +139,22 @@ def test_task_cannot_borrow_other_tasks_file_declarations(tmp_path):
     result = validate(artifact)
     assert result.returncode == 2
     assert "T1.1: unscoped" in result.stdout
+
+
+@pytest.mark.parametrize("dependency,message", [("T9.9", "missing task dependency"), ("T1.1", "self dependency")])
+def test_loaded_markdown_dependency_references_are_validated(tmp_path, dependency, message):
+    artifact, detail = render(tmp_path)
+    detail.write_text(detail.read_text() + f"\n**Dependencies:**\n- {dependency}\n")
+    result = validate(artifact)
+    assert result.returncode == 2
+    assert message in result.stdout
+
+
+def test_loaded_markdown_dependency_cycle_is_rejected(tmp_path):
+    artifact, detail = render(tmp_path, count=2)
+    text = detail.read_text()
+    text = text.replace("### Task 1.2", "**Dependencies:**\n- T1.2\n\n### Task 1.2")
+    detail.write_text(text + "\n**Dependencies:**\n- T1.1\n")
+    result = validate(artifact)
+    assert result.returncode == 2
+    assert "cycle blocks" in result.stdout

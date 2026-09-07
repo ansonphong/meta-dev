@@ -94,6 +94,9 @@ class Validator:
         self.scope = importlib.util.module_from_spec(spec)
         sys.modules[spec.name] = self.scope
         spec.loader.exec_module(self.scope)
+        renderer_spec = importlib.util.spec_from_file_location("planner_renderer", Path(__file__).with_name("plan-artifact-render.py"))
+        self.renderer = importlib.util.module_from_spec(renderer_spec)
+        renderer_spec.loader.exec_module(self.renderer)
 
     def error(self, message: str) -> None:
         self.errors += 1
@@ -140,6 +143,7 @@ class Validator:
         master_text = outside_fences(master.read_text(encoding="utf-8")) if master else ""
         target = target_of(master_text) if master else None
         all_handles = []
+        dependency_tasks = []
         for file in files:
             text = outside_fences(file.read_text(encoding="utf-8"))
             local_target = target_of(text)
@@ -170,6 +174,7 @@ class Validator:
                 if boundary:
                     body = body[:boundary.start()]
                 sections = fields(body)
+                dependency_tasks.append({"handle": "T" + handle, "dependencies": sections.get("dependencies", [])})
                 paths = declared_paths(sections)
                 if len(sections.get("verify-after", [])) != 1:
                     self.error(f"{label}: requires exactly one Verify-After section")
@@ -207,6 +212,10 @@ class Validator:
                 self.error(f"duplicate task detail T{handle} ({count} definitions)")
         if master:
             self.check_ledger(master_text, all_handles, master.name, required=True)
+        dependency_errors = []
+        self.renderer.validate_dependency_graph(dependency_tasks, dependency_errors)
+        for error in dependency_errors:
+            self.error(error)
         print(f"Scanned {len(files)} task files, {len(all_handles)} tasks")
         print(f"=== planner-validate: {self.errors} errors, {self.warnings} warnings ===")
         return 2 if self.errors else 1 if self.warnings else 0
@@ -218,7 +227,8 @@ class Validator:
                 match = HANDLE.search(line)
                 if match:
                     ledger.append(match[1])
-        # Rich v1.1 single-file plans deliberately have no checkbox ledger.
+        # Legacy prose-only plans can still be inspected; canonical output has
+        # a Task Checklist and therefore requires its exact state ledger.
         if required or ledger:
             if Counter(ledger) != Counter(handles) or len(ledger) != len(set(ledger)):
                 self.error(f"{label}: checkbox ledger must match task details exactly once")
