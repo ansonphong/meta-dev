@@ -402,25 +402,25 @@ fi
 PROMPT="${DELEGATION_PREAMBLE}
 ${PROMPT}"
 
-WORK_DISCIPLINE_PREAMBLE='WORK DISCIPLINE (binding — a Codex run is slow mostly from RE-READING, not from testing):
-1. READ WIDE, ONCE. The first time you open a file, read it WHOLE (`nl -ba <path>` or `cat <path>`) — never a narrow `sed -n A,Bp` window you will have to re-open. A short peek falls out of context and you fetch it again; that re-fetch is the single biggest cost of a Codex run (measured: ~half of all reads re-open a file already read this run; plan/spec files are the worst).
-2. DO NOT RE-READ TO REMEMBER. Once a file is read, its content is in your context — re-scan your own context, do not re-open the file. Re-open ONLY to see a change you just made or one another agent just made. Read a task/plan section once, keep it, act on it.
+WORK_DISCIPLINE_PREAMBLE='WORK DISCIPLINE (within the user-authorized scope):
+1. Read relevant contracts and symbols once; do not reload entire plans for each handle. Re-anchor when code or requirements changed, or context was lost. Read complete skill instructions when required; source reads may be scoped to the relevant symbols.
+2. A capable worker may own a bounded coherent slice. Preserve separate evidence for each assigned handle; do not recursively farm every checkbox or assume model capabilities are exposed by this host.
 3. FOCUSED VERIFICATION ONLY. Run one named test file/node: `pytest path/to/test_x.py -q` (add `-m "not slow and not gpu and not integration"` if marked). NEVER bare/directory pytest, `pytest -k` without a file, package-wide npm/Vitest/Jest, `npm run check`, `svelte-check`, project-wide `tsc`, a build, or a full suite — not per task and not at phase end. Those belong to CI/ship or a separate explicit user request. One green is green; neither worker nor conductor reruns it.
-4. OPTIMISTIC MOMENTUM. Classify verification as `FOCUSED_PASS`, causally proven `TASK_RED`, unrelated/unchanged `BASELINE_RED`, `INFRA_RED`, or `BROAD_VERIFY_OMITTED`. Only `TASK_RED` repairs and may defer its direct dependency branch. `BASELINE_RED`, broad/manual gates, and unrelated failures never hold a task open, launch repair, block dependents, stop review, or halt independent work. Ordinary repair exhaustion parks that branch; finish everything else.
+4. OPTIMISTIC MOMENTUM. Classify verification as `FOCUSED_PASS`, causally proven `TASK_RED`, unrelated/unchanged `BASELINE_RED`, `INFRA_RED`, or `BROAD_VERIFY_OMITTED`. Repair only causal failures. Baseline debt does not block independently proven acceptance; omitted/manual or unknown infrastructure evidence is never a pass. Park affected branches honestly and continue independent work. Relevant changes invalidate prior green evidence.
 
 ---
 
 '
 PROMPT="${WORK_DISCIPLINE_PREAMBLE}${PROMPT}"
 
-GIT_GUARD_PREAMBLE='HARD GIT RULES (binding — this worktree is SHARED with 4-20 concurrent agents):
+GIT_GUARD_PREAMBLE='HARD GIT RULES (the worktree may be shared):
 1. NEVER `git add -A`, `git add .`, or `git add <dir>/`. Stage ONLY explicit file paths you personally edited. A broad add sweeps up other agents in-flight work.
 2. NEVER `git stash`, `git stash pop`, or `git stash drop`. These are worktree-GLOBAL and rip out every peer agent uncommitted work at once.
-3. NEVER `git push`, `git pull`, `git fetch`, `git rebase`, or `git merge` from a worker. The conductor owns every remote/history operation; a rebase on this tree once destroyed 5,544 files.
+3. NEVER `git push`, `git pull`, `git fetch`, `git rebase`, or `git merge` from a worker. The conductor owns authorized remote operations.
 4. Every git command names its repo absolutely: `git -C <ABS-REPO-ROOT> ...`. Never a bare `git add`. Never `cd "$(git rev-parse --show-toplevel)"`.
-5. If a file you need is dirty from a peer: commit it as its own discrete commit, then proceed. Do not stash, do not revert, do not wait.
+5. Preserve peer edits. On overlapping dirty paths establish ownership before editing or committing; continue independent work. Never absorb another worker state into your commit without authorization.
 6. COMMIT-ON-RED: if this task edits scoped files, stage only those exact paths and create a LOCAL commit before every return, including red verification or BLOCKED. Red blocks DONE and remote action, never the local commit. Your `.git` IS writable — this dispatcher grants it explicitly. A commit failing on a read-only `.git` is an EXECUTOR BUG: report it verbatim, never route around it by skipping the commit.
-7. REPORT CONTRADICTIONS, do not resolve them silently. If your task brief contradicts these rules — most often by telling you to run no git commands or to let a conductor commit for you — that brief is stale. Follow THESE rules, and say in your return that the conflict existed and which side you took. A worker that quietly obeys the narrower instruction is how a one-off workaround becomes permanent policy nobody chose.
+7. REPORT CONTRADICTIONS. User instructions and the discovered project contract take precedence over skill guidelines. Read-only work remains read-only; never treat a preservation rule as permission to edit or commit outside scope.
 If a task seems to require breaking one of these, STOP and report instead.
 
 ---
@@ -437,6 +437,17 @@ ${RESULT_SCHEMA}. No Markdown fences or prose outside that object. Report the
 actual verification classification, command/output, scoped commit SHA (or null
 when no commit is applicable), changed files, and blockers. Never claim green
 when verification is red or omitted.
+Include task_results with exactly one entry for every assigned ledger handle,
+including failed, blocked, or unattempted handles. Each entry reports handle,
+commit_sha, verify_command, verify_exit_code (null if not run), verify_output,
+state, changed_files, and blockers. Use an empty array only for a legacy task
+with no assigned handle. A shared commit may cover related handles, but preserve
+each handle's evidence and causal state. FOCUSED_PASS requires an actual zero
+verifier exit plus command/output evidence; no verification is never a pass.
+For a successful silent verifier, record '(no output)' rather than an empty
+verify_output so omitted evidence is distinguishable from observed silence.
+The conductor accepts handles individually, never a slice wholesale from the
+aggregate status. Aggregate FOCUSED_PASS cannot contain failed or omitted handles.
 
 ---
 
@@ -501,6 +512,7 @@ fi
 validate_worker_result() {
     python3 - "$RESULT_SCHEMA" "$LASTMSG_FILE" <<'PY'
 import json
+import re
 import sys
 
 schema_path, result_path = sys.argv[1:3]
@@ -510,28 +522,52 @@ try:
 except (OSError, json.JSONDecodeError) as exc:
     raise SystemExit(f"not valid JSON: {exc}")
 
-required = schema.get("required", [])
-properties = schema.get("properties", {})
-if not isinstance(result, dict):
-    raise SystemExit("final response must be a JSON object")
-unexpected = set(result) - set(properties)
-missing = [key for key in required if key not in result]
-if unexpected:
-    raise SystemExit("unexpected field(s): " + ", ".join(sorted(unexpected)))
-if missing:
-    raise SystemExit("missing required field(s): " + ", ".join(missing))
-if result.get("verification") not in properties["verification"]["enum"]:
-    raise SystemExit("verification is not a supported classification")
-for field in ("summary", "verify_command", "verify_output"):
-    if not isinstance(result.get(field), str):
-        raise SystemExit(f"{field} must be a string")
-if not result["summary"]:
-    raise SystemExit("summary must not be empty")
-if result.get("commit_sha") is not None and not isinstance(result.get("commit_sha"), str):
-    raise SystemExit("commit_sha must be a string or null")
-for field in ("changed_files", "blockers"):
-    if not isinstance(result.get(field), list) or not all(isinstance(v, str) and v for v in result[field]):
-        raise SystemExit(f"{field} must be an array of strings")
+def validate(value, rule, location="result"):
+    """Validate the schema's object/array/scalar subset without dependencies."""
+    kinds = rule["type"] if isinstance(rule["type"], list) else [rule["type"]]
+    matches = {"object": isinstance(value, dict), "array": isinstance(value, list),
+               "string": isinstance(value, str), "integer": type(value) is int,
+               "null": value is None}
+    if not any(matches.get(kind, False) for kind in kinds):
+        raise SystemExit(f"{location}: expected {' or '.join(kinds)}")
+    if "enum" in rule and value not in rule["enum"]:
+        raise SystemExit(f"{location}: unsupported classification")
+    if isinstance(value, dict):
+        properties = rule.get("properties", {})
+        missing = set(rule.get("required", [])) - set(value)
+        unexpected = set(value) - set(properties)
+        if missing:
+            raise SystemExit(f"{location}: missing required field(s): {', '.join(sorted(missing))}")
+        if unexpected and rule.get("additionalProperties") is False:
+            raise SystemExit(f"{location}: unexpected field(s): {', '.join(sorted(unexpected))}")
+        for key, child in value.items():
+            validate(child, properties[key], f"{location}.{key}")
+    elif isinstance(value, list):
+        for index, child in enumerate(value):
+            validate(child, rule["items"], f"{location}[{index}]")
+    elif isinstance(value, str):
+        if len(value) < rule.get("minLength", 0):
+            raise SystemExit(f"{location}: string is too short")
+        if "pattern" in rule and not re.fullmatch(rule["pattern"], value):
+            raise SystemExit(f"{location}: invalid format")
+
+
+validate(result, schema)
+seen = set()
+for item in result["task_results"]:
+    handle = item["handle"]
+    if handle in seen:
+        raise SystemExit(f"duplicate task handle: {handle}")
+    seen.add(handle)
+    if item["state"] == "FOCUSED_PASS":
+        if item["verify_exit_code"] != 0 or not item["verify_command"].strip() or not item["verify_output"].strip():
+            raise SystemExit(f"{handle}: FOCUSED_PASS requires zero-exit command/output evidence")
+        if item["changed_files"] and item["commit_sha"] is None:
+            raise SystemExit(f"{handle}: accepted edits require their scoped commit SHA")
+        if item["blockers"]:
+            raise SystemExit(f"{handle}: FOCUSED_PASS cannot retain unresolved blockers")
+    elif result["verification"] == "FOCUSED_PASS":
+        raise SystemExit(f"{handle}: aggregate FOCUSED_PASS contradicts per-handle state")
 PY
 }
 

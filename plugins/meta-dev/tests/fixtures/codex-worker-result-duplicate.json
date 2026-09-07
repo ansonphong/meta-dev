@@ -1,0 +1,13 @@
+{
+  "verification": "INFRA_RED",
+  "summary": "Invalid fixture repeats a handle.",
+  "verify_command": "",
+  "verify_output": "",
+  "commit_sha": null,
+  "changed_files": [],
+  "blockers": ["No verifier available"],
+  "task_results": [
+    {"handle": "T1.1", "commit_sha": null, "verify_command": "", "verify_exit_code": null, "verify_output": "", "state": "INFRA_RED", "changed_files": [], "blockers": ["No verifier"]},
+    {"handle": "T1.1", "commit_sha": null, "verify_command": "", "verify_exit_code": null, "verify_output": "", "state": "INFRA_RED", "changed_files": [], "blockers": ["No verifier"]}
+  ]
+}

@@ -12,7 +12,8 @@
     "verify_output",
     "commit_sha",
     "changed_files",
-    "blockers"
+    "blockers",
+    "task_results"
   ],
   "properties": {
     "verification": {
@@ -36,6 +37,28 @@
     "blockers": {
       "type": "array",
       "items": { "type": "string", "minLength": 1 }
+    },
+    "task_results": {
+      "type": "array",
+      "description": "One result per assigned ledger handle; empty only for a legacy task with no assigned handle. The aggregate is not whole-slice acceptance.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["handle", "commit_sha", "verify_command", "verify_exit_code", "verify_output", "state", "changed_files", "blockers"],
+        "properties": {
+          "handle": {"type": "string", "pattern": "^T[A-Za-z0-9]+\\.[0-9]+$"},
+          "commit_sha": {"type": ["string", "null"], "pattern": "^[0-9a-fA-F]{7,64}$"},
+          "verify_command": {"type": "string"},
+          "verify_exit_code": {"type": ["integer", "null"]},
+          "verify_output": {"type": "string"},
+          "state": {
+            "type": "string",
+            "enum": ["FOCUSED_PASS", "TASK_RED", "BASELINE_RED", "INFRA_RED", "BROAD_VERIFY_OMITTED"]
+          },
+          "changed_files": {"type": "array", "items": {"type": "string", "minLength": 1}},
+          "blockers": {"type": "array", "items": {"type": "string", "minLength": 1}}
+        }
+      }
     }
   }
 }

@@ -1,0 +1,12 @@
+{
+  "verification": "FOCUSED_PASS",
+  "summary": "Invalid fixture uses a boolean verifier exit code.",
+  "verify_command": "pytest tests/test_contract.py -q",
+  "verify_output": "1 passed",
+  "commit_sha": null,
+  "changed_files": [],
+  "blockers": [],
+  "task_results": [
+    {"handle": "T1.1", "commit_sha": null, "verify_command": "pytest tests/test_contract.py -q", "verify_exit_code": false, "verify_output": "1 passed", "state": "FOCUSED_PASS", "changed_files": [], "blockers": []}
+  ]
+}
