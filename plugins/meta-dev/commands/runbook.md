@@ -1,71 +1,54 @@
 ---
 name: runbook
-description: Campaign runbook orchestrator — sequence N related plans by dependency and farm host-native member conductors through the 6-stage waterfall as one arc, with a live computed dashboard. One level above /meta-dev (single plan); one below the global plans/meta-runbook.md. Verbs new|refresh|execute|chain|add|done|archive.
+description: Coordinate related plans through the six-stage waterfall with dependency-aware ownership and one shared capacity limit.
 argument-hint: "[new <dir|plans…> | refresh | execute [--serial] | chain <label> | add <plan> | done <plan> | archive] [prompt]"
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, TaskCreate, TaskUpdate]
-model: opus
 ---
 
 # /runbook
 
-Manage a **campaign runbook** — sequences related plans through the 6-stage waterfall
-as one arc. One level above `/meta-dev`; one below `plans/meta-runbook.md`.
-**First step:** invoke `meta-dev:runbook-orchestration` for full procedure + gating rules.
-**Use for:** feature arcs, launch waves, cross-subsystem migrations. Single plan → `/meta-dev`.
+Read `workflow-skills/runbook-orchestration/SKILL.md` for the canonical
+campaign procedure and `references/adaptive-workflow.md` for ownership and
+resource policy. This command is an adapter, not a second execution loop.
+Single plan → `commands/meta-dev.md`; approved implementation →
+`commands/meta-execute.md`.
 
-## Verbs
+| Verb | Purpose |
+| --- | --- |
+| `new <dir|paths…>` | Resolve, topo-sort, scaffold, and register members |
+| `refresh` / bare | Recompute campaign status |
+| `execute` / `go` | Execute READY members within scoped campaign authority |
+| `chain <label>` | Create a successor without declaring unfinished work done |
+| `add <plan>` | Insert at a dependency-correct position |
+| `done <plan>` | Record completion only with required acceptance/review evidence |
+| `archive` | Archive only when all required gates pass |
 
-| Verb | What it does | Gated? |
-|------|--------------|:------:|
-| `new <dir\|paths…>` | Resolve → topo-sort → scaffold → render → register in meta-runbook | no |
-| `refresh` / *(bare)* | Boxed campaign status (planctl-backed); `<path>` = that campaign | no |
-| `execute` / `go` | Farm READY members as host-native member conductors; parallel where file-disjoint (cap 3) | **YES** |
-| `chain <label>` | Successor runbook, daisy-chain | no |
-| `add <plan>` | Insert at dependency-correct slot | no |
-| `done <plan>` | Mark member done | no |
-| `archive` | All done → `status:done`, move Sequence→Shipped, archive | no |
+The campaign conductor coordinates dependency order and cross-plan gates.
+Each member conductor follows the canonical single-plan procedure; it does not
+receive a new independent worker budget. Count member conductors, nested
+task/slice workers, reviewers, and fixers against one host-wide cap, clamped to
+observed capacity. `--serial` permits one member at a time. Unknown write sets
+serialize; file-disjoint READY members may run concurrently.
 
-**Progress block:** `planctl runbook render <rb>` (sentinel write, lazy dirty-set).
-**Boxed view:** `planctl runbook <path>` (interactive terminal surface).
-**Detail:** `references/runbook-view.md` · `workflow-skills/runbook-orchestration/`.
+Use the actual native host surface (`spawn_subagent`, `Agent`, or Codex native
+delegation) when available and permitted. Otherwise use sequential scoped
+ownership with the same evidence and safety rules. Do not silently launch
+another backend or invent a missing worker primitive. Grok/Codex headless
+workers receive direct briefs: do not send a slash command intended for Claude.
 
-## ⛔ `execute` / `go` — campaign conductor (non-negotiable)
+Use `TaskCreate`/`TaskUpdate` when available, otherwise a concise status list.
+Leave unrelated dirty files alone. Scoped writes use `commit --only`; workers
+never push. Runbook state and computed progress go through `planctl`;
+`runbook-render.py` is its rendering shim, not an alternate state writer.
 
-You are the **campaign conductor**. You do **not** implement member tasks on this thread.
+At committed member/review seams use the session-bound context watchdog.
+`CONTEXT_VERDICT=OVER` requires a drained forward handoff; unavailable telemetry
+is nonblocking. Do not use a universal token threshold.
 
-`/runbook execute` **is** the campaign go for non-sensitive members. Re-ask only for auth / schema /
-payment / cross-repo. `--inline` does not exist. Do not flatten the campaign into a Grok Rhai workflow.
+A member `TASK_RED` parks that branch and its dependents; independent work may
+continue. Closing reviews must cover member changes and declared cross-plan
+interfaces. Cross-family review is opt-in. No unconditional consultant call.
 
-1. `TaskCreate` one entry per member. Keep it live.
-2. A member is **READY** when deps are releasable, its declared write-set is disjoint from in-flight
-   members, and it is not blocked. Unknown write-set → serialize (do not guess).
-3. Dispatch every READY member as a **member conductor** (Host dispatch below). Cap **3** in-flight.
-   Fill the next slot the moment a child returns. `--serial` → one member at a time.
-4. Each child runs `commands/meta-execute.md` for one execute-ready plan, or `commands/meta-dev.md`
-   stages 1–4 if not yet hardened. Nested checkbox workers (cap 8) are **that child's** job.
-5. On each return: `TaskUpdate`, `runbook-render.py`, commit the dashboard if it changed, write
-   `## Closeout` on the member master (never this runbook), fill the next READY slot.
-6. Context watchdog every 3 completed members: `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/context-gauge.py`.
-   `CONTEXT_VERDICT=OVER` → `/meta-compact` forward.
-7. Unrelated dirty files: commit discrete, keep moving. Never stash. Overlap with an in-flight child → wait.
-
-### Host dispatch
-
-Always host-native. Shape the brief (`references/execute-briefs.md` → Campaign member conductor).
-
-| This host | Member conductor | How |
-|-----------|------------------|-----|
-| **Grok Build** | `spawn_subagent` | `general-purpose`, inherit model, `background: true`, `capability_mode: all`. **Direct task.** Never "run `/meta-execute`". |
-| **Claude Code** | native `Agent` | `Execute /meta-execute <plan>` is legal **here only**. Child follows work-ladder. |
-| **Codex** | `codex exec` | Member conductor = sol/high. Direct + inline the procedure. |
-
-**Grok and Codex: do not send a slash command.** They cannot run it. Point them at the command file.
-
-Git in every brief: no rebase / stash / `add -A` / `commit -a` / bare commit.
-`git -C <ABS> add -- <paths> && git -C <ABS> commit --only -m "…" -- <paths>`. Never push. Commit-on-red.
-
-Child return: `STATE: DONE|BLOCKED|RED` · `PLAN:` · `STAGE:` · `SHA:` · `SURPRISES:`.
-
-`--glm` on a member: never two GLM member conductors. Forward `--review` / `--budget` when passed.
-
-A member `TASK_RED` parks that member and its dependents. Independent READY members continue.
+Presentation: `references/runbook-view.md`. Worker briefs:
+`references/execute-briefs.md`. Report accepted/parked members, actual
+verification/review, scoped SHAs, and remaining manual gates.

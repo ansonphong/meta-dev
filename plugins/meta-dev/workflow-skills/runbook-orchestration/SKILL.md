@@ -28,8 +28,10 @@ by file-footprint disjointness), the **campaign-level gates/invariants**, and a 
 progress dashboard** embedded in the file.
 
 **What the runbook does *not* own:** checkbox implementation, per-task commits, inner parallel waves.
-Those belong to `/meta-execute` (and `/meta-dev` for stages 1–4), run by a **member conductor** child.
-This thread is the campaign conductor. It farms members. It does not type member source.
+Those belong to `commands/meta-execute.md` (and `commands/meta-dev.md` for stages 1–4).
+The campaign conductor delegates bounded member ownership when useful and permitted;
+otherwise it follows the same canonical procedures sequentially. Read
+`references/adaptive-workflow.md` before assigning ownership.
 
 Do **not** flatten a campaign into a host-specific workflow script (Grok Rhai or otherwise). The
 `_runbook-*.md` file plus `planctl` is the SSOT on every host.
@@ -39,7 +41,7 @@ Do **not** flatten a campaign into a host-specific workflow script (Grok Rhai or
 ## Lifecycle (the verbs `/runbook` dispatches)
 
 ### `new <feature-dir | plan-paths…>` — scaffold a runbook
-1. Resolve the member set: a feature dir (e.g. `plans/app/UNIFIED-EDITING-CANVAS/`) → its tracked
+1. Resolve the member set: a feature dir (e.g. `plans/<area>/<campaign>/`) → its tracked
    master files (`00-master-plan.md`/`00-design.md`/dated masters; never `phase-*.md`), or an explicit
    list of plan paths.
 2. Read each member's frontmatter `depends`/`blocks` and **topologically sort** into an execution
@@ -61,7 +63,8 @@ frontmatter + checkboxes. Pure read→compute→write-one-span; safe to run anyt
 
 ### `execute | go` — drive the sequence (EXECUTE-gated)
 
-**You are the campaign conductor. You do not implement member tasks on this thread.**
+**You are the campaign conductor.** Preserve campaign dependency ordering while each member
+uses the canonical single-plan workflow. Delegation is conditional, not a second permission gate.
 
 `/runbook execute` / `go` **is** the campaign go for every non-sensitive member. Re-ask only for
 auth / schema / payment / cross-repo / destructive members (protocol `sensitive`). A runbook never
@@ -73,21 +76,20 @@ Read `members` in order. For each member, record stage, `depends`/`blocks`, and 
 write-set** (plan Files / anchors). Recompute waves from live footprints — do not blindly trust the
 authored wave list if files moved.
 
-`TaskCreate` **one entry per member** (`<id> — <why> [Grok|Claude|spark|sol]`). Keep it live with
-`TaskUpdate`. This is the campaign tracker. Inner checkbox lists belong to each member conductor.
+`TaskCreate` one entry per member (`<id> — <why> [actual backend]`) when available;
+otherwise keep a concise status list. Keep it live with `TaskUpdate`. Inner per-task
+acceptance records belong to each member's canonical execution procedure.
 
 #### 2. Host dispatch — native to THIS host
 
-Farm a **member conductor** (not a checkbox worker) per READY member. Missing a mapping is a
-host-table bug, not permission to implement the member here. `--inline` does not exist on `/runbook`.
+Use a bounded **member conductor** per READY member when native delegation is available
+and permitted. Grok may expose `spawn_subagent`, Claude `Agent`, and Codex native delegation;
+observe the actual tools and capacity. Model names do not establish host capabilities.
+If delegation is unavailable or prohibited, use sequential scoped ownership with the same
+gates and evidence. Do not silently launch a foreign service or assume a headless CLI exists.
 
-| This host | Member conductor | How |
-|-----------|------------------|-----|
-| **Grok Build** | `spawn_subagent` | `subagent_type: general-purpose`, **pick grok-4.5 vs grok-4.6**, `background: true`. Brief a **direct task**. Never "run `/meta-execute`". Codex Terra/Sol when that family is the better fit. |
-| **Claude Code** | pooled Grok / Codex | Background. `Execute /meta-execute <plan>` or `Execute /meta-dev --to 4 <plan>` is legal **on this host only**. The child follows `references/work-ladder.md` (Grok + Codex — do not stay local; DeepSeek paused). |
-| **Codex** | `codex exec` | Member conductor = **sol / high**. Inner mechanical checkboxes may be spark. Inline the execute procedure; never "read the master and reconstruct." |
-
-Shape the brief for that backend (`references/execute-briefs.md` → Campaign member conductor).
+Shape direct briefs with `references/execute-briefs.md`. Host syntax is an adapter concern;
+Grok/Codex headless workers do not receive Claude slash commands.
 
 #### 3. Safe parallel waves (member grain)
 
@@ -103,25 +105,23 @@ A member is **READY** when all of these hold:
 4. Execute wave: member is HARDEN-clean (stage ≥ 4, that stage passed). Else dispatch a stages-1–4
    conductor instead (`commands/meta-dev.md`, halt at 4).
 
-**Dispatch:** spawn every currently-READY member as a fresh host-native member conductor, up to the
-in-flight cap (**3** member conductors from this run). As each child returns, immediately fill the
-empty slot with the next READY member. Do not wait for the whole wave to drain.
-
-**Why 3:** each member conductor may farm up to **8** checkbox workers (`/meta-execute`). Three
-members → ~24 writers, inside the 4–20 concurrent-agent band. Four member-executes in flight is too
-many git writers on a shared worktree. Nested checkbox parallelism is the child's job. Do not also
-flatten those checkboxes onto this thread.
+**Dispatch:** resolve the host-wide worker cap through `scripts/workflow-policy.py`, clamped
+to observed available capacity. Count member conductors, nested task/slice workers,
+reviewers, and fixers against that one shared cap. Never multiply a per-member limit by
+the number of members. Allocate each child a remaining slot allowance; if none remains,
+it uses sequential ownership. Fill a released slot with the next READY independent member.
+Caps are ceilings, not occupancy targets.
 
 **Serialize (do not co-dispatch) when ANY of:**
 - Declared write-sets overlap (same path in two members).
 - `--serial`.
-- `--glm` on a member (never two GLM member conductors).
+- Observed account/host capacity requires serialization.
 - Unknown / undeclared write-set — treat as overlapping; do not guess.
 - Sensitive member waiting on a fresh human confirm.
 
-Dirty leftover from an **in-flight** peer on an overlapping path → wait for that child (it will
-commit). Unrelated dirty files → **commit them as their own discrete commit and keep moving**
-(Rule #2). Never stash. Never skip the member because the tree is busy.
+An overlapping in-flight owner requires coordination before editing or committing. Leave
+unrelated dirty files alone; continue independent work. Never adopt another session's edits,
+use tree-wide staging, or stash.
 
 #### 4. Member brief (every spawn)
 
@@ -136,7 +136,8 @@ Include:
   `git -C <ABS> add -- <paths> && git -C <ABS> commit --only -m "…" -- <paths>`. Never push.
 - Commit-on-red if any declared file was edited.
 - Focused verify only; no repo-wide suite.
-- Farm inner checkboxes with **that host's** worker primitive (`spawn_subagent` / `Agent` / spark-or-sol).
+- Include resolved task/slice ownership, per-outcome acceptance, and the remaining shared
+  worker allowance. Do not require a fresh worker per checkbox or unbounded nested delegation.
 - Forward `--review` / `--budget` when the user passed them on `/runbook execute`.
 - Return this block:
 
@@ -148,46 +149,50 @@ SHA: <or n/a>
 SURPRISES: one line or none
 ```
 
-**Claude-only:** `Execute /meta-execute <plan>` is fine. **Grok and Codex:** do not send a slash command. They cannot run it.
+Claude may use its installed command loader. Grok/Codex headless workers: do not send a slash command; provide the task or procedure file. Never assume plugin installation.
 
 #### 5. Oversight on each return
 
 Do not wait for the whole wave. On every child return:
 1. `TaskUpdate` that member.
-2. Re-render: `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/runbook-render.py <runbook>` (heed stderr
+2. Re-render: `python3 ${PLUGIN_ROOT}/scripts/runbook-render.py <runbook>` (heed stderr
    `⚠ stage-drift`).
 3. Commit the dashboard if it changed: `git -C <ABS> add -- <rb> && git -C <ABS> commit --only -m "chore(runbook): refresh dashboard" -- <rb>`.
 4. Write member closeout into that member's `00-master-plan.md` `## Closeout` (never the runbook).
 5. Fill the next READY slot.
-6. Context watchdog every 3 completed members and at every campaign review seam:
-   `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/context-gauge.py`. On `CONTEXT_VERDICT=OVER` pause and
-   `/meta-compact` forward before the next dispatch.
+6. At committed member/review seams, use the session-bound context watchdog from
+   `workflow-skills/agentic-exec-loop/references/loop-protocol.md` with actual host/session
+   identity and known capacity. On `CONTEXT_VERDICT=OVER`, drain active work and preserve a
+   forward handoff before the next dispatch. Unknown telemetry is nonblocking.
 
-The Stop hook also re-renders every campaign runbook at end of turn. Mid-run render keeps the live
+The completion hook also reconciles dirty campaign runbooks at end of turn. Mid-run render keeps the live
 dashboard from freezing on a long arc.
 
 A member `TASK_RED` parks **that member and its dependents**. Independent READY members continue.
 
 #### 6. Campaign review
 
-When the last execute-ready member lands, the campaign is not done until each member has a review
-verdict on record (`planctl review` / `/meta-execute` step 6). Do not add a second campaign-wide
-diff-read on this thread. If a member returned without a review, dispatch a host-native reviewer
-for **that member only**.
+When the last execute-ready member lands, each member needs a covering closing review
+record (`planctl review`) from its canonical execution procedure. Reuse existing evidence
+only when it covers the current revision and acceptance scope. If review is missing, obtain
+it for that member. Verify declared cross-plan interfaces and integration gates are covered;
+add a targeted native integration review only for uncovered interactions.
 
-> **Dashboard auto-syncs during member execution.** `/meta-execute` re-renders THIS runbook at every
-> phase gate (loop-protocol → "Runbook dashboard sync") in addition to the return render above.
+Cross-family review is opt-in, not mandatory. A dashboard or completion hook cannot prove
+that a review occurred. Use `planctl` for state writes and dirty runbook rendering.
 
 ### `chain <new-feature/label>` — daisy-chain a successor
 When an arc completes (or a new arc breaks off a landed foundation), create a successor
 `_runbook-<today>.md` with `predecessor:` = the current runbook, and set the current runbook's
-`successor:` + `status: done`. The successor's narrative opens "builds on that **landed** foundation"
-(the 06-26 → 06-28 pattern). Use this to (a) keep a finished campaign's record immutable while a new one
+`successor:` through the state door. Mark it done only if required member acceptance and
+review gates have passed; a successor does not close unfinished work. The successor's narrative opens "builds on that **landed** foundation"
+Use this to (a) keep a finished campaign's record immutable while a new one
 starts, or (b) split an over-large runbook into a focused successor.
 
 ### `add <plan>` / `done <plan>` / `archive`
 - `add` — insert a plan into `members` at the dependency-correct position; re-render.
-- `done` — flip the member's own frontmatter + write its `## Closeout` into the member's `00-master-plan.md`; re-render. No closeout prose in the runbook.
+- `done` — verify required acceptance/review, update the member through `planctl`, and write
+  its `## Closeout` in the member master. Re-render; no closeout prose in the runbook.
 - `archive` — when ALL members are `done`: mark the runbook `status: done`, drop its META-runbook
   marker + members from live `## Sequence`, append one compact line to `plans/meta-runbook-archive.md`,
   and (per repo convention) move the campaign to `_archive/` if the whole arc is shipped. Never
@@ -201,9 +206,9 @@ A campaign registers as a **`=== RUNBOOK: <path> · <label> ===` marker** placed
 immediately above its member plan entries:
 
 ```
-=== RUNBOOK: plans/app/UNIFIED-EDITING-CANVAS/_runbook-2026-06-28.md · UEC Toolbar+Provenance arc ===
-plans/app/UNIFIED-EDITING-CANVAS/17-REPLAYABLE-PROVENANCE/00-master-plan.md
-plans/app/UNIFIED-EDITING-CANVAS/16-TOOLBAR/followup-1/00-design.md
+=== RUNBOOK: plans/<area>/<campaign>/_runbook-<date>.md · <label> ===
+plans/<area>/<campaign>/<member-a>/00-master-plan.md
+plans/<area>/<campaign>/<member-b>/00-master-plan.md
 …member plans, in runbook order…
 ```
 
@@ -229,9 +234,9 @@ plans/app/UNIFIED-EDITING-CANVAS/16-TOOLBAR/followup-1/00-design.md
    re-ask.
 3. **The PROGRESS block is computed, not hand-edited.** Author everything else; let
    `runbook-render.py` own the sentineled span. Status truth lives in member frontmatter + checkboxes.
-4. **File-level exclusion, not session-level.** Multiple member conductors MAY run concurrently —
-   that is the default. Overlapping write-sets serialize. Cap **3** in-flight member conductors.
-   Unrelated dirty files: commit discrete, keep moving. Never a tree-wide `git add`. Never stash.
+4. **File-level exclusion.** File-disjoint members may run concurrently within one host-wide
+   worker cap, including nested work. Unknown or overlapping write sets serialize. Leave
+   unrelated dirty files alone. Never tree-wide stage, stash, or multiply concurrency caps.
 5. **Daisy chain is immutable backward.** A completed runbook is never rewritten; a successor links to
    it via `predecessor`. The chain is the campaign's history.
 6. **Self-maintaining rule.** A runbook has exactly 3 sections: the header (frontmatter + ≤3-sentence
@@ -239,21 +244,21 @@ plans/app/UNIFIED-EDITING-CANVAS/16-TOOLBAR/followup-1/00-design.md
    contract. Never append run history to a runbook. Never hand-author a per-member block. If you'd write
    more than one line about a member, it goes in that member's `00-master-plan.md` `## Closeout`. The
    dashboard is regenerated by `runbook-render.py`, never hand-edited.
-7. **This thread does not implement.** Campaign conductor farms member conductors. Member conductors
-   farm checkboxes. Flattening either layer onto this thread is a bug.
+7. **Canonical ownership.** A member uses `commands/meta-execute.md` task/slice ownership;
+   do not duplicate that loop here. Native delegation is preferred when useful; unavailable
+   delegation falls back to sequential ownership with unchanged safety and evidence.
 
 ---
 
 ## Delegation
 
-Authoring a runbook (`new` / topo-sort / wave notes / `chain`) stays on **this session**. Driving
-members uses the **Host dispatch** table above — always host-native member conductors.
+Authoring and topology analysis stay on this session. Delegate members only when useful,
+available, and permitted. All child work shares the same host-wide cap. The native reviewer
+may inspect relevant diffs; no conductor context ban may suppress necessary evidence.
 
-Inner execute follows `/meta-execute` and `references/work-ladder.md`. Do not restate the ladder
-here. Do not pin campaign authoring to Opus — Grok 4.6 and Codex Sol author just as well.
-
-Gate reviews stay cross-family as the execute/harden commands already specify. The campaign
-conductor does not read diffs.
+Backend and account preferences come from `references/work-ladder.md` and the settings
+cascade. `references/adaptive-workflow.md` controls depth, ownership, and optional external
+review; do not duplicate fixed model rankings in campaign procedures.
 
 References: `references/runbook-template.md` (skeleton + frontmatter schema + dashboard contract);
 `commands/meta-execute.md` (member execute); `references/execute-briefs.md` (member-conductor brief).

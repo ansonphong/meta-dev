@@ -17,16 +17,16 @@ root = Path(sys.argv[1])
 required = {
     "commands/meta-task-agent.md": [
         "task-agent session",
-        "Every later user message is a **task**",
-        "spawn a fresh host-native subagent",
+        "Interpret each later message by its intent",
+        "sequential scoped ownership",
         "Do not wait for the worker",
-        "typed prompt **is the go**",
-        "Cap **8** in-flight",
-        "Unknown file set → **still dispatch**",
+        "Read-only requests stay read-only",
+        "one host-wide worker cap",
+        "Unknown write set → serialize",
         "spawn_subagent",
         "/meta-task-agent --end",
         "This is **not** `/meta-execute`",
-        "Always host-native",
+        "Prefer host-native delegation",
         "**print the report**",
         "FOUND:",
         "SHA=n/a files=none",
@@ -48,6 +48,12 @@ for rel, needles in required.items():
     missing = [n for n in needles if n not in text]
     if missing:
         failed.append(f"{rel}: missing {missing!r}")
+
+text = (root / "commands/meta-task-agent.md").read_text(encoding="utf-8")
+for marker in ["Unknown file set → **still dispatch**", "DeepSeek is paused",
+               "Cap **8** in-flight", "storm on the host"]:
+    if marker in text:
+        failed.append(f"task-agent retains unsafe routing: {marker}")
 
 if failed:
     print("\n".join(failed))

@@ -1,189 +1,95 @@
 ---
 name: auto-execute
-argument-hint: <any task, prompt, plan, or meta-dev op> [--deep|--grok|--codex|--sonnet|--glm|--agy] [--flash] [--vision] [--budget auto|low|medium|high] [--effort <level>] [--repo <name>] [--readonly] [--max-turns <n>] [--autonomous]  # --repo names from .claude/meta-dev-repos.json
-description: "Conducted headless work router for ANY task — brainstorm, design, plan, harden, execute, review/audit, or any arbitrary prompt/plan. Decomposes a job into chunks and farms each to the pool (Grok + Codex; pick Spark/Luna/Terra/Sol or grok-4.5/4.6 by cost). --deep is paused. --sonnet/--opus are rare (UI + extra-family review). --glm/--agy/--fable named-only. Escalates along meta_dev.ladder.pool on failure (references/work-ladder.md)."
+argument-hint: <task or plan> [--deep|--grok|--codex|--sonnet|--opus|--glm|--agy|--fable] [--flash] [--vision] [--budget auto|low|medium|high] [--effort <level>] [--repo <name>] [--readonly] [--max-turns <n>] [--autonomous]
+description: Route a bounded task or approved plan through the configured adaptive workflow, preserving intent, scope, permissions, and host capacity.
 ---
 
-# /auto-execute — Conducted Headless Work (any task)
+# /auto-execute
 
-**You (Opus) stay the main thread — the conductor.** This skill spins up headless workers on the cheapest backend that can do the job, reviews what comes back, and only escalates when it must. It's the single, general entry point: point **anything** at it — a one-line prompt, a research question, a plan, a whole multi-phase initiative, or any specific meta-dev stage — and it routes, chunks, dispatches, and verifies.
+A routing adapter, not a second execution engine. Read
+`references/workflows/protocol.md`, `references/work-ladder.md`, and
+`references/adaptive-workflow.md`. The current host coordinates; no named
+provider, account quota, or mandatory external pool is assumed.
 
-## What you can route through it (it is fully general)
+## Classify the request before routing
 
-`/auto-execute` is **not execute-only** — it conducts **any kind of work**, because a worker is a full headless Claude Code instance that can invoke **any skill/command internally** (the same way it runs `/meta-execute` on a phase). So it can drive:
+- Explanation, research, review, audit, and diagnosis remain read-only unless
+  the user requested an artifact or implementation. A plan path alone does not
+  authorize its execution. `--readonly` forbids source, ledger, and dashboard
+  writes; return evidence in the final message.
+- Approved plan implementation routes once to `commands/meta-execute.md`.
+  Pass the plan, explicit go, selected backend/model, granularity, review mode,
+  budget, and other supported flags. That procedure owns task/slice scheduling,
+  focused verification, state updates, closing review, and completion.
+- A multi-plan campaign routes to `commands/runbook.md`. Do not create an
+  additional phase-worker loop around its member conductors.
+- Named planning, hardening, or review operations use their corresponding
+  command/shared protocol, with the original scope and stage ceiling.
+- A standalone task follows the bounded dispatch procedure below. Do not
+  decompose a coherent small job simply to create more workers.
 
-- **Any of the 6 waterfall stages** — BRAINSTORM, DESIGN, PLAN (`/meta-planner`), HARDEN (`/loop-gap`), EXECUTE (`/meta-execute`), REVIEW (`/meta-eval`, code review). See "Use it for any meta-dev work" below.
-- **Any standalone meta-dev op** — `/sniff`, `/meta-security`, `/meta-ux`, `/meta-audit`, `/meta-probe`, changelog, version bump, etc.
-- **Any arbitrary task** — "research X and write a summary", "refactor module Y", "draft a design doc", "investigate this bug", "review this diff". No plan required; a bare prompt is a valid job.
+## Resolve policy and dispatch a standalone task
 
-The conductor loop, routing bias, review gate, and gating rules below are **identical regardless of what the job is** — only the chunk *content* and the *worker's internal command* change.
+1. Resolve project rules from root `AGENTS.md`, routed durable context, and
+   canonical skills. Repository aliases come from `.meta-dev/repos.json`;
+   legacy vendor topology files are compatibility inputs.
+2. Resolve actual executor, risk, and ownership with
+   `scripts/workflow-policy.py`. Explicit selections and configured pauses
+   remain binding. External backends require their existing authorization and
+   availability checks. Unknown models use conservative standard/task policy.
+3. Keep tightly related acceptance outcomes in a bounded coherent slice.
+   Independent work may run concurrently only with disjoint declared write
+   sets. Unknown write sets serialize. Use one host-wide worker cap, including
+   nested conductors, workers, reviewers, and fixers; never multiply per-layer
+   caps. Use sequential ownership when native delegation is absent or forbidden.
+4. Brief the available host-native worker or explicitly selected headless
+   runner using `references/execute-dispatch.md`. Include relevant task
+   excerpts, live anchors, scoped paths, acceptance criteria, and read-only
+   intent. Codex/Grok headless workers receive direct tasks or supported skill
+   files, not Claude slash commands. Do not require nested delegation.
+5. For authorized code edits, use focused verification only: not a broad suite
+   per task and not at phase end. Preserve per-outcome evidence.
+   `BASELINE_RED` does not block independent work, but is not evidence that
+   acceptance passed. `TASK_RED` repairs or parks only its causal branch.
+   Reuse verifier evidence only while relevant code and contracts are unchanged.
+6. Inspect the result contract, actual evidence, scoped commits, and residual
+   risk. An independent native review covers the resulting implementation;
+   Cross-family review is opt-in, not a side effect of backend selection.
+   Repairs require existing write authority and re-review of affected scope.
+   At most two scoped repair attempts before reporting a parked branch.
+7. At committed seams, use the session-bound context watchdog described in
+   `workflow-skills/agentic-exec-loop/references/loop-protocol.md`.
+   `UNKNOWN` telemetry is nonblocking; `OVER` requires a forward handoff
+   after draining active work. No fixed universal token threshold.
+8. Report completed/parked outcomes, actual verification, review, scoped SHAs,
+   and remaining gates. Workers commit their own authorized edits and never
+   push. Read-only tasks create no commits. Remote operations require the
+   user's or project release contract's authority.
 
-**Purpose.** Delegate **as much work as possible, automatically**, off the main thread. Opus is the **top-level planner + reviewer**; the workers run what Opus plans. If a chunk *can* be farmed out, farm it — main-thread Opus does the thinking (decompose, route, review, integrate), not the typing. This protects Opus's context while keeping spend low.
+For an authorized workflow-state update, use `stage-emit.sh`/`planctl`;
+never append raw events or worker output to dashboard logs. The canonical
+stage procedure normally owns this update, so do not duplicate it here.
 
-Unflagged, it delegates **natively to whatever harness you are running in**, then along `meta_dev.ladder.pool` (`["grok", "codex"]`). Wraps `/grok-execute` and `/codex-execute` as the pooled rungs. `/deep-execute` is paused. `/sonnet-execute` / `/opus-execute` are rare. Read `references/work-ladder.md` for backend specifics; this skill is the **orchestration layer** on top.
+No mandatory Fable consultation or other paid escalation precedes a user
+question. Use safe in-scope defaults for routine ambiguity; surface material
+scope, authority, or safety decisions to the user.
 
-## The Core Bias — farm to the cheapest rung that can do it
+## Flags
 
-**Unflagged = host-native farm along the pool.** Pick Spark/Luna or grok-4.5 for collect/mechanical, Grok 4.6 or Terra for ordinary, Sol or Grok 4.6 `xhigh` for hard. `--deep` / `--glm` / `--agy` / `--fable` are **named-only**. `--sonnet` / `--opus` are **rare** (UI + extra-family review). `--agy` is parked — never auto-selected. Break big work into bounded chunks; check each; then the next.
+- `--deep --grok --codex --sonnet --opus --glm --agy --fable`: explicit backend
+  selection, subject to its authentication, permission gates, and configured
+  pauses. Otherwise use the host-native configured route.
+- `--flash`/`--vision`: forward only to the selected supporting runner.
+  Preserve its mutual-exclusion and model-override rules.
+- `--budget auto|low|medium|high`: classify each task; a slice uses the highest
+  member's classification, clamped by the campaign ceiling. See
+  `references/execute-budget.md`.
+- `--effort <level>`: preserve explicit effort, validated by the actual runner.
+  Do not infer support or account limits from another host.
+- `--repo <name>`: configured repository alias; ambiguous roots require resolution.
+- `--readonly`: keep the entire routed task read-only, including state.
+- `--max-turns <n>`: forward only when supported; otherwise report the limitation.
+- `--autonomous`: does not waive permissions, human gates, or verification.
 
-**Which backends may be auto-selected, and in what order they escalate, is one config key** — resolve it, don't hardcode it:
-
-```bash
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/config-get.sh" meta_dev.ladder.pool
-```
-
-Task-shape → backend routing, the stay-native rules, and the foreign-harness caveats live in **`references/work-ladder.md`**. Read it once at the start of the run; it is the only place this order is defined.
-
-Beyond the pool, `--sonnet` (Anthropic-grade judgment off the main thread) and the other single-backend flags remain available as explicit opt-ins.
-
-When unsure, **try the native tier first** (no flag) — escalating one rung is cheap; opening at the most expensive tier is not.
-
-**Codex is a first-class EXECUTOR *and* the cross-family review lens.** `--codex` can take real execution, hardening, and gap-fixing chunks — dispatch it with `--sandbox workspace-write` when the worker must edit files, `--sandbox read-only` when it only reads and reports findings back for you to apply. Route it **spark-first** (`gpt-5.3-codex-spark`, a separate weekly quota from the gpt-5.6 family → effectively free capacity); reserve the heavier Codex tiers, which run on a limited Codex Plus quota, for work that earns them.
-
-It remains **also** the cross-family code-review lens — a GPT-class second opinion reviewing a diff at a phase gate / Stage 6, where independent-family review catches what Claude / GLM / DeepSeek share blind spots on. That role is unchanged; it is simply no longer Codex's *only* role.
-
-⚠️ **Headless Codex is OpenAI's own agent, NOT Claude Code** — it cannot run Claude slash commands internally the way `/deep-execute` / `/glm-execute` workers can. **Interactive Codex has meta-dev** (`$meta-dev:meta-execute`, `$meta-dev:loop-gap`, …). Headless still has the plugin: brief a **direct task**, or `/codex-execute --skill|--command`. Never "run `/loop-gap`" as a Claude slash. Same split for headless Grok (`/grok-execute`): plugins load, Claude slash engine does not. Full table: `references/work-ladder.md` → *Who has meta-dev*.
-
-## The Conductor Loop
-
-You run this loop on the main thread. **Never just fire one giant task at a backend** — decompose, dispatch, verify, repeat.
-
-1. **Decompose** — split the job into the smallest chunks that still make sense as a unit (one file, one phase, one well-scoped transform). Hold the chunk list in a task tracker (you own it). This is what protects your context and keeps DeepSeek on-thread. **If the job is a multi-phase meta-planner plan, the chunk unit is the phase/wave file — see "Multi-phase plans" below; that mode overrides the default chunking.**
-2. **Route** — per chunk, pick the backend with the bias above. Default native (no flag); mark any chunk that needs an external backend and why.
-3. **Dispatch** — run the chosen backend. For >30s work use `run_in_background: true`; a single self-contained spec per chunk (paths, constraints, exact deliverable, verify hook). Independent chunks → dispatch in parallel. The spec can be a raw task, a file/plan to act on, or an explicit *"run `/<command> <target>`"* instruction (e.g. `/meta-planner`, `/loop-gap`, `/meta-execute`, `/meta-eval`, `/sniff`) — the worker has the full harness. **For any code-writing chunk, include test minimalism + focused verification + optimistic momentum in the spec.** Tell every worker explicitly: *critical-breakage tests only; run one named test file/node; NEVER bare/directory pytest, `-k` without a file, package-wide npm/Vitest/Jest, `npm run check`, svelte-check, project tsc, build, or full suite—not per task and not at phase end. One green is green. TASK_RED repairs only its causal branch; BASELINE_RED and BROAD_VERIFY_OMITTED never block or defer independent work.* (Canonical: `references/execute-charter.md` → Focused Verification Doctrine.) (Read-only chunks — research, audit, review — don't need it.)
-4. **Round-trip review** — when a chunk returns, read the worker's distilled result (`OUTPUT_FILE`) to confirm `is_error: false`. Then **delegate the review — dispatch `meta-dev:review-agent`** for the chunk (per the agentic-exec-loop protocol: `workflow-skills/agentic-exec-loop/references/loop-protocol.md`). Read ONLY its verdict; do NOT read the diff into this context. The verdict is the quality gate, not the worker's self-report.
-5. **Pass / fail — branch on the review-agent verdict:**
-   - **PASS** → integrate, mark the chunk done, go to the next.
-   - **CONDITIONAL_PASS** → apply the suggested fixes via one deep Fixer, then advance (no re-review).
-   - **FAIL** → fix inline if trivial, else **re-dispatch on the next rung of `meta_dev.ladder.pool`** (a chunk the current backend fumbled is exactly an escalation signal). Max 2 attempts, then **consult Fable before surfacing** (`scripts/fable-consult.sh` — two failures on the same thing is a hard challenge, and surfacing costs the user a round-trip). Don't loop the same backend on the same failure twice.
-   - **Judgment call, any point in the loop** → before you stop to ask the user anything — a design trade-off, an under-specified chunk, which of two structures to build — run `scripts/fable-consult.sh --question "<the decision>"`. Adopt at exit `0`; on any other exit escalate **carrying Fable's recommendation as the lead option** with its confidence reported exactly as returned. Safety-class decisions (destructive/deploy/security/money/schema/cross-repo) skip the consult and always reach the user. Skill: `fable-consult`.
-6. **Context watchdog — compact at a wave seam when OVER.** Between chunk batches (a committed seam), run the gauge and read only `CONTEXT_VERDICT`:
-
-   ```bash
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/context-gauge.py   # default threshold 300000
-   ```
-
-   `OK`/`UNKNOWN` → continue to the next wave. `OVER` → don't start the next wave: invoke `/meta-compact` (forward handoff whose ▶ NEXT ACTION is "resume at the next wave/chunk"), surface the `/compact read …` trigger, and STOP for the user to compact. Resume continues the loop. Threshold: `--threshold N` or env `META_DEV_CONTEXT_THRESHOLD`. This is the same watchdog the per-phase loop uses (agentic-exec-loop → "Context watchdog"); it keeps long jobs ahead of the harness's blunt hard auto-compact.
-7. **Integrate & report** — once all chunks pass, summarize what landed, what was reviewed, residual risk. Close with the Next Steps Dashboard: a plain-English `▶ NEXT` sentence, the `Plan:` path spelled out in full, then the card.
-
-## Multi-phase plans — one phase/wave per round (meta-planner plans)
-
-When the job is a **meta-planner plan with multiple phases/waves**, do NOT chunk by task or by arbitrary file — **chunk by phase file**, and execute the plan **one phase at a time, in dependency order**.
-
-**Detect this mode** when the target is a meta-planner plan directory: a `00-master-plan.md` (the master/index that lists the phases) alongside `phase-N-<slug>.md` (a.k.a. "wave") files, e.g.:
-
-```
-plans/<repo>/<plan-dir>/
-├── 00-master-plan.md                      ← master/index (lists the phases, dep order)
-├── phase-1-<slug>.md                      ← wave 1
-├── phase-2-<slug>.md                      ← wave 2
-├── phase-3-<slug>.md                      ← wave 3 (Task 3.1, 3.2, … inside)
-├── phase-4-<slug>.md                      ← wave 4
-└── …                                       ← phase-5, 6, 7 …
-```
-
-**The per-phase loop (you, the conductor, run this):**
-
-1. **Read `00-master-plan.md`** — get the ordered phase list and any cross-phase dependencies. Each `phase-N-*.md` is one round.
-2. **One worker per phase.** For phase N, dispatch **one** worker (pick its backend per `references/work-ladder.md`) whose entire job is **that one phase file**. **Never split a phase across workers; never bundle two phases into one worker.**
-3. **The worker runs `/meta-execute <phase-file>` internally.** The chunk spec you hand the worker is: *"Run `/meta-execute plans/.../phase-N-<slug>.md`. Read `00-master-plan.md` first for context. Execute every task in that ONE phase file in order; do not touch other phase files. Follow the project test policy (critical-breakage tests only)."* `/meta-execute` is the per-task executor (claim → dispatch → verify → commit → checkbox flip) — it keeps the worker on-thread within the phase. Do **not** ask the worker to freelance task-by-task.
-4. **Code-review the phase** when the worker returns — read the worker's distilled result (`OUTPUT_FILE`) to confirm `is_error: false`. Then dispatch `meta-dev:review-agent` for the phase (per the agentic-exec-loop protocol). Read ONLY its verdict; do NOT read the diff into this context. The verdict is your quality gate, per the Round-trip review step.
-5. **Advance — branch on the review-agent verdict.** PASS → move to phase N+1. CONDITIONAL_PASS → apply fixes via one cheap Fixer, then advance. FAIL → fix inline if trivial, else re-dispatch on the next rung of `meta_dev.ladder.pool` (max 2 attempts, then surface). Respect dependencies: never start phase N+1 if it depends on a phase that hasn't landed green.
-6. **Context watchdog between phases.** After phase N lands green and is committed, run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/context-gauge.py` (default 300000). On `CONTEXT_VERDICT=OVER`, pause at this seam: `/meta-compact` (handoff ▶ NEXT ACTION = "resume at phase N+1"), surface the trigger, STOP for the user to compact, then resume. On `OK`, advance to phase N+1. (Same watchdog as agentic-exec-loop → "Context watchdog".)
-
-**Routing per phase:** a phase is a cohesive, stateful, multi-task unit (Task N.1 → N.2 → …), so it leans toward Grok 4.6 or Codex Terra/Sol. Use Spark/Luna or grok-4.5 for a phase whose tasks are small and disjoint/mechanical. Route by task shape per `references/work-ladder.md`; escalate one rung on a failed phase review.
-
-**Fat-phase fan-out (split the phase across backends).** If a phase is large (more than ~3 tasks, or a stateful core + many mechanical leaves — e.g. one resolver rewrite + 20 identical call-site swaps), don't make one worker swallow it. As conductor, **decompose before dispatch:** Grok 4.6 / Terra / Sol holds the **stateful core**, and **Spark / Luna / grok-4.5 take the mechanical leaves in parallel**. Then you review each diff. That's typically 1 core dispatch + 1–2 cheap collect/mechanical dispatches per heavy phase. DeepSeek is paused.
-
-## Dashboard stage signal — conductor-emit (keep the dashboard honest)
-
-When you run a **waterfall stage on a plan** through this skill — above all when you dispatch a headless worker for a stage (executing a meta-planner plan, a harden pass, a plan/review pass) — **you (the conductor) emit the stage transition yourself.** Do NOT rely on the worker: a headless DeepSeek/GLM/Codex worker may skip the emit instruction, and a Codex worker can't run our commands at all. You are reliable Opus, so emit here for a guaranteed signal.
-
-- **Before dispatching** the stage's worker → emit `in_progress`.
-- **After the round-trip review passes** (stage landed green) → emit `completed` (or `blocked` if it failed and you're halting).
-
-Emit by appending one event to the project's dashboard log — self-contained, no dependency on the worker or the plugin path:
-
-> **⛔ NEVER emit the raw worker `result` text to the dashboard.** The emit writes ONLY verdict/metadata fields below. Defense-in-depth: the distillers (`distill-headless-result.py`, `distill-codex-result.py`) redact known key shapes before writing `result`.
-
-```bash
-python3 - "<plan-path>" "<stage>" "<status>" <<'PY'
-import json, sys, os, datetime
-plan, stage, status = sys.argv[1:4]
-num = {"brainstorm":1,"design":2,"plan":3,"harden":4,"execute":5,"review":6}.get(stage, 0)
-os.makedirs("plans/_dashboard", exist_ok=True)
-ev = {"event":"stage_transition","plan":plan,"stage":stage,"stage_num":num,
-      "status":status,"time":datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")}
-with open("plans/_dashboard/state.events.jsonl","a") as f:
-    f.write(json.dumps(ev)+"\n")
-PY
-```
-
-`<stage>` ∈ `plan|harden|execute|review` (what the worker is doing). Idempotent with the start-hook and the command's own emit — the reducer keeps the latest, so double-emits are harmless. For a **multi-phase plan**, emit `execute in_progress` when the phase loop begins and `execute completed` once all phases land green. (Run from the project root so `plans/_dashboard/` resolves; `/meta-dashboard` reduces the log on render.) The stage 5→6 (DONE) advance is then enforced by `on-run-complete.sh` — it stamps DONE once all execution checkboxes are flipped and a `review_verdict(pass)` is on record, or FAILS LOUD to the inbox otherwise.
-
-## Gating — code-writing executes stay gated
-
-`/auto-execute` inherits the host project's explicit-action rule from `AGENTS.md`: **design / plan / harden / review / audit chunks flow freely**, but **code-writing plan execution requires the human approver's explicit "go"**. Routing through a cheaper backend never relaxes the gate — a DeepSeek worker writing app code is still a plan execution. Read-write chunks outside a gated plan (ad-hoc fixes, refactors you'd normally just do) follow the same >90%-confident / in-scope / reversible discernment as any direct edit.
-
-## Step 1: Parse Arguments
-
-The user's input is: `$ARGUMENTS`
-
-- `--grok` / `--codex` / `--sonnet` / `--opus` / `--deep` / `--glm` / `--agy` — force a backend, skip routing (still chunk + review). **Pool is Grok + Codex.** `--sonnet` / `--opus` are **rare** (UI + extra-family review, one pass). `--deep` is **paused** — dispatch only when Phong named DeepSeek this turn (defaults to `deepseek-v4-pro`; `--flash` / `--vision` still work if named). `--agy` is **parked**: dispatch only when Phong named Antigravity this turn. Default Gemini 3.7 Flash. `--opus` on that runner is Claude Opus 4.6 on Google quota, not Claude Code. `--codex` is a pooled executor **and** the extra-family review lens — route it spark/luna-first and dispatch through `scripts/codex-headless-exec` (`--sandbox workspace-write` when it edits, `--sandbox read-only` when it only reports back). `--glm` is named-only.
-- `--flash` — DeepSeek-only. Forwarded as `--flash` on `--deep` workers. Binding when the user passed it; otherwise the conductor may add it only for clearly mechanical/low-reasoning chunks (see `/deep-execute`).
-- `--vision` — DeepSeek-only. Forwarded as `--vision` on `--deep` workers → `deepseek-v4-flash-vision-exp`. Binding when the user passed it; otherwise the conductor may add it only when the chunk must look at images/screenshots (Pro/Flash 400 on images). Exclusive vs `--flash`.
-- `--budget auto|low|medium|high` — **depth cap** (default `auto`). Classify each chunk before dispatch (`low` mechanical, `medium` ordinary, `high` hard). Campaign ceiling if you pass a concrete level. Doctrine: `references/execute-budget.md`.
-- `--effort <level>` — thinking/reasoning effort forwarded to each headless worker: `low|medium|high|xhigh|max`. Applies to `--sonnet`/`--glm`/`--grok` (Anthropic + GLM default `high`). **`--deep` has no effort knob** — the runner warns and drops the level rather than forwarding it. Drop to `medium`/`low` to conserve the Max Sonnet cap on bulk chunks; `xhigh` for the hardest work. Omit to use the per-backend default. Explicit `--effort` wins over `--budget`.
-- `--repo <name>` — target repo (default: auto-detect from cwd; names from .claude/meta-dev-repos.json)
-- `--readonly` — restrict workers to read-only tools (audits/reviews — route freely, either backend)
-- `--max-turns <n>` — cap worker turns
-Everything else is the job description. If none is given, ask what to execute.
-
-## Step 2: Plan the Run
-
-State briefly, before dispatching:
-- **Job** and its **chunk breakdown** (the ordered list).
-- **Per-chunk backend** (default native; name any flagged external backend + reason).
-- **Whether any chunk is a gated code-write** — if so, get "go" first.
-
-## Step 3: Run the Conductor Loop
-
-Execute the loop above. Track chunks live. Dispatch via the underlying script:
-
-```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/claude-headless-exec \
-  --backend <deep|glm|sonnet|opus|fable> \
-  ${FLASH:+--flash} \
-  ${VISION:+--vision} \
-  --budget "$BUDGET" \
-  ${EFFORT:+--effort "$EFFORT"} \
-  ${REPO:+--repo "$REPO"} \
-  ${READONLY:+--readonly} \
-  ${MAX_TURNS:+--max-turns "$MAX_TURNS"} \
-  -- <self-contained chunk spec>
-```
-
-`OUTPUT_FILE` is clean JSON (`{is_error,result,num_turns,duration_ms,…}`); `.raw` = full trace, `.stderr` = worker stderr. Check `is_error` and exit code (3 = distill failed, 4 = worker error) on every return.
-
-**Codex backend:** dispatch via `scripts/codex-headless-exec` instead (same flags **minus** `--max-turns`; add `--readonly` for audits, `--sandbox workspace-write` for fixes). It emits the **identical `OUTPUT_FILE` contract**, so review it the same way (exit 124 = timed out). Interactive Codex has `$meta-dev:*`. Headless cannot type a Claude slash — give it the task directly, or `--skill`/`--command`.
-
-**Antigravity backend (`--agy`):** dispatch via `scripts/agy-headless-exec` (no `--backend`). Same `OUTPUT_FILE` contract. Brief a direct task. Default `gemini-3.7-flash-high`. Never auto-select; never farm inner Grok/`Agent` children onto `agy` unless this flag was passed.
-
-## Step 4: Report
-
-Per the Conductor Loop step 7 — what each backend did, what you reviewed, escalations taken, and next steps. Remind: worker changes are **not** auto-committed.
-
-## Use it for any meta-dev work — all 6 waterfall stages
-
-This is the intended substrate for the **entire Development Waterfall**, not just execution — farm the heavy lifting to workers, native-first, you reviewing each round-trip. Each stage is just a different worker command / chunk content; the conductor loop is the same.
-
-- **BRAINSTORM** — farm research/exploration chunks (read-only, either backend) — "survey how X works", "list options for Y with tradeoffs". You synthesize the intent.
-- **DESIGN** — farm design-doc drafting (a section per chunk for a big doc; one long-horizon worker for a cohesive whole). You own the architecture call; workers draft + you review.
-- **PLAN** (`/meta-planner`) — worker runs `/meta-planner <plan>` to restructure into phase files, or farm bounded research/drafting chunks; you assemble + review.
-- **HARDEN** (`/loop-gap`) — farm per-file / per-gap scans to Grok 4.5 / Spark / Luna chunks; escalate a subtle whole-plan consistency pass to Grok 4.6 or Sol. Worker can run `/loop-gap <dir>` directly. Hardening is mechanical→complex work — along `meta_dev.ladder.pool` (`grok`, `codex`). DeepSeek is paused.
-- **EXECUTE** (`/meta-execute`) — for a **multi-phase meta-planner plan, farm one phase/wave file per round** (see "Multi-phase plans" above): one worker per phase, the worker runs `/meta-execute` on that phase, you code-review, then advance. For a flat single-file plan, farm per-task chunks (Spark/Luna or grok-4.5 mechanical; Grok 4.6 / Terra / Sol the rest). Either way — **only once the plan execution is authorized** (the gate holds).
-- **REVIEW & VALIDATE** (`/meta-eval`, code review) — worker runs `/meta-eval <plan>` or a read-only code review over a diff; route freely (read-only, not gated). Cross-backend verification is a feature: have one family review what another built — Grok is the third independent family alongside Anthropic and OpenAI. **This is Codex's highest-leverage job (though no longer its only one):** use `--codex` for a **true cross-family CODE REVIEW** (a different model family — GPT — reviewing the diff), the highest-signal verification when correctness really matters.
-
-**Beyond the waterfall:** any standalone op (`/sniff`, `/meta-security`, `/meta-ux`, `/meta-audit`, `/meta-probe`, changelog, version) and any **arbitrary task or bare prompt** routes the same way. If you can describe it as a self-contained chunk with a deliverable, `/auto-execute` can farm it.
-
-See the host project's `AGENTS.md` for its development workflow and execution routing.
+If no task is supplied, ask what to route. Before dispatch, state intent,
+deliverable, chosen route, ownership bounds, and any authorization gate.

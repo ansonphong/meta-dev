@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Focused regression guard: /runbook execute is a thin campaign conductor
-# that farms host-native member conductors in file-disjoint waves (cap 3).
+# that shares host capacity across file-disjoint members and nested work.
 set -uo pipefail
 
 PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -18,8 +18,8 @@ root = Path(sys.argv[1])
 required = {
     "commands/runbook.md": [
         "campaign conductor",
-        "do **not** implement member tasks",
-        "Cap **3**",
+        "one host-wide cap",
+        "sequential scoped",
         "file-disjoint",
         "spawn_subagent",
         "member conductor",
@@ -32,9 +32,9 @@ required = {
     ],
     "workflow-skills/runbook-orchestration/SKILL.md": [
         "campaign conductor",
-        "do not implement member tasks",
-        "Cap **3**",
-        "file-disjoint",
+        "host-wide worker cap",
+        "sequential scoped ownership",
+        "File-disjoint",
         "spawn_subagent",
         "member conductor",
         "--serial",
@@ -45,20 +45,12 @@ required = {
         "CONTEXT_VERDICT=OVER",
         "flatten a campaign into a host-specific workflow script",
     ],
-    "references/runbook-view.md": [
-        "member conductors",
-        "Cap **3**",
-        "direct task",
-    ],
-    "references/execute-briefs.md": [
-        "Campaign member conductor",
-        "Never \"run `/meta-execute`\"",
-        "Cap **3** member conductors",
-    ],
-    "references/workflows/protocol.md": [
-        "Campaign runbook",
-        "member conductors",
-        "Cap **3** in-flight members",
+    "commands/auto-execute.md": [
+        "not a second execution engine",
+        "Approved plan implementation routes once to `commands/meta-execute.md`",
+        "one host-wide worker cap",
+        "`--readonly` forbids source, ledger, and dashboard",
+        "Cross-family",
     ],
 }
 forbidden = {
@@ -71,6 +63,15 @@ forbidden = {
         "never write a file that is already dirty on the working tree",
         "Authoring a runbook's narrative + topo-sort + wave strategy is campaign-design judgment → **Opus**",
         "Does not relax the GLM ~3-request API cap",
+        "~24 writers",
+        "DeepSeek paused",
+        "Unrelated dirty files → **commit",
+    ],
+    "commands/auto-execute.md": [
+        "state.events.jsonl",
+        "DeepSeek is paused",
+        "consult Fable before surfacing",
+        "default threshold 300000",
     ],
 }
 
