@@ -24,7 +24,7 @@ case "$STAGE" in
     *) echo "stage-emit.sh: unknown stage '$STAGE' (expected brainstorm|design|plan|harden|execute|review or 1-6)" >&2; exit 1 ;;
 esac
 
-# Delegate to planctl stage — planctl handles the exec-order guard, never writes
+# Delegate to planctl stage — planctl resolves the canonical plan file, never writes
 # status:/updated:, and emits the event via the new events.jsonl (not state-append.sh).
 # Forward $3 as --status; planctl also writes completed -> stage_state: done and
 # every other accepted status -> stage_state: active in the plan frontmatter.
