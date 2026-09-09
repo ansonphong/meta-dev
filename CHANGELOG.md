@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.5.1
+
+- Default `/deep-execute` / `claude-headless-exec --backend deep` to `deepseek-v4-flash` (V4.1 Flash as of 2026-09-10); `--pro` upgrades; `--vision` unchanged.
+- Do not pin the preview ID `deepseek-v4.1-flash-expires-on-0910`.
+- Release matching Claude and Codex plugin manifests at version 1.5.1.
+
+## 1.5.0
+
+- Release adaptive project-neutral workflows.
+- Release matching Claude and Codex plugin manifests at version 1.5.0.
+
 ## 1.4.33
 
 - Keep successful Stop-hook reconciliation silent so Codex does not append the full plan-decision list to every response.
