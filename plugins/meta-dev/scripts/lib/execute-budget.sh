@@ -108,11 +108,80 @@ md_budget_turns() {
 }
 
 md_budget_timeout_ms() {
+    # Headless workers routinely run 30+ min. These walls are the session
+    # backstop, not a "hurry up" hint. low used to be 15 min and medium 45 —
+    # both cut real DeepSeek/Codex/Grok/Opus jobs mid-flight.
     case "${1:-medium}" in
-        low) echo 900000 ;;
-        high) echo 7200000 ;;
-        *) echo 2700000 ;;
+        low) echo 1800000 ;;     # 30 min
+        high) echo 10800000 ;;   # 180 min
+        *) echo 5400000 ;;       # 90 min
     esac
+}
+
+# Parse --timeout into milliseconds.
+# Accepts 30m / 2h / 1800s / 7200000ms / bare integers.
+# Bare integers < 1000 are SECONDS (15 → 15s), never milliseconds — a 15ms
+# worker timeout is always a unit mix-up from a host tool.
+md_parse_timeout_to_ms() {
+    local raw="${1:-}"
+    raw="${raw// /}"
+    if [[ -z "$raw" ]]; then
+        echo "[ERROR] empty --timeout" >&2
+        return 1
+    fi
+    if [[ "$raw" =~ ^([0-9]+)ms$ ]]; then
+        echo "${BASH_REMATCH[1]}"
+        return 0
+    fi
+    if [[ "$raw" =~ ^([0-9]+)(\.[0-9]+)?s$ ]]; then
+        echo $(( ${BASH_REMATCH[1]} * 1000 ))
+        return 0
+    fi
+    if [[ "$raw" =~ ^([0-9]+)m(in)?$ ]]; then
+        echo $(( ${BASH_REMATCH[1]} * 60000 ))
+        return 0
+    fi
+    if [[ "$raw" =~ ^([0-9]+)h(r|ours?)?$ ]]; then
+        echo $(( ${BASH_REMATCH[1]} * 3600000 ))
+        return 0
+    fi
+    if [[ "$raw" =~ ^[0-9]+$ ]]; then
+        if [[ "$raw" -lt 1000 ]]; then
+            echo "[timeout] '$raw' < 1000 — treating as SECONDS (${raw}s), not milliseconds" >&2
+            echo $(( raw * 1000 ))
+        else
+            echo "$raw"
+        fi
+        return 0
+    fi
+    echo "[ERROR] Invalid --timeout '$raw'. Use milliseconds, or a suffix: 30s / 30m / 2h." >&2
+    return 1
+}
+
+# Host bash/tool timeouts that conductors accidentally forward as --timeout.
+# 5s–5min in milliseconds. Real worker walls are budget (30–180 min).
+md_timeout_looks_like_host_tool() {
+    case "${1:-}" in
+        1000|2000|3000|4000|5000|8000|10000|15000|20000|30000|45000|60000|90000|120000|180000|240000|300000)
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+# Silence window before the liveness watchdog kills a worker.
+# Floor 20 min (thinking models emit nothing that long); cap 45 min.
+# Dynamic: 1/4 of the wall clock.
+md_stall_secs_for_timeout_ms() {
+    local timeout_ms="${1:-5400000}"
+    [[ "$timeout_ms" =~ ^[0-9]+$ ]] || timeout_ms=5400000
+    local timeout_s=$(( timeout_ms / 1000 ))
+    local stall=$(( timeout_s / 4 ))
+    [[ "$stall" -lt 1200 ]] && stall=1200
+    [[ "$stall" -gt 2700 ]] && stall=2700
+    echo "$stall"
 }
 
 # Effort suggestion. Empty string = do not override backend default.
@@ -127,7 +196,7 @@ md_budget_effort() {
 md_budget_preamble() {
     local level="${1:-medium}"
     local turns="${2:-32}"
-    local timeout_ms="${3:-2700000}"
+    local timeout_ms="${3:-5400000}"
     local timeout_min=$((timeout_ms / 60000))
     local rules
     case "$level" in
@@ -151,7 +220,7 @@ EOF
 }
 
 md_resolve_budget() {
-    local raw resolved turns timeout_ms suggested_effort
+    local raw resolved turns timeout_ms suggested_effort parsed
     raw="$(md_normalize_budget_word "${BUDGET:-auto}")"
     if [[ -z "$raw" ]]; then
         echo "[ERROR] Invalid --budget '${BUDGET}'. Use auto, low, medium, or high." >&2
@@ -173,8 +242,22 @@ md_resolve_budget() {
     if [[ "${MAX_TURNS_EXPLICIT:-0}" != "1" && "${MAX_TURNS_EXPLICIT:-false}" != "true" ]]; then
         MAX_TURNS="$turns"
     fi
-    if [[ "${TIMEOUT_EXPLICIT:-0}" != "1" && "${TIMEOUT_EXPLICIT:-false}" != "true" ]]; then
+    if [[ "${TIMEOUT_EXPLICIT:-0}" == "1" || "${TIMEOUT_EXPLICIT:-false}" == "true" ]]; then
+        parsed="$(md_parse_timeout_to_ms "$TIMEOUT")" || return 1
+        if [[ "${META_DEV_ALLOW_SHORT_TIMEOUT:-0}" != "1" ]] && md_timeout_looks_like_host_tool "$parsed"; then
+            echo "[timeout] ignoring host-tool --timeout ${TIMEOUT} (${parsed}ms). That is a bash/spawn timeout, not a worker wall. Using budget ${resolved} = ${timeout_ms}ms. Pass 30m/90m/2h or set META_DEV_ALLOW_SHORT_TIMEOUT=1 for a real short run." >&2
+            TIMEOUT="$timeout_ms"
+            TIMEOUT_EXPLICIT=0
+        else
+            TIMEOUT="$parsed"
+        fi
+    else
         TIMEOUT="$timeout_ms"
+    fi
+    # Dynamic stall: thinking backends go silent for many minutes. Do not
+    # override an explicit STALL_SECS (including 0 = watchdog off).
+    if [[ "${STALL_SECS_EXPLICIT:-0}" != "1" && "${STALL_SECS_EXPLICIT:-false}" != "true" ]]; then
+        STALL_SECS="$(md_stall_secs_for_timeout_ms "$TIMEOUT")"
     fi
     if [[ "${EFFORT_EXPLICIT:-0}" != "1" && "${EFFORT_EXPLICIT:-false}" != "true" ]]; then
         if [[ -n "$suggested_effort" ]]; then

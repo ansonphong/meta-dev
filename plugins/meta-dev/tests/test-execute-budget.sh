@@ -42,7 +42,7 @@ PROMPT="do the thing"
 md_resolve_budget
 [[ "$BUDGET_RESOLVED" == "medium" ]] && ok "auto → medium" || bad "auto resolved $BUDGET_RESOLVED"
 [[ "$MAX_TURNS" == "32" ]] && ok "medium turns 32" || bad "turns $MAX_TURNS"
-[[ "$TIMEOUT" == "2700000" ]] && ok "medium timeout 45m" || bad "timeout $TIMEOUT"
+[[ "$TIMEOUT" == "5400000" ]] && ok "medium timeout 90m" || bad "timeout $TIMEOUT"
 [[ -z "$EFFORT" ]] && ok "medium leaves effort default" || bad "effort $EFFORT"
 
 BUDGET="low"
@@ -54,7 +54,7 @@ TIMEOUT_EXPLICIT=0
 EFFORT_EXPLICIT=0
 BACKEND="grok"
 md_resolve_budget
-[[ "$MAX_TURNS" == "12" && "$EFFORT" == "low" && "$TIMEOUT" == "900000" ]] && ok "low maps turns/effort/timeout" || bad "low map t=$MAX_TURNS e=$EFFORT to=$TIMEOUT"
+[[ "$MAX_TURNS" == "12" && "$EFFORT" == "low" && "$TIMEOUT" == "1800000" ]] && ok "low maps turns/effort/timeout" || bad "low map t=$MAX_TURNS e=$EFFORT to=$TIMEOUT"
 
 BUDGET="high"
 MAX_TURNS="5"
@@ -67,7 +67,7 @@ BACKEND="opus"
 md_resolve_budget
 [[ "$MAX_TURNS" == "5" ]] && ok "explicit max-turns wins" || bad "turns clobber $MAX_TURNS"
 [[ "$EFFORT" == "medium" ]] && ok "explicit effort wins" || bad "effort clobber $EFFORT"
-[[ "$TIMEOUT" == "7200000" ]] && ok "high timeout when not explicit" || bad "high timeout $TIMEOUT"
+[[ "$TIMEOUT" == "10800000" ]] && ok "high timeout when not explicit" || bad "high timeout $TIMEOUT"
 
 BUDGET="low"
 BACKEND="deep"
@@ -85,6 +85,35 @@ case "$PROMPT" in
     *"EXECUTION BUDGET: low"*) ok "preamble wrapped" ;;
     *) bad "preamble missing" ;;
 esac
+
+# --timeout unit parse + host-tool leak ignore
+got="$(md_parse_timeout_to_ms 30m)"
+[[ "$got" == "1800000" ]] && ok "30m → 1800000ms" || bad "30m → $got"
+got="$(md_parse_timeout_to_ms 2h)"
+[[ "$got" == "7200000" ]] && ok "2h → 7200000ms" || bad "2h → $got"
+got="$(md_parse_timeout_to_ms 15)"
+[[ "$got" == "15000" ]] && ok "bare 15 → 15s not 15ms" || bad "bare 15 → $got"
+got="$(md_parse_timeout_to_ms 5400000)"
+[[ "$got" == "5400000" ]] && ok "bare ms passthrough" || bad "bare ms → $got"
+
+BUDGET="medium"
+TIMEOUT="300000"
+TIMEOUT_EXPLICIT=1
+MAX_TURNS_EXPLICIT=0
+EFFORT_EXPLICIT=0
+STALL_SECS_EXPLICIT=0
+BACKEND="grok"
+unset META_DEV_ALLOW_SHORT_TIMEOUT || true
+md_resolve_budget
+[[ "$TIMEOUT" == "5400000" ]] && ok "host-leak 5min --timeout ignored" || bad "leak timeout $TIMEOUT"
+[[ "$STALL_SECS" == "1350" ]] && ok "medium stall wall/4=1350" || bad "stall $STALL_SECS"
+
+BUDGET="low"
+TIMEOUT=""
+TIMEOUT_EXPLICIT=0
+STALL_SECS_EXPLICIT=0
+md_resolve_budget
+[[ "$STALL_SECS" == "1200" ]] && ok "low stall floors at 20m" || bad "low stall $STALL_SECS"
 
 got="$("$PLUGIN_ROOT/scripts/classify-execute-budget.sh" --campaign medium -- "Rename foo")"
 [[ "$got" == "low" ]] && ok "cli classify+clamp rename under medium" || bad "cli $got"

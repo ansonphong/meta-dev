@@ -95,7 +95,13 @@ If the task is destructive or writes outside the repo, confirm first. For review
 
 ## Step 4: Execute
 
-For tasks expected to take >30s, use `run_in_background: true`.
+Always background it — these jobs routinely take 30–180 minutes.
+
+**BINDING — host tool timeout.** The runner owns the wall (`--budget`: low 30m / medium 90m / high 180m). A 5-second or 5-minute host bash/spawn timeout kills a healthy worker and wastes the tokens already spent.
+
+- **Grok:** `background: true` **and** `timeout: 0` (disables wrapper kill). Never `timeout: 5000`, `120000`, or `300000`.
+- Pass `--timeout` on the runner **only** if the user typed `--timeout` in `$ARGUMENTS`. Never copy the host tool timeout into `--timeout`.
+- Waiting on the job: `timeout_ms` ≥ 1800000 (30 min) or poll until exit. `timeout_ms: 300000` is a 5-minute cut-off.
 
 ```bash
 ${PLUGIN_ROOT}/scripts/agy-headless-exec \
@@ -105,7 +111,6 @@ ${PLUGIN_ROOT}/scripts/agy-headless-exec \
   --budget "$BUDGET" \
   ${EFFORT:+--effort "$EFFORT"} \
   ${READONLY:+--readonly} \
-  ${TIMEOUT:+--timeout "$TIMEOUT"} \
   -- <task description>
 ```
 

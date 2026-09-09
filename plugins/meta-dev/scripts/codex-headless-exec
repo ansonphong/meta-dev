@@ -29,12 +29,12 @@
 #                            Depth cap (default auto → medium at the runner).
 #                            See references/execute-budget.md
 #   --model <model>          Explicit model override; wins over --tier
-#   --timeout <ms>           Wall-clock timeout in ms (default: from --budget)
+#   --timeout <ms|30s|30m|2h> Wall-clock (default: from --budget; medium=90 min)
 #
 # Liveness watchdog (env knobs — a wedged worker that goes silent is killed and
-# auto-reset, instead of idling out the full 120-min cap):
+# auto-reset, instead of idling out the full wall-clock cap):
 #   STALL_SECS=<s>           No RAW-output growth for this long → stuck; kill +
-#                            auto-reset (default 300 = 5 min; 0 disables)
+#                            auto-reset (default max(20 min, wall/4); 0 disables)
 #   STALL_MAX_RESETS=<n>     Auto-resets before halt-and-pause (default 3); on
 #                            exhaustion the run STOPS with exit 125 for review
 #   STALL_POLL_SECS=<s>      Output-size poll interval (default 30)
@@ -71,7 +71,7 @@ MODEL_EXPLICIT=false
 TIER="terra"
 EFFORT="medium"
 EFFORT_EXPLICIT=false
-TIMEOUT="7200000"
+TIMEOUT="5400000"
 TIMEOUT_EXPLICIT=false
 BUDGET="auto"
 MAX_TURNS=""
@@ -217,6 +217,8 @@ if [[ "$EFFORT_EXPLICIT" != "true" ]]; then
     EFFORT="$TIER_EFFORT"
 fi
 
+STALL_SECS_EXPLICIT="${STALL_SECS_EXPLICIT:-0}"
+[[ -n "${STALL_SECS+x}" ]] && STALL_SECS_EXPLICIT=1
 # shellcheck source=lib/execute-budget.sh
 source "$SCRIPT_DIR/lib/execute-budget.sh"
 # shellcheck source=lib/execute-brief.sh
@@ -608,7 +610,7 @@ fi
 # (distinct exit 125) so the conductor PAUSES rather than trusting the silence.
 if [[ "${STALL_HALTED:-false}" == "true" ]]; then
     IS_ERROR="True"
-    RESULT_TEXT="[STALLED — codex produced no output for $(( ${STALL_SECS:-300} / 60 ))m, killed and re-dispatched ${STALL_RESETS}× then HALTED. Run PAUSED for review. Partial trace: $RAW_FILE]"
+    RESULT_TEXT="[STALLED — codex produced no output for $(( ${STALL_SECS:-1200} / 60 ))m, killed and re-dispatched ${STALL_RESETS}× then HALTED. Run PAUSED for review. Partial trace: $RAW_FILE]"
 fi
 
 # ── Result summary ──────────────────────────────────────────────────────

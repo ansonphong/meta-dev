@@ -16,7 +16,7 @@
 #   --flash / --pro          DeepSeek-only boolean sugars for --tier flash|pro
 #                            (default is Flash / V4.1; --pro upgrades to Pro ID)
 #   --vision                 DeepSeek-only: deepseek-v4-flash-vision-exp (multimodal)
-#   --timeout <ms>           Timeout in ms (default: 7200000 = 120 min)
+#   --timeout <ms|30s|30m|2h>  Session wall (default: from --budget; medium=90 min)
 #   --tools <list>           Comma-separated tool list (default: Read,Write,Edit,Bash,Grep,Glob)
 #   --readonly               Restrict available tools to Read,Glob,Grep (no shell/delegation)
 #   --output json|text       Output format (default: json)
@@ -201,12 +201,15 @@ Options:
                             Depth cap (default auto → medium at the runner).
                             Turns/wall/don't-wander rules. NOT --effort and
                             NOT --max-budget-usd. See references/execute-budget.md
-  --timeout <ms>            Timeout in ms via API_TIMEOUT_MS (default: from --budget)
+  --timeout <ms|30s|30m|2h> Session wall + per-request API_TIMEOUT_MS
+                            (default: from --budget; medium = 90 min).
+                            Bare numbers < 1000 are seconds, not milliseconds.
+                            Host bash timeouts (5s/2m/5m) are ignored.
 
 Liveness watchdog (env knobs — a wedged worker that goes silent is killed and
-auto-reset, instead of idling out the full 120-min cap):
+auto-reset, instead of idling out the full wall-clock cap):
   STALL_SECS=<s>            No RAW-output growth this long → stuck; kill +
-                            auto-reset (default 300 = 5 min; 0 disables)
+                            auto-reset (default max(20 min, wall/4); 0 disables)
   STALL_MAX_RESETS=<n>      Auto-resets before halt-and-pause (default 3); on
                             exhaustion the run STOPS with exit 125 for review
   STALL_POLL_SECS=<s>       Output-size poll interval (default 30)
@@ -509,6 +512,10 @@ if [[ -n "$EFFORT" && ! "$EFFORT" =~ ^(low|medium|high|xhigh|max)$ ]]; then
 fi
 
 # ── Resolve --budget (depth cap). Explicit --effort/--max-turns/--timeout win.
+# Preserve caller STALL_SECS (including 0) so budget does not arm a watchdog
+# the caller already disabled.
+STALL_SECS_EXPLICIT=0
+[[ -n "${STALL_SECS+x}" ]] && STALL_SECS_EXPLICIT=1
 # shellcheck source=lib/execute-budget.sh
 source "$SCRIPT_DIR/lib/execute-budget.sh"
 # shellcheck source=lib/execute-brief.sh
@@ -516,8 +523,10 @@ source "$SCRIPT_DIR/lib/execute-brief.sh"
 md_resolve_budget || exit 1
 
 if [[ -z "$TIMEOUT" ]]; then
-    TIMEOUT=7200000   # 120 min — only if budget did not set it
+    TIMEOUT=5400000   # 90 min — only if budget did not set it
 fi
+TIMEOUT_S=$(( TIMEOUT / 1000 ))
+[[ "$TIMEOUT_S" -lt 1 ]] && TIMEOUT_S=1
 
 # ── Resolve output ──────────────────────────────────────────────────────
 if [[ -z "$OUTPUT_FILE" ]]; then
@@ -623,6 +632,8 @@ ENV_VARS=(
     "ANTHROPIC_DEFAULT_HAIKU_MODEL=${BACKEND_HAIKU_MODEL[$BACKEND]}"
     "CLAUDE_CODE_SUBAGENT_MODEL=${BACKEND_SUBAGENT_MODEL[$BACKEND]}"
     "API_TIMEOUT_MS=${TIMEOUT}"
+    "BASH_DEFAULT_TIMEOUT_MS=${TIMEOUT}"
+    "BASH_MAX_TIMEOUT_MS=${TIMEOUT}"
     "META_WORKER_MANIFEST=${MANIFEST_FILE}"   # arms worker-git-guard + worker-manifest-record hooks
 )
 ENV_UNSET=()
@@ -677,7 +688,7 @@ cat <<EOF
 ║  Resolved  : ${WORKDIR_ORIGIN}
 ║  Tools     : ${TOOLS}
 ║  Budget    : ${BUDGET_RESOLVED:-medium} (turns ${MAX_TURNS:-?})
-║  Timeout   : ${TIMEOUT}ms
+║  Timeout   : ${TIMEOUT}ms (${TIMEOUT_S}s)
 ║  Budget    : ${MAX_BUDGET_USD:-\$unlimited}
 ║  Output    : ${OUTPUT_FILE}
 ║  Auth Key  : ${MASKED_KEY}
@@ -742,12 +753,12 @@ md_brief_wrap_prompt
 # (exit 125 after the reset budget). So:
 #   • stream-json  → arm `--verbose` (the CLI requires it) and keep the watchdog.
 #   • any other fmt (buffered json / text) → disable the growth-watchdog unless the
-#     caller explicitly set STALL_SECS; the 120-min timeout(1) cap still backstops.
+#     caller explicitly set STALL_SECS; timeout(1) at TIMEOUT_S still backstops.
 STREAM_FLAGS=()
 if [[ "$OUTPUT_FORMAT" == "stream-json" ]]; then
     STREAM_FLAGS+=(--verbose)
-else
-    STALL_SECS="${STALL_SECS:-0}"
+elif [[ "$STALL_SECS_EXPLICIT" != "1" ]]; then
+    STALL_SECS=0
 fi
 
 # Liveness watchdog: if the worker's RAW stream goes silent (hangs) we kill +
@@ -755,7 +766,7 @@ fi
 source "$SCRIPT_DIR/lib/stall-watchdog.sh"
 stall_launch_worker() {
     env "${ENV_UNSET[@]+"${ENV_UNSET[@]}"}" "${ENV_VARS[@]}" \
-        claude -p "$PROMPT" \
+        timeout "${TIMEOUT_S}s" claude -p "$PROMPT" \
             --output-format "$OUTPUT_FORMAT" \
             "${STREAM_FLAGS[@]+"${STREAM_FLAGS[@]}"}" \
             --model "$MODEL" \
@@ -775,6 +786,11 @@ EXIT_CODE=$STALL_EXIT
 
 END_TIME=$(date +%s)
 ELAPSED=$((END_TIME - START_TIME))
+
+# timeout(1) exits 124 when it kills the child — surface as an error.
+if [[ $EXIT_CODE -eq 124 ]]; then
+    echo "[WARN] worker timed out after ${TIMEOUT_S}s." >> "$STDERR_FILE"
+fi
 
 # ── Distill RAW → clean result ──────────────────────────────────────────
 # claude --output-format json may emit a single {type:result,...} object OR a
@@ -810,7 +826,7 @@ fi
 # (distinct exit 125) so the conductor PAUSES rather than trusting the silence.
 if [[ "${STALL_HALTED:-false}" == "true" ]]; then
     IS_ERROR="True"
-    RESULT_TEXT="[STALLED — worker produced no output for $(( ${STALL_SECS:-300} / 60 ))m, killed and re-dispatched ${STALL_RESETS}× then HALTED. Run PAUSED for review. Partial trace: $RAW_FILE]"
+    RESULT_TEXT="[STALLED — worker produced no output for $(( ${STALL_SECS:-1200} / 60 ))m, killed and re-dispatched ${STALL_RESETS}× then HALTED. Run PAUSED for review. Partial trace: $RAW_FILE]"
 fi
 
 # ── Honest exit code ─────────────────────────────────────────────────────

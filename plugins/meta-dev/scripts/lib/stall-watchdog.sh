@@ -4,8 +4,9 @@
 # ----------------------------------------------------------------------------
 # A headless worker that HANGS (silent loop, wedged tool call, dead socket)
 # keeps its process alive but stops emitting events — so its RAW event-stream
-# file stops GROWING. The 120-min wall-clock `timeout(1)` cap is only a backstop;
-# without this watchdog a wedged worker sits idle for the full two hours.
+# file stops GROWING. The wall-clock `timeout(1)` cap (budget: 30/90/180 min)
+# is only a backstop; without this watchdog a wedged worker sits idle for
+# the full wall.
 #
 # This watches RAW_FILE's byte-size. If it stays frozen for STALL_SECS while the
 # worker is still alive, the worker is declared stuck: we kill it, then AUTO-RESET
@@ -25,8 +26,9 @@
 # STALL_HALTED ("true" if the reset budget was exhausted on a stuck worker).
 #
 # ── Tunables (env; caller may pre-set, all have safe defaults) ───────────────
-#   STALL_SECS        no-growth seconds → declare stuck   (default 300 = 5 min)
-#                     set 0 to DISABLE the watchdog entirely (pure 120-min cap)
+#   STALL_SECS        no-growth seconds → declare stuck   (default 1200 = 20 min,
+#                     or 1/4 of the worker wall via md_stall_secs_for_timeout_ms)
+#                     set 0 to DISABLE the watchdog entirely (pure wall-clock cap)
 #   STALL_POLL_SECS   size-poll interval                  (default 30)
 #   STALL_MAX_RESETS  auto-resets after the first stall   (default 3 → ≤4 runs)
 # ============================================================================
@@ -73,7 +75,7 @@ stall_monitor() {
 # run_with_stall_watchdog — drive stall_launch_worker through the reset budget.
 # Sets globals: STALL_EXIT, STALL_RESETS, STALL_HALTED.
 run_with_stall_watchdog() {
-    local stall_secs="${STALL_SECS:-300}"
+    local stall_secs="${STALL_SECS:-1200}"
     local poll_secs="${STALL_POLL_SECS:-30}"
     local max_resets="${STALL_MAX_RESETS:-3}"
     local marker="${RAW_FILE}.stalled"

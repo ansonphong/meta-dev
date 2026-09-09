@@ -64,7 +64,14 @@ If the task is destructive (deletes files, drops data, modifies prod), confirm w
 
 ## Step 3: Execute
 
-Run the headless worker. For tasks expected to take >30 seconds, use `run_in_background: true` so the session stays responsive.
+Run the headless worker. Always background it — these jobs routinely take 30–180 minutes.
+
+**BINDING — host tool timeout.** The runner owns the wall (`--budget`: low 30m / medium 90m / high 180m). A 5-second or 5-minute host bash/spawn timeout kills a healthy worker and wastes the tokens already spent.
+
+- **Grok:** `background: true` **and** `timeout: 0` (disables wrapper kill). Never `timeout: 5000`, `120000`, or `300000`.
+- **Claude Code:** `run_in_background: true`. Do not set a Bash timeout under 2 hours.
+- Pass `--timeout` on the runner **only** if the user typed `--timeout` in `$ARGUMENTS`. Never copy the host tool timeout into `--timeout`.
+- Waiting on the job: `timeout_ms` ≥ 1800000 (30 min) or poll until exit. `timeout_ms: 300000` is a 5-minute cut-off.
 
 **Concurrency preflight:** verify account and host capacity, then clamp the shared worker cap to available slots. If capacity is unknown, serialize this backend conservatively. Do not inspect other sessions' environment contents or assume a universal account quota. Queue work when no slot is available.
 
@@ -108,4 +115,4 @@ When execution completes:
 - `--readonly` restricts to Read,Glob,Grep — use for audits/reviews
 - For authorized edits, the worker commits only its scoped files; read-only work creates no commit.
 - GLM API key must be set (`GLM_API_KEY` env var) — the script checks this
-- GLM workers automatically get `CLAUDE_CODE_EFFORT_LEVEL=high` and `API_TIMEOUT_MS=7200000` (120 min)
+- GLM workers get `CLAUDE_CODE_EFFORT_LEVEL=high` and `API_TIMEOUT_MS` from `--budget` (medium = 90 min; high = 180 min)

@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.5.2
+
+- Raise headless worker walls to low 30 min / medium 90 min / high 180 min so 30+ minute DeepSeek, Codex, Grok, Opus, and Fable jobs are not cut off.
+- Parse `--timeout` as `30m` / `2h` / `1800s` / ms; bare numbers under 1000 are seconds, not milliseconds.
+- Ignore host bash/spawn timeouts (5s–5min in ms) accidentally forwarded as `--timeout`.
+- Stall watchdog default is max(20 min, wall/4) instead of 5 minutes of silence.
+- Claude-family runners now wrap `timeout(1)` and raise `BASH_DEFAULT_TIMEOUT_MS` to the worker wall.
+- Execute skills require `background: true` and host `timeout: 0` (Grok) so the wrapper does not SIGKILL a healthy worker.
+- Release matching Claude and Codex plugin manifests at version 1.5.2.
+
 ## 1.5.1
 
 - Default `/deep-execute` / `claude-headless-exec --backend deep` to `deepseek-v4-flash` (V4.1 Flash as of 2026-09-10); `--pro` upgrades; `--vision` unchanged.

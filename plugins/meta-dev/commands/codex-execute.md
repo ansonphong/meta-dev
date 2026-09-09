@@ -39,7 +39,7 @@ Parse these flags:
 - `--effort <none|low|medium|high|xhigh|max|ultra>`: override the tier's reasoning effort. Explicit `--effort` wins over `--budget`. Astra supports every listed effort except `none`; other models depend on their catalog support.
 - `--model <model>`: exact Codex model ID; it overrides tier selection but not a supplied effort.
 - `--sandbox <mode>`: `read-only`, `workspace-write`, or `danger-full-access`.
-- `--timeout <ms>`: wall-clock limit; default is `7200000`.
+- `--timeout <ms|30s|30m|2h>`: wall-clock limit; default is from `--budget` (medium = 90 min). Pass only if the user typed `--timeout`.
 - `--skill <name>`: run a meta-dev **protocol** (`workflow-skills/<name>/SKILL.md`).
 - `--command <name>`: run a meta-dev **procedure** (`commands/<name>.md`).
 - `--no-framework`: omit the harness preamble. Only for trivial one-shots (a lookup, a probe) — never for real work.
@@ -126,11 +126,17 @@ ${PLUGIN_ROOT}/scripts/codex-headless-exec \
   ${COMMAND:+--command "$COMMAND"} \
   ${READONLY:+--readonly} \
   ${SANDBOX:+--sandbox "$SANDBOX"} \
-  ${TIMEOUT:+--timeout "$TIMEOUT"} \
   -- <direct task with acceptance criteria>
 ```
 
-The runner maps tiers to the model IDs in Step 2, including `astra` → `gpt-6-astra`, and forwards effort as `model_reasoning_effort`. It validates tier and effort before invoking Codex, rejecting `none` whenever the effective model is `gpt-6-astra`, including an explicit `--model` override. For tasks expected to take more than 30 seconds, run in the background.
+The runner maps tiers to the model IDs in Step 2, including `astra` → `gpt-6-astra`, and forwards effort as `model_reasoning_effort`. It validates tier and effort before invoking Codex, rejecting `none` whenever the effective model is `gpt-6-astra`, including an explicit `--model` override.
+
+**BINDING — host tool timeout.** Always background Codex workers — they routinely take 30–180 minutes. The runner owns the wall (`--budget`: low 30m / medium 90m / high 180m). A 5-second or 5-minute host bash/spawn timeout kills a healthy worker and wastes the tokens already spent.
+
+- **Grok:** `background: true` **and** `timeout: 0`. Never `timeout: 5000`, `120000`, or `300000`.
+- **Codex host:** background the process; no short command timeout.
+- Pass `--timeout` on the runner **only** if the user typed `--timeout` in `$ARGUMENTS`.
+- Waiting on the job: `timeout_ms` ≥ 1800000 (30 min) or poll until exit.
 
 ```bash
 # Astra tier default: high

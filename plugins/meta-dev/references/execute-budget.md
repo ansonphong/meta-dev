@@ -1,6 +1,6 @@
 # Execution budget — depth cap, not thinking effort
 
-> **Last verified:** 2026-08-22
+> **Last verified:** 2026-09-09
 
 `--budget` stops a worker from overthinking and wandering. It is **not**
 `--effort` (how hard the model thinks per turn) and **not**
@@ -13,12 +13,23 @@ The runner never goes uncapped.
 
 | Level | Turns | Wall clock | Effort (only if `--effort` omitted) | Worker must |
 |-------|-------|------------|--------------------------------------|-------------|
-| **low** | 12 | 15 min | `low` | Do the named thing. No extra investigation. No subagents. Stop at first acceptance. |
-| **medium** | 32 | 45 min | leave backend default | Declared files only. One repair pass. No unrelated refactors. |
-| **high** | 80 | 120 min | `xhigh` if the backend has it, else `high` | Go as deep as the task needs. Still no unrelated work. Cap 3 repair rounds. |
+| **low** | 12 | 30 min | `low` | Do the named thing. No extra investigation. No subagents. Stop at first acceptance. |
+| **medium** | 32 | 90 min | leave backend default | Declared files only. One repair pass. No unrelated refactors. |
+| **high** | 80 | 180 min | `xhigh` if the backend has it, else `high` | Go as deep as the task needs. Still no unrelated work. Cap 3 repair rounds. |
 
-`--effort`, `--max-turns`, and `--timeout` always win over the table for that
-knob. `--budget` still injects the depth rules.
+These walls match real headless jobs (DeepSeek / Codex / Grok / Opus / Fable
+often run 30+ min). Do not pass a host bash/spawn timeout (5s, 2 min, 5 min)
+as `--timeout` — the runner ignores those as leaks and uses the budget wall.
+
+`--timeout` accepts `30m` / `2h` / `1800s` / milliseconds. A bare number
+below 1000 is **seconds**, not milliseconds.
+
+Liveness: stream workers use a silence watchdog of **max(20 min, wall/4)**
+(capped 45 min). Thinking models that emit nothing for 5 minutes are healthy.
+
+`--effort`, `--max-turns`, and `--timeout` win over the table for that knob
+unless `--timeout` is a host-tool leak (5s–5min in ms) — those are ignored
+and the budget wall is used. `--budget` still injects the depth rules.
 
 `--budget auto` at a **runner** (no classifier ran) falls back to **medium**
 and logs it. Do not leave that as the usual path — classify at dispatch.

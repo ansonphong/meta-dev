@@ -15,6 +15,11 @@ Task sections: <each relevant section, interfaces, acceptance, dependencies>
 Verification: <per-handle command, allowed paths, expected result>
 Budget: <resolved turns/time and task/slice limit>
 
+Host timeout (binding): headless workers run 30–180 min. Launch with
+background=true and host timeout 0 (Grok) / no short Bash timeout (Claude).
+Never pass 5s, 2 min, or 5 min as the tool timeout. Never copy that value
+into --timeout. Wait with timeout_ms ≥ 1800000 or until the runner exits.
+
 Re-anchor named symbols against live code before editing. Preserve unrelated
 changes; do not claim or commit a peer's overlapping edits. Report an ownership
 conflict and continue independent work. Follow the project's branch policy.

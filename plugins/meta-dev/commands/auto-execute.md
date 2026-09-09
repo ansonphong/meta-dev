@@ -47,17 +47,18 @@ provider, account quota, or mandatory external pool is assumed.
    excerpts, live anchors, scoped paths, acceptance criteria, and read-only
    intent. Codex/Grok headless workers receive direct tasks or supported skill
    files, not Claude slash commands. Do not require nested delegation.
-5. For authorized code edits, use focused verification only: not a broad suite
+5. Headless runners own their wall clock (low 30m / medium 90m / high 180m). Launch with `background: true` and host `timeout: 0` (Grok) / no short Bash timeout (Claude). Never pass 5s–5min as the tool timeout; never copy it into `--timeout`.
+6. For authorized code edits, use focused verification only: not a broad suite
    per task and not at phase end. Preserve per-outcome evidence.
    `BASELINE_RED` does not block independent work, but is not evidence that
    acceptance passed. `TASK_RED` repairs or parks only its causal branch.
    Reuse verifier evidence only while relevant code and contracts are unchanged.
-6. Inspect the result contract, actual evidence, scoped commits, and residual
+7. Inspect the result contract, actual evidence, scoped commits, and residual
    risk. An independent native review covers the resulting implementation;
    Cross-family review is opt-in, not a side effect of backend selection.
    Repairs require existing write authority and re-review of affected scope.
    At most two scoped repair attempts before reporting a parked branch.
-7. At committed seams, use the session-bound context watchdog described in
+8. At committed seams, use the session-bound context watchdog described in
    `workflow-skills/agentic-exec-loop/references/loop-protocol.md`.
    `UNKNOWN` telemetry is nonblocking; `OVER` requires a forward handoff
    after draining active work. No fixed universal token threshold.
