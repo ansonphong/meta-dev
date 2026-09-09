@@ -14,7 +14,7 @@
 #   --tier <flash|pro>       DeepSeek-only convenience: map to deepseek-v4-flash|pro
 #                            (ignored on other backends; --model wins over --tier)
 #   --flash / --pro          DeepSeek-only boolean sugars for --tier flash|pro
-#                            (default is Pro; --flash is the mechanical downgrade)
+#                            (default is Flash / V4.1; --pro upgrades to Pro ID)
 #   --vision                 DeepSeek-only: deepseek-v4-flash-vision-exp (multimodal)
 #   --timeout <ms>           Timeout in ms (default: 7200000 = 120 min)
 #   --tools <list>           Comma-separated tool list (default: Read,Write,Edit,Bash,Grep,Glob)
@@ -30,9 +30,11 @@
 #   claude-headless-exec --backend deep --flash -- "Rename getCwd across the project"
 #
 # Backend defaults:
-#   deep   → deepseek-v4-pro (default primary / opus slot; V4-Pro-0813 GA on this ID)
-#            deepseek-v4-flash for --flash / haiku / nested subagents
-#            Flash-0731 is the mechanical bulk downgrade — cheaper + faster + 1M ctx.
+#   deep   → deepseek-v4-flash (default primary; V4.1 Flash on this stable ID as of
+#            2026-09-10 — surpassed V4 Pro on performance/cost/speed; do not pin
+#            the preview ID deepseek-v4.1-flash-expires-on-0910)
+#            --pro → deepseek-v4-pro (until V4.1 Pro ships, DeepSeek routes Pro
+#            requests to V4.1 Flash at Flash price)
 #            --vision → deepseek-v4-flash-vision-exp (JPEG/PNG/GIF/WebP; experimental)
 #   glm    → glm-5.2 (opus/sonnet/subagent), glm-4.5 (haiku) — routed via local beta-strip proxy
 #   sonnet → claude-sonnet-5; REAL Anthropic via ambient login (1M context)
@@ -74,13 +76,16 @@ declare -A BACKEND_LABEL
 
 BACKEND_BASE_URL[deep]="https://api.deepseek.com/anthropic"
 BACKEND_AUTH_KEY_ENV[deep]="DEEPSEEK_API_KEY"
-# DeepSeek V4 pair (both 1M context). Default primary is Pro (V4-Pro-0813 GA
-# served on the stable ID deepseek-v4-pro as of 2026-08-13). Flash-0731 is the
-# --flash / haiku / nested-subagent slot — 284B/13B active, ~3× cheaper.
-BACKEND_OPUS_MODEL[deep]="deepseek-v4-pro"            # hard sub-work (same as default)
-BACKEND_SONNET_MODEL[deep]="deepseek-v4-pro"          # DEFAULT primary worker
+# DeepSeek V4 / V4.1 (both 1M context). Default primary is Flash: as of
+# 2026-09-10 DeepSeek ships V4.1 Flash on the stable ID deepseek-v4-flash
+# (surpassed V4 Pro on performance, cost, speed, and task time). Do not pin
+# the preview ID deepseek-v4.1-flash-expires-on-0910. --pro upgrades to
+# deepseek-v4-pro; until V4.1 Pro ships, DeepSeek routes Pro → V4.1 Flash
+# at Flash price. Nested/haiku slots stay Flash.
+BACKEND_OPUS_MODEL[deep]="deepseek-v4-flash"           # same as default primary
+BACKEND_SONNET_MODEL[deep]="deepseek-v4-flash"         # DEFAULT primary worker (V4.1 Flash)
 BACKEND_HAIKU_MODEL[deep]="deepseek-v4-flash"
-BACKEND_SUBAGENT_MODEL[deep]="deepseek-v4-flash"      # nested cheap; primary stays Pro
+BACKEND_SUBAGENT_MODEL[deep]="deepseek-v4-flash"      # nested stay Flash
 BACKEND_EFFORT[deep]=""                               # DECIDED: no effort knob on this backend — see the resolve block, which warns rather than forwarding
 BACKEND_LABEL[deep]="DeepSeek"
 
@@ -186,8 +191,8 @@ Options:
   --model <model>           Override the default model
   --tier <flash|pro|vision> DeepSeek-only: flash | pro | vision
                             (ignored on other backends; --model wins over --tier)
-  --flash                   DeepSeek-only: force deepseek-v4-flash (mechanical)
-  --pro                     DeepSeek-only: force deepseek-v4-pro (already default)
+  --flash                   DeepSeek-only: force deepseek-v4-flash (already default)
+  --pro                     DeepSeek-only: force deepseek-v4-pro (upgrade)
   --vision                  DeepSeek-only: force deepseek-v4-flash-vision-exp
                             (multimodal; JPEG/PNG/GIF/WebP. Exclusive vs --flash/--pro)
   --effort <level>          Thinking effort: low|medium|high|xhigh|max
@@ -222,8 +227,8 @@ auto-reset, instead of idling out the full 120-min cap):
   -h, --help                Show this help
 
 Backend defaults (model · effort):
-  deep   → deepseek-v4-pro          (DeepSeek API · V4-Pro-0813 · effort n/a)
-           --flash / --tier flash → deepseek-v4-flash (mechanical bulk)
+  deep   → deepseek-v4-flash        (DeepSeek API · V4.1 Flash · effort n/a)
+           --pro / --tier pro → deepseek-v4-pro (upgrade; Pro→Flash route until V4.1 Pro)
            --vision → deepseek-v4-flash-vision-exp (images; experimental)
   glm    → glm-5.2                    (Z.AI API · effort high · via local beta-strip proxy)
   sonnet → claude-sonnet-5          (Anthropic · ambient login · effort high)

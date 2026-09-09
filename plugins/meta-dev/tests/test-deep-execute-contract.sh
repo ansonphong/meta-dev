@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Focused regression guard: /deep-execute defaults to V4-Pro-0813;
-# --flash downgrades; --vision pins deepseek-v4-flash-vision-exp.
+# Focused regression guard: /deep-execute defaults to V4.1 Flash
+# (deepseek-v4-flash); --pro upgrades; --vision pins deepseek-v4-flash-vision-exp.
 set -uo pipefail
 
 PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -9,7 +9,7 @@ FAIL=0
 ok() { echo "  PASS: $1"; PASS=$((PASS + 1)); }
 bad() { echo "  FAIL: $1"; FAIL=$((FAIL + 1)); }
 
-echo "=== Deep-execute: Pro default + --flash/--vision contract ==="
+echo "=== Deep-execute: Flash default + --pro/--vision contract ==="
 if DETAIL="$(python3 - "$PLUGIN_ROOT" <<'PY'
 from pathlib import Path
 import sys
@@ -17,18 +17,21 @@ import sys
 root = Path(sys.argv[1])
 required = {
     "commands/deep-execute.md": [
-        "default deepseek-v4-pro (V4-Pro-0813 GA)",
-        "**Default model: `deepseek-v4-pro`**",
+        "default deepseek-v4-flash (V4.1 Flash as of 2026-09-10)",
+        "**Default model: `deepseek-v4-flash`**",
+        "Flash-first",
         "Conductor judgment",
         "--flash",
+        "--pro",
         "--vision",
         "deepseek-v4-flash-vision-exp",
-        "Unsure and not visual → Pro",
+        "Unsure and not visual → Flash",
     ],
     "scripts/claude-headless-exec": [
-        'BACKEND_SONNET_MODEL[deep]="deepseek-v4-pro"',
+        'BACKEND_SONNET_MODEL[deep]="deepseek-v4-flash"',
         'BACKEND_HAIKU_MODEL[deep]="deepseek-v4-flash"',
         "--flash",
+        "--pro",
         "--vision",
         "FLASH_FLAG",
         "VISION_FLAG",
@@ -37,18 +40,19 @@ required = {
         'MODEL="deepseek-v4-flash-vision-exp"',
     ],
     "workflow-skills/headless-dispatch/SKILL.md": [
-        "`deepseek-v4-pro` (default, V4-Pro-0813 GA; `--flash` → `deepseek-v4-flash`; `--vision` → `deepseek-v4-flash-vision-exp`)",
+        "`deepseek-v4-flash` (default, V4.1 Flash; `--pro` → `deepseek-v4-pro`; `--vision` → `deepseek-v4-flash-vision-exp`)",
     ],
 }
 forbidden = {
     "commands/deep-execute.md": [
-        "**Default model: `deepseek-v4-flash`**",
-        "Flash-first",
-        "default: **`flash`**",
-        "default model = deepseek-v4-flash",
+        "**Default model: `deepseek-v4-pro`**",
+        "Pro-first",
+        "default: **`pro`**",
+        "default model = deepseek-v4-pro",
+        "Unsure and not visual → Pro",
     ],
     "scripts/claude-headless-exec": [
-        'BACKEND_SONNET_MODEL[deep]="deepseek-v4-flash"',
+        'BACKEND_SONNET_MODEL[deep]="deepseek-v4-pro"',
     ],
 }
 
@@ -67,7 +71,7 @@ for rel, needles in forbidden.items():
 if failed:
     print("\n".join(failed))
     sys.exit(1)
-print("all required markers present; stale Flash-default gone")
+print("all required markers present; stale Pro-default gone")
 PY
 )"; then
   ok "required markers"
@@ -76,12 +80,12 @@ else
   echo "$DETAIL"
 fi
 
-# --help must advertise Pro as the deep default.
+# --help must advertise Flash as the deep default.
 if HELP="$("$PLUGIN_ROOT/scripts/claude-headless-exec" --help 2>&1)"; then
-  if echo "$HELP" | grep -q 'deep   → deepseek-v4-pro'; then
-    ok "help default is deepseek-v4-pro"
+  if echo "$HELP" | grep -q 'deep   → deepseek-v4-flash'; then
+    ok "help default is deepseek-v4-flash"
   else
-    bad "help default is deepseek-v4-pro"
+    bad "help default is deepseek-v4-flash"
     echo "$HELP" | grep -n 'deep   →' || true
   fi
   if echo "$HELP" | grep -q -- '--flash'; then
