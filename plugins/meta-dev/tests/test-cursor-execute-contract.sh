@@ -98,7 +98,7 @@ grep -q -- '--force' "$TMP/execute.args" && ! grep -q -- '--mode plan' "$TMP/exe
   || bad "fake execute contract"
 CURSOR_ARGS_LOG="$TMP/readonly.args" PATH="$FAKE_BIN:/usr/bin:/bin" HOME="$EMPTY_HOME" \
   "$RUNNER" --readonly --output-file "$TMP/readonly.json" --timeout 1000 -- "Review only" >/dev/null
-grep -q -- '--mode plan' "$TMP/readonly.args" && ! grep -q -- '--force' "$TMP/readonly.args" \
+grep -q -- '--mode ask' "$TMP/readonly.args" && ! grep -q -- '--force' "$TMP/readonly.args" \
   && ok "fake readonly uses plan mode without force" || bad "fake readonly contract"
 
 # malformed output through the real runner still leaves valid error JSON

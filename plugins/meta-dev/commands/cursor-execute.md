@@ -16,7 +16,7 @@ Uses `scripts/cursor-headless-exec`. Same `OUTPUT_FILE` contract as grok/codex/a
 |--|--|
 | **Harness** | Cursor Agent CLI (`cursor-agent` 2026.09+). **Not** Claude Code. **Not** Grok Build. **Not** a 4th interactive meta-dev host. |
 | **Default** | **Cursor Models pool** — Composer 2.5 (collect / budget low) or Cursor Grok 4.6 (ordinary `high`, hard `xhigh`). Pinned so the TUI last-used model cannot leak. |
-| **Writes** | Yes (`--print --force --trust --sandbox disabled`). `--readonly` → `--mode plan` (no `--force`). Commit-on-red. |
+| **Writes** | Yes (`--print --force --trust --sandbox disabled`). `--readonly` → `--mode ask` (read-only Q&A, no `--force`). Commit-on-red. |
 | **Auth** | Ambient `cursor-agent login` (`~/.config/cursor/auth.json`). Optional `CURSOR_API_KEY`. Missing binary or `isAuthenticated != true` aborts **without** a billed run. |
 | **Pool** | **Parked / named-only.** Never auto-selected. Never added to `meta_dev.ladder.pool`. Dispatch only when the user named `/cursor-execute` / `--cursor` this turn. |
 | **Cannot** | Run Claude slash commands. Be treated as native Grok 4.6 500k context. Nested Cloud Agent `--worker` pools (out of scope). |
@@ -97,7 +97,7 @@ The user's input is: `$ARGUMENTS`
 
 Parse these optional flags:
 - `--repo <name>` — target repo (default: auto-detect; names from `.meta-dev/repos.json`)
-- `--readonly` — plan mode, no writes (audits/reviews)
+- `--readonly` — ask mode, read-only Q&A (audits/reviews)
 - `--composer` / `--grok [4.5|4.6] [effort]` / `--opus` / `--sol` / `--sonnet` / `--luna` / `--fable` / `--codex`
 - `--model <id>` — explicit `cursor-agent models` id (wins)
 - `--effort low|medium|high|xhigh|max|none`
@@ -174,7 +174,7 @@ When execution completes:
 ## Safety Notes
 
 - `cursor-agent` must be on PATH (or `~/.local/bin/cursor-agent`) and authenticated (`cursor-agent status --format json` → `isAuthenticated: true`).
-- `--readonly` is `--mode plan` and must **not** pass `--force`. Without `--force`, print mode only proposes edits.
+- `--readonly` is `--mode ask` and must **not** pass `--force`. Ask mode is read-only Q&A.
 - Execute mode uses `--force --trust --sandbox disabled`. The worker **must** `git -C <ABS> add -- <paths> && git -C <ABS> commit --only -m "…" -- <paths>` before returning. Never push.
 - Uncommitted Cursor edits are a **bug**. Do not write "the conductor commits" into a Cursor brief.
 - Quotas vary by plan (Cursor Models vs Other Models). Confirm available capacity; never assume unlimited Ultra credits.

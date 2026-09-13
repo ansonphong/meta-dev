@@ -26,7 +26,7 @@
 #                            Chooser hint when no model/alias is named
 #   --budget auto|low|medium|high
 #   --timeout <ms>           Wall-clock timeout (default: from --budget)
-#   --readonly               --mode plan (no writes)
+#   --readonly               --mode ask (read-only Q&A)
 #   --resolve-only           Print the resolved catalog id and exit (no CLI)
 #   --output json|text       Output format (default: json)
 #   --output-file <path>     Write distilled JSON here
@@ -73,7 +73,7 @@ Usage:
   cursor-headless-exec [options] -- <prompt>
 
 Launches: cursor-agent --print --output-format json --trust --workspace <repo>
-          --model <id> [--force | --mode plan]
+          --model <id> [--force | --mode ask]
 
 Options:
   --repo <name>            Resolve via .claude/meta-dev-repos.json; unknown ABORTS.
@@ -95,7 +95,7 @@ Options:
   --budget auto|low|medium|high
                            Depth cap (default auto → medium at the runner).
   --timeout <ms>           Wall-clock timeout in ms (default: from --budget)
-  --readonly               Plan mode — no writes (audits/reviews)
+  --readonly               Ask mode — read-only Q&A (audits/reviews)
   --resolve-only           Print resolved catalog id and exit (no cursor-agent)
   --output json|text       Output format (default: json)
   --output-file <path>     Write distilled JSON here
@@ -231,7 +231,7 @@ TIMEOUT_S=$(( TIMEOUT / 1000 ))
 [[ "$TIMEOUT_S" -lt 1 ]] && TIMEOUT_S=1
 
 MODE_DESC="execute (--force --trust)"
-[[ "$READONLY" == "true" ]] && MODE_DESC="read-only (--mode plan, no --force)"
+[[ "$READONLY" == "true" ]] && MODE_DESC="read-only (--mode ask, no --force)"
 cat <<EOF
 
 ╔══════════════════════════════════════════════════════════════════════════╗
@@ -273,7 +273,7 @@ CURSOR_ARGS=(
     --model "$MODEL"
 )
 if [[ "$READONLY" == "true" ]]; then
-    CURSOR_ARGS+=(--mode plan)
+    CURSOR_ARGS+=(--mode ask)
 else
     CURSOR_ARGS+=(--force)
 fi
