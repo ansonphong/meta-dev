@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.5.4
+
+- Harden `/cursor-execute` output-contract handling, including valid failure JSON.
+- Write Cursor prompt, raw, stderr, and result artifacts owner-only (`0600`).
+- Enforce true Cursor read-only execution with `--mode ask`; release manifests match 1.5.4.
+
 ## 1.5.3
 
 - Add `/cursor-execute` — headless Cursor Agent worker (`cursor-agent --print --output-format json`).
