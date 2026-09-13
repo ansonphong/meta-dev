@@ -13,7 +13,7 @@ Do not force every backend into a different prose style without measured need.
 Headless runners inject their tool/host constraints through
 `scripts/lib/execute-brief.sh`. Model and effort must be supported by that
 runner. Host-native delegation uses the available native surface, not assumed
-Claude syntax. Never send a Claude slash command to a Codex/Grok headless worker.
+Claude syntax. Never send a Claude slash command to a Codex/Grok/Cursor/Antigravity headless worker.
 
 For write work include the exact repository root, declared paths, focused
 verification, shared-worktree rules, and explicit-path commit form. Workers

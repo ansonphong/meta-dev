@@ -4,7 +4,7 @@
 #
 # Doctrine: references/execute-briefs.md
 #
-# Caller sets BACKEND (grok|deep|codex|opus|sonnet|fable|glm|agy) and PROMPT.
+# Caller sets BACKEND (grok|deep|codex|opus|sonnet|fable|glm|agy|cursor) and PROMPT.
 # md_brief_wrap_prompt prepends a short harness-specific block.
 # ============================================================================
 
@@ -84,6 +84,19 @@ You are Google Antigravity CLI (agy), not Claude Code and not Grok.
 Do the DIRECT task below. You cannot run meta-dev slash commands.
 Gemini 3.7 Flash is the default: 1M context, native image/video/audio, Search grounding.
 Claude Opus 4.6 / Sonnet 4.6 here are Google-quota Claude — not Claude Code (no /meta-execute).
+Git (no PreToolUse): never rebase/stash/add -A/commit -a/bare commit.
+Form: git -C <ABS> add -- <paths> && git -C <ABS> commit --only -m "…" -- <paths>.
+Commit-on-red. Never "run /loop-gap" as a Claude slash.
+=== END BRIEF ===
+EOF
+            ;;
+        cursor)
+            cat <<'EOF'
+=== BACKEND BRIEF: Cursor ===
+You are Cursor Agent CLI (cursor-agent), not Claude Code and not Grok Build.
+Do the DIRECT task below. You cannot run meta-dev slash commands.
+Cursor Grok 4.6/4.5 here are 256k (not xAI native 500k). Composer 2.5 is 200k.
+Need 1M context only if this task named Opus/Sol/Sonnet/Fable/Luna.
 Git (no PreToolUse): never rebase/stash/add -A/commit -a/bare commit.
 Form: git -C <ABS> add -- <paths> && git -C <ABS> commit --only -m "…" -- <paths>.
 Commit-on-red. Never "run /loop-gap" as a Claude slash.

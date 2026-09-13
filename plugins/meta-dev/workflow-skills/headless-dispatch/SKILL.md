@@ -91,11 +91,14 @@ no API key. `deep` needs `DEEPSEEK_API_KEY`, `glm` needs `GLM_API_KEY`; the doct
 reports which are visible. Confirm actual model access, supported context size,
 and billing with the target host. A separate process is not a cost guarantee.
 
-Three commands are **not** on this script and take their own: `/codex-execute` →
+Four commands are **not** on this script and take their own: `/codex-execute` →
 `codex-headless-exec`, `/grok-execute` → `grok-headless-exec`,
-`/antigravity-execute` (`/agy-execute`) → `agy-headless-exec`. Antigravity
-default is Gemini 3.7 Flash (1M context, native multimodal, Search). `--opus`
-there is Claude Opus 4.6 on Google quota, not Claude Code. Parked / named-only.
+`/antigravity-execute` (`/agy-execute`) → `agy-headless-exec`,
+`/cursor-execute` → `cursor-headless-exec`. Antigravity default is Gemini 3.7
+Flash (1M context, native multimodal, Search). `--opus` there is Claude Opus 4.6
+on Google quota, not Claude Code. Cursor default is the Cursor Models pool
+(Composer 2.5 / Cursor Grok 4.6 at **256k**, not xAI 500k). Both are parked /
+named-only.
 
 Full flag reference — the authoritative source, prefer it over this table when
 they disagree:

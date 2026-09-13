@@ -1,7 +1,7 @@
 ---
 name: meta-execute
 description: Execute an approved plan with adaptive task or slice ownership, focused verification, durable commits, and native review
-argument-hint: <plan-path> [--granularity auto|task|slice] [--inline] [--strict] [--review each|phase|end|auto] [--budget auto|low|medium|high] [--codex|--grok|--sonnet|--deep|--glm|--agy] [--effort <level>]
+argument-hint: <plan-path> [--granularity auto|task|slice] [--inline] [--strict] [--review each|phase|end|auto] [--budget auto|low|medium|high] [--codex|--grok|--sonnet|--deep|--glm|--agy|--cursor] [--effort <level>]
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, TaskCreate, TaskUpdate]
 model: opus
 ---
@@ -133,7 +133,7 @@ Use `references/execute-report-card.md` when the host supports that presentation
 
 ## Additional flags
 
-Backend flags `--deep --glm --grok --sonnet --codex --agy` retain their runner
+Backend flags `--deep --glm --grok --sonnet --codex --agy --cursor` retain their runner
 contracts, availability checks, and configured pauses. `--budget` is a ceiling
 from `references/execute-budget.md`; `--effort` must be supported by the chosen
 runner. `--pause-before=<id>` stops before that handle and splits a slice.

@@ -83,7 +83,7 @@ worker. The worker only obeys the cap it was given.
 
 All of: `/deep-execute`, `/grok-execute`, `/opus-execute`, `/sonnet-execute`,
 `/fable-execute`, `/glm-execute`, `/codex-execute`, `/antigravity-execute`,
-`/auto-execute`, `/meta-execute`.
+`/cursor-execute`, `/auto-execute`, `/meta-execute`.
 
 ```
 --budget auto|low|medium|high     # default auto

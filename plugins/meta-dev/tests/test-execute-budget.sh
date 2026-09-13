@@ -124,8 +124,9 @@ got="$("$PLUGIN_ROOT/scripts/classify-execute-budget.sh" --campaign low -- "Fix 
 if grep -q -- '--budget' "$PLUGIN_ROOT/scripts/claude-headless-exec" \
     && grep -q -- '--budget' "$PLUGIN_ROOT/scripts/grok-headless-exec" \
     && grep -q -- '--budget' "$PLUGIN_ROOT/scripts/codex-headless-exec" \
-    && grep -q -- '--budget' "$PLUGIN_ROOT/scripts/agy-headless-exec"; then
-    ok "four runners advertise --budget"
+    && grep -q -- '--budget' "$PLUGIN_ROOT/scripts/agy-headless-exec" \
+    && grep -q -- '--budget' "$PLUGIN_ROOT/scripts/cursor-headless-exec"; then
+    ok "five runners advertise --budget"
 else
     bad "runner --budget missing"
 fi
@@ -160,8 +161,15 @@ case "$PROMPT" in
     *"BACKEND BRIEF: Antigravity"*|*"not Claude Code"*) ok "agy brief injected" ;;
     *) bad "agy brief missing" ;;
 esac
+BACKEND=cursor
+PROMPT="do the thing"
+md_brief_wrap_prompt
+case "$PROMPT" in
+    *"BACKEND BRIEF: Cursor"*|*"not Claude Code"*) ok "cursor brief injected" ;;
+    *) bad "cursor brief missing" ;;
+esac
 
-for BACKEND in grok deep codex opus sonnet fable glm agy; do
+for BACKEND in grok deep codex opus sonnet fable glm agy cursor; do
     PROMPT="Review the supplied contract without edits."
     md_brief_wrap_prompt
     case "$PROMPT" in
@@ -179,8 +187,9 @@ done
 if grep -q 'md_brief_wrap_prompt' "$PLUGIN_ROOT/scripts/claude-headless-exec" \
     && grep -q 'md_brief_wrap_prompt' "$PLUGIN_ROOT/scripts/grok-headless-exec" \
     && grep -q 'md_brief_wrap_prompt' "$PLUGIN_ROOT/scripts/codex-headless-exec" \
-    && grep -q 'md_brief_wrap_prompt' "$PLUGIN_ROOT/scripts/agy-headless-exec"; then
-    ok "four runners wrap per-backend brief"
+    && grep -q 'md_brief_wrap_prompt' "$PLUGIN_ROOT/scripts/agy-headless-exec" \
+    && grep -q 'md_brief_wrap_prompt' "$PLUGIN_ROOT/scripts/cursor-headless-exec"; then
+    ok "five runners wrap per-backend brief"
 else
     bad "runner brief wrap missing"
 fi
@@ -189,7 +198,8 @@ if grep -q -- '--budget' "$PLUGIN_ROOT/commands/meta-execute.md" \
     && grep -q -- '--budget' "$PLUGIN_ROOT/commands/grok-execute.md" \
     && grep -q -- '--budget' "$PLUGIN_ROOT/commands/deep-execute.md" \
     && grep -q -- '--budget' "$PLUGIN_ROOT/commands/codex-execute.md" \
-    && grep -q -- '--budget' "$PLUGIN_ROOT/commands/antigravity-execute.md"; then
+    && grep -q -- '--budget' "$PLUGIN_ROOT/commands/antigravity-execute.md" \
+    && grep -q -- '--budget' "$PLUGIN_ROOT/commands/cursor-execute.md"; then
     ok "execute commands document --budget"
 else
     bad "command --budget docs missing"

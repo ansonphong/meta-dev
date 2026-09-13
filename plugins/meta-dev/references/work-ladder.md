@@ -27,11 +27,13 @@ configured model IDs and aliases. Its shipped frontier profiles include Sol,
 Astra, Opus 4.8/5, and Grok 4.6. These are planning hints, not availability or
 price guarantees. Unknown models fall back safely and can be configured.
 
-Native workers use the host's actual delegation surface. Headless Codex and
-Grok receive direct briefs with task excerpts and artifact paths, not Claude
-slash commands. A Claude headless process may load its installed command
-surface. Vendor loading syntax belongs in adapters; project rules come from
-root `AGENTS.md`, routed `docs/agent-context/`, and canonical skills.
+Native workers use the host's actual delegation surface. Headless Codex,
+Grok, Antigravity, and Cursor receive direct briefs with task excerpts and
+artifact paths, not Claude slash commands. A Claude headless process may load
+its installed command surface. Vendor loading syntax belongs in adapters;
+project rules come from root `AGENTS.md`, routed `docs/agent-context/`, and
+canonical skills. `/cursor-execute` is named-only (`cursor-headless-exec`);
+never add it to `meta_dev.ladder.pool`.
 
 Optional backends keep their own authentication and explicit-permission gates.
 Selecting autonomous execution does not automatically authorize an external

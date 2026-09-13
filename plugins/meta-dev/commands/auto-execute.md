@@ -1,6 +1,6 @@
 ---
 name: auto-execute
-argument-hint: <task or plan> [--deep|--grok|--codex|--sonnet|--opus|--glm|--agy|--fable] [--flash] [--vision] [--budget auto|low|medium|high] [--effort <level>] [--repo <name>] [--readonly] [--max-turns <n>] [--autonomous]
+argument-hint: <task or plan> [--deep|--grok|--codex|--sonnet|--opus|--glm|--agy|--fable|--cursor] [--flash] [--vision] [--budget auto|low|medium|high] [--effort <level>] [--repo <name>] [--readonly] [--max-turns <n>] [--autonomous]
 description: Route a bounded task or approved plan through the configured adaptive workflow, preserving intent, scope, permissions, and host capacity.
 ---
 
@@ -77,7 +77,7 @@ scope, authority, or safety decisions to the user.
 
 ## Flags
 
-- `--deep --grok --codex --sonnet --opus --glm --agy --fable`: explicit backend
+- `--deep --grok --codex --sonnet --opus --glm --agy --fable --cursor`: explicit backend
   selection, subject to its authentication, permission gates, and configured
   pauses. Otherwise use the host-native configured route.
 - `--flash`/`--vision`: forward only to the selected supporting runner.
