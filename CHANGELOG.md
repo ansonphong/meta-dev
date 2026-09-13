@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.5.3
+
+- Add `/cursor-execute` — headless Cursor Agent worker (`cursor-agent --print --output-format json`).
+- Named-only. Default stays on the Cursor Models pool (Composer 2.5 200k, Cursor Grok 4.6/4.5 256k). `--grok 4.6 xhigh` routes to `cursor-grok-4.6-xhigh`.
+- Other Models (`--opus` / `--sol` / `--sonnet` / `--luna` / `--fable` / `--codex` / `--model`) stay opt-in.
+- Release matching Claude and Codex plugin manifests at version 1.5.3.
+
 ## 1.5.2
 
 - Raise headless worker walls to low 30 min / medium 90 min / high 180 min so 30+ minute DeepSeek, Codex, Grok, Opus, and Fable jobs are not cut off.
