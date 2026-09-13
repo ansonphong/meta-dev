@@ -225,6 +225,7 @@ fi
 RAW_FILE="${OUTPUT_FILE}.raw"
 STDERR_FILE="${OUTPUT_FILE}.stderr"
 PROMPT_FILE="${OUTPUT_FILE}.prompt"
+umask 077
 
 TIMEOUT_S=$(( TIMEOUT / 1000 ))
 [[ "$TIMEOUT_S" -lt 1 ]] && TIMEOUT_S=1
@@ -314,7 +315,11 @@ if [[ "$OUTPUT_FORMAT" == "json" ]]; then
     fi
 fi
 if [[ "$PARSE_OK" != "true" ]]; then
-    cp "$RAW_FILE" "$OUTPUT_FILE" 2>/dev/null || true
+    # The distiller writes a useful error contract even when raw Cursor output
+    # is empty/malformed; preserve it rather than replacing it with raw bytes.
+    if [[ ! -s "$OUTPUT_FILE" ]]; then
+        cp "$RAW_FILE" "$OUTPUT_FILE" 2>/dev/null || true
+    fi
     if [[ "$OUTPUT_FORMAT" == "json" ]]; then
         RESULT_TEXT="[distill failed — inspect raw payload: $RAW_FILE / stderr: $STDERR_FILE]"
         [[ $EXIT_CODE -eq 0 ]] && EXIT_CODE=3
@@ -322,6 +327,7 @@ if [[ "$PARSE_OK" != "true" ]]; then
         RESULT_TEXT="$(cat "$RAW_FILE" 2>/dev/null || true)"
     fi
 fi
+chmod 600 "$OUTPUT_FILE" "$RAW_FILE" "$STDERR_FILE" "$PROMPT_FILE" 2>/dev/null || true
 
 if [[ "$IS_ERROR" == "True" && $EXIT_CODE -eq 0 ]]; then
     EXIT_CODE=4

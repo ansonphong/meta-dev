@@ -74,6 +74,11 @@ def main() -> int:
     }
     with open(out_path, "w", encoding="utf-8") as fh:
         json.dump(out, fh, indent=2)
+    try:
+        import os
+        os.chmod(out_path, 0o600)
+    except OSError:
+        pass
 
     if not obj and not result:
         return 1

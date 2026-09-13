@@ -78,6 +78,37 @@ print("ok")
 PY
 fi
 
+# fake cursor-agent: exercise the real runner without a billed call
+EMPTY_HOME="$TMP/empty-home"; mkdir -p "$EMPTY_HOME"
+FAKE_BIN="$TMP/fake-bin"; mkdir -p "$FAKE_BIN"
+cat > "$FAKE_BIN/cursor-agent" <<'SH'
+#!/usr/bin/env bash
+if [[ "$1" == status ]]; then echo '{"isAuthenticated":true}'; exit 0; fi
+printf '%s\n' "$*" > "${CURSOR_ARGS_LOG:?}"
+printf '%s' '{"type":"result","subtype":"success","is_error":false,"result":"fake pong","session_id":"fake-session"}'
+SH
+chmod 700 "$FAKE_BIN/cursor-agent"
+FAKE_OUT="$TMP/fake-result.json"
+CURSOR_ARGS_LOG="$TMP/execute.args" PATH="$FAKE_BIN:/usr/bin:/bin" HOME="$EMPTY_HOME" \
+  "$RUNNER" --output-file "$FAKE_OUT" --timeout 1000 -- "Say only: pong" >/dev/null
+grep -q -- '--force' "$TMP/execute.args" && ! grep -q -- '--mode plan' "$TMP/execute.args" \
+  && [[ "$(stat -c %a "$FAKE_OUT" "$FAKE_OUT.raw" "$FAKE_OUT.stderr" "$FAKE_OUT.prompt" | sort -u)" == "600" ]] \
+  && grep -q 'fake pong' "$FAKE_OUT" && ok "fake execute argv, contract, and owner-only artifacts" \
+  || bad "fake execute contract"
+CURSOR_ARGS_LOG="$TMP/readonly.args" PATH="$FAKE_BIN:/usr/bin:/bin" HOME="$EMPTY_HOME" \
+  "$RUNNER" --readonly --output-file "$TMP/readonly.json" --timeout 1000 -- "Review only" >/dev/null
+grep -q -- '--mode plan' "$TMP/readonly.args" && ! grep -q -- '--force' "$TMP/readonly.args" \
+  && ok "fake readonly uses plan mode without force" || bad "fake readonly contract"
+
+# malformed output still leaves a valid distilled error JSON
+printf 'not-json\n' > "$TMP/bad.raw"
+python3 "$DISTILL" "$TMP/bad.raw" "$TMP/bad.out" 124 9 >/dev/null || true
+python3 - "$TMP/bad.out" <<'PY' && ok "malformed output preserves valid error JSON" || bad "malformed output JSON"
+import json, sys
+out = json.load(open(sys.argv[1]))
+assert out["is_error"] is True and out["backend"] == "cursor"
+PY
+
 # (b) real runner --help
 HELP="$("$RUNNER" --help 2>&1)" || true
 echo "$HELP" | grep -q -- '--print' \
