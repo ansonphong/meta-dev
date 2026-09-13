@@ -85,6 +85,7 @@ cat > "$FAKE_BIN/cursor-agent" <<'SH'
 #!/usr/bin/env bash
 if [[ "$1" == status ]]; then echo '{"isAuthenticated":true}'; exit 0; fi
 printf '%s\n' "$*" > "${CURSOR_ARGS_LOG:?}"
+if [[ "${CURSOR_BAD:-}" == 1 ]]; then printf '%s' 'not-json'; exit 0; fi
 printf '%s' '{"type":"result","subtype":"success","is_error":false,"result":"fake pong","session_id":"fake-session"}'
 SH
 chmod 700 "$FAKE_BIN/cursor-agent"
@@ -100,10 +101,12 @@ CURSOR_ARGS_LOG="$TMP/readonly.args" PATH="$FAKE_BIN:/usr/bin:/bin" HOME="$EMPTY
 grep -q -- '--mode plan' "$TMP/readonly.args" && ! grep -q -- '--force' "$TMP/readonly.args" \
   && ok "fake readonly uses plan mode without force" || bad "fake readonly contract"
 
-# malformed output still leaves a valid distilled error JSON
-printf 'not-json\n' > "$TMP/bad.raw"
-python3 "$DISTILL" "$TMP/bad.raw" "$TMP/bad.out" 124 9 >/dev/null || true
-python3 - "$TMP/bad.out" <<'PY' && ok "malformed output preserves valid error JSON" || bad "malformed output JSON"
+# malformed output through the real runner still leaves valid error JSON
+CURSOR_BAD=1 CURSOR_ARGS_LOG="$TMP/bad.args" PATH="$FAKE_BIN:/usr/bin:/bin" HOME="$EMPTY_HOME" \
+  "$RUNNER" --output-file "$TMP/bad.out" --budget low -- "Say only: pong" >/dev/null 2>&1
+BAD_RC=$?
+python3 - "$TMP/bad.out" "$BAD_RC" <<'PY' && [[ "$BAD_RC" -eq 3 ]] \
+  && ok "runner malformed output preserves valid error JSON (exit 3)" || bad "runner malformed output JSON/exit"
 import json, sys
 out = json.load(open(sys.argv[1]))
 assert out["is_error"] is True and out["backend"] == "cursor"
