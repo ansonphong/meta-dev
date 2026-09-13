@@ -47,7 +47,7 @@ assert codex["interface"] == {
     "category": "Productivity",
     "capabilities": ["Write"],
     "defaultPrompt": [
-        "Write a self-contained implementation plan for a fresh agent and save it under plans/<repo>/.",
+        "Write a self-contained implementation plan for a fresh agent and save it under plans/<repo>/<feature>/.",
         "Execute an approved plan task with focused verification.",
         "Review my current change and report a verdict.",
     ],
@@ -214,7 +214,7 @@ assert "already explicitly requested scoped" in plan_skill
 plan_contract = require_file("references/codex-writing-plans.md").read_text(encoding="utf-8")
 for marker in (
     "skilled implementation agent that has no conversation history",
-    "plans/<repo>/YYYY-MM-DD-descriptive-kebab-case.md",
+    "plans/<repo>/<feature>/YYYY-MM-DD-descriptive-kebab-case.md",
     "No-placeholder rule",
     "Fresh-agent test",
 ):

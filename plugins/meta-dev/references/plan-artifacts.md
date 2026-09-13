@@ -23,6 +23,9 @@ The last two are the same bug. Every write-site was written for the
 **single-file-plan** case, so `<plan-dir>` silently degraded to the plans root
 and the artifact lost all association with the plan that produced it.
 
+New work always has a feature folder (`plans/<repo>/<feature>/`), so a
+single-file plan cannot degrade to the bucket root.
+
 ## The rule
 
 > **A plan-attached artifact is named after its plan and sorts next to it.**
@@ -31,15 +34,21 @@ Two cases, decided by what the plan *is*:
 
 | Plan form | Artifact path |
 |-----------|---------------|
-| **Directory plan** — `plans/<repo>/<slug>/00-master-plan.md` | `plans/<repo>/<slug>/<artifact>.md` — bare name **inside** the dir |
-| **Single-file plan** — `plans/<repo>/<stem>.md` | `plans/<repo>/<stem>.<artifact>.md` — **sibling** carrying the plan's full stem |
+| **Directory plan** — `plans/<repo>/<feature>/00-master-plan.md` | `plans/<repo>/<feature>/<artifact>.md` — bare name **inside** the dir |
+| **Single-file plan** — `plans/<repo>/<feature>/<stem>.md` | `plans/<repo>/<feature>/<stem>.<artifact>.md` — **sibling** carrying the plan's full stem |
 
 `<stem>` is the plan filename minus `.md`, verbatim — date prefix included.
+`<feature>` is the feature folder (host `AGENTS.md` may require SCREAMING kebab;
+default is lowercase kebab). Never write a new single-file plan at
+`plans/<repo>/<stem>.md`.
 
 ```
-plans/app/2026-07-25-directional-prompts-bar.md                     ← the plan
-plans/app/2026-07-25-directional-prompts-bar.gap-report-codex.md    ← its report
+plans/app/directional-prompts-bar/2026-07-25-directional-prompts-bar.md                     ← the plan
+plans/app/directional-prompts-bar/2026-07-25-directional-prompts-bar.gap-report-codex.md    ← its report
 ```
+
+If two or more related files already sit as siblings at `plans/<repo>/`, move
+them into `plans/<repo>/<feature>/` and keep the in-dir naming above.
 
 Both forms guarantee the property that matters: **the artifact is impossible to
 encounter without also seeing which plan it belongs to** — by containment in the
@@ -69,16 +78,18 @@ directory case, by adjacent alphabetical sort in the file case.
 - **No counter** (`-1`, `-2`). A re-run by the same backend **overwrites its own
   report** — that is the desired behavior for a live artifact. Counters
   accumulate stale reports nobody prunes, and readers cannot tell which is current.
-- **No uppercase.** Everything under `plans/` is lowercase kebab-case; caps sort
-  into a separate block on case-sensitive listings, defeating the adjacency the
-  rule exists to create.
+- **No uppercase in artifact filenames.** Gap reports, reviews, and other
+  attached files stay lowercase kebab-case; caps sort into a separate block
+  on case-sensitive listings, defeating the adjacency the rule exists to
+  create. Feature *folders* follow host `AGENTS.md` (default lowercase kebab;
+  a host may require SCREAMING kebab).
 
 ## Non-plan artifacts
 
 **One-shot audits** with no plan behind them — repo-wide security audits, docs
 audits, release-readiness sweeps — are standalone plan documents in their own
 right and follow the ordinary plan naming convention
-(`plans/meta/YYYY-MM-DD-<slug>.md`). They are dated because nothing else dates
+(`plans/<repo>/<feature>/YYYY-MM-DD-<slug>.md`). They are dated because nothing else dates
 them. Do not sidecar them onto an unrelated plan.
 
 **The date leads.** `YYYY-MM-DD-security-audit.md`, never

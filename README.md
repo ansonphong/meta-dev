@@ -218,7 +218,7 @@ Claude can obtain its planning discipline from the external Superpowers plugin.
 Codex does not inherit that Claude plugin dependency, so meta-dev packages an
 adapted `writing-plans` contract directly. It inspects the live codebase, writes
 for a fresh agent with no conversation history, and saves ordinary medium work
-as `plans/<repo>/YYYY-MM-DD-<slug>.md`.
+as `plans/<repo>/<feature>/YYYY-MM-DD-<slug>.md`.
 
 Claude commands remain canonical procedures. Codex packages every real command
 once under its canonical name. Pure bare redirects such as `planner` →

@@ -65,7 +65,7 @@ def rich_ir() -> dict:
     return {
         "version": "1.1",
         "layout": "single-file",
-        "artifact_path": "plans/app/2026-07-25-prompt-controls.md",
+        "artifact_path": "plans/app/prompt-controls/2026-07-25-prompt-controls.md",
         "title": "Prompt Controls",
         "slug": "prompt-controls",
         "repo": "app",
@@ -339,6 +339,15 @@ def test_v11_single_file_is_execution_grade_with_one_state_ledger(tmp_path: Path
     assert "resolved task/slice ownership" in artifact
 
 
+def test_v11_accepts_mixed_case_feature_folder(tmp_path: Path):
+    ir = rich_ir()
+    ir["artifact_path"] = "plans/app/PROMPT-CONTROLS/2026-07-25-prompt-controls.md"
+    jsonschema.validate(ir, json.loads(SCHEMA.read_text(encoding="utf-8")))
+    result = run_renderer(tmp_path, ir)
+    assert result.returncode == 0, result.stderr
+    assert (tmp_path / ir["artifact_path"]).is_file()
+
+
 def test_v11_ledger_round_trips_through_planctl_parser_and_mutator(tmp_path: Path, monkeypatch):
     monkeypatch.syspath_prepend(str(SCRIPT.parent))
     from planctl import mutate, parse
@@ -393,8 +402,12 @@ def test_v11_rejects_thin_or_misplaced_plans_without_writing(tmp_path: Path):
     cases.append((undated, "YYYY-MM-DD"))
 
     mismatched = rich_ir()
-    mismatched["artifact_path"] = "plans/app/2026-07-25-other-slug.md"
+    mismatched["artifact_path"] = "plans/app/prompt-controls/2026-07-25-other-slug.md"
     cases.append((mismatched, "must match IR.slug"))
+
+    bucket_root = rich_ir()
+    bucket_root["artifact_path"] = "plans/app/2026-07-25-prompt-controls.md"
+    cases.append((bucket_root, "plans/<repo>/<feature>/YYYY-MM-DD-<slug>.md"))
 
     placeholder = rich_ir()
     placeholder["tasks"][0]["steps"][1] = "Add appropriate error handling."

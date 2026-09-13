@@ -39,11 +39,18 @@ Do not make the executor repeat the planner's discovery work.
 
 ## 2. Plan size, storage, and target
 
-Use one dated Markdown file for ordinary medium-sized work:
+Always create a feature folder under the repo bucket. Never dump a dated file
+at `plans/<repo>/` root.
+
+Use one dated Markdown file inside that folder for ordinary medium-sized work:
 
 ```text
-plans/<repo>/YYYY-MM-DD-descriptive-kebab-case.md
+plans/<repo>/<feature>/YYYY-MM-DD-descriptive-kebab-case.md
 ```
+
+`<feature>` is a kebab folder (host `AGENTS.md` may require SCREAMING kebab).
+Reuse the existing folder when the feature already has one. Do not use a
+reserved `_`-prefixed bucket name (`_archive`, `_dashboard`) as a feature.
 
 Choose the single-file form when the change is one cohesive outcome, normally
 within one logical repository, and can be expressed in roughly two to six
@@ -52,13 +59,22 @@ independently verifiable tasks. A single task may touch several related files.
 Use the full multi-phase planner only when the work has independent subsystems,
 cross-repository sequencing, more than about six tasks, or phase boundaries
 that need separate review gates. Its artifact is a directory whose index is
-`00-master-plan.md`.
+`00-master-plan.md` at `plans/<repo>/<feature>/00-master-plan.md`.
+
+If a plan grows a second related file (gap-report, review, IR, hardening,
+loop-gap, phase file), keep every file in that same feature folder. Name
+plan-attached artifacts with the directory form in
+`references/plan-artifacts.md` once `00-master-plan.md` exists; otherwise keep
+stem sidecars beside the dated file *inside the folder*. If related files
+already sit as siblings at `plans/<repo>/`, move them into
+`plans/<repo>/<feature>/` and rename sidecars to the in-dir form.
 
 Storage rules:
 
-- Store plans under the host project's central `plans/<repo>/` ledger, never in
-  a child code repository or `docs/`.
-- Use today's local date and a lowercase kebab-case slug.
+- Store plans under the host project's central `plans/<repo>/<feature>/`
+  ledger, never in a child code repository, never in `docs/`, never
+  `docs/superpowers/plans/`.
+- Use today's local date and a lowercase kebab-case filename slug.
 - Do not leave a plan only in chat.
 - Do not write `status:`. Plan state is derived.
 - A single-file plan contains one canonical checkbox ledger plus task detail.
@@ -203,8 +219,9 @@ Before rendering, review the completed IR with fresh eyes:
 7. **Verification quality:** confirm commands are focused, runnable from the
    stated directory, and include expected results.
 8. **Scope check:** split independent subsystems; remove speculative extras.
-9. **Artifact check:** confirm the dated path, frontmatter, no `status:`, and exactly one
-   canonical ledger row per task.
+9. **Artifact check:** confirm the feature-folder dated path
+   (`plans/<repo>/<feature>/YYYY-MM-DD-<slug>.md`), frontmatter, no `status:`,
+   and exactly one canonical ledger row per task.
 
 Fix failures inline before saving. Validation is a gate, not a report appendix.
 

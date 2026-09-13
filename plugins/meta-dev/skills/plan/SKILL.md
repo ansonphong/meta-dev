@@ -12,7 +12,11 @@ Use this host-neutral workflow, not a slash-command interface.
 3. Read `../../references/adaptive-workflow.md` and resolve the intended executor
    with `../../scripts/workflow-policy.py` before selecting the plan target.
    For medium work, create a version `1.1`, `single-file` IR from
-   `../../schemas/plan-artifact.schema.json` and target the required dated path.
+   `../../schemas/plan-artifact.schema.json` and target
+   `plans/<repo>/<feature>/YYYY-MM-DD-<slug>.md`. Always create the feature
+   folder first. Feature-folder case follows host `AGENTS.md` (default
+   lowercase kebab). Two or more related files (plan, gap-report, review,
+   IR) stay in that same folder.
 4. For genuinely large or multi-phase work, follow
    `../../references/workflows/command-adapter.md`,
    `../../commands/meta-planner.md`, and its version `1.0` shared contract.

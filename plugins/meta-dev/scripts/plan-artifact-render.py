@@ -30,6 +30,7 @@ PLAN_TARGETS = {"lean", "standard", "explicit"}
 DEFAULT_PLAN_TARGET = "standard"
 TASK_HANDLE = re.compile(r"^T[A-Za-z0-9]+\.[0-9]+$")
 SLUG = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+FEATURE_SLUG = re.compile(r"^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$")
 PHASE_ID = re.compile(r"^[A-Za-z0-9]+$")
 DATED_PLAN = re.compile(r"^(?P<date>\d{4}-\d{2}-\d{2})-(?P<slug>[a-z0-9]+(?:-[a-z0-9]+)*)\.md$")
 _BROAD_VERIFY = re.compile(
@@ -349,9 +350,19 @@ def validate_ir(ir: Any) -> dict[str, Any]:
         if len(artifact_parts) < 3 or artifact_parts[:2] != ("plans", ir["repo"]):
             fail(errors, "IR.artifact_path", "must be under plans/<repo>/ and match IR.repo")
         elif version == "1.1":
-            match = DATED_PLAN.fullmatch(artifact_parts[-1])
-            if len(artifact_parts) != 3 or not match:
-                fail(errors, "IR.artifact_path", "version 1.1 must be plans/<repo>/YYYY-MM-DD-<slug>.md")
+            feature = artifact_parts[2] if len(artifact_parts) >= 3 else ""
+            match = DATED_PLAN.fullmatch(artifact_parts[-1]) if artifact_parts else None
+            if (
+                len(artifact_parts) != 4
+                or feature.startswith("_")
+                or not FEATURE_SLUG.fullmatch(feature)
+                or not match
+            ):
+                fail(
+                    errors,
+                    "IR.artifact_path",
+                    "version 1.1 must be plans/<repo>/<feature>/YYYY-MM-DD-<slug>.md",
+                )
             else:
                 try:
                     dt.date.fromisoformat(match.group("date"))

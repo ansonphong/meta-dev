@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.5.5
+
+- Require a feature folder for v1.1 plans: `plans/<repo>/<feature>/YYYY-MM-DD-<slug>.md`.
+- Keep plan-attached artifacts inside that folder; do not dump dated files at the repo-bucket root.
+- Release matching Claude and Codex plugin manifests at version 1.5.5.
+
 ## 1.5.4
 
 - Harden `/cursor-execute` output-contract handling, including valid failure JSON.
