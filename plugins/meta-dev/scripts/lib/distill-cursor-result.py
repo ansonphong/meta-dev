@@ -54,7 +54,7 @@ def main() -> int:
     status_ok = (not stop_reason) or str(stop_reason).lower() in (
         "success", "ok", "endturn", "completed",
     )
-    is_error = exit_code != 0 or json_error or (obj and not status_ok)
+    is_error = exit_code != 0 or json_error or (not obj) or (obj and not status_ok)
     if stop_reason and not status_ok:
         note = f"[subtype={stop_reason} — run ended without success]"
         result = f"{result}\n\n{note}" if result else note
