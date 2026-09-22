@@ -50,7 +50,7 @@ Everything else is the task description. If none is given, ask what task to run.
 
 ## Step 2: Select Model and Effort
 
-**Pick `--model` and `--effort` from the task every time.** Do not inherit the TUI `xhigh` default. Classify budget first (`low` mechanical, `medium` ordinary, `high` hard — unsure → medium). State model, budget, and effort before dispatching. An explicit user `--budget` / `--effort` / `--model` always wins. Helper: `scripts/classify-execute-budget.sh`.
+**Pick `--model` and `--effort` from the task every time.** Do not inherit the TUI `xhigh` default. Classify budget first (`low` mechanical, `medium` ordinary, `high` hard — unsure → medium). State model, budget, and effort before dispatching. An explicit user `--budget` / `--effort` / `--model` always wins. Helper: `scripts/classify-execute-budget.sh`. Optional suggestion: `scripts/jev-decide.sh`. Honor fail-open. Never put the key in the worker brief. Jev does not grant permission.
 
 | Task shape | Model | Effort |
 | --- | --- | --- |

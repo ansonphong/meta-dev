@@ -52,6 +52,11 @@ bash "${PLUGIN_ROOT}/scripts/classify-execute-budget.sh" \
   --campaign auto -- "Rename getCwd across the project"
 ```
 
+`scripts/jev-decide.sh` may suggest a budget and rung. A missing key fails open
+to the keyword word above. `risk-tag.sh` still forces high on money, auth, and
+schema tags, including when Jev or an explicit `--budget` says low. Jev is not
+a permission grant. An explicit `--model` still wins.
+
 ## `/meta-execute --budget`
 
 Campaign budget is a **ceiling**:

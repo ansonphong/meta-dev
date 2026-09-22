@@ -3,6 +3,8 @@
 Read `references/adaptive-workflow.md` and `references/execute-charter.md`.
 Use one host-native worker per resolved task or coherent slice, with only the
 relevant plan sections inlined. A model route is not a permission grant.
+`scripts/jev-decide.sh` is a suggestion only. It does not grant a go-word,
+bypass git bans, or spawn the worker. A missing key fails open.
 
 ## Worker brief
 

@@ -35,7 +35,7 @@ Parse these flags:
 - `--repo <name>`: target repo; otherwise detect from `pwd`.
 - `--readonly`: force the `read-only` sandbox.
 - `--tier <spark|luna|terra|sol|astra>`: model family selection.
-- `--budget auto|low|medium|high`: depth cap (default `auto`). Classify this task or review's scope and risk; do not inherit implementation depth for a simple review. See `references/execute-budget.md`.
+- `--budget auto|low|medium|high`: depth cap (default `auto`). Classify this task or review's scope and risk; do not inherit implementation depth for a simple review. See `references/execute-budget.md`. Optional suggestion: `scripts/jev-decide.sh`. Honor fail-open. An explicit `--model` still wins. Risk tags still force a high budget. Never put the key in the worker brief. Jev does not grant permission.
 - `--effort <none|low|medium|high|xhigh|max|ultra>`: override the tier's reasoning effort. Explicit `--effort` wins over `--budget`. Astra supports every listed effort except `none`; other models depend on their catalog support.
 - `--model <model>`: exact Codex model ID; it overrides tier selection but not a supplied effort.
 - `--sandbox <mode>`: `read-only`, `workspace-write`, or `danger-full-access`.

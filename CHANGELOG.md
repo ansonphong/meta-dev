@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.5.6
+
+- Add a Jev System One decide client and `/jev-execute`. Missing key fails open. Risk tags still force a high budget.
+- Release matching Claude and Codex plugin manifests at version 1.5.6.
+
 ## 1.5.5
 
 - Require a feature folder for v1.1 plans: `plans/<repo>/<feature>/YYYY-MM-DD-<slug>.md`.

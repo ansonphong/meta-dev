@@ -135,7 +135,9 @@ Use `references/execute-report-card.md` when the host supports that presentation
 
 Backend flags `--deep --glm --grok --sonnet --codex --agy --cursor` retain their runner
 contracts, availability checks, and configured pauses. `--budget` is a ceiling
-from `references/execute-budget.md`; `--effort` must be supported by the chosen
+from `references/execute-budget.md`. Optional suggestion: `scripts/jev-decide.sh`.
+Honor fail-open. An explicit `--model` still wins. Risk tags still force a high
+budget. Jev does not grant permission. `--effort` must be supported by the chosen
 runner. `--pause-before=<id>` stops before that handle and splits a slice.
 `--dry-run` resolves/prints inventory and policy without dispatch or source edits.
 `--no-deploy` never changes acceptance. `--no-pause` and `--autonomous` may
