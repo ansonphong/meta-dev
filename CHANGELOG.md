@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.5.8
+
+- Add chooser notes to `/codex-execute`, `/grok-execute`, and `/opus-execute` for GPT-6 Astra, Sol, the terra role, Luna, Grok 4.7/4.6/4.5, and Opus 5.5.
+- Accept Cursor `--grok 4.7` as `grok-4.7-<effort>`. Unspecified defaults stay Composer 2.5 and `cursor-grok-4.6-high`.
+- Add `--context 500k` for Cursor Grok 4.7. Omit it and the run stays the 256k id.
+- Release matching Claude and Codex plugin manifests at version 1.5.8.
+
 ## 1.5.7
 
 - Point `/codex-execute` at published GPT-6 ids: astra `gpt-6-astra` high, sol `gpt-6-sol` high, terra and the no-tier fallback `gpt-6-sol` medium, luna `gpt-6-luna` low. The Codex catalog has no `gpt-6-terra`. Spark stays `gpt-5.3-codex-spark`.
