@@ -41,7 +41,7 @@ Cursor bills two buckets. This command defaults to the first so included Compose
 | Family | Catalog prefix | Context **in Cursor** | Notes |
 |--|--|--|--|
 | Composer 2.5 | `composer-2.5` / `composer-2.5-fast` | **200k** | Fast, low-cost pool model. No effort in the id. `--fast` is a separate speed, not a bigger window. |
-| Cursor Grok 4.7 | `grok-4.7-{low,medium,high,xhigh}[-fast]` | **256k** standard. **500k** with `--context 500k` | Harder, longer work. Live catalog id is `grok-4.7-<effort>`. `--context 500k` sends `grok-4.7[context=500k,effort=…,fast=…]`. Omit the flag and the run stays 256k. Input over 256k bills at the long-context rate. |
+| Cursor Grok 4.7 | `grok-4.7-{low,medium,high,xhigh}[-fast]` | **256k** standard. **500k** with `--context 500k` | Harder, longer work. Live catalog id is `grok-4.7-<effort>`. `--context 500k` sends `grok-4.7[context=500k,reasoning_effort=…,fast=…]`. Omit the flag and the run stays 256k. Input over 256k bills at the long-context rate. |
 | Cursor Grok 4.6 | `cursor-grok-4.6-{low,medium,high,xhigh}[-fast]` | **256k** | Unspecified ordinary default is `cursor-grok-4.6-high`. Not xAI native 500k. |
 | Cursor Grok 4.5 | `cursor-grok-4.5-{low,medium,high}[-fast]` | **256k** | No `xhigh` id. Runner clamps `xhigh` to `high`. |
 | Opus 5 / Opus 4.8 | `claude-opus-5-*` / `claude-opus-4-8-*` | **1M** | Other Models. `--opus` → thinking-high. |
@@ -60,7 +60,7 @@ Grok 4.7 stays at 256k unless the dispatch passes `--context 500k`. That flag is
 | Choice | Use it for | Do not use it for | Effort |
 | --- | --- | --- | --- |
 | Composer 2.5 `composer-2.5` | Fast, low-cost pool work. Collect, mechanical edits, budget `low`. `--composer` resolves here. 200k | Hard architecture. There is no effort in the id | None. `--fast` selects `composer-2.5-fast` |
-| Grok 4.7 `grok-4.7-<effort>` | Harder, longer Cursor work the user names. Standard context 256k. Pass `--context 500k` when the task needs the long window | The unspecified ordinary default (that stays `cursor-grok-4.6-high`). 500k on any model other than Grok 4.7 | `low`, `medium`, `high`, `xhigh`. `--grok 4.7 xhigh` is `grok-4.7-xhigh`. `--grok 4.7 xhigh --context 500k` is `grok-4.7[context=500k,effort=xhigh,fast=false]` |
+| Grok 4.7 `grok-4.7-<effort>` | Harder, longer Cursor work the user names. Standard context 256k. Pass `--context 500k` when the task needs the long window | The unspecified ordinary default (that stays `cursor-grok-4.6-high`). 500k on any model other than Grok 4.7 | `low`, `medium`, `high`, `xhigh`. `--grok 4.7 xhigh` is `grok-4.7-xhigh`. `--grok 4.7 xhigh --context 500k` is `grok-4.7[context=500k,reasoning_effort=xhigh,fast=false]` |
 | Grok 4.6 `cursor-grok-4.6-<effort>` | Unspecified ordinary work. `--grok 4.6 xhigh` is `cursor-grok-4.6-xhigh`. 256k | Assuming native 500k | `low`, `medium`, `high`, `xhigh` |
 | Grok 4.5 `cursor-grok-4.5-<effort>` | A cheaper Cursor Grok when 4.6 or 4.7 is more than the task. 256k | `xhigh`. The runner clamps it to `high` | `low`, `medium`, `high` |
 
@@ -87,7 +87,8 @@ Stay on the **Cursor Models** pool. Never auto-pick Opus/Sol.
 | User said | Runner flags | Resolves to |
 | --- | --- | --- |
 | `--grok 4.7 xhigh` | `--grok 4.7 xhigh` | `grok-4.7-xhigh` |
-| `--grok 4.7 xhigh --context 500k` | `--grok 4.7 xhigh --context 500k` | `grok-4.7[context=500k,effort=xhigh,fast=false]` |
+| `--grok 4.7 xhigh --context 500k` | `--grok 4.7 xhigh --context 500k` | `grok-4.7[context=500k,reasoning_effort=xhigh,fast=false]` |
+| `--grok 4.7 500K` | `--grok 4.7 --context 500k` | `grok-4.7[context=500k,reasoning_effort=high,fast=false]` |
 | `--grok 4.7 low` | `--grok 4.7 low` | `grok-4.7-low` |
 | `--grok 4.6 xhigh` | `--grok 4.6 xhigh` | `cursor-grok-4.6-xhigh` |
 | `--grok 4.5` | `--grok 4.5` | `cursor-grok-4.5-high` |
@@ -116,7 +117,7 @@ Parse these optional flags:
 - `--repo <name>` — target repo (default: auto-detect; names from `.meta-dev/repos.json`)
 - `--readonly` — ask mode, read-only Q&A (audits/reviews)
 - `--composer` / `--grok [4.5|4.6|4.7] [effort]` / `--opus` / `--sol` / `--sonnet` / `--luna` / `--fable` / `--codex`
-- `--context 256k|500k` — Grok 4.7 only. `500k` opts into the long window. Omit it and the id stays `grok-4.7-<effort>` (256k)
+- `--context 256k|500k` — Grok 4.7 only. `500k` / `500K` opts into the long window. `--grok 4.7 500K` is the same. Omit it and the id stays `grok-4.7-<effort>` (256k)
 - `--model <id>` — explicit `cursor-agent models` id (wins)
 - `--effort low|medium|high|xhigh|max|none`
 - `--fast`

@@ -23,7 +23,7 @@
 #                            Other Models pool aliases (usually 1M)
 #   --effort <level>         Family effort (grok: low|medium|high|xhigh)
 #   --context 256k|500k      Grok 4.7 only. Omit or 256k keeps grok-4.7-<effort>.
-#                            500k sends grok-4.7[context=500k,effort=...,fast=...].
+#                            500k sends grok-4.7[context=500k,reasoning_effort=...,fast=...].
 #   --fast                   Append the catalog -fast variant when it exists
 #   --shape collect|ordinary|hard
 #                            Chooser hint when no model/alias is named
@@ -87,7 +87,7 @@ Options:
   --grok [4.5|4.6|4.7] [effort]
                            Cursor Grok (pool, 256k standard). 4.6/4.5 ids are
                            cursor-grok-<ver>-<effort>. 4.7 ids are grok-4.7-<effort>.
-                           Example: --grok 4.7 xhigh. Local headless runs stay at 256k.
+                           Example: --grok 4.7 xhigh. Add 500k or --context 500k for the long window.
   --opus                   Claude Opus 5 thinking (Other Models, 1M)
   --sol                    GPT-5.6 Sol (Other Models, 1M)
   --sonnet                 Claude Sonnet 5 thinking (Other Models, 1M)
@@ -143,10 +143,17 @@ while [[ $# -gt 0 ]]; do
             if [[ "${1:-}" == "4.5" || "${1:-}" == "4.6" || "${1:-}" == "4.7" ]]; then
                 GROK_VER="$1"; shift
             fi
-            case "${1:-}" in
-                none|minimal|low|medium|high|xhigh|max)
-                    EFFORT="$1"; EFFORT_EXPLICIT=1; shift ;;
-            esac
+            # Effort and 256k/500k may arrive in either order after the version
+            # (`--grok 4.7 500K`, `--grok 4.7 xhigh 500k`).
+            for _ in 1 2; do
+                case "${1:-}" in
+                    none|minimal|low|medium|high|xhigh|max)
+                        EFFORT="$1"; EFFORT_EXPLICIT=1; shift ;;
+                    256k|256K|500k|500K)
+                        CONTEXT="${1,,}"; shift ;;
+                    *) break ;;
+                esac
+            done
             ;;
         --opus)        _set_family opus; shift ;;
         --sol)         _set_family sol; shift ;;
@@ -156,7 +163,7 @@ while [[ $# -gt 0 ]]; do
         --codex)       _set_family codex; shift ;;
         --fast)        FAST=1; shift ;;
         --context)
-            CONTEXT="$2"
+            CONTEXT="${2,,}"
             shift 2
             ;;
         --shape)       SHAPE="$2"; shift 2 ;;

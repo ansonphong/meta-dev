@@ -178,16 +178,29 @@ def expand_model(model: str, *, effort: str | None, fast: bool) -> str:
     return raw
 
 
+def normalize_context(value: str | None) -> str | None:
+    """Accept 256k/500k in any common casing. Empty stays omitted."""
+    if value is None:
+        return None
+    text = str(value).strip().lower()
+    if text in ("", "256k", "500k"):
+        return text or None
+    print(
+        f"[ERROR] --context must be 256k or 500k (got {value})",
+        file=sys.stderr,
+    )
+    sys.exit(2)
+
+
 def apply_context(model: str, context: str | None) -> str:
-    """500k is opt-in for Cursor Grok 4.7. Omitted context stays the 256k id."""
-    if context is None or context == "" or context == "256k":
+    """500k is opt-in for Cursor Grok 4.7. Omitted context stays the 256k id.
+
+    Cursor CLI matches variantStringRepresentation. Grok 4.7 params are
+    context, reasoning_effort, fast — not effort. The effort= form is rejected.
+    """
+    context = normalize_context(context)
+    if context is None or context == "256k":
         return model
-    if context != "500k":
-        print(
-            f"[ERROR] --context must be 256k or 500k (got {context})",
-            file=sys.stderr,
-        )
-        sys.exit(2)
     if "[context=500k" in model:
         return model
     fast = model.endswith("-fast")
@@ -202,7 +215,9 @@ def apply_context(model: str, context: str | None) -> str:
         sys.exit(2)
     effort = base[len(prefix):]
     flag = "true" if fast else "false"
-    return f"grok-4.7[context=500k,effort={effort},fast={flag}]"
+    return (
+        f"grok-4.7[context=500k,reasoning_effort={effort},fast={flag}]"
+    )
 
 
 def resolve(
@@ -236,7 +251,7 @@ def main() -> int:
     parser.add_argument("--fast", action="store_true")
     parser.add_argument("--shape", choices=("collect", "mechanical", "ordinary", "hard"))
     parser.add_argument("--budget", choices=("low", "medium", "high", "auto"))
-    parser.add_argument("--context", choices=("256k", "500k"))
+    parser.add_argument("--context", type=normalize_context)
     args = parser.parse_args()
     budget = args.budget if args.budget != "auto" else "medium"
     print(

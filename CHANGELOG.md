@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.5.9
+
+- Cursor Grok 4.7 `--context 500k` now sends `reasoning_effort` in the parameterized id, which `cursor-agent` accepts. Informal `--grok 4.7 500K` and `--context 500K` resolve the same way.
+
 ## 1.5.8
 
 - Add chooser notes to `/codex-execute`, `/grok-execute`, and `/opus-execute` for GPT-6 Astra, Sol, the terra role, Luna, Grok 4.7/4.6/4.5, and Opus 5.5.

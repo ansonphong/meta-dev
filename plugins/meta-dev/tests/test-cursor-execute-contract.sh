@@ -152,12 +152,20 @@ G45="$("$RUNNER" --grok 4.5 xhigh --resolve-only 2>/dev/null)" || true
 [[ "$G45" == "cursor-grok-4.5-high" ]] && ok "--grok 4.5 xhigh → cursor-grok-4.5-high" || bad "4.5 xhigh clamp got='$G45'"
 
 CTX="$("$RUNNER" --grok 4.7 xhigh --context 500k --resolve-only 2>/dev/null)" || true
-[[ "$CTX" == "grok-4.7[context=500k,effort=xhigh,fast=false]" ]] \
+[[ "$CTX" == "grok-4.7[context=500k,reasoning_effort=xhigh,fast=false]" ]] \
   && ok "--context 500k → parameterized grok-4.7" || bad "500k context got='$CTX'"
 
 FASTCTX="$("$RUNNER" --grok 4.7 high --fast --context 500k --resolve-only 2>/dev/null)" || true
-[[ "$FASTCTX" == "grok-4.7[context=500k,effort=high,fast=true]" ]] \
+[[ "$FASTCTX" == "grok-4.7[context=500k,reasoning_effort=high,fast=true]" ]] \
   && ok "--context 500k --fast keeps fast=true" || bad "500k fast got='$FASTCTX'"
+
+INFORMAL="$("$RUNNER" --resolve-only --grok 4.7 500K 2>/dev/null)" || true
+[[ "$INFORMAL" == "grok-4.7[context=500k,reasoning_effort=high,fast=false]" ]] \
+  && ok "--grok 4.7 500K → 500k reasoning_effort" || bad "informal 500K got='$INFORMAL'"
+
+CAPCTX="$("$RUNNER" --resolve-only --grok 4.7 --context 500K 2>/dev/null)" || true
+[[ "$CAPCTX" == "grok-4.7[context=500k,reasoning_effort=high,fast=false]" ]] \
+  && ok "--context 500K normalizes" || bad "500K flag got='$CAPCTX'"
 
 PLAIN="$("$RUNNER" --grok 4.7 xhigh --resolve-only 2>/dev/null)" || true
 [[ "$PLAIN" == "grok-4.7-xhigh" ]] && ok "omitted context stays 256k id" || bad "plain 4.7 got='$PLAIN'"
