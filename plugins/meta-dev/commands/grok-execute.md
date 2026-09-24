@@ -1,7 +1,7 @@
 ---
 name: grok-execute
-argument-hint: "<task description> [--repo <name>] [--readonly] [--model <grok-4.6|grok-4.5>] [--budget auto|low|medium|high] [--effort <low|medium|high|xhigh>] [--max-turns <n>]  # --repo names from .meta-dev/repos.json"
-description: "Run a bounded direct task with headless Grok Build. Default grok-4.6; select model, effort, and workflow depth from configured policy. Preserve sandbox and scope boundaries."
+argument-hint: "<task description> [--repo <name>] [--readonly] [--model <grok-4.7|grok-4.6|grok-4.5>] [--budget auto|low|medium|high] [--effort <low|medium|high|xhigh>] [--max-turns <n>]  # --repo names from .meta-dev/repos.json"
+description: "Run a bounded direct task with headless Grok Build. Default grok-4.7; --model accepts grok-4.7, grok-4.6, and grok-4.5. Select effort and workflow depth from configured policy. Preserve sandbox and scope boundaries."
 ---
 
 # /grok-execute — Grok Headless Execution
@@ -24,7 +24,7 @@ This command spawns **headless** Grok (`grok --prompt-file`). That is still Grok
 
 Grok occupies a unique slot: it is **both** a general execution tier **and** a cross-family reviewer.
 
-- **As an executor:** Grok 4.6 is a frontier-tier model that **can write files** (like Codex under `--sandbox workspace-write`) — so it can do real bounded implementation work (fixes, refactors, scaffolding), not just read-and-report. Use grok-4.5 / `--effort low` for collect and mechanical; grok-4.6 for ordinary and hard.
+- **As an executor:** Grok 4.7 is a frontier-tier model that **can write files** (like Codex under `--sandbox workspace-write`) — so it can do real bounded implementation work (fixes, refactors, scaffolding), not just read-and-report. Use grok-4.5 / `--effort low` for collect and mechanical; grok-4.7 for ordinary and hard.
 - **As a reviewer:** Point it (read-only via `--readonly`) at a diff, the changed files, or a specific finding. A different model family can provide independent evidence, but this is an optional risk-based review, not a guaranteed defect detector or mandatory extra pass.
 
 **Routing:** resolve `meta_dev.ladder` and `meta_dev.workflow` through the shared settings cascade. Grok is an available backend, not a mandatory default pool member. Select it based on verified access and task fit; quota, provider preference, and cross-family review are opt-in configuration. See `references/work-ladder.md` and `references/adaptive-workflow.md`.
@@ -40,9 +40,9 @@ The user's input is: `$ARGUMENTS`
 Parse these optional flags:
 - `--repo <name>` — target repo (default: auto-detect from cwd; names from .meta-dev/repos.json)
 - `--readonly` — enforced read-only (deny Write/Edit). Use for all audits/reviews. Grok's deny-rule sandbox blocks every write path (write tool, shell redirection, search_replace) — verified empirically.
-- `--model <grok-4.6|grok-4.5>` — override grok model (default: `grok-4.6`, pinned). `grok-4.5` is still supported. An explicit `--model` from the user always wins.
+- `--model <grok-4.7|grok-4.6|grok-4.5>` — override grok model (default: `grok-4.7`, pinned). Accepted ids are `grok-4.7`, `grok-4.6`, and `grok-4.5`. An explicit `--model` from the user always wins.
 - `--budget auto|low|medium|high` — **depth cap** (default `auto`). Classify the task before dispatch: mechanical → `low`, ordinary → `medium`, hard/auth/schema/pipeline → `high`. Unsure → `medium`. Forward the **resolved** word (`low|medium|high`), never `auto`, unless you want the runner's medium fallback. Caps turns and wall clock so the worker cannot wander. Not `--effort`. Doctrine: `references/execute-budget.md`.
-- `--effort <low|medium|high|xhigh>` — reasoning effort. **You pick this from the task**, every time. Do not inherit the TUI/`config.toml` default (often `xhigh`). `xhigh` exists on `grok-4.6` only; `grok-4.5` accepts `low|medium|high`. The runner's omit-fallback is `high` so a forgotten flag does not silently become TUI `xhigh`. Canonical CLI also lists `none|minimal|max`; the runner maps `none`/`minimal` → `low` and `max` → `xhigh` on 4.6 / `high` on 4.5. Explicit `--effort` wins over `--budget`'s effort hint.
+- `--effort <low|medium|high|xhigh>` — reasoning effort. **You pick this from the task**, every time. Do not inherit the TUI/`config.toml` default (often `xhigh`). `grok-4.7` uses the same effort menu as `grok-4.6`: `low|medium|high|xhigh`. `grok-4.5` accepts `low|medium|high`. The runner's omit-fallback is `high` so a forgotten flag does not silently become TUI `xhigh`. Canonical CLI also lists `none|minimal|max`; the runner maps `none`/`minimal` → `low` and `max` → `xhigh` on 4.7 and 4.6 / `high` on 4.5. Explicit `--effort` wins over `--budget`'s effort hint.
 - `--max-turns <n>` — cap agent turns (default: from `--budget`)
 - `--timeout <ms>` — wall-clock timeout (default: from `--budget`)
 
@@ -55,17 +55,17 @@ Everything else is the task description. If none is given, ask what task to run.
 | Task shape | Model | Effort |
 | --- | --- | --- |
 | Filename collect, grep, inventory, cheap fan-out, one-file mechanical | `grok-4.5` | `low` |
-| Ordinary implementation, focused refactor, standard gap check, standard diff review | `grok-4.6` | `high` |
-| Hard diagnosis, architecture, plan harden, adversarial review, anything where being subtly wrong is expensive | `grok-4.6` | `xhigh` |
-| Images the worker must see | `grok-4.6` | `high` |
+| Ordinary implementation, focused refactor, standard gap check, standard diff review | `grok-4.7` | `high` |
+| Hard diagnosis, architecture, plan harden, adversarial review, anything where being subtly wrong is expensive | `grok-4.7` | `xhigh` |
+| Images the worker must see | `grok-4.7` | `high` |
 
-`xhigh` is the new 4.6 extra-high reasoning tier. Use it when the task earns it — not as a blanket default. `high` is the omit-fallback on both models.
+`xhigh` is the extra-high reasoning tier on `grok-4.7` and `grok-4.6`. Use it when the task earns it — not as a blanket default. `high` is the omit-fallback. `grok-4.5` clamps `xhigh` to `high`.
 
 ## Step 3: Confirm the Plan
 
 Summarize before running:
 - **Backend:** Grok (`grok --output-format json`)
-- **Model:** grok-4.5 (collect/mechanical) or grok-4.6 (ordinary/hard) — the one you classified
+- **Model:** grok-4.5 (collect/mechanical) or grok-4.7 (ordinary/hard) — the one you classified. `grok-4.6` remains an accepted `--model`.
 - **Budget:** resolved `low|medium|high` (never leave `auto` for the runner if you classified)
 - **Effort:** the level you selected above (or the user's `--effort`)
 - **Repo / Work dir:** (detected or specified)

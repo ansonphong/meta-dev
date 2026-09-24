@@ -1,20 +1,20 @@
 ---
 name: opus-execute
 argument-hint: <task description> [--repo <name>] [--readonly] [--budget auto|low|medium|high] [--model <model>] [--effort <level>]  # --repo names from .meta-dev/repos.json
-description: Execute a task via headless Anthropic Opus 5 Claude Code — spawns a SEPARATE Claude Code process so top-tier Anthropic reasoning runs OFF the main thread and the conductor's context window stays lean. Opus 5 is 1M-context on the first-party API.
+description: Execute a task via headless Anthropic Opus Claude Code — spawns a SEPARATE Claude Code process so top-tier Anthropic reasoning runs OFF the main thread and the conductor's context window stays lean. Default model is claude-opus-5-5. An explicit --model is forwarded unchanged.
 ---
 
-# /opus-execute — Anthropic Opus 5 Headless Execution
+# /opus-execute — Anthropic Opus Headless Execution
 
-Spawn a headless Claude Code worker on the **real Anthropic backend**, pinned to **Opus 5**, to execute a task and report back. You stay on your current backend for orchestration; the worker does the hard reasoning in an **isolated process** — so the heaviest Opus-grade work happens without bloating the conductor's context window.
+Spawn a headless Claude Code worker on the **real Anthropic backend**, pinned to **`claude-opus-5-5`** when `--model` is omitted, to execute a task and report back. You stay on your current backend for orchestration; the worker does the hard reasoning in an **isolated process** — so the heaviest Opus-grade work happens without bloating the conductor's context window.
 
 Uses `scripts/claude-headless-exec --backend opus` under the hood.
 
-**Harness:** this worker **is** Claude Code (ambient Anthropic login, model Opus 5). It can run meta-dev slash commands internally (`/meta-execute`, `/loop-gap`, …). Interactive Grok and Codex hosts **also** have this plugin (Grok skills/slash; Codex `$meta-dev:*`). A **headless** `/grok-execute` or `/codex-execute` worker is not Claude Code — brief those with a direct task, not "run `/loop-gap`". Host loading and routing: `references/work-ladder.md` and `references/adaptive-workflow.md`. It can perform implementation-through-verification or a read-only review; use the task's intent and resolved workflow depth. The runner injects an Opus brief (`references/execute-briefs.md`).
+**Harness:** this worker **is** Claude Code (ambient Anthropic login, default model `claude-opus-5-5`). It can run meta-dev slash commands internally (`/meta-execute`, `/loop-gap`, …). Interactive Grok and Codex hosts **also** have this plugin (Grok skills/slash; Codex `$meta-dev:*`). A **headless** `/grok-execute` or `/codex-execute` worker is not Claude Code — brief those with a direct task, not "run `/loop-gap`". Host loading and routing: `references/work-ladder.md` and `references/adaptive-workflow.md`. It can perform implementation-through-verification or a read-only review; use the task's intent and resolved workflow depth. The runner injects an Opus brief (`references/execute-briefs.md`).
 
 ## Scope and routing
 
-A separate process isolates the worker's context. Opus 4.8/5 profiles can own bounded coherent slices through implementation and focused verification; they are not restricted to review or UI work. Read-only review creates no edits.
+A separate process isolates the worker's context. Opus 4.8, Opus 5, and Opus 5.5 profiles can own bounded coherent slices through implementation and focused verification; they are not restricted to review or UI work. Read-only review creates no edits.
 
 Backend eligibility, quotas, and preferences come from the JSON cascade. Resolve the actual executor and risk before selecting plan detail or delegation depth: `references/work-ladder.md` and `references/adaptive-workflow.md`.
 
@@ -44,7 +44,7 @@ Parse these optional flags:
 - `--repo <name>` — target repo (default: auto-detect from cwd; names from .meta-dev/repos.json)
 - `--readonly` — expose only Read,Glob,Grep (no shell, writes, delegation, MCP, or skills)
 - `--claim <plan-dir>` — **concurrency safety (shared tree):** claim this plan directory before dispatch. The wrapper ABORTS if another live session holds an overlapping scope, and auto-releases on exit. Use whenever the worker edits `plans/**`. (`--claim-warn` warns instead of aborting.) See `references/execute-charter.md` → Concurrency Safety.
-- `--model <model>` — override the default `claude-opus-5`; pass only model IDs supported by the target host.
+- `--model <model>` — override the default `claude-opus-5-5`. The value is forwarded unchanged. Any caller-supplied Opus id is accepted, including `claude-opus-5`, `claude-opus-4-8`, and ids outside that pair. It is not rewritten to `claude-opus-5-5`.
 - `--budget auto|low|medium|high` — bounded work depth (default `auto`), classified by task scope and risk. See `references/execute-budget.md`.
 - `--effort <level>` — thinking/reasoning effort: `low|medium|high|xhigh|max` (**default: `high`**; drop to `medium`/`low` to conserve the Opus cap on lighter work)
 - `--max-turns <n>` — cap agent turns (default: from `--budget`)
@@ -54,7 +54,7 @@ Everything else is the task description. If no task description is provided, ask
 ## Step 2: Confirm the Plan
 
 Summarize what will be executed:
-- **Backend:** Anthropic Opus — `claude-opus-5` (ambient login)
+- **Backend:** Anthropic Opus — `claude-opus-5-5` when `--model` is omitted (ambient login). An explicit `--model` replaces that id.
 - **Effort:** high (or the `--effort` value)
 - **Repo:** (detected or specified)
 - **Task:** (the task description)

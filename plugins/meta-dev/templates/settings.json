@@ -104,12 +104,16 @@
       "sensitive_risks": ["auth", "authorization", "security", "payment", "payments", "migration", "cross-service", "destructive", "high", "critical"],
       "model_profiles": {
         "gpt-6-astra": {"plan_target": "lean", "coherent_slices": true},
+        "gpt-6-sol": {"plan_target": "lean", "coherent_slices": true},
         "gpt-5.6-sol": {"plan_target": "lean", "coherent_slices": true},
         "claude-opus-4-8": {"plan_target": "lean", "coherent_slices": true},
         "claude-opus-5": {"plan_target": "lean", "coherent_slices": true},
+        "claude-opus-5-5": {"plan_target": "lean", "coherent_slices": true},
+        "grok-4.7": {"plan_target": "lean", "coherent_slices": true},
         "grok-4.6": {"plan_target": "lean", "coherent_slices": true},
         "gpt-5.6-terra": {"plan_target": "standard", "coherent_slices": false},
         "claude-sonnet-5": {"plan_target": "standard", "coherent_slices": false},
+        "gpt-6-luna": {"plan_target": "explicit", "coherent_slices": false},
         "gpt-5.6-luna": {"plan_target": "explicit", "coherent_slices": false},
         "gpt-5.3-codex-spark": {"plan_target": "explicit", "coherent_slices": false},
         "haiku": {"plan_target": "explicit", "coherent_slices": false}
@@ -117,13 +121,15 @@
       "model_aliases": {
         "astra": "gpt-6-astra",
         "spark": "gpt-5.3-codex-spark",
-        "sol": "gpt-5.6-sol",
+        "sol": "gpt-6-sol",
         "gpt-5.6": "gpt-5.6-sol",
-        "terra": "gpt-5.6-terra",
-        "luna": "gpt-5.6-luna",
+        "terra": "gpt-6-sol",
+        "luna": "gpt-6-luna",
         "opus-4.8": "claude-opus-4-8",
         "claude-opus-4.8": "claude-opus-4-8",
         "opus-5": "claude-opus-5",
+        "opus-5.5": "claude-opus-5-5",
+        "grok-4-7": "grok-4.7",
         "grok-4-6": "grok-4.6",
         "sonnet-5": "claude-sonnet-5"
       }

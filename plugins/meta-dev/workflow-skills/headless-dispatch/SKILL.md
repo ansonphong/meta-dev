@@ -75,7 +75,7 @@ run the script directly:
 | Claude Code command | `--backend` | Model | Reach for it when |
 |---|---|---|---|
 | `/fable-execute`  | `fable`  | `claude-fable-5`  | explicit user authorization |
-| `/opus-execute`   | `opus`   | `claude-opus-5`   | bounded implementation slice or independent review |
+| `/opus-execute`   | `opus`   | `claude-opus-5-5` (default; `--model` forwards any Opus id) | bounded implementation slice or independent review |
 | `/sonnet-execute` | `sonnet` | `claude-sonnet-5` | bounded implementation or review |
 | `/deep-execute`   | `deep`   | `deepseek-v4-flash` (default, V4.1 Flash; `--pro` → `deepseek-v4-pro`; `--vision` → `deepseek-v4-flash-vision-exp`) | selected by user or configured eligible pool |
 | `/glm-execute`    | `glm`    | `glm-5.2`         | selected by user or configured eligible pool |

@@ -42,11 +42,11 @@ assert json.loads(wrapped["result"])["task_results"] == []
 args = argv.read_text().splitlines()
 assert "--output-schema" in args
 assert args[args.index("--output-schema") + 1] == str(schema)
-assert args[args.index("-m") + 1] == "gpt-5.6-terra"
+assert args[args.index("-m") + 1] == "gpt-6-sol"
 assert 'model_reasoning_effort="medium"' in args
 assert "exactly one entry for every assigned ledger handle" in runner.read_text()
 assert "never a slice wholesale" in runner.read_text()
-print("PASS: output schema, Terra default, and legacy wrapper contract")
+print("PASS: output schema, gpt-6-sol medium default, and legacy wrapper contract")
 PY
 
 assert_route() {
@@ -69,29 +69,36 @@ done
 echo "PASS: Astra model, high tier default, and all six supported efforts forwarded"
 
 assert_route gpt-5.3-codex-spark low --tier spark
-assert_route gpt-5.6-luna low --tier luna
-assert_route gpt-5.6-terra medium --tier terra
-assert_route gpt-5.6-sol high --tier sol
+assert_route gpt-6-luna low --tier luna
+assert_route gpt-6-sol medium --tier terra
+assert_route gpt-6-sol high --tier sol
 assert_route gpt-6-astra low --tier astra --budget low
 assert_route gpt-6-astra xhigh --tier astra --budget high
 assert_route gpt-6-astra ultra --tier astra --effort ultra --budget low
 assert_route gpt-6-astra medium --model gpt-6-astra
 assert_route custom-model high --tier astra --model custom-model
 assert_route custom-model none --tier astra --model custom-model --effort none
-echo "PASS: existing tier defaults, budget precedence, and explicit model overrides preserved"
+assert_route gpt-5.6-sol medium --tier terra --model gpt-5.6-sol
+echo "PASS: GPT-6 tier defaults, budget precedence, and explicit model overrides preserved"
 
 assert_rejected() {
+    local needle="$1"
+    shift
     if run_stubbed "$TEST_DIR/fixtures/codex-worker-result-valid.json" "$TMP_DIR/rejected.json" "$@" >"$TMP_DIR/rejected.stdout" 2>"$TMP_DIR/rejected.stderr"; then
-        echo "FAIL: invalid Astra effort unexpectedly succeeded" >&2
+        echo "FAIL: invalid effort unexpectedly succeeded: $*" >&2
         exit 1
     fi
-    [[ ! -e "$TMP_DIR/argv" ]] || { echo "FAIL: Codex invoked for invalid Astra effort" >&2; exit 1; }
-    grep -F "gpt-6-astra does not support --effort none" "$TMP_DIR/rejected.stderr" >/dev/null
+    [[ ! -e "$TMP_DIR/argv" ]] || { echo "FAIL: Codex invoked for invalid effort: $*" >&2; exit 1; }
+    grep -F "$needle" "$TMP_DIR/rejected.stderr" >/dev/null
 }
 
-assert_rejected --tier astra --effort none
-assert_rejected --tier terra --model gpt-6-astra --effort none
-echo "PASS: Astra none rejected before Codex invocation for tier and model override"
+assert_rejected "gpt-6-astra does not support --effort none" --tier astra --effort none
+assert_rejected "gpt-6-astra does not support --effort none" --tier terra --model gpt-6-astra --effort none
+assert_rejected "gpt-6-sol does not support --effort none" --tier sol --effort none
+assert_rejected "gpt-6-sol does not support --effort none" --model gpt-6-sol --effort none
+assert_rejected "gpt-6-luna does not support --effort none" --tier luna --effort none
+assert_rejected "gpt-6-luna does not support --effort ultra" --tier luna --effort ultra
+echo "PASS: GPT-6 catalog-invalid efforts rejected before Codex invocation"
 
 malformed_output="$TMP_DIR/malformed-output.json"
 if run_stubbed "$TEST_DIR/fixtures/codex-worker-result-malformed.json" "$malformed_output" >"$TMP_DIR/malformed.stdout" 2>"$TMP_DIR/malformed.stderr"; then

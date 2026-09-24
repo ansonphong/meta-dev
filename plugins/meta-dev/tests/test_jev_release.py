@@ -1,4 +1,4 @@
-"""Release pins for the Jev 1.5.6 surface."""
+"""Release pins for the current plugin surface."""
 
 from __future__ import annotations
 
@@ -15,8 +15,8 @@ def test_jev_release_pins_and_codex_surface():
     claude = json.loads((PLUGIN / ".claude-plugin" / "plugin.json").read_text())
     codex = json.loads((PLUGIN / ".codex-plugin" / "plugin.json").read_text())
     changelog = (REPO / "CHANGELOG.md").read_text(encoding="utf-8")
-    assert claude["version"] == codex["version"] == "1.5.6"
-    assert "## 1.5.6" in changelog
+    assert claude["version"] == codex["version"] == "1.5.7"
+    assert "## 1.5.7" in changelog
 
     pin = subprocess.run(
         [

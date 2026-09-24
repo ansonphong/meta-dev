@@ -186,8 +186,10 @@ for route in routes["models"].values():
     assert route["tier"] in schema["definitions"]["codex_model_route"]["properties"]["tier"]["enum"]
     assert route["effort"] in schema["definitions"]["codex_model_route"]["properties"]["effort"]["enum"]
 runner = require_file("scripts/codex-headless-exec").read_text(encoding="utf-8")
-for model in ("gpt-5.3-codex-spark", "gpt-5.6-luna", "gpt-5.6-terra", "gpt-5.6-sol", "gpt-6-astra"):
+for model in ("gpt-5.3-codex-spark", "gpt-6-luna", "gpt-6-sol", "gpt-6-astra"):
     assert model in runner, f"Codex runner no longer supports configured model {model}"
+for stale in ("gpt-5.6-luna", "gpt-5.6-terra", "gpt-5.6-sol"):
+    assert stale not in runner, f"Codex runner still selects retired default {stale}"
 
 hooks = load_json(plugin_root / "hooks/hooks.json")
 assert set(hooks["hooks"]) == {"SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "Stop"}

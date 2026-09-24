@@ -24,7 +24,7 @@ defaults do not assume a named user, paid account, quota balance, or project.
 
 `scripts/workflow-policy.py` resolves authoring/execution policy from exact
 configured model IDs and aliases. Its shipped frontier profiles include Sol,
-Astra, Opus 4.8/5, and Grok 4.6. These are planning hints, not availability or
+Astra, Opus 4.8/5/5.5, and Grok 4.6/4.7. These are planning hints, not availability or
 price guarantees. Unknown models fall back safely and can be configured.
 
 Native workers use the host's actual delegation surface. Headless Codex,

@@ -66,7 +66,7 @@ or an unresolved concern that makes acceptance unsafe. Zero issues is valid.
 
 ## Reviewer adapter
 
-- Native Codex review defaults to the configured `gpt-5.6-sol`, high-effort
+- Native Codex review defaults to the configured `gpt-6-sol`, high-effort
   route. Do not spawn an external reviewer unless the user explicitly selects
   one.
 - Claude Code retains its command/agent/project reviewer configuration. The

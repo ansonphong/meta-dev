@@ -22,9 +22,11 @@
 # Options:
 #   --repo <name>            Resolve via topology config; unresolvable => abort.
 #                            Omit to run at the PROJECT ROOT (never the caller's cwd).
-#   --model <model>          Override grok model (default: grok-4.6, pinned)
-#   --effort <level>         Reasoning effort (default: high). grok-4.6:
-#                            low|medium|high|xhigh. grok-4.5: low|medium|high.
+#   --model <model>          Override grok model (default: grok-4.7, pinned).
+#                            Accepted: grok-4.7, grok-4.6, grok-4.5.
+#   --effort <level>         Reasoning effort (default: high). grok-4.7 and
+#                            grok-4.6: low|medium|high|xhigh.
+#                            grok-4.5: low|medium|high.
 #   --budget auto|low|medium|high
 #                            Depth cap (default auto → medium at the runner).
 #                            See references/execute-budget.md
@@ -61,7 +63,7 @@ PLUGIN_ROOT="$(_md_plugin_root)"
 
 # ── Defaults ────────────────────────────────────────────────────────────
 REPO=""
-MODEL="grok-4.6"          # pinned default — do not inherit TUI/config.toml model
+MODEL="grok-4.7"          # pinned default — do not inherit TUI/config.toml model
 EFFORT="high"             # pinned omit-fallback — do not inherit TUI default_reasoning_effort (often xhigh)
 EFFORT_EXPLICIT=0
 MAX_TURNS=""
@@ -86,11 +88,12 @@ Usage:
 Options:
   --repo <name>            Resolve via .claude/meta-dev-repos.json; an
                            unknown name ABORTS. Omit => project root (not cwd).
-  --model <model>          Override grok model (default: grok-4.6, pinned)
+  --model <model>          Override grok model (default: grok-4.7, pinned).
+                           Accepted: grok-4.7, grok-4.6, grok-4.5.
   --effort <level>         Reasoning effort (default: high).
-                           grok-4.6: low|medium|high|xhigh
+                           grok-4.7 and grok-4.6: low|medium|high|xhigh
                            grok-4.5: low|medium|high
-                           xhigh is 4.6-only; max maps to xhigh (4.6) / high (4.5)
+                           xhigh is 4.7/4.6; max maps to xhigh (4.7/4.6) / high (4.5)
   --budget auto|low|medium|high
                            Depth cap (default auto → medium at the runner).
                            Turns/wall/don't-wander. NOT --effort.
@@ -147,27 +150,26 @@ md_budget_wrap_prompt
 md_brief_wrap_prompt
 
 # ── Model / effort contract ─────────────────────────────────────────────
-# Menus verified 2026-08-14 against `grok models` + ~/.grok/models_cache.json
-# (grok 1.0.3): grok-4.6 advertises xhigh|high|medium|low; grok-4.5 advertises
-# high|medium|low. Always pass --effort so TUI default_reasoning_effort cannot
-# leak into a headless worker.
+# grok-4.7 uses the grok-4.6 effort menu (low|medium|high|xhigh).
+# grok-4.5 stays low|medium|high. Always pass --effort so the TUI default
+# cannot leak into a headless worker.
 # Mutates EFFORT in this shell — do not call from $() or `exit` only kills the subshell.
 _normalize_grok_effort() {
     local model="$1" effort="$2"
     case "$model" in
-        grok-4.6)
+        grok-4.7|grok-4.6)
             case "$effort" in
                 xhigh|high|medium|low) EFFORT="$effort" ;;
                 max)
-                    echo "[WARN] grok-4.6 has no 'max' — using xhigh" >&2
+                    echo "[WARN] $model has no 'max' — using xhigh" >&2
                     EFFORT="xhigh"
                     ;;
                 none|minimal)
-                    echo "[WARN] grok-4.6 has no '$effort' — using low" >&2
+                    echo "[WARN] $model has no '$effort' — using low" >&2
                     EFFORT="low"
                     ;;
                 *)
-                    echo "[ERROR] grok-4.6 --effort must be low|medium|high|xhigh (got: $effort)" >&2
+                    echo "[ERROR] $model --effort must be low|medium|high|xhigh (got: $effort)" >&2
                     return 2
                     ;;
             esac
@@ -239,7 +241,7 @@ cat <<EOF
 ║  HEADLESS EXECUTION — Grok (xAI)
 ╠══════════════════════════════════════════════════════════════════════════╣
 ║  Backend   : Grok
-║  Model     : ${MODEL:-grok-4.6}
+║  Model     : ${MODEL:-grok-4.7}
 ║  Effort    : ${EFFORT:-high}
 ║  Budget    : ${BUDGET_RESOLVED:-medium} (turns ${MAX_TURNS:-?})
 ║  Repo      : ${REPO}

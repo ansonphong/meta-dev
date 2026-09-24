@@ -1,7 +1,7 @@
 ---
 name: codex-execute
 argument-hint: <task description> [--repo <name>] [--readonly] [--budget auto|low|medium|high] [--tier <spark|luna|terra|sol|astra>] [--effort <none|low|medium|high|xhigh|max|ultra>] [--model <model>] [--sandbox <mode>]
-description: Run a bounded task with headless OpenAI Codex. Brief a DIRECT task or use --skill/--command. Select spark|luna|terra|sol|astra and effort explicitly. Terra for ordinary execution; Sol for judgment; Astra for opt-in quality work.
+description: Run a bounded task with headless OpenAI Codex. Brief a DIRECT task or use --skill/--command. Select spark|luna|terra|sol|astra and effort explicitly. Terra is gpt-6-sol at medium; Sol is gpt-6-sol at high; Astra is gpt-6-astra. There is no gpt-6-terra.
 ---
 
 # /codex-execute - GPT Task Runner
@@ -21,7 +21,7 @@ meta-dev is installed on **Claude Code, Codex, and Grok Build**.
 
 **Brief this worker with a direct task** (or `--skill` / `--command`). **Inline** the 30–60 lines that matter — supply the acceptance contract and live-code anchors, with targeted reads when needed. Never "run `/loop-gap` on this plan" as if this were Claude Code. The runner injects a Codex brief (`references/execute-briefs.md`). Claude-family headless (`/deep-execute`, `/opus-execute`, …) *can* run that slash internally. Host loading and routing: `references/work-ladder.md` and `references/adaptive-workflow.md`.
 
-The runner's fallback remains `gpt-5.6-terra`/`medium`. Configured routes remain Sol for plan/harden/review, Terra for execution/lightweight work, and Spark for mechanical work. Astra is opt-in. State the selected tier and effort before dispatching. An explicit `--tier`, `--effort`, or `--model` from the user always wins, subject to model effort support.
+The runner's fallback is `gpt-6-sol` at `medium` (the terra role). The installed Codex catalog has no `gpt-6-terra`, so the terra role is ordinary `gpt-6-sol` at medium. Sol is the same `gpt-6-sol` at high for plan/harden/review. Luna is `gpt-6-luna` at low. Spark stays `gpt-5.3-codex-spark` for mechanical work. Astra is opt-in `gpt-6-astra` at high. State the selected tier and effort before dispatching. An explicit `--tier`, `--effort`, or `--model` from the user always wins, including a 5.6 id the caller types. `gpt-6-astra` and `gpt-6-sol` reject effort `none`. `gpt-6-luna` rejects `none` and `ultra`.
 
 ## Test discipline — keep every test cycle cheap
 
@@ -36,7 +36,7 @@ Parse these flags:
 - `--readonly`: force the `read-only` sandbox.
 - `--tier <spark|luna|terra|sol|astra>`: model family selection.
 - `--budget auto|low|medium|high`: depth cap (default `auto`). Classify this task or review's scope and risk; do not inherit implementation depth for a simple review. See `references/execute-budget.md`. Optional suggestion: `scripts/jev-decide.sh`. Honor fail-open. An explicit `--model` still wins. Risk tags still force a high budget. Never put the key in the worker brief. Jev does not grant permission.
-- `--effort <none|low|medium|high|xhigh|max|ultra>`: override the tier's reasoning effort. Explicit `--effort` wins over `--budget`. Astra supports every listed effort except `none`; other models depend on their catalog support.
+- `--effort <none|low|medium|high|xhigh|max|ultra>`: override the tier's reasoning effort. Explicit `--effort` wins over `--budget`. `gpt-6-astra` and `gpt-6-sol` support every listed effort except `none`. `gpt-6-luna` rejects `none` and `ultra`. Other models depend on their catalog support.
 - `--model <model>`: exact Codex model ID; it overrides tier selection but not a supplied effort.
 - `--sandbox <mode>`: `read-only`, `workspace-write`, or `danger-full-access`.
 - `--timeout <ms|30s|30m|2h>`: wall-clock limit; default is from `--budget` (medium = 90 min). Pass only if the user typed `--timeout`.
@@ -66,16 +66,16 @@ Classify the task by scope, ambiguity, reversibility, and quality sensitivity. P
 | Tier | Model ID | Default effort |
 | --- | --- | --- |
 | `spark` | `gpt-5.3-codex-spark` | `low` |
-| `luna` | `gpt-5.6-luna` | `low` |
-| `terra` | `gpt-5.6-terra` | `medium` |
-| `sol` | `gpt-5.6-sol` | `high` |
+| `luna` | `gpt-6-luna` | `low` |
+| `terra` | `gpt-6-sol` | `medium` |
+| `sol` | `gpt-6-sol` | `high` |
 | `astra` | `gpt-6-astra` | `high` |
 
-Astra supports `low`, `medium`, `high`, `xhigh`, `max`, and `ultra`; it does **not** support `none`. Use `low` for lightweight work, `medium` for balanced reasoning, and `high` for the runner's quality-oriented default. Escalate to `xhigh` or `max` when evaluation criteria justify more reasoning. The Codex catalog describes `ultra` as maximum reasoning with automatic task delegation; select it deliberately for work that warrants that behavior. It does not make the runner enable `--multi-agent` automatically. Never infer sandbox permissions from tier or effort.
+`gpt-6-astra` and `gpt-6-sol` support `low`, `medium`, `high`, `xhigh`, `max`, and `ultra`. They do not support `none`. `gpt-6-luna` supports `low`, `medium`, `high`, `xhigh`, and `max`. It does not support `none` or `ultra`. Use `low` for lightweight work, `medium` for balanced reasoning, and `high` for Sol and Astra quality defaults. Escalate to `xhigh` or `max` when evaluation criteria justify more reasoning. The Codex catalog describes `ultra` as maximum reasoning with automatic task delegation; select it deliberately for Astra or Sol work that warrants that behavior. It does not make the runner enable `--multi-agent` automatically. Never infer sandbox permissions from tier or effort.
 
 These tier defaults apply with `--budget auto` or `medium`. Without explicit `--effort`, budget `low` selects `low` and budget `high` selects `xhigh`. `--model` replaces only the model ID; the selected tier/budget still supplies effort unless overridden. Project settings may opt in via `meta_dev.codex.models.<role>`, for example `{"tier":"astra","effort":"ultra"}`; shipped routes remain unchanged.
 
-**Availability is account- and CLI-dependent.** The verified Codex CLI 0.153.4 catalog lists `gpt-6-astra` as visible, with catalog default `medium` and the six efforts above. The runner intentionally defaults the Astra tier to `high`. Catalog visibility is not a live account entitlement check; confirm model access in the target environment. Do not infer quota pools or limits from tier names.
+**Availability is account- and CLI-dependent.** Codex CLI 0.155.1 lists `gpt-6-astra`, `gpt-6-sol`, and `gpt-6-luna`. It has no `gpt-6-terra`. The runner binds the terra role to `gpt-6-sol` at medium. Astra's catalog default is `medium`; the runner defaults the Astra tier to `high`. Catalog visibility is not a live account entitlement check; confirm model access in the target environment. Do not infer quota pools or limits from tier names.
 
 **Routing meta-dev work specifically** (these map to the harness's own stages):
 
@@ -129,7 +129,7 @@ ${PLUGIN_ROOT}/scripts/codex-headless-exec \
   -- <direct task with acceptance criteria>
 ```
 
-The runner maps tiers to the model IDs in Step 2, including `astra` → `gpt-6-astra`, and forwards effort as `model_reasoning_effort`. It validates tier and effort before invoking Codex, rejecting `none` whenever the effective model is `gpt-6-astra`, including an explicit `--model` override.
+The runner maps tiers to the model IDs in Step 2 and forwards effort as `model_reasoning_effort`. It validates tier and effort before invoking Codex. It rejects `none` when the effective model is `gpt-6-astra` or `gpt-6-sol`, and rejects `none` and `ultra` when the effective model is `gpt-6-luna`, including an explicit `--model` override.
 
 **BINDING — host tool timeout.** Always background Codex workers — they routinely take 30–180 minutes. The runner owns the wall (`--budget`: low 30m / medium 90m / high 180m). A 5-second or 5-minute host bash/spawn timeout kills a healthy worker and wastes the tokens already spent.
 

@@ -8,7 +8,7 @@ model: opus
 
 Claude Code adapter for the shared review protocol. The `model` frontmatter
 preserves Claude's configured reviewer behavior; it is not a cross-host claim.
-Codex uses its native configured review route (`gpt-5.6-sol`, high effort) and
+Codex uses its native configured review route (`gpt-6-sol`, high effort) and
 does not invoke this agent unless an external Claude reviewer was explicitly
 requested.
 

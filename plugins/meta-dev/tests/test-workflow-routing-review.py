@@ -78,7 +78,7 @@ class WorkflowRoutingContract(unittest.TestCase):
             "PASS",
             "CONDITIONAL_PASS",
             "FAIL",
-            "gpt-5.6-sol",
+            "gpt-6-sol",
             "External/headless reviewers run only",
         ):
             self.assertIn(marker, text)

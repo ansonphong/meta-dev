@@ -36,8 +36,8 @@ hypothesis, not permission to skip evidence or a measured speedup. See
 | Exact model IDs and aliases | `meta_dev.workflow.model_profiles` and aliases in the settings cascade |
 
 Run `scripts/workflow-policy.py` to resolve the intended executor before
-choosing depth. Shipped frontier profiles cover Sol/Astra, Opus 4.8/5, and
-Grok 4.6; unknown models use standard/task policy. Do not maintain a second
+choosing depth. Shipped frontier profiles cover Sol/Astra, Opus 4.8/5/5.5, and
+Grok 4.6/4.7; unknown models use standard/task policy. Do not maintain a second
 backend table here. Existing/explicit targets are carried forward, then risk
 raises depth.
 

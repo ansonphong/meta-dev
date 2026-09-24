@@ -13,8 +13,8 @@ stage models, and resource settings still apply.
 
 `meta_dev.workflow` holds exact model profiles/aliases, host executor choices,
 research/hardening depth, task/slice granularity, reviewer/worker caps, and
-optional host capabilities. Shipped profiles cover Sol/Astra, Opus 4.8/5, and
-Grok 4.6. Unknown models fall back to standard/task. Generic aliases such as
+optional host capabilities. Shipped profiles cover Sol/Astra, Opus 4.8/5/5.5, and
+Grok 4.6/4.7. Unknown models fall back to standard/task. Generic aliases such as
 `opus` need an exact host-resolved/configured ID for frontier classification.
 No API capability is enabled merely because a model supports it.
 

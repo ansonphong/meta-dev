@@ -38,7 +38,7 @@
 #            --vision → deepseek-v4-flash-vision-exp (JPEG/PNG/GIF/WebP; experimental)
 #   glm    → glm-5.2 (opus/sonnet/subagent), glm-4.5 (haiku) — routed via local beta-strip proxy
 #   sonnet → claude-sonnet-5; REAL Anthropic via ambient login (1M context)
-#   opus   → claude-opus-5;   REAL Anthropic via ambient login (1M context)
+#   opus   → claude-opus-5-5; REAL Anthropic via ambient login (1M context)
 #   fable  → claude-fable-5;  REAL Anthropic via ambient login (1M) — top-tier reasoning
 #
 # On the FIRST-PARTY Anthropic API the 5-family is 1M by default: there is no
@@ -113,17 +113,16 @@ BACKEND_EFFORT[sonnet]="high"                        # DECIDED high: Anthropic's
 BACKEND_LABEL[sonnet]="Sonnet-5"
 
 # opus → REAL Anthropic backend via the ambient Claude login (same shape as
-# sonnet, one tier up). Pin claude-opus-5. Reach for it when a task needs
-# top-tier Anthropic reasoning off the main thread — the win is context hygiene
-# (the conductor's window stays lean), not a smaller billed window.
+# sonnet, one tier up). Pin claude-opus-5-5 when --model is omitted. An
+# explicit --model is forwarded unchanged, including older Opus ids.
 BACKEND_BASE_URL[opus]=""                            # ambient — no override
 BACKEND_AUTH_KEY_ENV[opus]=""                        # ambient login — no key
-BACKEND_OPUS_MODEL[opus]="claude-opus-5"             # Opus 5 (1M on first-party; no suffix needed)
-BACKEND_SONNET_MODEL[opus]="claude-opus-5"           # primary/default slot (read at model resolution)
+BACKEND_OPUS_MODEL[opus]="claude-opus-5-5"           # Opus 5.5 (1M on first-party; no suffix needed)
+BACKEND_SONNET_MODEL[opus]="claude-opus-5-5"         # primary/default slot (read at model resolution)
 BACKEND_HAIKU_MODEL[opus]="claude-haiku-4-5-20251001"
-BACKEND_SUBAGENT_MODEL[opus]="claude-opus-5"         # its own subagents stay on Opus 5 too
+BACKEND_SUBAGENT_MODEL[opus]="claude-opus-5-5"       # nested Opus/subagent pin matches the default
 BACKEND_EFFORT[opus]="high"                          # DECIDED high: same reasoning as sonnet, and Opus is already the expensive tier — --effort xhigh for a genuinely hard one-off, medium/low to conserve the Opus cap
-BACKEND_LABEL[opus]="Opus-5"
+BACKEND_LABEL[opus]="Opus-5.5"
 
 # fable → REAL Anthropic backend via the ambient Claude login. Pin
 # claude-fable-5. Fable 5 is the top of the ambient ladder — reach
@@ -235,7 +234,7 @@ Backend defaults (model · effort):
            --vision → deepseek-v4-flash-vision-exp (images; experimental)
   glm    → glm-5.2                    (Z.AI API · effort high · via local beta-strip proxy)
   sonnet → claude-sonnet-5          (Anthropic · ambient login · effort high)
-  opus   → claude-opus-5            (Anthropic · ambient login · effort high)
+  opus   → claude-opus-5-5          (Anthropic · ambient login · effort high)
   fable  → claude-fable-5           (Anthropic · ambient login · effort high · hardest tasks)
 
 Examples:
@@ -481,6 +480,13 @@ if [[ -n "$TIER" ]]; then
 fi
 if [[ -z "$MODEL" ]]; then
     MODEL="${BACKEND_SONNET_MODEL[$BACKEND]}"
+fi
+# Opus: an explicit --model is the worker and the nested Opus/subagent pin.
+# It is not rewritten to the omitted-model default and not checked against a list.
+if [[ "$BACKEND" == "opus" && "$MODEL_EXPLICIT" == "1" ]]; then
+    BACKEND_OPUS_MODEL[opus]="$MODEL"
+    BACKEND_SONNET_MODEL[opus]="$MODEL"
+    BACKEND_SUBAGENT_MODEL[opus]="$MODEL"
 fi
 # Vision model rejects images on any other DeepSeek ID (HTTP 400). Pin every
 # nested slot so a subagent Read of a screenshot cannot fall through to Flash.

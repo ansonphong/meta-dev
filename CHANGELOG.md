@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.5.7
+
+- Point `/codex-execute` at published GPT-6 ids: astra `gpt-6-astra` high, sol `gpt-6-sol` high, terra and the no-tier fallback `gpt-6-sol` medium, luna `gpt-6-luna` low. The Codex catalog has no `gpt-6-terra`. Spark stays `gpt-5.3-codex-spark`.
+- Point `/opus-execute` default and its nested Opus pin at `claude-opus-5-5`. An explicit `--model` is forwarded unchanged.
+- Point `/grok-execute` default at `grok-4.7`. `--model` accepts `grok-4.7`, `grok-4.6`, and `grok-4.5`. `grok-4.7` uses the `grok-4.6` effort menu.
+- Release matching Claude and Codex plugin manifests at version 1.5.7.
+
 ## 1.5.6
 
 - Add a Jev System One decide client and `/jev-execute`. Missing key fails open. Risk tags still force a high budget.

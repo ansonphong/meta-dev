@@ -15,16 +15,16 @@
 # Options:
 #   --repo <name>            Resolve via topology config; unresolvable => abort.
 #                            Omit to run at the PROJECT ROOT (never the caller's cwd).
-#   --tier <tier>            GPT routing tier: terra | sol | astra (opt-in);
-#                            spark | luna remain explicit legacy compatibility tiers.
+#   --tier <tier>            GPT routing tier: spark | luna | terra | sol | astra.
 #                            (fallback default: terra — but CHOOSE, don't inherit)
 #
-#   Terra is the configured execution/default role (medium; low for lightweight
-#   work). Sol is the configured high-judgment role (plan/harden/review). Spark
-#   and Luna are retained only for callers that explicitly request legacy tiers;
-#   they are never the modern default. Astra is opt-in quality work (high).
+#   The installed Codex catalog has no gpt-6-terra. Terra and the no-tier
+#   fallback are gpt-6-sol at medium. Sol is gpt-6-sol at high. Luna is
+#   gpt-6-luna at low. Astra is gpt-6-astra at high. Spark stays
+#   gpt-5.3-codex-spark. gpt-6-astra and gpt-6-sol reject effort none.
+#   gpt-6-luna rejects none and ultra. An explicit --model still wins.
 #   --effort <level>         Reasoning: none | low | medium | high | xhigh | max | ultra
-#                            (default follows tier; terra = medium; Astra rejects none)
+#                            (default follows tier; terra = medium)
 #   --budget auto|low|medium|high
 #                            Depth cap (default auto → medium at the runner).
 #                            See references/execute-budget.md
@@ -66,7 +66,7 @@ PLUGIN_ROOT="$(_md_plugin_root)"
 
 # ── Defaults ────────────────────────────────────────────────────────────
 REPO=""
-MODEL="gpt-5.6-terra"
+MODEL="gpt-6-sol"
 MODEL_EXPLICIT=false
 TIER="terra"
 EFFORT="medium"
@@ -194,18 +194,17 @@ fi
 # Tiers select real model IDs. An explicit --model remains available for
 # account-specific snapshots or a future model-family migration.
 #
-# Terra and Sol are the configured GPT-5.6 roles: Terra executes ordinary and
-# lightweight work; Sol handles planning, hardening, and review. The older
-# Spark/Luna IDs stay available only behind an explicit --tier for compatibility
-# with legacy callers; they must not silently become the routing default.
+# Published GPT-6 ids only. Codex CLI 0.155.1 has no gpt-6-terra, so the terra
+# role and the no-tier fallback are ordinary gpt-6-sol at medium. Sol is the
+# same id at high. An explicit --model overrides the tier, including a 5.6 id.
 case "$TIER" in
     spark) TIER_MODEL="gpt-5.3-codex-spark"; TIER_EFFORT="low" ;;
-    luna)  TIER_MODEL="gpt-5.6-luna";  TIER_EFFORT="low" ;;
-    terra) TIER_MODEL="gpt-5.6-terra"; TIER_EFFORT="medium" ;;
-    sol)   TIER_MODEL="gpt-5.6-sol";   TIER_EFFORT="high" ;;
-    astra) TIER_MODEL="gpt-6-astra";   TIER_EFFORT="high" ;;
+    luna)  TIER_MODEL="gpt-6-luna";  TIER_EFFORT="low" ;;
+    terra) TIER_MODEL="gpt-6-sol";   TIER_EFFORT="medium" ;;
+    sol)   TIER_MODEL="gpt-6-sol";   TIER_EFFORT="high" ;;
+    astra) TIER_MODEL="gpt-6-astra"; TIER_EFFORT="high" ;;
     *)
-        echo "[ERROR] Invalid --tier '$TIER'. Use terra, sol, or astra (or explicit legacy spark/luna)." >&2
+        echo "[ERROR] Invalid --tier '$TIER'. Use spark, luna, terra, sol, or astra." >&2
         exit 1
         ;;
 esac
@@ -235,10 +234,24 @@ case "$EFFORT" in
 esac
 
 # Validate the effective model so --model overrides retain precedence.
-if [[ "$MODEL" == "gpt-6-astra" && "$EFFORT" == "none" ]]; then
-    echo "[ERROR] gpt-6-astra does not support --effort none. Use low, medium, high, xhigh, max, or ultra." >&2
-    exit 1
-fi
+# Catalog efforts: gpt-6-astra and gpt-6-sol reject none; gpt-6-luna rejects
+# none and ultra. Other ids, including an explicit 5.6 model, are not rewritten.
+case "$MODEL" in
+    gpt-6-astra|gpt-6-sol)
+        if [[ "$EFFORT" == "none" ]]; then
+            echo "[ERROR] $MODEL does not support --effort none. Use low, medium, high, xhigh, max, or ultra." >&2
+            exit 1
+        fi
+        ;;
+    gpt-6-luna)
+        case "$EFFORT" in
+            none|ultra)
+                echo "[ERROR] $MODEL does not support --effort $EFFORT. Use low, medium, high, xhigh, or max." >&2
+                exit 1
+                ;;
+        esac
+        ;;
+esac
 
 # ── Validate codex CLI ──────────────────────────────────────────────────
 if ! command -v codex &>/dev/null; then
@@ -383,12 +396,13 @@ fi
 # pin Sol only for judgment-heavy planning, hardening, or review. Explicit
 # legacy/external dispatch choices remain caller-controlled rather than inferred.
 DELEGATION_PREAMBLE="DELEGATING SUB-WORK (current Codex roles):
-Native Codex delegation may select its model. Use gpt-5.6-terra for bounded
-execution and lightweight work; reserve gpt-5.6-sol for planning, hardening,
-or review that needs deeper judgment. For a direct child process, pin the role:
+Native Codex delegation may select its model. The installed catalog has no
+gpt-6-terra. Use gpt-6-sol at medium for bounded execution and lightweight
+work; use gpt-6-sol at high for planning, hardening, or review. For a direct
+child process, pin the role:
 
-  codex exec -m gpt-5.6-terra --sandbox read-only \\
-    -c model_reasoning_effort=low '<bounded sub-task with acceptance criteria>'
+  codex exec -m gpt-6-sol --sandbox read-only \\
+    -c model_reasoning_effort=medium '<bounded sub-task with acceptance criteria>'
 
 Give each delegated sub-task explicit scope and success criteria, then VERIFY
 its output yourself — you remain accountable for the result. Do not replace an

@@ -97,7 +97,7 @@ see `workflow-skills/code-review-protocol/`.
   those aliases and unknown spellings.
 - `routes.json` maps every Claude command name to exactly one workflow
   subcommand, canonical procedure, and first-class native command skill.
-- Plan, harden, and review use native `gpt-5.6-sol` with `high` effort by
+- Plan, harden, and review use native `gpt-6-sol` with `high` effort by
   default, as configured under `meta_dev.codex.models`. Other workflows use
   their configured native route.
 - The review default is native Codex. External/headless reviewers run only when

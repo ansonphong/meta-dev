@@ -20,9 +20,10 @@ def settings():
     return json.loads((ROOT / "templates/settings.json").read_text())
 
 
-@pytest.mark.parametrize("model", ["gpt-6-astra", "astra", "sol", "gpt-5.6-sol", "gpt-5.6",
+@pytest.mark.parametrize("model", ["gpt-6-astra", "astra", "sol", "terra", "gpt-6-sol", "gpt-5.6-sol", "gpt-5.6",
                                    "claude-opus-4-8", "opus-4.8", "opus-5", "claude-opus-5",
-                                   "grok-4.6", "grok-4-6"])
+                                   "claude-opus-5-5", "opus-5.5",
+                                   "grok-4.7", "grok-4-7", "grok-4.6", "grok-4-6"])
 def test_frontier_profiles(settings, model):
     result = POLICY.resolve_policy(settings, model=model)
     assert result["plan_target"] == "lean"
@@ -33,8 +34,9 @@ def test_frontier_profiles(settings, model):
     assert not result["review"]["cross_family"]
 
 
-@pytest.mark.parametrize("model,target", [("terra", "standard"), ("sonnet-5", "standard"),
-                                         ("luna", "explicit"), ("spark", "explicit"),
+@pytest.mark.parametrize("model,target", [("sonnet-5", "standard"),
+                                         ("luna", "explicit"), ("gpt-6-luna", "explicit"),
+                                         ("spark", "explicit"),
                                          ("gpt-5.3-codex-spark", "explicit"),
                                          ("haiku", "explicit"), ("future-opus", "standard"),
                                          ("opus", "standard")])
@@ -45,9 +47,14 @@ def test_bounded_and_unknown_profiles(settings, model, target):
 
 
 def test_executor_precedence(settings):
-    assert POLICY.resolve_policy(settings, host="codex")["executor"]["model"] == "gpt-5.6-terra"
+    codex = POLICY.resolve_policy(settings, host="codex")
+    assert codex["executor"]["model"] == "gpt-6-sol"
+    assert codex["executor"]["source"] == "codex.models.execute"
     settings["meta_dev"]["workflow"]["host_execute_models"]["codex"] = "sol"
-    assert POLICY.resolve_policy(settings, host="codex")["executor"]["model"] == "gpt-5.6-sol"
+    routed = POLICY.resolve_policy(settings, host="codex")
+    assert routed["executor"]["model"] == "gpt-6-sol"
+    assert routed["executor"]["source"] == "workflow.host_execute_models"
+    assert POLICY.resolve_policy(settings, model="gpt-5.6")["executor"]["model"] == "gpt-5.6-sol"
     result = POLICY.resolve_policy(settings, host="codex", model="astra")
     assert result["executor"]["source"] == "explicit"
     assert result["executor"]["model"] == "gpt-6-astra"
