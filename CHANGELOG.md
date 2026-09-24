@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.5.10
+
+- Spell out `/cursor-execute` Grok 4.7 500k contract on the skill card: no `--list-models` row, `reasoning_effort` parameterized id, `--fast` is speed, `--budget` fills effort when `--effort` is omitted, worker self-report is 524288.
+
 ## 1.5.9
 
 - Cursor Grok 4.7 `--context 500k` now sends `reasoning_effort` in the parameterized id, which `cursor-agent` accepts. Informal `--grok 4.7 500K` and `--context 500K` resolve the same way.

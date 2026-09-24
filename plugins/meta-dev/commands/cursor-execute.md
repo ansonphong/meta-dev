@@ -19,7 +19,7 @@ Uses `scripts/cursor-headless-exec`. Same `OUTPUT_FILE` contract as grok/codex/a
 | **Writes** | Yes (`--print --force --trust --sandbox disabled`). `--readonly` → `--mode ask` (read-only Q&A, no `--force`). Commit-on-red. |
 | **Auth** | Ambient `cursor-agent login` (`~/.config/cursor/auth.json`). Optional `CURSOR_API_KEY`. Missing binary or `isAuthenticated != true` aborts **without** a billed run. |
 | **Pool** | **Parked / named-only.** Never auto-selected. Never added to `meta_dev.ladder.pool`. Dispatch only when the user named `/cursor-execute` / `--cursor` this turn. |
-| **Cannot** | Run Claude slash commands. Assume 500k without `--context 500k`. Nested Cloud Agent `--worker` pools (out of scope). |
+| **Cannot** | Run Claude slash commands. Assume 500k without `--context 500k` (it is not a `--list-models` row). Nested Cloud Agent `--worker` pools (out of scope). |
 
 ## Harness — this worker is not Claude Code
 
@@ -55,6 +55,31 @@ Cursor bills two buckets. This command defaults to the first so included Compose
 
 Grok 4.7 stays at 256k unless the dispatch passes `--context 500k`. That flag is Grok 4.7 only. Need a 1M window → the user must name `--opus` / `--sol` / `--sonnet` / `--luna` / `--fable` / a 1M `--model`.
 
+## Expected Grok 4.7 500k / fast / budget behavior
+
+`--list-models` lists exploded 256k ids (`grok-4.7-high`, `grok-4.7-high-fast`). It has **no 500k row**. 500k is a parameterized variant this runner builds. The skill card must print the resolved id before launch and treat the rows below as the contract, not surprises.
+
+| What you pass | What `--model` receives |
+|--|--|
+| `--grok 4.7` | `grok-4.7-high` (256k) |
+| `--grok 4.7 --fast` | `grok-4.7-high-fast` (256k) |
+| `--grok 4.7 --context 500k` | `grok-4.7[context=500k,reasoning_effort=high,fast=false]` |
+| `--grok 4.7 500K` or `--context 500K` | same as `--context 500k` |
+| `--grok 4.7 --fast --context 500k` | `grok-4.7[context=500k,reasoning_effort=high,fast=true]` |
+| same + `--budget low` (no `--effort`) | `reasoning_effort=low` |
+| same + `--budget high` (no `--effort`) | `reasoning_effort=xhigh` |
+| `--grok 4.7 xhigh --context 500k` | `grok-4.7[context=500k,reasoning_effort=xhigh,fast=false]` |
+
+**Expect this:**
+
+1. **No catalog row.** Searching `--list-models` for `500k` finds nothing. Omit `--context 500k` and the run stays 256k.
+2. **Budget fills effort.** `--budget` is the depth cap. When `--effort` is omitted it also sets Grok `reasoning_effort`: `low` → low, `high` → xhigh, `medium`/`auto` leave the family default (`high`). A cheap smoke with `--budget low` runs at low. For a real 500k job pass `--effort high` or `xhigh`, or `--grok 4.7 xhigh --context 500k`.
+3. **`reasoning_effort`, not `effort=`.** The CLI rejects `grok-4.7[context=500k,effort=high,…]` with `Cannot use this model`.
+4. **`--fast` is speed, not window.** It sets `fast=true` on the parameterized id. The window stays 256k unless `--context 500k` is present.
+5. **Self-report is 524288.** The worker may say `context window 524288` (512 × 1024). That is the model's claim. A short ping proves the id is **accepted**. Proof the long window is in use needs a prompt over 256k tokens and bills at the long-context rate.
+
+Live ping 2026-09-24: `--grok 4.7 --fast --context 500k --budget low --readonly` accepted (`is_error` false, ~11s, worker reported 524288).
+
 ### Chooser
 
 | Choice | Use it for | Do not use it for | Effort |
@@ -89,6 +114,8 @@ Stay on the **Cursor Models** pool. Never auto-pick Opus/Sol.
 | `--grok 4.7 xhigh` | `--grok 4.7 xhigh` | `grok-4.7-xhigh` |
 | `--grok 4.7 xhigh --context 500k` | `--grok 4.7 xhigh --context 500k` | `grok-4.7[context=500k,reasoning_effort=xhigh,fast=false]` |
 | `--grok 4.7 500K` | `--grok 4.7 --context 500k` | `grok-4.7[context=500k,reasoning_effort=high,fast=false]` |
+| `--grok 4.7 --fast --context 500k` | `--grok 4.7 --fast --context 500k` | `grok-4.7[context=500k,reasoning_effort=high,fast=true]` |
+| `--grok 4.7 --fast --context 500k --budget low` | same | `grok-4.7[context=500k,reasoning_effort=low,fast=true]` |
 | `--grok 4.7 low` | `--grok 4.7 low` | `grok-4.7-low` |
 | `--grok 4.6 xhigh` | `--grok 4.6 xhigh` | `cursor-grok-4.6-xhigh` |
 | `--grok 4.5` | `--grok 4.5` | `cursor-grok-4.5-high` |
@@ -139,9 +166,10 @@ A user `--model` / alias / `--effort` / `--fast` is binding. Unsure and unnamed 
 
 Summarize before running:
 - **Backend:** Cursor (`cursor-agent --print --output-format json`)
-- **Model:** the resolved catalog id
+- **Model:** the resolved catalog id (print the parameterized 500k form when used)
 - **Pool:** Cursor Models vs Other Models
-- **Context:** 200k Composer / 256k Cursor Grok / 1M third-party
+- **Context:** 200k Composer / 256k Cursor Grok default / 500k only when `--context 500k` / 1M Other Models
+- **Effort:** explicit `--effort`, else budget fill (`low`→low, `high`→xhigh, `medium`/`auto`→family default)
 - **Budget:** resolved `low|medium|high`
 - **Repo / Work dir**
 - **Task**
@@ -169,6 +197,7 @@ ${PLUGIN_ROOT}/scripts/cursor-headless-exec \
   --budget "$BUDGET" \
   ${EFFORT:+--effort "$EFFORT"} \
   ${FAST:+--fast} \
+  ${CONTEXT:+--context "$CONTEXT"} \
   ${READONLY:+--readonly} \
   -- <task description>
 ```

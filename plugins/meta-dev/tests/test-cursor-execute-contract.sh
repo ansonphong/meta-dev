@@ -167,6 +167,10 @@ CAPCTX="$("$RUNNER" --resolve-only --grok 4.7 --context 500K 2>/dev/null)" || tr
 [[ "$CAPCTX" == "grok-4.7[context=500k,reasoning_effort=high,fast=false]" ]] \
   && ok "--context 500K normalizes" || bad "500K flag got='$CAPCTX'"
 
+BUDGETLOW="$("$RUNNER" --grok 4.7 --fast --context 500k --budget low --resolve-only 2>/dev/null)" || true
+[[ "$BUDGETLOW" == "grok-4.7[context=500k,reasoning_effort=low,fast=true]" ]] \
+  && ok "--budget low on 4.7 500k --fast lowers effort" || bad "budget-low 500k got='$BUDGETLOW'"
+
 PLAIN="$("$RUNNER" --grok 4.7 xhigh --resolve-only 2>/dev/null)" || true
 [[ "$PLAIN" == "grok-4.7-xhigh" ]] && ok "omitted context stays 256k id" || bad "plain 4.7 got='$PLAIN'"
 
@@ -223,8 +227,12 @@ if grep -q 'Cursor Models' "$CMD" \
   && grep -q 'cursor-headless-exec' "$CMD" \
   && grep -q 'not at phase end' "$CMD" \
   && grep -q 'BASELINE_RED' "$CMD" \
-  && grep -q 'Never added to `meta_dev.ladder.pool`' "$CMD"; then
-  ok "command documents pools, 256k/200k, parked, runner, test discipline"
+  && grep -q 'Never added to `meta_dev.ladder.pool`' "$CMD" \
+  && grep -q 'reasoning_effort' "$CMD" \
+  && grep -q -- '--list-models' "$CMD" \
+  && grep -q 'Budget fills effort' "$CMD" \
+  && grep -q '524288' "$CMD"; then
+  ok "command documents pools, 256k/200k, parked, runner, test discipline, 500k contract"
 else
   bad "command card missing required markers"
 fi

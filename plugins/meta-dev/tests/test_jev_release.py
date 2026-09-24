@@ -15,8 +15,8 @@ def test_jev_release_pins_and_codex_surface():
     claude = json.loads((PLUGIN / ".claude-plugin" / "plugin.json").read_text())
     codex = json.loads((PLUGIN / ".codex-plugin" / "plugin.json").read_text())
     changelog = (REPO / "CHANGELOG.md").read_text(encoding="utf-8")
-    assert claude["version"] == codex["version"] == "1.5.9"
-    assert "## 1.5.9" in changelog
+    assert claude["version"] == codex["version"] == "1.5.10"
+    assert "## 1.5.10" in changelog
 
     pin = subprocess.run(
         [
