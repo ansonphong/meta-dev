@@ -151,6 +151,24 @@ COMP="$("$RUNNER" --composer --resolve-only 2>/dev/null)" || true
 G45="$("$RUNNER" --grok 4.5 xhigh --resolve-only 2>/dev/null)" || true
 [[ "$G45" == "cursor-grok-4.5-high" ]] && ok "--grok 4.5 xhigh → cursor-grok-4.5-high" || bad "4.5 xhigh clamp got='$G45'"
 
+CTX="$("$RUNNER" --grok 4.7 xhigh --context 500k --resolve-only 2>/dev/null)" || true
+[[ "$CTX" == "grok-4.7[context=500k,effort=xhigh,fast=false]" ]] \
+  && ok "--context 500k → parameterized grok-4.7" || bad "500k context got='$CTX'"
+
+FASTCTX="$("$RUNNER" --grok 4.7 high --fast --context 500k --resolve-only 2>/dev/null)" || true
+[[ "$FASTCTX" == "grok-4.7[context=500k,effort=high,fast=true]" ]] \
+  && ok "--context 500k --fast keeps fast=true" || bad "500k fast got='$FASTCTX'"
+
+PLAIN="$("$RUNNER" --grok 4.7 xhigh --resolve-only 2>/dev/null)" || true
+[[ "$PLAIN" == "grok-4.7-xhigh" ]] && ok "omitted context stays 256k id" || bad "plain 4.7 got='$PLAIN'"
+
+if "$RUNNER" --grok 4.6 high --context 500k --resolve-only >/dev/null 2>"$TMP/ctx46.err"; then
+  bad "4.6 accepted --context 500k"
+else
+  grep -q 'only for Cursor Grok 4.7' "$TMP/ctx46.err" && ok "4.6 rejects --context 500k" \
+    || bad "4.6 500k error missing"
+fi
+
 for effort in low medium high xhigh; do
   GOT="$("$RUNNER" --grok 4.7 "$effort" --resolve-only 2>/dev/null)" || true
   if [[ "$GOT" == "grok-4.7-$effort" ]]; then

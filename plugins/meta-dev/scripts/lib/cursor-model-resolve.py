@@ -178,6 +178,33 @@ def expand_model(model: str, *, effort: str | None, fast: bool) -> str:
     return raw
 
 
+def apply_context(model: str, context: str | None) -> str:
+    """500k is opt-in for Cursor Grok 4.7. Omitted context stays the 256k id."""
+    if context is None or context == "" or context == "256k":
+        return model
+    if context != "500k":
+        print(
+            f"[ERROR] --context must be 256k or 500k (got {context})",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+    if "[context=500k" in model:
+        return model
+    fast = model.endswith("-fast")
+    base = model[: -len("-fast")] if fast else model
+    prefix = "grok-4.7-"
+    if not base.startswith(prefix) or base[len(prefix):] not in GROK_EFFORTS:
+        print(
+            "[ERROR] --context 500k is only for Cursor Grok 4.7 "
+            f"(got {model})",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+    effort = base[len(prefix):]
+    flag = "true" if fast else "false"
+    return f"grok-4.7[context=500k,effort={effort},fast={flag}]"
+
+
 def resolve(
     *,
     model: str | None = None,
@@ -187,14 +214,17 @@ def resolve(
     fast: bool = False,
     shape: str | None = None,
     budget: str | None = None,
+    context: str | None = None,
 ) -> str:
     if model:
-        return expand_model(model, effort=effort, fast=fast)
-    if family:
-        return family_id(
+        chosen = expand_model(model, effort=effort, fast=fast)
+    elif family:
+        chosen = family_id(
             family, grok_version=grok_version, effort=effort, fast=fast
         )
-    return default_id(shape, budget, fast)
+    else:
+        chosen = default_id(shape, budget, fast)
+    return apply_context(chosen, context)
 
 
 def main() -> int:
@@ -206,6 +236,7 @@ def main() -> int:
     parser.add_argument("--fast", action="store_true")
     parser.add_argument("--shape", choices=("collect", "mechanical", "ordinary", "hard"))
     parser.add_argument("--budget", choices=("low", "medium", "high", "auto"))
+    parser.add_argument("--context", choices=("256k", "500k"))
     args = parser.parse_args()
     budget = args.budget if args.budget != "auto" else "medium"
     print(
@@ -217,6 +248,7 @@ def main() -> int:
             fast=args.fast,
             shape=args.shape,
             budget=budget,
+            context=args.context,
         )
     )
     return 0

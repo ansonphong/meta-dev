@@ -22,6 +22,8 @@
 #   --opus / --sol / --sonnet / --luna / --fable / --codex
 #                            Other Models pool aliases (usually 1M)
 #   --effort <level>         Family effort (grok: low|medium|high|xhigh)
+#   --context 256k|500k      Grok 4.7 only. Omit or 256k keeps grok-4.7-<effort>.
+#                            500k sends grok-4.7[context=500k,effort=...,fast=...].
 #   --fast                   Append the catalog -fast variant when it exists
 #   --shape collect|ordinary|hard
 #                            Chooser hint when no model/alias is named
@@ -51,6 +53,7 @@ MODEL_EXPLICIT=0
 FAMILY=""
 GROK_VER=""
 FAST=0
+CONTEXT=""
 SHAPE=""
 EFFORT=""
 EFFORT_EXPLICIT=0
@@ -92,6 +95,8 @@ Options:
   --fable                  Claude Fable 5 thinking (Other Models, 1M)
   --codex                  GPT-5.3 Codex (Other Models)
   --effort <level>         low|medium|high|xhigh|max|none (family-dependent)
+  --context 256k|500k      Grok 4.7 only. 500k is opt-in long context.
+                           Omit keeps the 256k id grok-4.7-<effort>.
   --fast                   Use the catalog -fast variant when it exists
   --shape collect|ordinary|hard
                            Default chooser when no alias/--model is given
@@ -150,6 +155,10 @@ while [[ $# -gt 0 ]]; do
         --fable)       _set_family fable; shift ;;
         --codex)       _set_family codex; shift ;;
         --fast)        FAST=1; shift ;;
+        --context)
+            CONTEXT="$2"
+            shift 2
+            ;;
         --shape)       SHAPE="$2"; shift 2 ;;
         --effort)      EFFORT="$2"; EFFORT_EXPLICIT=1; shift 2 ;;
         --budget)      BUDGET="$2"; shift 2 ;;
@@ -191,6 +200,7 @@ RESOLVE_ARGS=(python3 "$SCRIPT_DIR/lib/cursor-model-resolve.py")
 [[ -n "$GROK_VER" ]] && RESOLVE_ARGS+=(--grok-version "$GROK_VER")
 [[ -n "$EFFORT" ]] && RESOLVE_ARGS+=(--effort "$EFFORT")
 [[ "$FAST" -eq 1 ]] && RESOLVE_ARGS+=(--fast)
+[[ -n "$CONTEXT" ]] && RESOLVE_ARGS+=(--context "$CONTEXT")
 [[ -n "$SHAPE" ]] && RESOLVE_ARGS+=(--shape "$SHAPE")
 [[ -n "${BUDGET_RESOLVED:-}" ]] && RESOLVE_ARGS+=(--budget "$BUDGET_RESOLVED")
 MODEL="$("${RESOLVE_ARGS[@]}")" || exit $?
