@@ -148,6 +148,21 @@ fi
 COMP="$("$RUNNER" --composer --resolve-only 2>/dev/null)" || true
 [[ "$COMP" == "composer-2.5" ]] && ok "--composer → composer-2.5" || bad "composer resolve got='$COMP'"
 
+G45="$("$RUNNER" --grok 4.5 xhigh --resolve-only 2>/dev/null)" || true
+[[ "$G45" == "cursor-grok-4.5-high" ]] && ok "--grok 4.5 xhigh → cursor-grok-4.5-high" || bad "4.5 xhigh clamp got='$G45'"
+
+for effort in low medium high xhigh; do
+  GOT="$("$RUNNER" --grok 4.7 "$effort" --resolve-only 2>/dev/null)" || true
+  if [[ "$GOT" == "grok-4.7-$effort" ]]; then
+    ok "--grok 4.7 $effort → grok-4.7-$effort"
+  else
+    bad "--grok 4.7 $effort got='$GOT'"
+  fi
+  case "$GOT" in
+    cursor-grok-4.6-*|cursor-grok-4.5-*) bad "4.7 $effort resolved to a 4.6 or 4.5 id: $GOT" ;;
+  esac
+done
+
 SOL="$("$RUNNER" --sol --effort xhigh --resolve-only 2>/dev/null)" || true
 [[ "$SOL" == "gpt-5.6-sol-xhigh" ]] && ok "--sol --effort xhigh → gpt-5.6-sol-xhigh" || bad "sol resolve got='$SOL'"
 

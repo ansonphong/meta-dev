@@ -61,6 +61,16 @@ Everything else is the task description. If none is given, ask what task to run.
 
 `xhigh` is the extra-high reasoning tier on `grok-4.7` and `grok-4.6`. Use it when the task earns it — not as a blanket default. `high` is the omit-fallback. `grok-4.5` clamps `xhigh` to `high`.
 
+### Chooser
+
+xAI's reasoning docs: reasoning cannot be turned off. `low` is for latency-sensitive tool calls. `medium` is for analysis and long context. `high` is the API default and this runner's omit-fallback, for hard multi-step work. `xhigh` is maximum depth on `grok-4.7` and `grok-4.6`. On `grok-4.5`, xAI treats `xhigh` as `high`; this runner clamps it to `high` before launch. `none` and `minimal` become `low`. `max` becomes `xhigh` on 4.7 and 4.6, and `high` on 4.5. Native `/grok-execute` is Grok Build (500k context, text and image in, text out). That is not Cursor's 256k window.
+
+| Model | Use it for | Do not use it for | Effort |
+| --- | --- | --- | --- |
+| `grok-4.5` | Collect, grep, inventory, one-file mechanical work. Cheapest of the three | Judgment, architecture, a long agent run | `low`, `medium`, `high`. Does not keep `xhigh` |
+| `grok-4.6` | Ordinary investigation when you want the previous flagship, or `xhigh` without moving to 4.7 | The omitted-model default (that is `grok-4.7`). A grep | `low`, `medium`, `high`, `xhigh` |
+| `grok-4.7` | Default. Hard coding, architecture, and long tool-using work. Newer base (21 Sept 2026), same effort menu as 4.6 | A filename collect. It spends more reasoning | Same menu as 4.6. Omit-fallback is `high`. Do not inherit a TUI `xhigh` |
+
 ## Step 3: Confirm the Plan
 
 Summarize before running:

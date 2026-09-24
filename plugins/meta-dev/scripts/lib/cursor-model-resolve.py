@@ -75,18 +75,23 @@ def family_id(
         return "composer-2.5" + _fast_suffix(fast)
 
     if family == "grok":
-        if grok_version not in ("4.5", "4.6"):
+        if grok_version not in ("4.5", "4.6", "4.7"):
             print(
-                f"[ERROR] --grok version must be 4.5 or 4.6 (got {grok_version})",
+                f"[ERROR] --grok version must be 4.5, 4.6, or 4.7 (got {grok_version})",
                 file=sys.stderr,
             )
             sys.exit(2)
         eff = effort or "high"
         if grok_version == "4.5":
             eff = _clamp(eff, ("low", "medium", "high"), "high", "Cursor Grok 4.5")
-        else:
+            return f"cursor-grok-4.5-{eff}{_fast_suffix(fast)}"
+        if grok_version == "4.6":
             eff = _clamp(eff, GROK_EFFORTS, "high", "Cursor Grok 4.6")
-        return f"cursor-grok-{grok_version}-{eff}{_fast_suffix(fast)}"
+            return f"cursor-grok-4.6-{eff}{_fast_suffix(fast)}"
+        # Live `cursor-agent --list-models` (2026-09-24): grok-4.7-<effort>,
+        # not cursor-grok-4.7-<effort>.
+        eff = _clamp(eff, GROK_EFFORTS, "high", "Cursor Grok 4.7")
+        return f"grok-4.7-{eff}{_fast_suffix(fast)}"
 
     if family == "opus":
         eff = _clamp(effort or "high", OPUS_EFFORTS, "high", "Opus 5")
@@ -149,6 +154,8 @@ def expand_model(model: str, *, effort: str | None, fast: bool) -> str:
         "fable": "fable",
         "codex": "codex",
         "grok": "grok",
+        "grok-4.7": "grok",
+        "cursor-grok-4.7": "grok",
         "grok-4.6": "grok",
         "cursor-grok-4.6": "grok",
         "grok-4.5": "grok",
@@ -156,7 +163,9 @@ def expand_model(model: str, *, effort: str | None, fast: bool) -> str:
     }
     if key in aliases:
         ver = None
-        if "4.5" in key:
+        if "4.7" in key:
+            ver = "4.7"
+        elif "4.5" in key:
             ver = "4.5"
         elif "4.6" in key or key in ("grok",):
             ver = "4.6"

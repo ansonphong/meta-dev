@@ -1,7 +1,7 @@
 ---
 name: cursor-execute
-argument-hint: "<task description> [--repo <name>] [--readonly] [--composer|--grok [4.5|4.6] [effort]|--opus|--sol|--sonnet|--luna|--fable|--codex] [--model <id>] [--effort <level>] [--fast] [--budget auto|low|medium|high]  # --repo names from .meta-dev/repos.json"
-description: "Run a bounded direct task with headless Cursor Agent (cursor-agent --print). Default Cursor Models pool (Composer 2.5 / Cursor Grok 4.6). Named-only. Brief a DIRECT task, never a Claude slash. Informal --grok 4.6 xhigh routes to cursor-grok-4.6-xhigh."
+argument-hint: "<task description> [--repo <name>] [--readonly] [--composer|--grok [4.5|4.6|4.7] [effort]|--opus|--sol|--sonnet|--luna|--fable|--codex] [--model <id>] [--effort <level>] [--fast] [--budget auto|low|medium|high]  # --repo names from .meta-dev/repos.json"
+description: "Run a bounded direct task with headless Cursor Agent (cursor-agent --print). Default Cursor Models pool (Composer 2.5 / Cursor Grok 4.6). Named-only. --grok 4.7 uses grok-4.7-<effort>. Brief a DIRECT task, never a Claude slash."
 ---
 
 # /cursor-execute — Cursor Agent Headless Execution
@@ -15,11 +15,11 @@ Uses `scripts/cursor-headless-exec`. Same `OUTPUT_FILE` contract as grok/codex/a
 | | |
 |--|--|
 | **Harness** | Cursor Agent CLI (`cursor-agent` 2026.09+). **Not** Claude Code. **Not** Grok Build. **Not** a 4th interactive meta-dev host. |
-| **Default** | **Cursor Models pool** — Composer 2.5 (collect / budget low) or Cursor Grok 4.6 (ordinary `high`, hard `xhigh`). Pinned so the TUI last-used model cannot leak. |
+| **Default** | **Cursor Models pool** — Composer 2.5 (collect / budget low) or Cursor Grok 4.6 high (ordinary). Hard work the user names can be Grok 4.7. Pinned so the TUI last-used model cannot leak. |
 | **Writes** | Yes (`--print --force --trust --sandbox disabled`). `--readonly` → `--mode ask` (read-only Q&A, no `--force`). Commit-on-red. |
 | **Auth** | Ambient `cursor-agent login` (`~/.config/cursor/auth.json`). Optional `CURSOR_API_KEY`. Missing binary or `isAuthenticated != true` aborts **without** a billed run. |
 | **Pool** | **Parked / named-only.** Never auto-selected. Never added to `meta_dev.ladder.pool`. Dispatch only when the user named `/cursor-execute` / `--cursor` this turn. |
-| **Cannot** | Run Claude slash commands. Be treated as native Grok 4.6 500k context. Nested Cloud Agent `--worker` pools (out of scope). |
+| **Cannot** | Run Claude slash commands. Treat a local headless run as a 500k window. Nested Cloud Agent `--worker` pools (out of scope). |
 
 ## Harness — this worker is not Claude Code
 
@@ -33,16 +33,17 @@ Cursor bills two buckets. This command defaults to the first so included Compose
 
 | Pool | What is in it | When to use |
 |--|--|--|
-| **Cursor Models** | Composer 2.5, Cursor Grok 4.6, Cursor Grok 4.5 | Default. Everyday + hard first-party work. |
+| **Cursor Models** | Composer 2.5, Cursor Grok 4.7, Cursor Grok 4.6, Cursor Grok 4.5 | Default. Everyday + hard first-party work. |
 | **Other Models** | Opus 5, GPT-5.6 Sol/Luna, Fable 5, Sonnet 5, GPT-5.3 Codex, Gemini 3.7 Flash, GPT-5.5, … | Only when the user names `--opus` / `--sol` / `--sonnet` / `--luna` / `--fable` / `--codex` / `--model <id>`. These usually advertise **1M** context. |
 
 ## Context limits (Cursor-side — not the vendor native window)
 
 | Family | Catalog prefix | Context **in Cursor** | Notes |
 |--|--|--|--|
-| Composer 2.5 | `composer-2.5` / `composer-2.5-fast` | **200k** | No Max Mode expansion. Standard vs Fast only. |
-| Cursor Grok 4.6 | `cursor-grok-4.6-{low,medium,high,xhigh}[-fast]` | **256k** | **Not** xAI native 500k. Staff-confirmed 256k by design. |
-| Cursor Grok 4.5 | `cursor-grok-4.5-{low,medium,high}[-fast]` | **256k** | Same 256k cap. No `xhigh` id — runner maps `xhigh` → `high`. |
+| Composer 2.5 | `composer-2.5` / `composer-2.5-fast` | **200k** | Fast, low-cost pool model. No effort in the id. `--fast` is a separate speed, not a bigger window. |
+| Cursor Grok 4.7 | `grok-4.7-{low,medium,high,xhigh}[-fast]` | **256k** standard | Harder, longer work. Live catalog id is `grok-4.7-<effort>`, not `cursor-grok-4.7-<effort>`. Cursor also advertises a 500k max. A local headless run does not get that 500k window. |
+| Cursor Grok 4.6 | `cursor-grok-4.6-{low,medium,high,xhigh}[-fast]` | **256k** | Unspecified ordinary default is `cursor-grok-4.6-high`. Not xAI native 500k. |
+| Cursor Grok 4.5 | `cursor-grok-4.5-{low,medium,high}[-fast]` | **256k** | No `xhigh` id. Runner clamps `xhigh` to `high`. |
 | Opus 5 / Opus 4.8 | `claude-opus-5-*` / `claude-opus-4-8-*` | **1M** | Other Models. `--opus` → thinking-high. |
 | GPT-5.6 Sol | `gpt-5.6-sol-{none,low,medium,high,xhigh,max}[-fast]` | **1M** | `--sol`. |
 | GPT-5.6 Luna | `gpt-5.6-luna-high` | **1M** | `--luna`. Only one live id. |
@@ -52,7 +53,18 @@ Cursor bills two buckets. This command defaults to the first so included Compose
 | Gemini 3.7 Flash | `gemini-3.7-flash-high` | catalog | `--model` only. |
 | Auto | `auto` | Cursor picks | `--model auto` only — do not use as the runner default. |
 
-The chooser must **not** treat Cursor Grok as a 500k window. Need a 1M window → the user must name `--opus` / `--sol` / `--sonnet` / `--luna` / `--fable` / a 1M `--model`.
+The chooser must **not** treat a local headless Cursor Grok run as a 500k window. Need a 1M window → the user must name `--opus` / `--sol` / `--sonnet` / `--luna` / `--fable` / a 1M `--model`.
+
+### Chooser
+
+| Choice | Use it for | Do not use it for | Effort |
+| --- | --- | --- | --- |
+| Composer 2.5 `composer-2.5` | Fast, low-cost pool work. Collect, mechanical edits, budget `low`. `--composer` resolves here. 200k | Hard architecture. There is no effort in the id | None. `--fast` selects `composer-2.5-fast` |
+| Grok 4.7 `grok-4.7-<effort>` | Harder, longer Cursor work the user names. Standard context 256k | A local 500k dump. The unspecified ordinary default (that stays `cursor-grok-4.6-high`) | `low`, `medium`, `high`, `xhigh`. `--grok 4.7 xhigh` is `grok-4.7-xhigh` |
+| Grok 4.6 `cursor-grok-4.6-<effort>` | Unspecified ordinary work. `--grok 4.6 xhigh` is `cursor-grok-4.6-xhigh`. 256k | Assuming native 500k | `low`, `medium`, `high`, `xhigh` |
+| Grok 4.5 `cursor-grok-4.5-<effort>` | A cheaper Cursor Grok when 4.6 or 4.7 is more than the task. 256k | `xhigh`. The runner clamps it to `high` | `low`, `medium`, `high` |
+
+Unspecified budget `low` stays `composer-2.5`. Unspecified ordinary stays `cursor-grok-4.6-high`. Naming `--grok 4.7` is how harder Cursor work gets the 4.7 id.
 
 Live ids drift. `--model <id>` passes unknown catalog ids through. Refresh with `cursor-agent --list-models`.
 
@@ -64,7 +76,8 @@ Stay on the **Cursor Models** pool. Never auto-pick Opus/Sol.
 | --- | --- | --- | --- |
 | Collect / mechanical / budget `low` | `--composer` (or omit + `--budget low`) | `composer-2.5` | 200k |
 | Ordinary implement / standard review | (none) / `--grok 4.6 high` | `cursor-grok-4.6-high` | 256k |
-| Hard / architecture / budget `high` | `--grok 4.6 xhigh` | `cursor-grok-4.6-xhigh` | 256k |
+| Hard / architecture the user names as 4.7 | `--grok 4.7 xhigh` | `grok-4.7-xhigh` | 256k |
+| Hard / budget `high` with no version | (none) / `--grok 4.6 xhigh` | `cursor-grok-4.6-xhigh` | 256k |
 | Need 1M / extra family | user must name `--opus` / `--sol` / … | Other Models | 1M |
 
 `--fast` appends `-fast` when that catalog id exists (Composer, Grok, Opus, Sol, Codex). It is a speed/price tier, not a bigger window.
@@ -73,8 +86,11 @@ Stay on the **Cursor Models** pool. Never auto-pick Opus/Sol.
 
 | User said | Runner flags | Resolves to |
 | --- | --- | --- |
+| `--grok 4.7 xhigh` | `--grok 4.7 xhigh` | `grok-4.7-xhigh` |
+| `--grok 4.7 low` | `--grok 4.7 low` | `grok-4.7-low` |
 | `--grok 4.6 xhigh` | `--grok 4.6 xhigh` | `cursor-grok-4.6-xhigh` |
 | `--grok 4.5` | `--grok 4.5` | `cursor-grok-4.5-high` |
+| `--grok 4.5 xhigh` | `--grok 4.5 xhigh` | `cursor-grok-4.5-high` |
 | `--composer` | `--composer` | `composer-2.5` |
 | `--composer --fast` | `--composer --fast` | `composer-2.5-fast` |
 | `--opus` | `--opus` | `claude-opus-5-thinking-high` |
@@ -98,7 +114,7 @@ The user's input is: `$ARGUMENTS`
 Parse these optional flags:
 - `--repo <name>` — target repo (default: auto-detect; names from `.meta-dev/repos.json`)
 - `--readonly` — ask mode, read-only Q&A (audits/reviews)
-- `--composer` / `--grok [4.5|4.6] [effort]` / `--opus` / `--sol` / `--sonnet` / `--luna` / `--fable` / `--codex`
+- `--composer` / `--grok [4.5|4.6|4.7] [effort]` / `--opus` / `--sol` / `--sonnet` / `--luna` / `--fable` / `--codex`
 - `--model <id>` — explicit `cursor-agent models` id (wins)
 - `--effort low|medium|high|xhigh|max|none`
 - `--fast`
@@ -108,7 +124,7 @@ Parse these optional flags:
 
 Family aliases are exclusive. Everything else is the task description. If none is given, ask what task to run.
 
-Treat `--grok 4.6 xhigh` as one alias: version `4.6`, effort `xhigh`. Do not swallow the task as the version.
+Treat `--grok 4.7 xhigh` as one alias: version `4.7`, effort `xhigh`. The same shape works for `4.6` and `4.5`. Do not swallow the task as the version.
 
 ## Step 2: Select Model
 

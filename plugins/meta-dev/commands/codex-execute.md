@@ -73,6 +73,19 @@ Classify the task by scope, ambiguity, reversibility, and quality sensitivity. P
 
 `gpt-6-astra` and `gpt-6-sol` support `low`, `medium`, `high`, `xhigh`, `max`, and `ultra`. They do not support `none`. `gpt-6-luna` supports `low`, `medium`, `high`, `xhigh`, and `max`. It does not support `none` or `ultra`. Use `low` for lightweight work, `medium` for balanced reasoning, and `high` for Sol and Astra quality defaults. Escalate to `xhigh` or `max` when evaluation criteria justify more reasoning. The Codex catalog describes `ultra` as maximum reasoning with automatic task delegation; select it deliberately for Astra or Sol work that warrants that behavior. It does not make the runner enable `--multi-agent` automatically. Never infer sandbox permissions from tier or effort.
 
+### Chooser
+
+OpenAI's GPT-6 split: Astra is the top model for the hardest work. Sol is complex coding and professional work at lower cost. Luna is fast, high-volume everyday work. Codex CLI 0.155.1 publishes `gpt-6-astra`, `gpt-6-sol`, and `gpt-6-luna`. It has no `gpt-6-terra`. The terra role is ordinary `gpt-6-sol` at medium.
+
+| Role | Use it for | Do not use it for | Effort |
+| --- | --- | --- | --- |
+| Astra `gpt-6-astra` | Opt-in quality after Sol `high` / `xhigh` / `max` is not enough: hardest implementation, architecture, or review | Grep, inventory, bulk rename, ordinary fixes | Default `high`. `low`, `medium`, `high`, `xhigh`, `max`, `ultra`. Rejects `none` |
+| Sol `gpt-6-sol` | Plan, harden, review, cross-module behavior, ambiguous root cause, security | Mechanical sweeps and one-file lookups | Default `high`. Same menu as Astra. `xhigh` or `max` only when `high` is not enough. `ultra` only for maximum reasoning |
+| Terra role | Ordinary bugfix, known-scope feature, focused refactor, standard review | Architecture, security judgment, the hardest quality bar | `gpt-6-sol` at `medium`. Same id as Sol. Do not pass `gpt-6-terra` |
+| Luna `gpt-6-luna` | Read-only lookup, one-file mechanical edit, focused test diagnosis | Cross-module architecture and long judgment | Default `low`. `low`, `medium`, `high`, `xhigh`, `max`. Rejects `none` and `ultra` |
+
+An explicit `--model` still wins, including a 5.6 id the caller types. The runner does not rewrite that id.
+
 These tier defaults apply with `--budget auto` or `medium`. Without explicit `--effort`, budget `low` selects `low` and budget `high` selects `xhigh`. `--model` replaces only the model ID; the selected tier/budget still supplies effort unless overridden. Project settings may opt in via `meta_dev.codex.models.<role>`, for example `{"tier":"astra","effort":"ultra"}`; shipped routes remain unchanged.
 
 **Availability is account- and CLI-dependent.** Codex CLI 0.155.1 lists `gpt-6-astra`, `gpt-6-sol`, and `gpt-6-luna`. It has no `gpt-6-terra`. The runner binds the terra role to `gpt-6-sol` at medium. Astra's catalog default is `medium`; the runner defaults the Astra tier to `high`. Catalog visibility is not a live account entitlement check; confirm model access in the target environment. Do not infer quota pools or limits from tier names.

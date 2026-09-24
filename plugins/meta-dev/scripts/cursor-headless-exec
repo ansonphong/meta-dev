@@ -16,8 +16,9 @@
 #                            Omit to run at the PROJECT ROOT (never the caller's cwd).
 #   --model <id>             Raw cursor-agent catalog id (wins over aliases)
 #   --composer               Composer 2.5 (Cursor Models pool, 200k)
-#   --grok [4.5|4.6] [effort]
-#                            Cursor Grok (pool, 256k). Example: --grok 4.6 xhigh
+#   --grok [4.5|4.6|4.7] [effort]
+#                            Cursor Grok (pool, 256k). 4.7 ids are grok-4.7-<effort>.
+#                            Example: --grok 4.7 xhigh
 #   --opus / --sol / --sonnet / --luna / --fable / --codex
 #                            Other Models pool aliases (usually 1M)
 #   --effort <level>         Family effort (grok: low|medium|high|xhigh)
@@ -80,8 +81,10 @@ Options:
                            Omit => project root (not cwd).
   --model <id>             Raw catalog id (wins over aliases)
   --composer               Composer 2.5 (Cursor Models pool, 200k context)
-  --grok [4.5|4.6] [effort]
-                           Cursor Grok 4.6/4.5 (pool, 256k). Example: --grok 4.6 xhigh
+  --grok [4.5|4.6|4.7] [effort]
+                           Cursor Grok (pool, 256k standard). 4.6/4.5 ids are
+                           cursor-grok-<ver>-<effort>. 4.7 ids are grok-4.7-<effort>.
+                           Example: --grok 4.7 xhigh. Local headless runs stay at 256k.
   --opus                   Claude Opus 5 thinking (Other Models, 1M)
   --sol                    GPT-5.6 Sol (Other Models, 1M)
   --sonnet                 Claude Sonnet 5 thinking (Other Models, 1M)
@@ -132,7 +135,7 @@ while [[ $# -gt 0 ]]; do
         --grok)
             _set_family grok
             shift
-            if [[ "${1:-}" == "4.5" || "${1:-}" == "4.6" ]]; then
+            if [[ "${1:-}" == "4.5" || "${1:-}" == "4.6" || "${1:-}" == "4.7" ]]; then
                 GROK_VER="$1"; shift
             fi
             case "${1:-}" in

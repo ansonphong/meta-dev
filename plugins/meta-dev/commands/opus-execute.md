@@ -51,6 +51,12 @@ Parse these optional flags:
 
 Everything else is the task description. If no task description is provided, ask the user what task to execute.
 
+### Chooser
+
+Anthropic (22 Sept 2026): Claude Opus 5.5 (`claude-opus-5-5`) is for long-running agentic coding and knowledge work. Context is 1M tokens. Max output is 128k. Thinking stays on. Use one pass for extra-family review or hard work that needs an Anthropic agent. Do not use it for grep, inventory, or ordinary Codex or Grok execution.
+
+When `--model` is omitted, the worker and the nested Opus/subagent pin are `claude-opus-5-5`, and the runner effort default is `high`. The effort menu is `low`, `medium`, `high`, `xhigh`, `max`. Drop to `medium` or `low` on a lighter review to conserve the cap. An explicit `--model` is forwarded unchanged, including `claude-opus-5`, `claude-opus-4-8`, and any other caller-supplied id such as `claude-opus-future`. It is not rewritten to `claude-opus-5-5` and not rejected for failing a closed list.
+
 ## Step 2: Confirm the Plan
 
 Summarize what will be executed:
