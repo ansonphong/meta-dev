@@ -5,6 +5,8 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import subprocess
+import sys
 import unittest
 
 
@@ -177,7 +179,58 @@ class NativeReviewContract(unittest.TestCase):
             # helper skills may reference it directly. Test real route paths.
             if "../../references/workflows/protocol.md" not in text:
                 self.assertIn("../../references/workflows/command-adapter.md", text, name)
-                self.assertIn("references/workflows/protocol.md", COMMAND_ADAPTER_PATH.read_text())
+        self.assertIn("references/workflows/protocol.md", COMMAND_ADAPTER_PATH.read_text())
+
+
+class ReviewBatchEvidence(unittest.TestCase):
+    script = PLUGIN_ROOT / "scripts/review-batch-render.py"
+
+    def run_renderer(self, payload, *args):
+        return subprocess.run(
+            [sys.executable, str(self.script), *args], input=json.dumps(payload),
+            text=True, capture_output=True, check=False,
+        )
+
+    def test_complete_batch_renders_every_finding_and_exact_critical_count(self) -> None:
+        issues = [
+            {"severity": "high" if n == 1 else "medium", "file": "src/flow.py",
+             "line": n, "title": f"Issue {n}", "description": "Observed impact",
+             "failure_path": "request → transport → consumer failure",
+             "violated_requirement": "Contract C1", "missing_evidence": "Focused refusal check",
+             "suggested_fix": "Repair consumer"}
+            for n in range(1, 5)
+        ]
+        result = self.run_renderer({"reviews": [
+            {"target": "slice A", "verdict": "FAIL", "summary": "Four defects",
+             "confidence": 0.9, "blast_radius": "module",
+             "dimensions": {name: "NEEDS_FIX" for name in
+                            ("correctness", "safety", "patterns", "coverage", "scope")},
+             "issues": issues},
+        ]})
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn("Critical issues: 1", result.stdout)
+        for n in range(1, 5):
+            self.assertIn(f"Issue {n} — src/flow.py:{n}", result.stdout)
+        self.assertIn("Failure path: request → transport → consumer failure", result.stdout)
+
+    def test_single_valid_pass_and_incomplete_pass_or_finding_refused(self) -> None:
+        verdict = {"verdict": "PASS", "summary": "All declared scope inspected",
+                   "confidence": 0.9, "blast_radius": "file",
+                   "dimensions": {name: "PASS" for name in
+                                  ("correctness", "safety", "patterns", "coverage", "scope")},
+                   "issues": []}
+        self.assertEqual(0, self.run_renderer(verdict, "--validate-only").returncode)
+        verdict["dimensions"]["coverage"] = "NEEDS_REVIEW"
+        rejected = self.run_renderer(verdict, "--validate-only")
+        self.assertEqual(2, rejected.returncode)
+        self.assertIn("PASS requires", rejected.stderr)
+        verdict["verdict"] = "FAIL"
+        verdict["issues"] = [{"severity": "high", "file": "src/flow.py", "line": 5,
+                              "title": "Missing consumer guard", "description": "Reachable bad state",
+                              "suggested_fix": "Guard consumer"}]
+        rejected = self.run_renderer(verdict, "--validate-only")
+        self.assertEqual(2, rejected.returncode)
+        self.assertIn("failure_path is required", rejected.stderr)
 
 
 if __name__ == "__main__":

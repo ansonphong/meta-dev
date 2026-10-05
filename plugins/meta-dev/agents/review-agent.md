@@ -42,6 +42,9 @@ Read the target diff (git diff or file changes), then invoke:
       "line": 42,
       "title": "Short issue title",
       "description": "Detailed explanation",
+      "failure_path": "Reachable entry point through observed failure",
+      "violated_requirement": "Specific requirement or invariant",
+      "missing_evidence": "Proof needed to accept or dismiss this finding",
       "suggested_fix": "Specific remediation"
     }
   ],
@@ -52,6 +55,10 @@ Read the target diff (git diff or file changes), then invoke:
 ## Rules
 
 - Always invoke `code-review-protocol` skill before finalizing verdict.
+- Notify the conductor promptly of an urgent blocker, then complete the
+  remaining safe inspection and return all actionable findings together.
+- Validate the final JSON with `scripts/review-batch-render.py --validate-only`;
+  it accepts one verdict. A validation failure is an incomplete review, not PASS.
 - Review only. Do not edit, dispatch a fixer, stage, or commit unless the
   invocation contains explicit `--fix`/go authorization. `NEEDS_FIX`,
   `CONDITIONAL_PASS`, and `FAIL` are not authorization.

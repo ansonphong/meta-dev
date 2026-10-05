@@ -26,14 +26,20 @@ See `references/review-dimensions.md` for full rubric.
 2. Read project instructions and every changed file needed to understand the
    diff. Do not widen into unrelated cleanup.
 3. Inspect the full declared scope across all five dimensions before deciding
-   the verdict. A blocking issue does not end the review. Report every distinct,
-   evidence-backed, actionable issue found; do not invent issues to fill a list.
+   the verdict. Send any urgent blocker to the conductor promptly, then finish
+   the remaining safe inspection on the same scope and refs. Report every distinct,
+   evidence-backed, actionable issue together; do not invent issues to fill a list.
    If any declared scope could not be inspected, identify it and the reason in
    the summary, and score affected dimensions `NEEDS_REVIEW`.
 4. Score each dimension `PASS`, `NEEDS_FIX`, or `NEEDS_REVIEW` using
    `references/review-dimensions.md`.
-5. Emit the structured verdict below and route it through
-   `references/verdict-routing.md`.
+5. For each issue, identify `file:line`, a reachable failure path, the violated
+   requirement, and evidence still missing to accept or dismiss it. Explain
+   impact in `description` and give a concrete `suggested_fix`. Emit the structured
+   verdict below and route it through `references/verdict-routing.md`. Pass
+   the JSON through `scripts/review-batch-render.py --validate-only` before
+   recording a pass. This accepts one verdict or a `{"reviews": [...]}` batch;
+   validation failure leaves the review gate pending.
 6. Stop. Only an explicit `--fix` or user go-word authorizes a separate
    remediation pass. A `NEEDS_FIX` score does not authorize edits or a commit.
 
@@ -58,6 +64,9 @@ See `references/review-dimensions.md` for full rubric.
       "line": 1,
       "title": "short title",
       "description": "evidence and impact",
+      "failure_path": "entry point → changed contract → observed failure",
+      "violated_requirement": "specific requirement or invariant",
+      "missing_evidence": "specific proof needed to accept or dismiss the finding",
       "suggested_fix": "specific remediation"
     }
   ],

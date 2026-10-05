@@ -27,13 +27,15 @@ When and only when explicit fix permission exists:
    smallest supported fixes together within each branch using the host-native
    executor. External fixers are explicit opt-ins.
 3. Run each branch's named focused verifier once. Classify it with the shared execution
-   result states.
+   result states. Check intended valid behavior and the relevant refusal behavior;
+   retain still-applicable green evidence from unchanged scope.
 4. Stage exact paths and create a scoped commit if files changed, including
    on a red result.
 5. Re-review the fixes, affected behavior, and integration seams; carry forward
    unresolved findings. Reuse evidence for unchanged clean dimensions. Broaden
-   review only when changed contracts invalidate that evidence. Emit a new
-   structured verdict.
+   review only when changed contracts invalidate that evidence, and name the
+   changed contract and why each added scope was affected. Emit and validate a
+   new structured verdict.
 
 Auth, money, migrations/schema, destructive changes, and cross-repo contracts
 still require explicit confirmation. Authorization cannot be inferred from
