@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.5.13
+
+- Trace bounded integration joins before edits; verify valid and relevant refusal behavior while preserving per-task acceptance, causal repair limits, and independent ready work.
+- Require complete, evidence-backed review findings and validate structured results before routing; retain unaffected evidence and explain any expansion after repairs.
+- Report critical paths and repeated overhead, batch bookkeeping at useful seams, and stop reprobes of unchanged unavailable delegates.
+- Keep Claude and Codex plugin manifests aligned at version 1.5.13.
+
 ## 1.5.12
 
 - Complete the declared review scope and report all evidence-backed findings before remediation; collect and deduplicate commissioned reviewers' findings before edits.
