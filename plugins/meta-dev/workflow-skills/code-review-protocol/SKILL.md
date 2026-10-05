@@ -39,7 +39,12 @@ See `references/review-dimensions.md` for full rubric.
    verdict below and route it through `references/verdict-routing.md`. Pass
    the JSON through `scripts/review-batch-render.py --validate-only` before
    recording a pass. This accepts one verdict or a `{"reviews": [...]}` batch;
-   validation failure leaves the review gate pending.
+   validation failure leaves the review gate pending. For a final planctl PASS,
+   write one verdict to a JSON file and include `reviewed` with the full commit
+   SHAs for `base_ref` and `target_ref`, every exact repository-relative `scope`
+   file, and `"integration_reviewed": true` only after inspecting the joins
+   across the completed run. `planctl review pass --verdict-file` validates that
+   same file against its captured refs and scope before recording acceptance.
 6. Stop. Only an explicit `--fix` or user go-word authorizes a separate
    remediation pass. A `NEEDS_FIX` score does not authorize edits or a commit.
 
@@ -73,6 +78,11 @@ See `references/review-dimensions.md` for full rubric.
   "summary": "concise result"
 }
 ```
+
+Final acceptance adds `"reviewed": {"base_ref": "<full SHA>",
+"target_ref": "<full SHA>", "scope": ["path/to/file.py"],
+"integration_reviewed": true}` to the single verdict. Ordinary task reviews
+and batch rendering do not require this final-acceptance field.
 
 `PASS` means no substantive issue. `CONDITIONAL_PASS` means bounded,
 non-critical issues with a safe disposition. `FAIL` means a critical/high issue

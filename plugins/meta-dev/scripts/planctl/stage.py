@@ -268,7 +268,7 @@ def cmd_override(args):
 
 # ── review ───────────────────────────────────────────────────────────────────
 def cmd_review(args):
-    """Append a verdict; PASS requires explicit refs and content-bound file scope.
+    """Append a verdict; PASS requires a structured, content-bound review.
 
     The ONLY writer of ``review_verdict`` to the new ``events.jsonl`` (R5/W3B-1/
     DR-2). No markdown change — review is an event-only record the DONE-gate
@@ -289,6 +289,8 @@ def cmd_review(args):
                     abs_path, getattr(args, "repo_root", None) or statedir.project_root(),
                     getattr(args, "scope", []), getattr(args, "base_ref", None),
                     getattr(args, "target_ref", None))
+                data["evidence"]["verdict_digest"] = review_evidence.load_verdict(
+                    getattr(args, "verdict_file", None), data["evidence"])
             except (ValueError, OSError, UnicodeError) as exc:
                 sys.stderr.write("planctl review: %s\n" % exc)
                 return 2

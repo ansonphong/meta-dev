@@ -60,7 +60,8 @@ accepted work: reconstruct its accepted state from evidence through planctl.
 Input IR versions 1.0 and 1.1 remain supported.
 
 `planctl review ... pass` now requires `--repo-root`, `--base-ref`, `--target-ref`,
-and repeated exact `--scope` files (repo-root may default to the project root).
+repeated exact `--scope` files, and `--verdict-file` with a matching final PASS
+(repo-root may default to the project root).
 See `commands/meta-execute.md`. Re-review old unbound PASS records; they no
 longer auto-complete a plan. The new gate tolerates ledger-only changes but
 invalidates changes to reviewed content or plan contracts.

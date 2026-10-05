@@ -119,12 +119,15 @@ a covering PASS with exact reviewed refs and source scope:
 ```bash
 bash ${PLUGIN_ROOT}/scripts/planctl.sh review <plan-file> pass --by <reviewer> \
   --repo-root <absolute-source-repo> --base-ref <start-sha> --target-ref <reviewed-sha> \
-  --scope <repo-relative-file> --scope <another-file>
+  --scope <repo-relative-file> --scope <another-file> --verdict-file <single-pass-json>
 ```
 
 Include every file needed to cover the completed run; omit neither changed
 implementation nor its acceptance surface. Scoped working contents must match
-the reviewed commit. Review evidence binds file content and the plan contract;
+the reviewed commit. The verdict JSON must carry matching full commit SHAs,
+scope, and completed integration inspection as described in the review protocol;
+planctl refuses missing, malformed, partial, or contradictory PASS evidence.
+Only its digest enters the event, not the review narrative. Review evidence binds file content and the plan contract;
 source/contract changes invalidate it, while ledger-only commits do not.
 Old unbound PASS events require a fresh covering review. Cross-repository work
 must retain a separate covering verdict per source repository; do not use a

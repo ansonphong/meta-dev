@@ -37,12 +37,76 @@ def capture(root, plan, scope=None):
     return review_evidence.capture(plan, root, scope or ["src/feature.py"], "HEAD", "HEAD")
 
 
+def valid_verdict(root, scope=None):
+    sha = git(root, "rev-parse", "HEAD")
+    return {
+        "verdict": "PASS", "confidence": 0.9, "blast_radius": "module",
+        "dimensions": {name: "PASS" for name in review_evidence.DIMENSIONS},
+        "issues": [], "summary": "Inspected complete scope and integration joins",
+        "reviewed": {"base_ref": sha, "target_ref": sha,
+                     "scope": scope if scope is not None else ["src/feature.py"],
+                     "integration_reviewed": True},
+    }
+
+
 def review_args(root, plan, **overrides):
+    verdict_file = root / "review-verdict.json"
+    verdict_file.write_text(json.dumps(valid_verdict(root)))
     return SimpleNamespace(**{
         "plan": str(plan), "verdict": "pass", "by": "fixture-reviewer",
         "repo_root": str(root), "scope": ["src/feature.py"], "base_ref": "HEAD",
-        "target_ref": "HEAD", "json": True, **overrides,
+        "target_ref": "HEAD", "verdict_file": str(verdict_file), "json": True,
+        **overrides,
     })
+
+
+def test_cli_pass_requires_matching_structured_verdict(reviewed_repo):
+    root, plan = reviewed_repo
+    verdict_file = root / "review-verdict.json"
+    verdict_file.write_text(json.dumps(valid_verdict(root)))
+    sha = git(root, "rev-parse", "HEAD")
+    run = subprocess.run([
+        "bash", str(Path(__file__).resolve().parents[2] / "scripts/planctl.sh"),
+        "review", str(plan), "pass", "--by", "fixture-reviewer",
+        "--repo-root", str(root), "--base-ref", sha, "--target-ref", sha,
+        "--scope", "src/feature.py", "--verdict-file", str(verdict_file), "--json",
+    ], capture_output=True, text=True)
+    assert run.returncode == 0, run.stderr
+    result = json.loads(run.stdout)
+    assert result["evidence"]["verdict_digest"] == review_evidence._digest(verdict_file.read_bytes())
+    assert len(events.query(event="review_verdict")) == 1
+
+
+@pytest.mark.parametrize("invalid", ["missing", "malformed", "contradictory", "fail",
+                                    "batch", "wrong_ref", "wrong_scope", "partial"])
+def test_cli_refuses_unbound_or_incomplete_pass_without_event(reviewed_repo, invalid):
+    root, plan = reviewed_repo
+    verdict_file = root / "review-verdict.json"
+    verdict = valid_verdict(root)
+    if invalid == "contradictory":
+        verdict["dimensions"]["coverage"] = "NEEDS_REVIEW"
+    elif invalid == "fail":
+        verdict["verdict"] = "FAIL"
+        verdict["dimensions"]["coverage"] = "NEEDS_REVIEW"
+    elif invalid == "batch":
+        verdict = {"reviews": [{**verdict, "target": "feature"}]}
+    elif invalid == "wrong_ref":
+        verdict["reviewed"]["target_ref"] = "0" * 40
+    elif invalid == "wrong_scope":
+        verdict["reviewed"]["scope"] = ["other.py"]
+    elif invalid == "partial":
+        verdict["reviewed"]["integration_reviewed"] = False
+    verdict_file.write_text("{" if invalid == "malformed" else json.dumps(verdict))
+    sha = git(root, "rev-parse", "HEAD")
+    command = ["bash", str(Path(__file__).resolve().parents[2] / "scripts/planctl.sh"),
+               "review", str(plan), "pass", "--repo-root", str(root),
+               "--base-ref", sha, "--target-ref", sha, "--scope", "src/feature.py", "--json"]
+    if invalid != "missing":
+        command.extend(("--verdict-file", str(verdict_file)))
+    run = subprocess.run(command, capture_output=True, text=True)
+    assert run.returncode == 2
+    assert "planctl review:" in run.stderr
+    assert events.query(event="review_verdict") == []
 
 
 def test_bound_review_survives_ledger_only_and_unrelated_commits(reviewed_repo):
