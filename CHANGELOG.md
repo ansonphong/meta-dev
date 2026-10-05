@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.5.12
+
+- Complete the declared review scope and report all evidence-backed findings before remediation; collect and deduplicate commissioned reviewers' findings before edits.
+- Batch accepted fixes, carry unresolved findings forward, and limit follow-up review to repairs and affected integration seams unless changes invalidate broader coverage.
+- Keep Claude and Codex plugin manifests aligned at version 1.5.12.
+
 ## 1.5.10
 
 - Spell out `/cursor-execute` Grok 4.7 500k contract on the skill card: no `--list-models` row, `reasoning_effort` parameterized id, `--fast` is speed, `--budget` fills effort when `--effort` is omitted, worker self-report is 524288.
