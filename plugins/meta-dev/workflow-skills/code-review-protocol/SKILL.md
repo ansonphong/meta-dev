@@ -25,11 +25,16 @@ See `references/review-dimensions.md` for full rubric.
    and focused outcomes. Compute the diff from refs when possible.
 2. Read project instructions and every changed file needed to understand the
    diff. Do not widen into unrelated cleanup.
-3. Score each dimension `PASS`, `NEEDS_FIX`, or `NEEDS_REVIEW` using
+3. Inspect the full declared scope across all five dimensions before deciding
+   the verdict. A blocking issue does not end the review. Report every distinct,
+   evidence-backed, actionable issue found; do not invent issues to fill a list.
+   If any declared scope could not be inspected, identify it and the reason in
+   the summary, and score affected dimensions `NEEDS_REVIEW`.
+4. Score each dimension `PASS`, `NEEDS_FIX`, or `NEEDS_REVIEW` using
    `references/review-dimensions.md`.
-4. Emit the structured verdict below and route it through
+5. Emit the structured verdict below and route it through
    `references/verdict-routing.md`.
-5. Stop. Only an explicit `--fix` or user go-word authorizes a separate
+6. Stop. Only an explicit `--fix` or user go-word authorizes a separate
    remediation pass. A `NEEDS_FIX` score does not authorize edits or a commit.
 
 ## Verdict
