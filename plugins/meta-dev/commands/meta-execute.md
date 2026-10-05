@@ -35,13 +35,18 @@ Stage 5; planning and review alone never authorize it.
 4. Resolve bounded coherent slices using the adaptive policy. Do not cross a
    permission, critical-risk, human, or phase-review gate. Independent slices
    may run concurrently only with disjoint declared write sets, counting fixers
-   and nested workers against the host capacity. Unknown write sets serialize.
+   and nested workers against the host capacity. Keep other dependency-ready
+   disjoint work moving while a causal branch is repaired or parked. Unknown
+   write sets serialize.
 5. Dispatch using `references/execute-dispatch.md`. The worker owns local
    implementation, verification, and exact-path commits; the conductor owns
    plan state and authorized remote operations. Native delegation is preferred
    when useful and permitted. `--inline`, absent delegation, or a host
    prohibition uses sequential ownership with the same safety/acceptance rules.
    Never invent a missing worker primitive or silently launch a paid backend.
+   Record an unavailable delegate for this run; do not reprobe the same failure
+   without an observed capability change. Preserve the single existing retry
+   for transient infrastructure failure.
 
 ## Host dispatch
 
@@ -61,7 +66,9 @@ Emit `bash ${PLUGIN_ROOT}/scripts/stage-emit.sh "<plan-path>" execute in_progres
 before implementation. For each task/slice:
 
 - Inline relevant task sections and per-handle acceptance, not the entire plan.
-  Re-anchor live code once at ownership start and after relevant drift.
+  Re-anchor live code once at ownership start and after relevant drift. Before
+  an integration slice, trace producer → transport → consumer joins and adjacent
+  read-only callers within the task boundary; resolve in-scope interface gaps.
 - Classify each Verify command with `scripts/verify-scope.py`, passing the
   declared source/test paths. Run only focused/scoped checks. Never add a full
   suite, build, or whole-project typecheck as a task or phase gate.
@@ -78,7 +85,8 @@ before implementation. For each task/slice:
   Workers never edit checkboxes. A ledger commit may persist multiple updates
   at a bounded slice seam, not at the end of the whole run.
 - Use at most two scoped repair attempts before reporting a parked branch.
-  Never treat budget exhaustion as success.
+  Batch compatible independent findings, verify valid and relevant refusal
+  behavior, and retain the branch attempt count. Never treat exhaustion as success.
 - At committed slice/phase seams, use the session-bound context watchdog from
   `workflow-skills/agentic-exec-loop/references/loop-protocol.md`. Unknown
   telemetry is nonblocking. Drain running workers/verifiers before handoff.
@@ -103,8 +111,10 @@ self-review with independence unverified. When an independent verdict is require
 obtain a permitted reviewer or leave that gate pending; sequential implementation
 fallback does not authorize recording self-review as an independent PASS.
 
-Fixes require the existing scoped implementation authority. Re-review repaired
-scope. Persist a covering PASS with exact reviewed refs and source scope:
+Fixes require the existing scoped implementation authority. Preserve unchanged
+green evidence and clean findings; re-review repaired scope and impacted
+assumptions. Name any changed shared contract and why it widens review. Persist
+a covering PASS with exact reviewed refs and source scope:
 
 ```bash
 bash ${PLUGIN_ROOT}/scripts/planctl.sh review <plan-file> pass --by <reviewer> \
@@ -127,8 +137,10 @@ runbook dashboards; it is a backstop, not evidence that a review happened.
 
 Archive only after required acceptance/manual gates pass, using the state door.
 Push only when the user/project release contract authorizes it; never deploy
-implicitly. Report accepted/parked handles, scoped commits, actual verification,
-review verdict, remaining manual gates, and the plan's current location.
+implicitly. Report accepted/parked handles, critical path and remaining work,
+scoped commits, actual verification, review verdict, remaining manual gates,
+and the plan's current location. State observed repeated overhead and a concrete
+adjustment, or say none observed; do not invent metrics.
 Use `references/execute-report-card.md` when the host supports that presentation.
 
 ## Additional flags

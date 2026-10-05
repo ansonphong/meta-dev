@@ -14,8 +14,8 @@ The structured dashboard rendered by `/meta-execute` at completion. Follow this 
 ## Sections, in order
 
 Header rows (no section label): `Plan` · `Path` · `Status` · `Duration`.
-Then, as `├─ Label ─…` sections: **Tasks** · **Commits** · **Code Review** ·
-**Acceptance** · **Plan Location** · **Follow-ups**.
+Then, as `├─ Label ─…` sections: **Tasks** · **Critical Path** · **Commits** ·
+**Code Review** · **Acceptance** · **Overhead** · **Plan Location** · **Follow-ups**.
 
 ```
 ┌─ /meta-execute — EXECUTION REPORT ──────────────────────────────────────
@@ -23,12 +23,16 @@ Then, as `├─ Label ─…` sections: **Tasks** · **Commits** · **Code Revi
 │ Status:    EXECUTED + REVIEWED
 ├─ Tasks ─────────────────────────────────────────────────────────────────
 │ ✅  6/6 completed · 0 failed · 0 deferred
-├─ Commits (on <repo> master, all pushed) ────────────────────────────────
+├─ Critical Path ─────────────────────────────────────────────────────────
+│ (none remaining)
+├─ Commits (local, <repo>) ───────────────────────────────────────────────
 │ 930e8b015  facetPick→tilePick                            6/6 pass
 ├─ Code Review ───────────────────────────────────────────────────────────
-│ ✅  CLEAN — 0 findings (requesting-code-review)
+│ ✅  CLEAN — 0 findings (code-review-protocol)
 ├─ Acceptance ────────────────────────────────────────────────────────────
-│ pytest 24/24 · lint clean
+│ <focused check and actual result>
+├─ Overhead ──────────────────────────────────────────────────────────────
+│ None repeated observed
 ├─ Plan Location ─────────────────────────────────────────────────────────
 │ ✅  Archived: plans/app/_archive/<name>/
 ├─ Follow-ups ────────────────────────────────────────────────────────────
@@ -52,6 +56,10 @@ Compact ratio line. If any tasks failed or were deferred, list them by ID:
 ✅ 6/7 completed   1 failed (Task 4: schema mismatch)   0 deferred
 ```
 
+### Critical Path
+
+Name the next blocking dependency and remaining work, or `(none remaining)`.
+
 ### Commits
 
 Table format. Columns: short SHA (9 chars), description (truncated to 48 chars with `…`), verify result. One row per commit. Omit claim commits (`chore(plan): claim`). Include fixer commits.
@@ -60,14 +68,21 @@ Verify result examples: `6/6 pass`, `check clean`, `sync-verified ✓`, `12/12 p
 
 ### Code Review
 
-Always state which skill was used: `(requesting-code-review)`. Verdict on one line:
+Always state the actual review skill used. Verdict on one line:
 - `✅ CLEAN — 0 findings`
 - `✅⚠️ <N> findings fixed · 0 remaining`
 - `⛔ <N> findings surfaced — see Follow-ups`
 
 ### Acceptance
 
-Test suite results. Format: `<runner> <pass>/<total>`. Include lint/check state. If acceptance was skipped (manual-only gate), say so: `(manual GPU acceptance pending)`.
+Report each relevant focused verifier and its actual result. Include lint/check
+only if run. If acceptance is pending a manual gate, say so.
+
+### Overhead
+
+Name observed repeated status collection, duplicate review, green reruns, or
+delegate probes with a concrete adjustment. Say `None repeated observed` when
+there is no evidence of repetition; do not invent counts.
 
 ### Plan Location
 

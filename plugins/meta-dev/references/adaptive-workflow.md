@@ -58,7 +58,9 @@ context boundary. Resume from committed evidence, not an assumed empty context.
 
 Co-dispatch only disjoint write sets; include fixers and nested workers in the
 same host-wide concurrency budget. Default caps are ceilings, not occupancy
-targets. Use sequential ownership when delegation is absent or forbidden;
+targets. Keep dependency-ready disjoint tasks moving while a causal branch is
+repaired or parked, subject to that budget and all review/human gates. Use
+sequential ownership when delegation is absent or forbidden;
 report this host limitation without inventing an external worker. `--inline`
 explicitly selects this same sequential path.
 
@@ -80,8 +82,10 @@ authorization boundary.
 Findings need evidence or a concrete falsifier, severity, affected scope, and
 disposition. Hardening passes when no unresolved blocker remains and advisories
 are recorded. Exhausting a round budget never turns a blocker into a pass.
-After a fix, rerun affected checks/review only; do not replay clean unchanged
-axes or promote to another wave merely because the last pass was clean.
+After a fix, rerun affected checks/review only; retain clean unchanged findings
+and evidence. Expand review only for a named shared-contract change, recording
+the impacted assumptions and why the broader scope is required. Do not promote
+to another wave merely because the last pass was clean.
 
 Stage 6 is one native review of the resulting scope, reusing the final phase
 review when it covers that scope. Cross-phase interactions must be covered;
