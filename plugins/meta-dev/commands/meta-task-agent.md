@@ -27,7 +27,7 @@ While OPEN:
 
 Re-invoking `/meta-task-agent <prompt>` while open is another spawn, not a nested session.
 
-A clear implementation request authorizes its scoped edits, not destructive/external operations or unspecified plan execution. Read-only requests stay read-only. Apply the project gates; then print `🔓 Acting on "<≤60 chars>" — dispatching TA-n`. Do not re-ask for an already authorized bounded action.
+A clear implementation request authorizes its scoped edits, not destructive/external operations or unspecified plan execution. Read-only requests stay read-only. Apply the project gates; then print `⚡ Acting on "<≤60 chars>" — dispatching TA-n`. Do not re-ask for an already authorized bounded action.
 
 ## Flags
 
