@@ -10,6 +10,8 @@ Spawn a headless Claude Code worker on the **real Anthropic backend**, pinned to
 
 Uses `scripts/claude-headless-exec --backend opus` under the hood.
 
+For latest-model or availability requests, see `references/execution-model-discovery.md`. The optional Anthropic model-list API uses `GET https://api.anthropic.com/v1/models`; read-only workers need caller-supplied evidence. API visibility does not prove ambient Claude login access. Preserve an explicit `--model`.
+
 **Harness:** this worker **is** Claude Code (ambient Anthropic login, default model `claude-opus-5-5`). It can run meta-dev slash commands internally (`/meta-execute`, `/loop-gap`, …). Interactive Grok and Codex hosts **also** have this plugin (Grok skills/slash; Codex `$meta-dev:*`). A **headless** `/grok-execute` or `/codex-execute` worker is not Claude Code — brief those with a direct task, not "run `/loop-gap`". Host loading and routing: `references/work-ladder.md` and `references/adaptive-workflow.md`. It can perform implementation-through-verification or a read-only review; use the task's intent and resolved workflow depth. The runner injects an Opus brief (`references/execute-briefs.md`).
 
 ## Scope and routing

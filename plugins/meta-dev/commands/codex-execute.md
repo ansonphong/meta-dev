@@ -8,6 +8,8 @@ description: Run a bounded task with headless OpenAI Codex. Brief a DIRECT task 
 
 Run a direct, bounded task through `codex exec`.
 
+The runner's Sol and Terra roles still use `gpt-6-sol`; current `gpt-6.1-sol` is selectable with `--model gpt-6.1-sol`. For latest-model or availability requests, see `references/execution-model-discovery.md`. The optional OpenAI model-list API uses `GET https://api.openai.com/v1/models`; read-only workers need caller-supplied evidence. API visibility does not prove Codex subscription access. Preserve an explicit `--model`.
+
 ## Harness — Codex has meta-dev
 
 meta-dev is installed on **Claude Code, Codex, and Grok Build**.

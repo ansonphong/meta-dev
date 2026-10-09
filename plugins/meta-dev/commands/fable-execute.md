@@ -10,6 +10,8 @@ Spawn a headless Claude Code worker on the Anthropic backend, pinned to **Fable 
 
 Uses `scripts/claude-headless-exec --backend fable` under the hood.
 
+The runner still defaults to `claude-fable-5`; current `claude-fable-5-1` is selectable with `--model claude-fable-5-1`. For latest-model or availability requests, see `references/execution-model-discovery.md`. The optional Anthropic model-list API uses `GET https://api.anthropic.com/v1/models`; read-only workers need caller-supplied evidence. API visibility does not prove ambient Claude login access. Preserve an explicit `--model`.
+
 **Harness:** this worker **is** Claude Code (ambient Anthropic login, model Fable 5). It can run meta-dev slash commands internally (`/meta-execute`, `/loop-gap`, …). Interactive Grok and Codex hosts **also** have this plugin (Grok skills/slash; Codex `$meta-dev:*`). A **headless** `/grok-execute` or `/codex-execute` worker is not Claude Code — brief those with a direct task, not "run `/loop-gap`". Host loading and routing: `references/work-ladder.md` and `references/adaptive-workflow.md`. This optional backend requires explicit user authorization; configured pauses still apply.
 
 ## Scope and routing

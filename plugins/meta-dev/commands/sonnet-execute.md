@@ -1,16 +1,18 @@
 ---
 name: sonnet-execute
 argument-hint: <task description> [--repo <name>] [--readonly] [--budget auto|low|medium|high] [--model <model>] [--effort <level>]  # --repo names from .meta-dev/repos.json
-description: Execute a task via headless Anthropic Sonnet 5 Claude Code — spawns a SEPARATE Claude Code process off the main thread, so Anthropic-grade Sonnet judgment runs without consuming the conductor's context window. Sonnet 5 is 1M-context on the first-party API.
+description: Execute a task via headless Anthropic Sonnet 5.5 Claude Code — spawns a SEPARATE Claude Code process off the main thread, so Anthropic-grade Sonnet judgment runs without consuming the conductor's context window. Sonnet 5.5 is 1M-context on the first-party API.
 ---
 
-# /sonnet-execute — Anthropic Sonnet 5 Headless Execution
+# /sonnet-execute — Anthropic Sonnet 5.5 Headless Execution
 
-Spawn a headless Claude Code worker on the **real Anthropic backend**, pinned to **Sonnet 5**, to execute a task and report back. You stay on your current host for orchestration; Sonnet does the work in an **isolated process**.
+Spawn a headless Claude Code worker on the **real Anthropic backend**, pinned to **Sonnet 5.5**, to execute a task and report back. You stay on your current host for orchestration; Sonnet does the work in an **isolated process**.
 
 Uses `scripts/claude-headless-exec --backend sonnet` under the hood.
 
-**Harness:** this worker **is** Claude Code (ambient Anthropic login, model Sonnet 5). It can run meta-dev slash commands internally (`/meta-execute`, `/loop-gap`, …). Interactive Grok and Codex hosts **also** have this plugin (Grok skills/slash; Codex `$meta-dev:*`). A **headless** `/grok-execute` or `/codex-execute` worker is not Claude Code — brief those with a direct task, not "run `/loop-gap`". Host loading and routing: `references/work-ladder.md` and `references/adaptive-workflow.md`. It can implement, review, or diagnose a bounded task; UI work is not its exclusive role.
+For latest-model or availability requests, see `references/execution-model-discovery.md`. The optional Anthropic model-list API uses `GET https://api.anthropic.com/v1/models`; read-only workers need caller-supplied evidence. API visibility does not prove ambient Claude login access. Preserve an explicit `--model`.
+
+**Harness:** this worker **is** Claude Code (ambient Anthropic login, model Sonnet 5.5). It can run meta-dev slash commands internally (`/meta-execute`, `/loop-gap`, …). Interactive Grok and Codex hosts **also** have this plugin (Grok skills/slash; Codex `$meta-dev:*`). A **headless** `/grok-execute` or `/codex-execute` worker is not Claude Code — brief those with a direct task, not "run `/loop-gap`". Host loading and routing: `references/work-ladder.md` and `references/adaptive-workflow.md`. It can implement, review, or diagnose a bounded task; UI work is not its exclusive role.
 
 ## Scope and routing
 
@@ -44,9 +46,9 @@ Parse these optional flags:
 - `--repo <name>` — target repo (default: auto-detect from cwd; names from .meta-dev/repos.json)
 - `--readonly` — expose only Read,Glob,Grep (no shell, writes, delegation, MCP, or skills)
 - `--claim <plan-dir>` — **concurrency safety (shared tree):** claim this plan directory before dispatch. The wrapper ABORTS if another live session holds an overlapping scope, and auto-releases on exit. Use whenever the worker edits `plans/**`. (`--claim-warn` warns instead of aborting.) See `references/execute-charter.md` → Concurrency Safety.
-- `--model <model>` — override default `claude-sonnet-5`; use an ID supported by the target host.
+- `--model <model>` — override default `claude-sonnet-5-5`; use an ID supported by the target host.
 - `--budget auto|low|medium|high` — **depth cap** (default `auto`). Classify before dispatch. Doctrine: `references/execute-budget.md`.
-- `--effort <level>` — thinking/reasoning effort: `low|medium|high|xhigh|max` (**default: `high`** — Anthropic's own Sonnet 5 default; drop to `medium`/`low` to conserve the Max Sonnet cap on bulk work)
+- `--effort <level>` — thinking/reasoning effort: `low|medium|high|xhigh|max` (**default: `high`** — Anthropic's own Sonnet 5.5 default; drop to `medium`/`low` to conserve the Max Sonnet cap on bulk work)
 - `--max-turns <n>` — cap agent turns (default: from `--budget`)
 
 Everything else is the task description. If no task description is provided, ask the user what task to execute.
@@ -54,7 +56,7 @@ Everything else is the task description. If no task description is provided, ask
 ## Step 2: Confirm the Plan
 
 Summarize what will be executed:
-- **Backend:** Anthropic Sonnet — `claude-sonnet-5` (1M context, ambient login)
+- **Backend:** Anthropic Sonnet — `claude-sonnet-5-5` (1M context, ambient login)
 - **Effort:** high (or the `--effort` value)
 - **Repo:** (detected or specified)
 - **Task:** (the task description)
