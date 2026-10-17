@@ -1,4 +1,5 @@
 """Hermetic regression coverage for scoped, content-bound closing reviews."""
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -35,6 +36,29 @@ def reviewed_repo():
 
 def capture(root, plan, scope=None):
     return review_evidence.capture(plan, root, scope or ["src/feature.py"], "HEAD", "HEAD")
+
+
+def lfs_pointer_repo(root, content, *, pointer=None, lfs=True, filter_name="lfs"):
+    path = root / "src/thumb.png"
+    oid = hashlib.sha256(content).hexdigest()
+    pointer = pointer if pointer is not None else (
+        f"version https://git-lfs.github.com/spec/v1\noid sha256:{oid}\nsize {len(content)}\n".encode()
+    )
+    if lfs:
+        (root / ".gitattributes").write_text(f"src/thumb.png filter={filter_name}\n")
+        git(root, "add", "--", ".gitattributes")
+    path.write_bytes(pointer)
+    git(root, "config", "filter.lfs.process", "")
+    git(root, "config", "filter.lfs.clean", "false")
+    git(root, "config", "filter.lfs.required", "true")
+    blob = git(root, "hash-object", "-w", "--no-filters", str(path))
+    git(root, "update-index", "--add", "--cacheinfo", f"100644,{blob},src/thumb.png")
+    tree = git(root, "write-tree")
+    parent = git(root, "rev-parse", "HEAD")
+    commit = git(root, "commit-tree", tree, "-p", parent, "-m", "pointer fixture")
+    git(root, "update-ref", "HEAD", commit)
+    path.write_bytes(content)
+    return path, pointer
 
 
 def valid_verdict(root, scope=None):
@@ -175,6 +199,82 @@ def test_deleted_file_is_bound_to_reviewed_deletion(reviewed_repo):
     assert review_evidence.is_current(plan, evidence)
     (root / "src/feature.py").write_text("resurrected\n")
     assert not review_evidence.is_current(plan, evidence)
+
+
+def test_lfs_materialized_file_binds_capture_and_freshness(reviewed_repo):
+    root, plan = reviewed_repo
+    content = b"materialized PNG bytes\x00"
+    path, pointer = lfs_pointer_repo(root, content)
+    evidence = capture(root, plan, ["src/thumb.png"])
+    assert evidence["scope"] == [{
+        "path": "src/thumb.png", "mode": "100644",
+        "digest": hashlib.sha256(pointer).hexdigest(),
+        "lfs_oid": hashlib.sha256(content).hexdigest(), "lfs_size": len(content),
+    }]
+    assert review_evidence.is_current(plan, evidence)
+    path.write_bytes(pointer)
+    assert review_evidence.is_current(plan, evidence)
+    assert capture(root, plan, ["src/thumb.png"])["scope"] == evidence["scope"]
+    path.write_bytes(b"X" + content[1:])
+    assert not review_evidence.is_current(plan, evidence)
+    path.write_bytes(content)
+    assert review_evidence.is_current(plan, evidence)
+    path.unlink()
+    assert not review_evidence.is_current(plan, evidence)
+
+
+@pytest.mark.parametrize("invalid", ["malformed", "wrong_oid", "wrong_size", "non_lfs", "fake_uri", "wrong_filter"])
+def test_lfs_exception_rejects_invalid_target_or_content(reviewed_repo, invalid):
+    root, plan = reviewed_repo
+    content = b"materialized PNG bytes\x00"
+    oid = hashlib.sha256(content).hexdigest()
+    pointer = {
+        "malformed": f"version https://git-lfs.github.com/spec/v1\noid sha256:{oid}\nsize {len(content)}".encode(),
+        "wrong_oid": f"version https://git-lfs.github.com/spec/v1\noid sha256:{'0' * 64}\nsize {len(content)}\n".encode(),
+        "wrong_size": f"version https://git-lfs.github.com/spec/v1\noid sha256:{oid}\nsize {len(content) + 1}\n".encode(),
+        "non_lfs": f"version https://git-lfs.github.com/spec/v1\noid sha256:{oid}\nsize {len(content)}\n".encode(),
+        "fake_uri": f"version https://git-lfsXgithubXcom/spec/v1\noid sha256:{oid}\nsize {len(content)}\n".encode(),
+        "wrong_filter": f"version https://git-lfs.github.com/spec/v1\noid sha256:{oid}\nsize {len(content)}\n".encode(),
+    }[invalid]
+    lfs_pointer_repo(root, content, pointer=pointer, lfs=invalid != "non_lfs",
+                     filter_name="other" if invalid == "wrong_filter" else "lfs")
+    with pytest.raises(ValueError, match="differs from --target-ref"):
+        capture(root, plan, ["src/thumb.png"])
+
+
+@pytest.mark.parametrize("override", ["worktree", "global", "system"])
+def test_uncommitted_attributes_cannot_grant_lfs(reviewed_repo, override, monkeypatch):
+    root, plan = reviewed_repo
+    content = b"materialized PNG bytes\x00"
+    lfs_pointer_repo(root, content, lfs=False)
+    attributes = root / (".gitattributes" if override == "worktree" else f"{override}.attributes")
+    attributes.write_text("src/thumb.png filter=lfs\n")
+    if override == "global":
+        git(root, "config", "core.attributesFile", str(attributes))
+    elif override == "system":
+        config = root / "system.gitconfig"
+        config.write_text(f"[core]\nattributesFile = {attributes}\n")
+        monkeypatch.setenv("GIT_CONFIG_SYSTEM", str(config))
+    with pytest.raises(ValueError, match="differs from --target-ref"):
+        capture(root, plan, ["src/thumb.png"])
+
+
+@pytest.mark.parametrize("info_kind", ["file", "broken_symlink"])
+def test_target_attributes_override_worktree_and_info_attributes_fail_closed(reviewed_repo, info_kind):
+    root, plan = reviewed_repo
+    content = b"materialized PNG bytes\x00"
+    lfs_pointer_repo(root, content)
+    (root / ".gitattributes").write_text("src/thumb.png -filter\n")
+    assert review_evidence.is_current(plan, capture(root, plan, ["src/thumb.png"]))
+    info = Path(git(root, "rev-parse", "--git-path", "info/attributes"))
+    if not info.is_absolute():
+        info = root / info
+    if info_kind == "file":
+        info.write_text("src/thumb.png filter=lfs\n")
+    else:
+        info.symlink_to(root / "absent-attributes")
+    with pytest.raises(ValueError, match="differs from --target-ref"):
+        capture(root, plan, ["src/thumb.png"])
 
 
 def test_directory_targets_resolve_for_stage_check_and_review(reviewed_repo, capsys):

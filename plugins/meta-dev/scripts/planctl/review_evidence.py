@@ -10,6 +10,7 @@ from planctl import parse
 
 
 DIMENSIONS = ("correctness", "safety", "patterns", "coverage", "scope")
+_LFS_POINTER = re.compile(rb"version https://git-lfs\.github\.com/spec/v1\noid sha256:([0-9a-f]{64})\nsize (0|[1-9][0-9]*)\n")
 
 
 def validate_verdict(data, *, acceptance=None):
@@ -96,8 +97,8 @@ def _digest(value):
     return hashlib.sha256(value).hexdigest()
 
 
-def _git(root, *args):
-    result = subprocess.run(["git", "-C", str(root), *args], capture_output=True)
+def _git(root, *args, env=None):
+    result = subprocess.run(["git", "-C", str(root), *args], capture_output=True, env=env)
     if result.returncode:
         raise ValueError("git review evidence failed: " + result.stderr.decode("utf-8", "replace").strip())
     return result.stdout
@@ -176,6 +177,32 @@ def _working_file(path, normalize=False, expected_mode=None, track_filemode=True
     return _content_record(mode, path.read_bytes(), normalize)
 
 
+def _matches_reviewed(path, current, reviewed):
+    if current["mode"] != reviewed["mode"]:
+        return False
+    if current["digest"] == reviewed["digest"]:
+        return True
+    if current["mode"] not in {"100644", "100755"} or "lfs_oid" not in reviewed:
+        return False
+    content = path.read_bytes()
+    return len(content) == reviewed["lfs_size"] and _digest(content) == reviewed["lfs_oid"]
+
+
+def _target_lfs_filter(root, ref, path):
+    info = Path(_git(root, "rev-parse", "--git-path", "info/attributes").decode().strip())
+    if not info.is_absolute():
+        info = root / info
+    if info.exists() or info.is_symlink():
+        return False  # Local info attributes cannot be pinned to the reviewed commit.
+    try:
+        value = _git(root, "-c", f"core.attributesFile={os.devnull}",
+                     "check-attr", "-z", "--source", ref, "filter", "--", path,
+                     env={**os.environ, "GIT_ATTR_NOSYSTEM": "1"})
+    except ValueError as exc:
+        raise ValueError("LFS review binding requires Git 2.40+ check-attr --source: " + str(exc)) from exc
+    return value == os.fsencode(path) + b"\0filter\0lfs\0"
+
+
 def _committed_file(root, ref, path, normalize=False):
     tree = _git(root, "ls-tree", "-z", ref, "--", ":(literal)" + path)
     if not tree:
@@ -184,7 +211,13 @@ def _committed_file(root, ref, path, normalize=False):
     mode, kind, oid = metadata
     if kind != "blob":
         raise ValueError("review scope must name a file, not a tree/submodule: " + path)
-    return _content_record(mode, _git(root, "cat-file", "blob", oid), normalize)
+    content = _git(root, "cat-file", "blob", oid)
+    record = _content_record(mode, content, normalize)
+    if mode in {"100644", "100755"} and not normalize:
+        pointer = _LFS_POINTER.fullmatch(content)
+        if pointer and _target_lfs_filter(root, ref, path):
+            record.update(lfs_oid=pointer[1].decode("ascii"), lfs_size=int(pointer[2]))
+    return record
 
 
 def capture(plan_path, repo_root, scope, base_ref, target_ref):
@@ -207,7 +240,7 @@ def capture(plan_path, repo_root, scope, base_ref, target_ref):
         if reviewed["mode"] == "missing" and _committed_file(root, base, raw)["mode"] == "missing":
             raise ValueError("review scope is absent at both refs: " + raw)
         current = _working_file(absolute, normalize, reviewed["mode"], track_filemode, symlinks)
-        if current != reviewed:
+        if not _matches_reviewed(absolute, current, reviewed):
             raise ValueError("review scope differs from --target-ref; commit/re-review first: " + raw)
         scoped.append({"path": raw, **reviewed})
     return {"version": 1, "repo_root": str(root), "base_ref": base,
@@ -227,7 +260,7 @@ def is_current(plan_path, evidence):
             path = _scope_path(root, record["path"])
             current = _working_file(path, path.resolve() in plan_files, record["mode"],
                                     evidence.get("track_filemode", True), evidence.get("symlinks", True))
-            if current != {"mode": record["mode"], "digest": record["digest"]}:
+            if not _matches_reviewed(path, current, record):
                 return False
         return True
     except (KeyError, TypeError, ValueError, OSError, UnicodeError):
