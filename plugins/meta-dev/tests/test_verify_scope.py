@@ -108,7 +108,7 @@ def test_interpreter_check_tool_is_not_an_owned_target():
         "frontend/src/lib/agentMode.test.ts",
     )
     _, payload = run_classifier(command, *allowed)
-    assert payload["class"] == "scoped_check"
+    assert payload["class"] == "unscoped"
 
 
 def test_all_declared_test_paths_and_plugin_options_are_accepted():
