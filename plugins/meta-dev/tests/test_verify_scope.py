@@ -85,6 +85,31 @@ def test_interpreter_check_tool_is_not_an_owned_target():
     _, payload = run_classifier("python3 tooling/validator.py check src/owned.json", "src/owned.json")
     assert payload["class"] == "scoped_check"
 
+    command = "python3 scripts/sync_hextile_agent.py --source-root /mnt/d/Projects/360-Hextile/hextile-agent --check"
+    allowed = (
+        "/mnt/d/Projects/360-Hextile/hextile-agent/mcp/hextile_client.py",
+        "/mnt/d/Projects/360-Hextile/hextile-agent/mcp/hextile_mcp.py",
+        "/mnt/d/Projects/360-Hextile/hextile-agent/tests/test_shader_mcp.py",
+        "/mnt/d/Projects/360-Hextile/hextile-agent/skills/360-hextile/SKILL.md",
+        "/mnt/d/Projects/360-Hextile/hextile-agent/skills/360-hextile/references/best-practices.md",
+        "/mnt/d/Projects/360-Hextile/hextile-agent/skills/360-hextile/references/recipes.md",
+        "/mnt/d/Projects/360-Hextile/hextile-agent/skills/360-hextile/references/workflow-schema.md",
+        "backend/services/copilot/_vendor/mcp/hextile_client.py",
+        "backend/services/copilot/_vendor/mcp/hextile_mcp.py",
+        "backend/services/copilot/_vendor/skills/360-hextile/references/best-practices.md",
+        "backend/services/copilot/_vendor/skills/360-hextile/references/recipes.md",
+        "backend/services/copilot/_vendor/skills/360-hextile/references/workflow-schema.md",
+        "backend/services/copilot/_vendor/manifest.json",
+        "backend/api/routes/agent_live.py",
+        "backend/services/agent_context.py",
+        "backend/services/copilot/turns.py",
+        "backend/tests/api/test_agent_live_studio.py",
+        "frontend/src/lib/agentMode.ts",
+        "frontend/src/lib/agentMode.test.ts",
+    )
+    _, payload = run_classifier(command, *allowed)
+    assert payload["class"] == "scoped_check"
+
 
 def test_all_declared_test_paths_and_plugin_options_are_accepted():
     _, payload = run_classifier("python3 -m pytest -p no:cacheprovider tests/test_a.py tests/test_b.py -q", "tests/test_a.py", "tests/test_b.py")
