@@ -77,15 +77,37 @@ def fold(state: dict, event: dict) -> dict:
             "tick_n": 0,
             "last_review": None,
             "tasks_reviewed": 0,
+            "watch_id": event.get("watch_id"),
+            "interval_seconds": event.get("interval_seconds"),
+            "scheduler_id": event.get("scheduler_id"),
+            "monitor_id": event.get("monitor_id"),
+            "executor": event.get("executor"),
+            "next_due": event.get("next_due"),
+            "review": {},
+            "stalled_ticks": 0,
         }
 
     elif event_type == "overlord_tick":
         ol = state["overlord"]
+        if not ol.get("active") or event.get("watch_id") != ol.get("watch_id"):
+            return state
+        review = event.get("review", {})
+        previous = ol.get("review", {})
+        stalled = review.get("assessment") in ("drift", "stalled") and review.get("issue_key")
+        same_issue = previous.get("issue_key") == review.get("issue_key")
+        ol["stalled_ticks"] = 0 if not stalled else (
+            ol.get("stalled_ticks", 0) + 1 if same_issue else 1
+        )
+        ol["review"] = review
         ol["tick_n"] = event.get("tick_n", ol["tick_n"] + 1)
-        ol["last_review"] = now
+        ol["last_review"] = event.get("time", now)
+        ol["next_due"] = event.get("next_due")
 
     elif event_type == "overlord_done":
-        state["overlord"]["active"] = False
+        ol = state["overlord"]
+        if event.get("watch_id") == ol.get("watch_id"):
+            ol["active"] = False
+            ol["next_due"] = None
 
     elif event_type == "session_start":
         sessions = state.setdefault("active_sessions", [])

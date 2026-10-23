@@ -128,6 +128,11 @@ def render(data: dict) -> str:
     sections = [(None, [clip(
         f"Tick {data.get('tick_n', 0)} · {date} · poll: {poll} · executor: {executor}"
     )])]
+    review = data.get("review", {})
+    if review:
+        sections.append(("Execution", [clip(f"{key}: {review[key]}") for key in
+                         ("assessment", "progress", "evidence", "correction", "next_checkpoint")
+                         if review.get(key)]))
     sections.append(("Progress", progress_body(data.get("phases", []))))
 
     commits = data.get("commits", [])

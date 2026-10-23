@@ -468,7 +468,16 @@ plugin root/
 | `/meta-dashboard` | Control plane — plans, sessions, inbox, sweep log, recent commits |
 | `/meta-config` | Read/write harness settings (3-layer cascade) |
 | `/meta-inbox` | Single surface for all issues + advisories |
-| `/meta-overlord` | Watch plan execution, auto-review, fix gaps within threshold |
+| `/meta-overlord` | Supervise truthful, efficient progress with periodic native reviews; retain plan checks and bounded repairs |
+
+`/overlord` watches the current execution, normally every 10 minutes.
+Use `/overlord plans/example.md --every 15`, `--every 20`, or the legacy
+`--tick 900` (seconds) to set a target and interval. `/overlord status` shows the
+watch and `/overlord stop` ends supervision without stopping execution.
+Reviews use native Sol on Codex, Grok 4.7 on Grok Build, and Sonnet/Opus on
+Claude Code. Monitoring needs a real host scheduler or a running native monitor
+agent; the latter lasts only while the session runs. See
+[OVERLORD supervision](plugins/meta-dev/references/overlord-supervision.md).
 
 ### Development Lifecycle
 | Command | Purpose |
@@ -566,7 +575,7 @@ All settings in `plans/_dashboard/settings.json`. Three-layer deep merge:
 
 ```bash
 /meta-config                                    # print merged config
-/meta-config get meta_dev.overlord.model        # dot-notation lookup
+/meta-config get meta_dev.overlord.model        # native by default
 /meta-config set meta_dev.overlord.model opus   # set in project layer
 /meta-config set changelog.auto_cut_on weekly --local  # local override
 /meta-config reset                              # restore defaults

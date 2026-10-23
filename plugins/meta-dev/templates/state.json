@@ -13,7 +13,15 @@
     "auto_fix": null,
     "tick_n": 0,
     "last_review": null,
-    "tasks_reviewed": 0
+    "tasks_reviewed": 0,
+    "watch_id": null,
+    "interval_seconds": null,
+    "scheduler_id": null,
+    "monitor_id": null,
+    "executor": null,
+    "next_due": null,
+    "review": {},
+    "stalled_ticks": 0
   },
   "meta_dev_runs": [],
   "meta_execute_runs": [],

@@ -212,10 +212,37 @@
             "model": {
               "type": "string",
               "enum": [
+                "native",
+                "gpt-6-sol",
+                "grok-4.7",
                 "sonnet",
                 "opus"
               ],
-              "default": "sonnet"
+              "default": "native"
+            },
+            "interval_minutes": {
+              "type": ["number", "null"],
+              "minimum": 0.5,
+              "maximum": 60,
+              "default": null,
+              "description": "Null selects 10 minutes, or 15/20 for a documented lengthy operation/wait."
+            },
+            "review_budget_seconds": {
+              "type": "integer",
+              "minimum": 10,
+              "maximum": 300,
+              "default": 120
+            },
+            "stall_review_limit": {
+              "type": "integer",
+              "minimum": 2,
+              "maximum": 10,
+              "default": 2
+            },
+            "auto_fix_threshold": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 2
             },
             "auto_fix": {
               "type": "string",

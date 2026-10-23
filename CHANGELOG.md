@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.5.15
+
+- Make OVERLORD supervise truthful, efficient delivery, while retaining plan reconciliation, completed-task reviews, authorized repairs, dashboard, and inbox duties.
+- Default to a task-aware 10-minute cadence with configurable intervals and host-native reviewers; require a real scheduler or session-bound native monitor, bounded reviews, and no overlap.
+- Retain review evidence and corrections, escalate repeated drift/stalls, and ignore callbacks from replaced or stopped watches.
+- Keep Claude and Codex plugin manifests aligned at version 1.5.15.
+
 ## 1.5.13
 
 - Trace bounded integration joins before edits; verify valid and relevant refusal behavior while preserving per-task acceptance, causal repair limits, and independent ready work.

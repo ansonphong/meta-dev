@@ -30,7 +30,15 @@
         "auto_fix": { "type": ["string", "null"] },
         "tick_n": { "type": "integer" },
         "last_review": { "type": ["string", "null"] },
-        "tasks_reviewed": { "type": "integer" }
+        "tasks_reviewed": { "type": "integer" },
+        "watch_id": { "type": ["string", "null"] },
+        "interval_seconds": { "type": ["number", "null"], "minimum": 30, "maximum": 3600 },
+        "scheduler_id": { "type": ["string", "null"] },
+        "monitor_id": { "type": ["string", "null"] },
+        "executor": { "type": ["string", "null"] },
+        "next_due": { "type": ["string", "null"] },
+        "review": { "type": "object" },
+        "stalled_ticks": { "type": "integer", "minimum": 0 }
       }
     },
     "sweep_log": {

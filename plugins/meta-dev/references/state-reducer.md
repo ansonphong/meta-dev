@@ -7,9 +7,9 @@ Event sourcing pattern. `state.events.jsonl` = append-only log. `state.json` = m
 | Event | Fields | Effect |
 |-------|--------|--------|
 | `commit` | sha, message, time | Prepend to recent_commits (cap 50) |
-| `overlord_start` | watching, mode, model, auto_fix | Set overlord.active=true |
-| `overlord_tick` | tick_n, verdicts, findings | Increment tick_n, update last_review |
-| `overlord_done` | reason | Set overlord.active=false |
+| `overlord_start` | watching, mode, model, auto_fix, watch_id, interval_seconds, scheduler_id, monitor_id, executor, next_due | Start one watch; reset review and stalled_ticks |
+| `overlord_tick` | watch_id, time, tick_n, next_due, review | For the active matching watch, retain review and count consecutive drift/stalled reviews for the same issue_key |
+| `overlord_done` | watch_id, reason | Stop the matching watch and clear next_due |
 | `session_start` | session_id, plan | Append to active_sessions |
 | `session_end` | session_id | Remove from active_sessions |
 | `meta_execute_start` | plan | Append to meta_execute_runs |

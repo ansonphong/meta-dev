@@ -13,6 +13,10 @@ reintroduce a wider budget.
 
 ## Layout Sections (top-to-bottom)
 
+When `review` is present, show an **Execution** section before Progress with
+`assessment`, `progress`, `evidence`, `correction`, and `next_checkpoint`.
+The full review remains in runtime state; the card clips rows to its usual width.
+
 ```
 ┌─ OVERLORD — {plan_slug} ────────────────────────────────────────────────
 │ Tick {N} · {date} · poll: {interval} · executor: {label}

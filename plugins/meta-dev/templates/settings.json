@@ -47,7 +47,11 @@
     },
     "overlord": {
       "trigger": "on_plan_edit",
-      "model": "sonnet",
+      "model": "native",
+      "interval_minutes": null,
+      "review_budget_seconds": 120,
+      "stall_review_limit": 2,
+      "auto_fix_threshold": 2,
       "auto_fix": "moderate_and_below",
       "auto_clear_inbox_per_tick": true,
       "max_loops": 100
