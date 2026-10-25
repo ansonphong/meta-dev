@@ -66,9 +66,10 @@ frontmatter + checkboxes. Pure read→compute→write-one-span; safe to run anyt
 **You are the campaign conductor.** Preserve campaign dependency ordering while each member
 uses the canonical single-plan workflow. Delegation is conditional, not a second permission gate.
 
-`/runbook execute` / `go` **is** the campaign go for every non-sensitive member. Re-ask only for
-auth / schema / payment / cross-repo / destructive members (protocol `sensitive`). A runbook never
-auto-starts Stage 5 without that go. Design / plan / harden waves are free.
+`/runbook execute` / `go` **is** the campaign go within declared scope,
+including explicitly authorized sensitive members (protocol `sensitive`). Re-ask only for
+genuinely new authority or material scope ambiguity. A runbook never auto-starts Stage 5
+without that go. Design / plan / harden waves are free.
 
 #### 1. Inventory + tracker
 
@@ -117,7 +118,7 @@ Caps are ceilings, not occupancy targets.
 - `--serial`.
 - Observed account/host capacity requires serialization.
 - Unknown / undeclared write-set — treat as overlapping; do not guess.
-- Sensitive member waiting on a fresh human confirm.
+- Member blocked on genuinely new authority or an explicitly reserved human gate.
 
 An overlapping in-flight owner requires coordination before editing or committing. Leave
 unrelated dirty files alone; continue independent work. Never adopt another session's edits,
@@ -129,6 +130,7 @@ Self-contained. The child does not share this session's memory.
 
 Include:
 - Absolute plan path + absolute repo roots.
+- The existing scoped authorization and reserved human gates; preserve them across repairs and integration.
 - Which procedure to follow, as a **file to read**, not a slash:
   - Execute-ready → read `commands/meta-execute.md` completely and run it for that one plan.
   - Not yet hardened → read `commands/meta-dev.md` and drive stages 1–4 only, then stop.
@@ -230,8 +232,8 @@ plans/<area>/<campaign>/<member-b>/00-master-plan.md
    READY waves may skip ahead of a blocked sibling; they never skip an unmet `depends`. Never
    reorder without amending the runbook + re-rendering.
 2. **EXECUTE is gated.** `/runbook execute` / `go` is the campaign go. Design/plan/harden are free.
-   `chain`/`new`/`refresh`/`add`/`done` are non-gated authoring/bookkeeping. Sensitive members still
-   re-ask.
+   `chain`/`new`/`refresh`/`add`/`done` are non-gated authoring/bookkeeping. Sensitive members use
+   existing authority covering their actions and targets; only genuinely new authority needs confirmation.
 3. **The PROGRESS block is computed, not hand-edited.** Author everything else; let
    `runbook-render.py` own the sentineled span. Status truth lives in member frontmatter + checkboxes.
 4. **File-level exclusion.** File-disjoint members may run concurrently within one host-wide

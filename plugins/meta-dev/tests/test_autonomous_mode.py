@@ -21,26 +21,48 @@ def run_hook(prompt, tmp_path, **environment):
 
 
 @pytest.mark.parametrize("prompt", [
-    "/meta-audit plans/example --autonomous", "Review the changes --autonomous",
-    "--autonomous diagnose the failure", "Plan the feature --autonomous",
+    "/meta-audit plans/example --autonomous", "--autonomous Review the changes",
+    "--autonomous diagnose the failure", "/meta-planner feature --autonomous",
     "/meta-execute plans/example --autonomous",
+    "  /meta-dev --autonomous implement the approved job",
+    '/meta-execute "plans/example with spaces" --autonomous',
+    "--autonomous\nImplement the approved job",
+    "--autonomous",
 ])
 def test_autonomy_injection_preserves_scope_and_hard_gates(tmp_path, prompt):
     output = json.loads(run_hook(prompt, tmp_path))["hookSpecificOutput"]
     assert output["hookEventName"] == "UserPromptSubmit"
     context = output["additionalContext"]
-    for marker in ("stays read-only", "only for a scoped implementation",
-                   "optional cadence", "separate configured authorization",
-                   "No automatic Fable consultation", "No deploy, ship, publish",
-                   "safety veto list", "NEVER pass `--human`", "stay UNCHECKED",
+    for marker in ("read-only request", "scoped implementation",
+                   "stages, workers, repairs", "necessary integration",
+                   "already-authorized sensitive work", "genuinely new authority",
+                   "optional cadence", "existing authorization",
+                   "No automatic Fable consultation", "instruction hierarchy",
+                   "environment protections", "credentials", "NEVER pass `--human`", "stay UNCHECKED",
                    "parked", "residual risk"):
         assert marker in context
+    for obsolete in ("No deploy, ship, publish", "safety veto list",
+                     "separate configured authorization"):
+        assert obsolete not in context
     assert "fable-consult.sh" not in context
     assert "They have\npre-authorized this run" not in context
 
 
 @pytest.mark.parametrize("prompt", ["", "Review this", "--autonomously", "/path/--autonomous",
-                                   "Please read --autonomous-mode", "--autonomous=false"])
+    "Please read --autonomous-mode", "--autonomous=false", "--AUTONOMOUS",
+    "Explain --autonomous", "Review the changes --autonomous",
+    "Does --autonomous skip approvals?", "Do not use --autonomous today",
+    '"--autonomous" implement the job', "`--autonomous` implement the job",
+    "```\n/meta-execute plans/example --autonomous\n```",
+    "Example:\n/meta-execute plans/example --autonomous",
+    '/meta-dev explain "--autonomous"', "/meta-dev explain '--autonomous'",
+    "/meta-dev explain `--autonomous`", '/meta-dev explain "the --autonomous flag"',
+    '/meta-dev explain "an unfinished --autonomous',
+    '/meta-dev explain "--autonomous"-mode',
+    "/meta-dev explain the flag\n--autonomous",
+    "/meta-execute plans/example --autonomous=false",
+    "/meta-dev explain -- --autonomous",
+])
 def test_other_tokens_do_not_enable_autonomy(tmp_path, prompt):
     assert run_hook(prompt, tmp_path) == ""
 
@@ -69,10 +91,15 @@ def test_malformed_payload_is_nonblocking(tmp_path):
 def test_reference_matches_permission_and_consultant_contract():
     text = REFERENCE.read_text()
     for marker in ("read-only request", "new authority", "optional cadence prompts",
-                   "safety veto list", "without calling or installing a consultant",
+                   "stages, workers, repairs", "necessary integration",
+                   "already-authorized sensitive work", "reserved human gates",
+                   "instruction hierarchy", "environment protections", "credentials",
+                   "first invocation line", "quoted", "leading flag",
                    "must never pass", "`--human`", "optional configured consultant",
                    "never adds paid external dispatch permission",
                    "only if an authorized", "Unresolved human gates stay unresolved"):
         assert marker in text
+    assert "The safety veto list" not in text
+    assert "An unattended run does not push to" not in text
     assert "<n> Fable consults" not in text
     assert "Tauri" not in text

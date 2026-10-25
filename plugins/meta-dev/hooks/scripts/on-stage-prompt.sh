@@ -5,7 +5,7 @@ set -uo pipefail
 #
 # Two independent jobs, in order:
 #
-# 1. AUTONOMOUS MODE — if the prompt carries `--autonomous` anywhere, inject the
+# 1. AUTONOMOUS MODE — if the prompt invokes `--autonomous`, inject the
 #    autonomous contract as additionalContext. This is what makes the flag work
 #    across ALL commands: meta-dev has no central argument parser (each command's
 #    markdown parses its own flags), so a per-command flag would have meant
@@ -35,38 +35,51 @@ PROMPT=$(printf '%s' "$PAYLOAD" | jq -r '.prompt // ""' 2>/dev/null || echo "")
 [ -z "$PROMPT" ] && exit 0
 
 # ── 1. Autonomous mode ────────────────────────────────────────────────────
-# Whole-token match, so `--autonomously` or a path fragment cannot trip it.
-if printf '%s' "$PROMPT" | grep -qiE '(^|[[:space:]])--autonomous([[:space:]]|$)' 2>/dev/null; then
+# Require a command invocation or a leading flag on the first line. Ignore
+# quoted arguments and examples; a prose mention must not enable execution.
+if printf '%s' "$PROMPT" | jq -Rse "$(cat <<'FILTER'
+  split("\n")[0]
+  | select(test("^\\s*(/[A-Za-z0-9_:-]+\\s+|--autonomous(?:\\s|$))"))
+  | gsub("\"(?:\\\\.|[^\"\\\\])*(?:\"|$)|'[^']*(?:'|$)|`[^`]*(?:`|$)"; "_")
+  | sub("(^|\\s)--(\\s|$).*"; "")
+  | test("(^|\\s)--autonomous(\\s|$)")
+FILTER
+)" >/dev/null 2>&1; then
   CONTEXT=$(cat <<'AUTOEOF'
-⟡ AUTONOMOUS MODE ENGAGED — `--autonomous` is present in this prompt.
+⟡ AUTONOMOUS MODE ENGAGED — `--autonomous` was invoked.
 
-Continue unattended within the selected task's existing scope. Classify that
-task first: an audit, review, diagnosis, explanation, or plan stays read-only.
-The flag does not authorize implementation of findings, external services, or
-scope expansion. It supplies Stage-5 permission only for a scoped implementation
-request. Neither `--autonomous` nor a stage ceiling turns read-only work into edits.
+Own the explicitly authorized job through completion. Carry authorization across
+stages, workers, repairs, verification, and necessary integration within scope;
+include the authority and constraints in worker briefs and handoffs. A standalone
+read-only request stays read-only; a scoped implementation request includes its
+necessary repairs. Neither the flag nor a stage ceiling expands the job's scope.
 
 It implies cruise mode, `--gate none`, and `--no-pause` for optional cadence
-prompts only. Existing permission boundaries and human acceptance gates remain.
+prompts only. Preserve the instruction hierarchy and explicitly reserved human gates.
 - Do not ask routine "proceed?" questions for already-authorized work.
 - Make reversible decisions within granted scope and record the rationale.
-- Park material ambiguity, new permission requirements, or unsafe work with
-  evidence; continue independent authorized subjects.
-- External consultants are optional and require separate configured authorization.
+- Perform already-authorized sensitive work without redundant approval. Auth,
+  schema, money-path, destructive, cross-repo, deploy/publish/release, and spend-or-send
+  work need authority covering that action and target, not a new prompt each stage.
+- Park only concrete blockers: genuinely new authority, material scope ambiguity,
+  an unavailable capability, a mandatory protection, or a reserved human gate.
+  Record evidence and what unblocks the branch; continue independent authorized work.
+- External consultants are optional; use existing authorization when it covers dispatch.
   No automatic Fable consultation or paid dispatch follows from this flag.
   A consultant's confidence never replaces security or acceptance evidence.
 - Gates needing human eyes are deferred to a punch list, never marked complete.
 
 THE HARD FLOOR — unattended never means unsafe:
-  1. Guard-hook denies + every git ban (rebase/stash/amend/force-push/tree-wide add).
-  2. No deploy, ship, publish, release, or real migration. Prepare, then stop.
-  3. The safety veto list — destructive, security, money-path, schema,
-     cross-repo contract, spend-or-send, scope expansion → park the subject.
+  1. Mandatory environment protections, guard-hook denies, and every applicable
+     git ban remain. Do not bypass sandbox restrictions or denied operations.
+  2. Use credentials only through authorized mechanisms for the approved target;
+     never expose secrets or obtain broader access to get around a blocker.
+  3. Explicitly reserved approvals still apply, even within an authorized job.
   4. Human-verify boxes (`by eye`/`by hand`/`gpu`/`manual`) stay UNCHECKED.
      NEVER pass `--human` to planctl. Flipping the user's own smoke test while
      unattended forges a verification rather than automating one. Defer it.
-  5. TRUE BLOCKERs still halt — but they park THAT SUBJECT ONLY and the run
-     continues elsewhere. Halting is not the same as asking.
+  5. Verify with actual evidence. Never claim unlimited authority, invent tool
+     availability, or report a denied, unavailable, skipped, or failed operation as done.
 
 CLOSE WITH THE AUTONOMOUS RUN REPORT — completed / decisions and evidence /
 parked / human-verification punch list / residual risk. Report only work and

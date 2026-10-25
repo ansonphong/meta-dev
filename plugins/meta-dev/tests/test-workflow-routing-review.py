@@ -82,8 +82,15 @@ class WorkflowRoutingContract(unittest.TestCase):
             "FAIL",
             "gpt-6-sol",
             "External/headless reviewers run only",
+            "stages, workers, repairs",
+            "necessary integration",
+            "already-authorized sensitive work",
+            "genuinely new authority",
+            "reserved human gates",
+            "credentials",
         ):
             self.assertIn(marker, text)
+        self.assertNotIn("require an explicit confirmation even when nearby work", text)
 
 
 class NativeReviewContract(unittest.TestCase):
@@ -110,6 +117,8 @@ class NativeReviewContract(unittest.TestCase):
             "Stage 6 uses one native Codex review",
             "Do not infer `meta-eval`, `meta-audit`, or standalone `housekeeping`",
             "Before dispatching two or more external workers",
+            "existing authorization already covers that dispatch",
+            "Carry scoped authorization across stages, workers, repairs",
         ):
             self.assertIn(marker, adapter)
         self.assertIn("overrides generic cross-family ladder recipes", protocol)

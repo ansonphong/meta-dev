@@ -6,10 +6,13 @@ user. It means:
 
 > Continue unattended within the task's existing scope.
 
-The user typing `--autonomous` has authorized unattended progress within the
-selected task's existing scope, not a materially different action.
-Make reversible decisions within that scope. Material ambiguity or new authority
-parks the affected branch; independent authorized work can continue.
+Invoking `--autonomous` authorizes unattended progress on the selected task.
+Explicit authorization persists across stages, workers, repairs, verification,
+and necessary integration within scope. Own the approved job through completion;
+include its authority and constraints in worker briefs, resumes, and handoffs.
+Make reversible decisions within scope without asking. A concrete blocker or
+genuinely new authority parks only the affected branch and its dependents;
+continue independent authorized work.
 
 `--autonomous` supplies explicit Stage-5 permission only for a scoped implementation request;
 when modifying a read-only audit/review, it preserves that read-only boundary.
@@ -19,16 +22,21 @@ turns a read-only request into authorization to edit its findings.
 
 ## Detection
 
-Recognized when the token `--autonomous` appears anywhere in `$ARGUMENTS`, on
-any command. The `on-stage-prompt.sh` UserPromptSubmit hook detects it on the
-raw prompt and injects the contract, so it applies even on commands whose
-markdown never mentions it. Synonyms in prose ("overnight", "while I sleep",
-"unattended run to the end") carry the same intent — honor them.
+The `on-stage-prompt.sh` UserPromptSubmit hook recognizes the exact, unquoted,
+case-sensitive token on the first invocation line: anywhere in a leading slash
+command's arguments, or as a leading flag for a bare task. For example,
+`/meta-execute plans/example --autonomous` or `--autonomous implement the approved job`.
+Quoted tokens, fenced examples, discussion such as "explain --autonomous", and
+tokens after an option terminator (`--`) or on later discussion lines do not
+activate the hook. The hook injects the contract even when the selected command's
+markdown never mentions the flag.
+Unambiguous instructions in prose ("own the approved job while I sleep") also
+authorize unattended work; a discussion of those phrases does not.
 
 `--autonomous` **implies and supersedes** cruise: it sets cruise mode, `--gate
 none` and `--no-pause` for optional cadence prompts, not permission or human
-acceptance gates. Optional external consultation still requires its own
-configured authorization. Do not ask the user to
+acceptance gates. Optional external consultation uses existing authorization
+when it covers that dispatch; otherwise it needs new authority. Do not ask the user to
 also pass `--cruise`; do not treat the two as conflicting.
 
 ## What it suppresses
@@ -36,11 +44,11 @@ also pass `--cruise`; do not treat the two as conflicting.
 | Suppressed | Was |
 |---|---|
 | Stage-transition prompts | "Stage N complete. Ready for N+1?" → auto-advance |
-| Optional cadence pauses | continue only already-authorized work; safety vetoes still park the affected subject |
+| Optional cadence pauses | continue already-authorized work, including authorized sensitive actions |
 | "Proceed? / ready? / shall I dispatch?" | already banned by the Anti-Paranoia Charter; now doubly so |
 | Judgment-call escalations | decide within granted scope or park with evidence; optional consultants require authorization |
 | Human-verify gates mid-run | **deferred to the end**, collected in a punch list |
-| Per-stage confirmation of plan/design artifacts | auto-accept at the stage's exit criteria |
+| Per-stage confirmation of plan/design artifacts | advance at the stage's exit criteria unless human approval was explicitly reserved |
 
 ## The hard floor — what `--autonomous` NEVER suppresses
 
@@ -52,13 +60,17 @@ user's preference:
    `curl|bash`, tree-wide staging. Mechanically denied; no flag reaches them.
 2. **The git bans.** No `rebase`/`pull`/`merge` without `--ff-only`, no
    `stash`, no `--amend`, no `checkout`/`restore` of a peer's work.
-3. **Deploy, ship, publish, release.** An unattended run does not push to
-   production, does not `npm publish`, does not run a real migration. It
-   prepares them and stops at the door.
-4. **The safety veto list** — destructive,
-   security, money-path, schema, cross-repo contract, spend-or-send, scope
-   expansion. These halt the subject and land in the report. This safety floor
-   applies without calling or installing a consultant.
+3. **Mandatory protections.** Preserve the instruction hierarchy and environment protections:
+   higher-priority instructions, sandbox restrictions, mandatory guards,
+   and explicitly reserved human gates. Do not bypass a denial or claim unlimited authority.
+4. **Authority for sensitive actions.** Perform already-authorized sensitive work
+   without redundant approval. Auth, schema/migrations, payments, destructive work,
+   cross-repo contracts, deployment, publishing, releases, and spend-or-send actions
+   need explicit authority covering the action and target. Existing authority counts;
+   a risk label alone is not a blocker. An implementation request does not by itself
+   authorize a production deployment, live migration, or unrelated purchase/message.
+   Use credentials only through authorized mechanisms for the approved target;
+   never expose secrets or obtain broader access to bypass a blocker.
 5. **Human-verify checkboxes stay unchecked.** `by eye` / `by hand` / `gpu` /
    `manual` boxes are the user's smoke test. `planctl` mechanically refuses to
    flip them without `--human`, and **autonomous mode must never pass
@@ -88,7 +100,10 @@ punch list is for.
 ## Judgment calls
 
 Make reversible decisions within granted scope and record the rationale.
-Material ambiguity, scope expansion, or a permission boundary parks that branch.
+Park material scope ambiguity, genuinely new authority, unavailable capabilities,
+mandatory protections, or reserved human gates with evidence and the concrete
+unblocking action. Do not manufacture blockers from reversible implementation
+choices or already-granted authority.
 An optional configured consultant may help only when authorized; autonomous mode
 never adds paid external dispatch permission. Its confidence does not override
 security or acceptance evidence. See `references/work-ladder.md`.
@@ -127,3 +142,4 @@ Report what actually happened. A red test says red, a skipped step says
 skipped. Include consultant identity and confidence only if an authorized
 consultation actually occurred; never invent either. Read-only runs report
 findings, not implementation commits. Unresolved human gates stay unresolved.
+Never report a denied or unavailable operation as successful.

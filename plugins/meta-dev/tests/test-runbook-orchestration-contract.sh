@@ -44,6 +44,9 @@ required = {
         "TaskCreate",
         "CONTEXT_VERDICT=OVER",
         "flatten a campaign into a host-specific workflow script",
+        "including explicitly authorized sensitive members",
+        "genuinely new authority",
+        "existing scoped authorization and reserved human gates",
     ],
     "commands/auto-execute.md": [
         "not a second execution engine",
@@ -66,6 +69,8 @@ forbidden = {
         "~24 writers",
         "DeepSeek paused",
         "Unrelated dirty files → **commit",
+        "Sensitive members still",
+        "Sensitive member waiting on a fresh human confirm",
     ],
     "commands/auto-execute.md": [
         "state.events.jsonl",

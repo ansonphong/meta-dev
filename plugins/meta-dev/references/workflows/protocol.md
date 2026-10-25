@@ -13,14 +13,33 @@ Classify the request before acting:
 - `write`: an explicit change request or go-word (`go`, `execute`, `ship it`,
   `--fix`). Changes are limited to the declared target.
 - `sensitive`: auth, schema/migrations, payments, destructive operations, and
-  cross-repo contracts require an explicit confirmation even when nearby work
-  is authorized.
-- Interactive desktop smoke tests always require their own scheduled approval.
+  cross-repo contracts need explicit authority covering the action and target.
+  Perform already-authorized sensitive work without redundant approval; a risk
+  label alone does not require a fresh confirmation.
+- Interactive desktop smoke tests require scheduled approval covering their
+  interactions and environment. Reuse that approval within its agreed limits.
+
+Explicit authorization persists across stages, workers, repairs, verification,
+and necessary integration within scope. Include that authority and its constraints
+in briefs and handoffs; a worker or stage transition does not reset it. Make
+reversible implementation decisions without asking. Release, deployment, live
+migration, spending, and sending need authority covering those actions and targets;
+existing authorization counts. Re-ask only for genuinely new authority or material
+scope ambiguity, never routine continuation of the approved job.
+
+Preserve the instruction hierarchy, mandatory environment protections, credentials
+boundaries, and explicitly reserved human gates. Do not bypass denied operations,
+obtain broader access, expose secrets, or claim unlimited authority. Unavailable
+capabilities and unobserved verification are not successes. Park the affected
+branch and dependents with evidence and an unblocking action; continue independent
+authorized work.
 
 Planning never implies execution. Review and audit are report-only by default.
 A finding, `NEEDS_FIX`, `CONDITIONAL_PASS`, or `FAIL` is evidence, not permission
-to edit or commit. With explicit fix authorization, remediation is a separate
-step followed by focused verification and a new review.
+to edit or commit. Within an already-authorized implementation job, necessary
+remediation uses that existing authority, followed by focused verification and
+review of the changed scope. A standalone read-only review still needs fix
+authorization before edits.
 
 ## Adaptive depth
 

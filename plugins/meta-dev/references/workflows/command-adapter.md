@@ -31,8 +31,11 @@ Use this contract whenever a native command skill points at a canonical
    neutral context. Do not consult `CLAUDE.md` for project details. Inspect it
    only when the command itself explicitly concerns an adapter, compatibility,
    or migration.
-6. Preserve all permission gates. Planning, review, audit, and diagnosis do not
-   authorize source implementation.
+6. Carry scoped authorization across stages, workers, repairs, verification, and
+   necessary integration. Preserve mandatory protections and reserved human gates;
+   request only genuinely new authority. Standalone planning, review, audit, and
+   diagnosis do not authorize source implementation. Within an approved
+   implementation job, those stages and their necessary fixes reuse its authority.
 
 ## Codex efficiency boundary
 
@@ -50,8 +53,9 @@ their names resemble a stage or section in the selected procedure. In particular
 - Do not replace an `INFRA_RED` optional reviewer with other model families.
   Record the infrastructure result and continue with the valid native gate.
 - Before dispatching two or more external workers, state the worker count and
-  obtain explicit confirmation unless the user already requested cross-family
-  review or full evaluation.
+  obtain explicit confirmation unless existing authorization already covers that dispatch
+  (such as a request for cross-family review or full evaluation). Carry the same
+  authorization into replacement workers and repairs within its limits.
 
 If the command procedure conflicts with the shared protocol because it names a
 Claude-only reviewer or unavailable surface, the shared protocol wins while
