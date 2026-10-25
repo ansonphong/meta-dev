@@ -86,6 +86,15 @@ case "$PROMPT" in
     *) bad "preamble missing" ;;
 esac
 
+for level in low medium high; do
+    preamble="$(md_budget_preamble "$level")"
+    case "$preamble" in
+        *"One repair pass"*|*"Cap 3 repair rounds"*|*"First acceptance is enough"*)
+            bad "$level budget imposes premature return" ;;
+        *) ok "$level budget limits resources without redefining completion" ;;
+    esac
+done
+
 # --timeout unit parse + host-tool leak ignore
 got="$(md_parse_timeout_to_ms 30m)"
 [[ "$got" == "1800000" ]] && ok "30m → 1800000ms" || bad "30m → $got"
@@ -181,6 +190,11 @@ for BACKEND in grok deep codex opus sonnet fable glm agy cursor; do
         *"Farm independent pieces"*|*"REVIEW unless"*|*"One acceptance."*)
             bad "$BACKEND imposes conflicting delegation or role" ;;
         *) ok "$BACKEND leaves ownership and role to task" ;;
+    esac
+    case "$PROMPT" in
+        *"references/execute-charter.md"*"ordinary repairs"*"whole task"*"durability"*)
+            ok "$BACKEND carries completion ownership and acceptance contract" ;;
+        *) bad "$BACKEND lost completion ownership or acceptance contract" ;;
     esac
 done
 

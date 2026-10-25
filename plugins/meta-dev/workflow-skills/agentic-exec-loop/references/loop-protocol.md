@@ -46,12 +46,11 @@ calls, repeated plan reads, or periodic sleeps to preserve a speculative cache.
 
 ## Infrastructure and repair
 
-Preserve structured worker output and local commits. Runner stalls are
-`INFRA_RED`, not code regressions. Retry infrastructure at most once at the
-conductor layer, respecting the runner's own retry budget. Park unsupported
-branches without abandoning running work or claiming acceptance.
+Preserve structured worker output and local commits. Runner failures are
+`INFRA_RED`, not code regressions. Use the charter's bounded transient retry
+policy, accounting for runner retries; silence alone does not establish failure.
 
-Repair only causal scope, with at most two attempts before disposition. Route
-through configured permitted backends; do not automatically escalate to a paid
-consultant. Reuse unchanged green evidence; rerun only checks invalidated by the
-repair. Budget exhaustion leaves an honest unresolved result.
+For implementation repairs and escalation, use
+`references/execute-charter.md` → Ownership through completion. Keep the current
+owner and unaffected passing evidence; rerun only invalidated checks. Budget
+exhaustion leaves an honest unresolved result, never acceptance.

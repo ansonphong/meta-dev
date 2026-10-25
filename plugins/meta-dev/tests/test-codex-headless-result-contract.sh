@@ -21,6 +21,7 @@ run_stubbed() {
     PATH="$TMP_DIR/bin:$PATH" \
     CODEX_HOME="$TMP_DIR/codex-home" \
     CODEX_STUB_ARGV="$TMP_DIR/argv" \
+    CODEX_STUB_PROMPT="$TMP_DIR/prompt" \
     CODEX_STUB_RESULT="$fixture" \
     STALL_SECS=0 \
     "$RUNNER" --no-framework --timeout 10000 --output-file "$output" "$@" -- "Return the required JSON handoff."
@@ -46,7 +47,16 @@ assert args[args.index("-m") + 1] == "gpt-6-sol"
 assert 'model_reasoning_effort="medium"' in args
 assert "exactly one entry for every assigned ledger handle" in runner.read_text()
 assert "never a slice wholesale" in runner.read_text()
+prompt = (argv.parent / "prompt").read_text()
+assert "references/execute-charter.md" in prompt
+assert "ordinary repairs under the existing scoped go" in prompt
+assert "Self-check the whole task" in prompt
+assert "unfinished requirements" in prompt and "in blockers" in prompt
+assert "durability, not completion or a reason to return" in prompt
+for obsolete in ("One repair pass", "Cap 3 repair rounds", "STOP and report", "codex exec -m"):
+    assert obsolete not in prompt, obsolete
 print("PASS: output schema, gpt-6-sol medium default, and legacy wrapper contract")
+print("PASS: actual runner prompt retains repair ownership and whole-task acceptance")
 PY
 
 assert_route() {

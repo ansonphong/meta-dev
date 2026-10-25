@@ -73,20 +73,18 @@ before implementation. For each task/slice:
   declared source/test paths. Run only focused/scoped checks. Never add a full
   suite, build, or whole-project typecheck as a task or phase gate.
 - Preserve edits with explicit-path local commits even on red. Require actual
-  command, exit code, output evidence, and causal result for each handle.
-- `FOCUSED_PASS`: accept the proven outcome.
-  `BASELINE_RED`: accept only when the task's own acceptance is established.
-  `TASK_RED`: repair/park that causal branch; independent work continues.
-  `INFRA_RED`: retry infrastructure once; never claim unverified acceptance.
-  `BROAD_VERIFY_OMITTED`: report omitted broad evidence; it is not a pass.
-  Human gates remain open until observed, even if implementation is complete.
+  command, exit code, output evidence, and causal result for each handle. Red
+  commits preserve work; the owner continues viable in-scope repairs.
+- Apply `references/execute-charter.md` for completion, causal failures and
+  bounded escalation. Inspect the actual scoped diff and whole-task acceptance
+  check before accepting; a focused green check alone is insufficient.
 - Promptly update each accepted handle through
   `bash ${PLUGIN_ROOT}/scripts/planctl.sh check <plan> <bound-handle>`.
   Workers never edit checkboxes. A ledger commit may persist multiple updates
   at a bounded slice seam, not at the end of the whole run.
-- Use at most two scoped repair attempts before reporting a parked branch.
-  Batch compatible independent findings, verify valid and relevant refusal
-  behavior, and retain the branch attempt count. Never treat exhaustion as success.
+- Keep the current owner through ordinary repairs, reusing valid evidence.
+  Record unresolved requirements explicitly and advance dependency-ready,
+  disjoint work within capacity. Never treat exhaustion as success.
 - At committed slice/phase seams, use the session-bound context watchdog from
   `workflow-skills/agentic-exec-loop/references/loop-protocol.md`. Unknown
   telemetry is nonblocking. Drain running workers/verifiers before handoff.

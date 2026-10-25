@@ -11,11 +11,14 @@ The runner never goes uncapped.
 
 ## Levels
 
-| Level | Turns | Wall clock | Effort (only if `--effort` omitted) | Worker must |
-|-------|-------|------------|--------------------------------------|-------------|
-| **low** | 12 | 30 min | `low` | Do the named thing. No extra investigation. No subagents. Stop at first acceptance. |
-| **medium** | 32 | 90 min | leave backend default | Declared files only. One repair pass. No unrelated refactors. |
-| **high** | 80 | 180 min | `xhigh` if the backend has it, else `high` | Go as deep as the task needs. Still no unrelated work. Cap 3 repair rounds. |
+| Level | Turns | Wall clock | Effort (only if `--effort` omitted) |
+|-------|-------|------------|-----------------------------------|
+| **low** | 12 | 30 min | `low` |
+| **medium** | 32 | 90 min | leave backend default |
+| **high** | 80 | 180 min | `xhigh` if the backend has it, else `high` |
+
+Resource ceilings do not redefine completion or impose separate repair counts.
+Ownership, acceptance and escalation follow `references/execute-charter.md`.
 
 These walls match real headless jobs (DeepSeek / Codex / Grok / Opus / Fable
 often run 30+ min). Do not pass a host bash/spawn timeout (5s, 2 min, 5 min)
@@ -29,7 +32,7 @@ Liveness: stream workers use a silence watchdog of **max(20 min, wall/4)**
 
 `--effort`, `--max-turns`, and `--timeout` win over the table for that knob
 unless `--timeout` is a host-tool leak (5s–5min in ms) — those are ignored
-and the budget wall is used. `--budget` still injects the depth rules.
+and the budget wall is used. `--budget` injects the resolved resource ceilings.
 
 `--budget auto` at a **runner** (no classifier ran) falls back to **medium**
 and logs it. Do not leave that as the usual path — classify at dispatch.

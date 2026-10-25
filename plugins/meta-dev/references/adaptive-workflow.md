@@ -53,8 +53,9 @@ Never delay state updates until the end of the whole run.
 Workers send per-handle progress if the host supports it. Otherwise the bounded
 slice reports at return, and the conductor updates each handle then. A failure
 parks only its dependents; independent accepted handles retain their evidence.
-Persistent ownership ends at completion, scope change, unsafe drift, or a
-context boundary. Resume from committed evidence, not an assumed empty context.
+Ownership continues through ordinary repairs and context compaction. Use
+`references/execute-charter.md` for completion, bounded escalation and genuine
+stop/transfer conditions. Resume from committed evidence, not an empty context.
 
 Co-dispatch only disjoint write sets; include fixers and nested workers in the
 same host-wide concurrency budget. Default caps are ceilings, not occupancy

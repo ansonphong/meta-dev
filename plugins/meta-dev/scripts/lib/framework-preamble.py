@@ -146,52 +146,30 @@ def build(root, full=False):
                 out.append(line.rstrip().rstrip(","))
             out.append("")
 
-    out.append("LAWS (binding — these are why the harness exists):")
-    out.append("1. planctl is the ONLY write door for plan state. To flip a checkbox,")
-    out.append("   set a stage, or claim work, run")
-    out.append("   `bash %s/scripts/planctl.sh <verb>`." % root)
-    out.append("   NEVER hand-edit a `- [ ]` checkbox in a plan .md — the index and the")
-    out.append("   markdown will disagree and the dashboards will lie.")
-    out.append("2. Plans live in the project's plans/ tree; CODE lives in the child")
-    out.append("   repos. Never write plan files into a code repo, or vice versa.")
-    out.append("3. Report honestly. If a verify command fails, say so and paste the")
-    out.append("   output. A green claim over a red run is the one unrecoverable error.")
-    out.append("4. COMMIT-ON-RED: if you edit a declared file, stage only those exact")
-    out.append("   paths and create a local commit before every return, including red or")
-    out.append("   BLOCKED. Red blocks DONE/checkbox/push, never the local commit.")
-    out.append("   Your .git IS writable — the dispatcher grants it explicitly. If a")
-    out.append("   commit fails on a read-only .git, that is an executor bug: report it,")
-    out.append("   do not work around it by skipping the commit.")
-    out.append("5. Touch only what your task declares. If the task contradicts what you")
-    out.append("   find on disk, STOP and report — do not improvise.")
-    out.append("6. REPORT CONTRADICTIONS, never resolve them silently. If your task")
-    out.append("   brief contradicts these LAWS — e.g. it tells you not to commit —")
-    out.append("   do NOT just pick one. Quote both instructions in your return and")
-    out.append("   name which you followed. Silently obeying the narrower instruction")
-    out.append("   is how a one-off workaround becomes policy nobody chose.")
-    out.append("")
-    out.append("Harness translation (that markdown is written for Claude Code):")
-    out.append("  ${CLAUDE_PLUGIN_ROOT} = %s" % root)
-    out.append("  You have NO Read/Grep/Glob/Task tools and NO slash commands. Read with")
-    out.append("  your shell (rg/sed/cat), edit with apply_patch. Where a file says to")
-    out.append("  invoke /foo or a named skill, READ THAT FILE and follow it inline.")
-    out.append("  Where it says to dispatch subagents, do that work sequentially unless")
-    out.append("  you have spawn_agent.")
-    out.append("")
+    out.extend([
+        "Worker contract: read references/execute-charter.md under the framework root.",
+        "Keep ownership through ordinary repairs and whole-task acceptance checking.",
+        "The conductor alone changes plan state through scripts/planctl.sh.",
+        "Keep plans in the project plans/ tree and code in its source repository.",
+        "Commit exact scoped paths before stopping, even red; red is not completion.",
+        "Resolve changed technical assumptions within scope; report genuine scope",
+        "or authority conflicts. Preserve unrelated work and report evidence honestly.",
+        "Read-only work never edits or commits. Workers never push or farm sub-workers.",
+        "Translate unavailable Claude slash commands/tools to available host tools;",
+        "read a named protocol file and follow it inline. Do not invent capabilities.",
+        "  ${CLAUDE_PLUGIN_ROOT} = %s" % root,
+        "",
+    ])
     out.append("=== END META-DEV HARNESS ===")
     return "\n".join(out)
 
 
 _FALLBACK = """=== META-DEV HARNESS (you are a worker inside it) ===
-You are executing inside the meta-dev harness. Protocols live in
-workflow-skills/<name>/SKILL.md and commands/<name>.md under the plugin root; read the
-one matching your task before starting.
-LAWS: planctl (scripts/planctl.sh) is the ONLY write door for plan state —
-never hand-edit a checkbox. Report failures honestly with output. If you edit
-declared files, stage only those exact paths and create a local commit before
-every return, including red/BLOCKED; red blocks DONE/push, not persistence.
-Touch only what your task declares. If your brief contradicts these LAWS (e.g.
-tells you not to commit), report the conflict rather than silently picking one.
+Own the declared task through ordinary repairs and whole-task self-check under
+its existing scoped go and budget. Commit exact paths before stopping, even red;
+red is durability, not completion or a reason to return. Report actual evidence
+and genuine blockers. Read-only work never edits or commits. The conductor owns
+planctl state; do not edit checkboxes, push or dispatch sub-workers.
 === END META-DEV HARNESS ==="""
 
 

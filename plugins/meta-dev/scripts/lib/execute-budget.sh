@@ -198,23 +198,10 @@ md_budget_preamble() {
     local turns="${2:-32}"
     local timeout_ms="${3:-5400000}"
     local timeout_min=$((timeout_ms / 60000))
-    local rules
-    case "$level" in
-        low)
-            rules="Do the named task and stop. No extra investigation. No subagents. No adjacent files. First acceptance is enough."
-            ;;
-        high)
-            rules="Go as deep as THIS task needs. Still no unrelated refactors. Cap 3 repair rounds, then report residual."
-            ;;
-        *)
-            rules="Stay on the declared files. One repair pass. No unrelated refactors. Do not open adjacent rabbit holes."
-            ;;
-    esac
     cat <<EOF
 === EXECUTION BUDGET: ${level} ===
 Turn cap: ${turns}. Wall: ${timeout_min} min.
-Do not overthink. Do not wander.
-${rules}
+These are resource ceilings, not repair-count or acceptance shortcuts.
 === END BUDGET ===
 EOF
 }

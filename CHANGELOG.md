@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.5.18
+
+- Keep one implementation owner through ordinary repairs, whole-task acceptance,
+  focused verification and exact-path commits under the existing scoped go.
+- Replace conflicting repair-pass/parking rules with shared bounded diagnosis
+  and escalation; retain real resource, permission and independent review gates.
+- Shorten injected worker instructions and reject narrow green completion claims
+  when declared callers, fixtures or other requirements remain unfinished.
+- Keep Claude and Codex plugin manifests aligned at version 1.5.18.
+
 ## 1.5.15
 
 - Make OVERLORD supervise truthful, efficient delivery, while retaining plan reconciliation, completed-task reviews, authorized repairs, dashboard, and inbox duties.

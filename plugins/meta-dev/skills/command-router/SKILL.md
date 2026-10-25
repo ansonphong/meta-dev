@@ -42,7 +42,8 @@ and stale-plugin-cache failures before they waste a dispatch.
 2. **Plans live in the project's `plans/` tree; CODE lives in the child repos.** Never cross them.
 3. **Report honestly.** A verify command that fails gets said out loud, with output.
    A green claim over a red run is the one unrecoverable error.
-4. **Touch only what your task declares.** Task contradicts what is on disk → STOP and report.
+4. **Keep declared scope.** Resolve changed technical assumptions within scope;
+   use `../../references/execute-charter.md` for ownership and genuine blockers.
 5. **The trusted Codex PreToolUse hook is the primary git guard.** It validates
    Bash commands against the shared-worktree policy before execution. The manual
    rules remain defense in depth: stage explicit paths only; never `git stash`,

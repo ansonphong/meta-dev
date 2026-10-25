@@ -1,8 +1,8 @@
 # Execution dispatch contract
 
 Read `references/adaptive-workflow.md` and `references/execute-charter.md`.
-Use one host-native worker per resolved task or coherent slice, with only the
-relevant plan sections inlined. A model route is not a permission grant.
+Use one accountable owner per task or coherent slice, inline or delegated, with
+only the relevant plan sections inlined. A model route is not a permission grant.
 `scripts/jev-decide.sh` is a suggestion only. It does not grant a go-word,
 bypass git bans, or spawn the worker. A missing key fails open.
 
@@ -14,22 +14,21 @@ Repository: <absolute root>; inspected revision: <sha>
 Owner: <worker identity>; handles: <conductor-bound handles>
 Declared files: <explicit paths and semantic anchors>
 Task sections: <each relevant section, interfaces, acceptance, dependencies>
+Authority: <existing scoped go and protected actions>
 Integration joins: <producer → transport → consumer; adjacent read-only callers>
 Verification: <per-handle command, allowed paths, expected result>
 Budget: <resolved turns/time and task/slice limit>
 
-Host timeout (binding): headless workers run 30–180 min. Launch with
-background=true and host timeout 0 (Grok) / no short Bash timeout (Claude).
-Never pass 5s, 2 min, or 5 min as the tool timeout. Never copy that value
-into --timeout. Wait with timeout_ms ≥ 1800000 or until the runner exits.
+Read <plugin-root>/references/execute-charter.md. Keep ownership through ordinary
+repairs and whole-task self-check; the scoped go covers that continuation.
 
 Before an integration slice, trace its relevant producer → transport → consumer
 joins and adjacent read-only callers. Resolve concrete ownership/interface gaps
 within declared scope together; report an out-of-scope gap for rescheduling.
 Keep the trace bounded to the task. Re-anchor named symbols against live code
 before editing. Preserve unrelated changes; do not claim or commit a peer's
-overlapping edits. Report an ownership
-conflict and continue independent work. Follow the project's branch policy.
+overlapping edits. Resolve ownership before editing; continue independent work.
+Follow the project's branch policy.
 
 Implement only declared work. After edits, create an explicit-path local commit
 before returning, including a red/exhausted attempt; never push. Use:
@@ -49,7 +48,8 @@ remaining acceptance items, and surprises. Do not mutate the plan ledger.
 
 A shared slice commit may support multiple handles, but never share an acceptance
 claim without its evidence. Dependency order within the slice remains binding.
-If scope or risk changes, return the committed partial result for rescheduling.
+Do not return merely because a technical assumption changed; resolve it within
+scope. Genuine authority/scope changes follow the charter's stop conditions.
 
 ## Verification and repair
 
@@ -64,21 +64,21 @@ requirements override the default critical-only policy. No build or full suite
 is added as a task gate. Syntax/stub searches are evidence to inspect, not
 proof that a legitimate empty return or abstract method is a defect.
 
-A fixer owns only the causally affected declared paths. Batch independent,
-compatible findings in a coherent repair, preserving per-finding evidence and
-the original branch attempt count. Preserve scoped attempts
-with local commits. At most two repair attempts before parking that branch;
-an external consultant requires separate authorization. Never widen to peer
-files or rotate model families simply because infrastructure failed.
+The implementation owner batches compatible repairs and retains unaffected
+passing evidence. Apply `references/execute-charter.md` for same-cause counting,
+diagnosis reassessment, bounded escalation and complete ownership transfers.
+An external consultant still requires separate authorization.
 
 ## Acceptance and review
 
-The conductor checks returned scope and evidence, then calls
+The conductor inspects the actual diff, whole-task check and evidence, then calls
 `bash ${PLUGIN_ROOT}/scripts/planctl.sh check <plan> <bound-handle>` for each
 accepted outcome. Ledger commits may be coalesced at a bounded slice seam;
 state updates are prompt, not an end-of-run batch. Reuse gathered status for
 bookkeeping at useful completion seams. Read-only tasks make no
 artificial implementation commit.
+Immediately advance dependency-ready disjoint work within capacity. Incomplete
+requirements remain explicit with their owner; a green check alone accepts none.
 
 Review through `workflow-skills/code-review-protocol/SKILL.md` at the selected
 cadence. One native review covering the run satisfies Stage 6; cross-family

@@ -51,18 +51,20 @@ provider, account quota, or mandatory external pool is assumed.
 6. For authorized code edits, use focused verification only: not a broad suite
    per task and not at phase end. Preserve per-outcome evidence.
    `BASELINE_RED` does not block independent work, but is not evidence that
-   acceptance passed. `TASK_RED` repairs or parks only its causal branch.
+   acceptance passed. The owner repairs `TASK_RED` within its causal scope.
    Reuse verifier evidence only while relevant code and contracts are unchanged.
 7. Inspect the result contract, actual evidence, scoped commits, and residual
    risk. An independent native review covers the resulting implementation;
    Cross-family review is opt-in, not a side effect of backend selection.
-   Repairs require existing write authority and re-review of affected scope.
-   At most two scoped repair attempts before reporting a parked branch.
+   Ordinary repairs use the existing scoped go. Follow
+   `references/execute-charter.md` for whole-task acceptance, diagnosis and
+   bounded escalation; keep the current owner when viable. Re-review affected
+   scope and retain unaffected passing evidence.
 8. At committed seams, use the session-bound context watchdog described in
    `workflow-skills/agentic-exec-loop/references/loop-protocol.md`.
    `UNKNOWN` telemetry is nonblocking; `OVER` requires a forward handoff
    after draining active work. No fixed universal token threshold.
-8. Report completed/parked outcomes, actual verification, review, scoped SHAs,
+9. Report completed/parked outcomes, actual verification, review, scoped SHAs,
    and remaining gates. Workers commit their own authorized edits and never
    push. Read-only tasks create no commits. Remote operations require the
    user's or project release contract's authority.

@@ -2,6 +2,9 @@
 set -euo pipefail
 
 printf '%s\n' "$@" > "$CODEX_STUB_ARGV"
+if [[ -n "${CODEX_STUB_PROMPT:-}" ]]; then
+    cat > "$CODEX_STUB_PROMPT"
+fi
 last_message=""
 while [[ $# -gt 0 ]]; do
     case "$1" in

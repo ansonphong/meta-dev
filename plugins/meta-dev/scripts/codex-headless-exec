@@ -389,57 +389,14 @@ ${PROMPT}"
     fi
 fi
 
-# ── Delegation preamble: how a worker buys cheap capacity ───────────────────
-# Two DIFFERENT mechanisms, and conflating them costs money:
-#
-# Codex native delegation can select a model. Keep ordinary execution on Terra;
-# pin Sol only for judgment-heavy planning, hardening, or review. Explicit
-# legacy/external dispatch choices remain caller-controlled rather than inferred.
-DELEGATION_PREAMBLE="DELEGATING SUB-WORK (current Codex roles):
-Native Codex delegation may select its model. The installed catalog has no
-gpt-6-terra. Use gpt-6-sol at medium for bounded execution and lightweight
-work; use gpt-6-sol at high for planning, hardening, or review. For a direct
-child process, pin the role:
-
-  codex exec -m gpt-6-sol --sandbox read-only \\
-    -c model_reasoning_effort=medium '<bounded sub-task with acceptance criteria>'
-
-Give each delegated sub-task explicit scope and success criteria, then VERIFY
-its output yourself — you remain accountable for the result. Do not replace an
-explicit legacy or external backend flag selected by the conductor.
-"
-if [[ "${MULTI_AGENT:-false}" == "true" ]]; then
-    DELEGATION_PREAMBLE="${DELEGATION_PREAMBLE}
-You also have spawn_agent (up to 4 concurrent, including you). Use its model
-selection when the host exposes it; otherwise use direct codex exec with -m.
-Use parallelism only for genuinely independent work.
-"
-fi
-PROMPT="${DELEGATION_PREAMBLE}
-${PROMPT}"
-
-WORK_DISCIPLINE_PREAMBLE='WORK DISCIPLINE (within the user-authorized scope):
-1. Read relevant contracts and symbols once; do not reload entire plans for each handle. Re-anchor when code or requirements changed, or context was lost. Read complete skill instructions when required; source reads may be scoped to the relevant symbols.
-2. A capable worker may own a bounded coherent slice. Preserve separate evidence for each assigned handle; do not recursively farm every checkbox or assume model capabilities are exposed by this host.
-3. FOCUSED VERIFICATION ONLY. Run one named test file/node: `pytest path/to/test_x.py -q` (add `-m "not slow and not gpu and not integration"` if marked). NEVER bare/directory pytest, `pytest -k` without a file, package-wide npm/Vitest/Jest, `npm run check`, `svelte-check`, project-wide `tsc`, a build, or a full suite — not per task and not at phase end. Those belong to CI/ship or a separate explicit user request. One green is green; neither worker nor conductor reruns it.
-4. OPTIMISTIC MOMENTUM. Classify verification as `FOCUSED_PASS`, causally proven `TASK_RED`, unrelated/unchanged `BASELINE_RED`, `INFRA_RED`, or `BROAD_VERIFY_OMITTED`. Repair only causal failures. Baseline debt does not block independently proven acceptance; omitted/manual or unknown infrastructure evidence is never a pass. Park affected branches honestly and continue independent work. Relevant changes invalidate prior green evidence.
-
----
-
-'
-PROMPT="${WORK_DISCIPLINE_PREAMBLE}${PROMPT}"
-
-GIT_GUARD_PREAMBLE='HARD GIT RULES (the worktree may be shared):
-1. NEVER `git add -A`, `git add .`, or `git add <dir>/`. Stage ONLY explicit file paths you personally edited. A broad add sweeps up other agents in-flight work.
-2. NEVER `git stash`, `git stash pop`, or `git stash drop`. These are worktree-GLOBAL and rip out every peer agent uncommitted work at once.
-3. NEVER `git push`, `git pull`, `git fetch`, `git rebase`, or `git merge` from a worker. The conductor owns authorized remote operations.
-4. Every git command names its repo absolutely: `git -C <ABS-REPO-ROOT> ...`. Never a bare `git add`. Never `cd "$(git rev-parse --show-toplevel)"`.
-5. Preserve peer edits. On overlapping dirty paths establish ownership before editing or committing; continue independent work. Never absorb another worker state into your commit without authorization.
-6. COMMIT-ON-RED: if this task edits scoped files, stage only those exact paths and create a LOCAL commit before every return, including red verification or BLOCKED. Red blocks DONE and remote action, never the local commit. Your `.git` IS writable — this dispatcher grants it explicitly. A commit failing on a read-only `.git` is an EXECUTOR BUG: report it verbatim, never route around it by skipping the commit.
-7. REPORT CONTRADICTIONS. User instructions and the discovered project contract take precedence over skill guidelines. Read-only work remains read-only; never treat a preservation rule as permission to edit or commit outside scope.
-If a task seems to require breaking one of these, STOP and report instead.
-
----
+# Shared ownership/repair policy is injected by md_brief_wrap_prompt below.
+GIT_GUARD_PREAMBLE='WORKER BOUNDARIES:
+Use git -C <absolute-repo-root> with explicit paths and commit --only.
+Preserve peer edits; resolve overlapping ownership before editing/committing.
+No tree-wide staging, stash, destructive recovery, history rewrites or remote
+operations. The conductor owns authorized remote operations.
+Commit scoped edits before stopping even red; continue viable in-scope repairs.
+Read-only work never edits or commits. User/project authority still governs.
 
 '
 PROMPT="${GIT_GUARD_PREAMBLE}${PROMPT}"
@@ -462,6 +419,9 @@ each handle's evidence and causal state. FOCUSED_PASS requires an actual zero
 verifier exit plus command/output evidence; no verification is never a pass.
 For a successful silent verifier, record '(no output)' rather than an empty
 verify_output so omitted evidence is distinguishable from observed silence.
+Before success, reconcile the actual diff and evidence against every declared
+requirement, including caller/fixture migrations. List unfinished requirements
+in blockers; a narrow green verifier cannot establish whole-task completion.
 The conductor accepts handles individually, never a slice wholesale from the
 aggregate status. Aggregate FOCUSED_PASS cannot contain failed or omitted handles.
 

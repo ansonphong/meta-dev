@@ -123,6 +123,12 @@ md_brief_wrap_prompt() {
 Task intent and permissions are binding: read-only work never edits or commits.
 For authorized edits, persist only assigned paths; never push from a worker.
 Keep per-outcome verification for the assigned task or coherent slice.
+Read the execution contract: ${PLUGIN_ROOT}/references/execute-charter.md.
+Own implementation and ordinary repairs under the existing scoped go.
+Self-check the whole task, including required callers/fixtures, before success.
+Commit-on-red is durability, not completion or a reason to return; continue
+viable in-scope work within budget. Use the charter for bounded escalation
+and genuine blockers; do not ask for routine repair permission.
 
 ${PROMPT}"
 }

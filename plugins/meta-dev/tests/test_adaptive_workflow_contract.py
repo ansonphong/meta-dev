@@ -70,3 +70,30 @@ def test_closing_review_uses_declared_policy_not_a_new_test_quota():
     assert "Ordinary `test: no` work may pass" in rubric
     assert "No tests for new functionality" not in rubric
     assert "Required critical tests and human gates remain mandatory" in rubric
+
+
+@pytest.mark.parametrize("path", [
+    "commands/meta-execute.md", "commands/auto-execute.md",
+    "references/execute-dispatch.md", "references/adaptive-workflow.md",
+    "workflow-skills/agentic-exec-loop/references/loop-protocol.md",
+])
+def test_execution_routes_share_completion_policy_without_blanket_parking(path):
+    text = (ROOT / path).read_text()
+    assert "references/execute-charter.md" in text
+    for obsolete in ["At most two repair attempts before parking",
+                     "at most two scoped repair attempts",
+                     "At most two scoped repair attempts",
+                     "at most two attempts before disposition",
+                     "Persistent ownership ends at completion, scope change"]:
+        assert obsolete not in text, (path, obsolete)
+
+
+def test_framework_preamble_keeps_ownership_without_stopping_on_stale_symbols():
+    result = subprocess.run(
+        [sys.executable, str(ROOT / "scripts/lib/framework-preamble.py"), str(ROOT)],
+        capture_output=True, text=True, check=True,
+    )
+    assert "references/execute-charter.md" in result.stdout
+    assert "ordinary repairs and whole-task acceptance" in result.stdout
+    assert "Resolve changed technical assumptions within scope" in result.stdout
+    assert "STOP and report" not in result.stdout
