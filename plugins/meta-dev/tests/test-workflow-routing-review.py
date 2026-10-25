@@ -67,27 +67,13 @@ class WorkflowRoutingContract(unittest.TestCase):
     def test_protocol_declares_shared_contract_axes(self) -> None:
         text = PROTOCOL_PATH.read_text(encoding="utf-8")
         for marker in (
-            "## Permission boundary",
-            "## Six stages",
-            "## Artifacts",
-            "## Result states",
-            "## Host capability adapters",
-            "FOCUSED_PASS",
-            "TASK_RED",
-            "BASELINE_RED",
-            "INFRA_RED",
-            "BROAD_VERIFY_OMITTED",
-            "PASS",
-            "CONDITIONAL_PASS",
-            "FAIL",
-            "gpt-6-sol",
-            "External/headless reviewers run only",
-            "stages, workers, repairs",
-            "necessary integration",
-            "already-authorized sensitive work",
-            "genuinely new authority",
-            "reserved human gates",
-            "credentials",
+            "## Authority", "## Six stages", "## Execution and state",
+            "## Host adapters and explicit commands", "## Review and closeout",
+            "FOCUSED_PASS", "TASK_RED", "BASELINE_RED", "INFRA_RED",
+            "BROAD_VERIFY_OMITTED", "planctl", "native host",
+            "stages, workers and compaction", "repairs, verification, commits",
+            "existing authority counts", "new scope or authority",
+            "protected human actions", "credentials",
         ):
             self.assertIn(marker, text)
         self.assertNotIn("require an explicit confirmation even when nearby work", text)
@@ -121,7 +107,7 @@ class NativeReviewContract(unittest.TestCase):
             "Carry scoped authorization across stages, workers, repairs",
         ):
             self.assertIn(marker, adapter)
-        self.assertIn("overrides generic cross-family ladder recipes", protocol)
+        self.assertIn("External or\ncross-family reviewers are opt-in", protocol)
         self.assertIn("host-native configured route", ladder)
         self.assertIn("configured native", execute)
         self.assertIn("One native closing review suffices", execute)
@@ -186,7 +172,9 @@ class NativeReviewContract(unittest.TestCase):
             text = (PLUGIN_ROOT / workflows[name]["skill"]).read_text()
             # Generated command adapters load the protocol transitively;
             # helper skills may reference it directly. Test real route paths.
-            if "../../references/workflows/protocol.md" not in text:
+            if "../../commands/meta-execute.md" in text:
+                text += (PLUGIN_ROOT / "commands/meta-execute.md").read_text()
+            if "references/workflows/protocol.md" not in text:
                 self.assertIn("../../references/workflows/command-adapter.md", text, name)
         self.assertIn("references/workflows/protocol.md", COMMAND_ADAPTER_PATH.read_text())
 

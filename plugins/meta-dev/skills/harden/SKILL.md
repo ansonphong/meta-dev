@@ -1,13 +1,15 @@
 ---
 name: harden
-description: Stress-test a plan before execution.
+description: Check a plan against live code, requirements and consequential failure paths.
 ---
 
 # Harden
 
-For host-neutral, non-slash-command hardening, read
-`../../references/workflows/protocol.md`,
-`../../workflow-skills/plan-validation/SKILL.md`, and `../../commands/meta-loop-gap.md`.
-Use the configured native hardening route (Codex defaults to Sol/high), honoring
-an explicit available model selection. Resolve depth through
-`../../references/adaptive-workflow.md`; report only absent fix permission.
+Use `../../references/workflows/protocol.md` for stage outcomes and authority.
+Inspect the plan's relevant live-code anchors, interfaces, dependencies, scope
+and focused acceptance evidence. Record concrete gaps and dispositions in the
+existing record. Add a specialist only for unresolved risk or an explicit gate.
+Do not automatically start a gap loop, swarm or additional skill chain.
+The explicit meta-loop-gap command remains available when requested.
+Planning fixes do not grant source authority. Keep required final independent
+review; hardening does not replace it.

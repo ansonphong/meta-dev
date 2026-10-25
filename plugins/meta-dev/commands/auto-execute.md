@@ -42,8 +42,9 @@ provider, account quota, or mandatory external pool is assumed.
    sets. Unknown write sets serialize. Use one host-wide worker cap, including
    nested conductors, workers, reviewers, and fixers; never multiply per-layer
    caps. Use sequential ownership when native delegation is absent or forbidden.
-4. Brief the available host-native worker or explicitly selected headless
-   runner using `references/execute-dispatch.md`. Include relevant task
+4. Implement directly with native tools when that avoids needless handoffs.
+   When useful, brief a native worker or explicitly selected headless runner
+   using `references/execute-dispatch.md`. Include relevant task
    excerpts, live anchors, scoped paths, acceptance criteria, and read-only
    intent. Codex/Grok headless workers receive direct tasks or supported skill
    files, not Claude slash commands. Do not require nested delegation.
@@ -60,10 +61,9 @@ provider, account quota, or mandatory external pool is assumed.
    `references/execute-charter.md` for whole-task acceptance, diagnosis and
    bounded escalation; keep the current owner when viable. Re-review affected
    scope and retain unaffected passing evidence.
-8. At committed seams, use the session-bound context watchdog described in
-   `workflow-skills/agentic-exec-loop/references/loop-protocol.md`.
-   `UNKNOWN` telemetry is nonblocking; `OVER` requires a forward handoff
-   after draining active work. No fixed universal token threshold.
+8. Use available native session management at context seams. Preserve ownership
+   and evidence without requiring an additional execution-loop skill or watchdog.
+   Explicit loop/watchdog tooling retains its existing host and budget limits.
 9. Report completed/parked outcomes, actual verification, review, scoped SHAs,
    and remaining gates. Workers commit their own authorized edits and never
    push. Read-only tasks create no commits. Remote operations require the

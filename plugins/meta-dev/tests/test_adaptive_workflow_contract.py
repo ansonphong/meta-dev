@@ -97,3 +97,45 @@ def test_framework_preamble_keeps_ownership_without_stopping_on_stale_symbols():
     assert "ordinary repairs and whole-task acceptance" in result.stdout
     assert "Resolve changed technical assumptions within scope" in result.stdout
     assert "STOP and report" not in result.stdout
+
+
+def test_default_lifecycle_uses_stage_outcomes_without_mandatory_command_chain():
+    protocol = (ROOT / "references/workflows/protocol.md").read_text()
+    for stage in ["Brainstorm", "Design", "Plan", "Harden", "Execute", "Review"]:
+        assert f"| {stage} |" in protocol
+    assert "one short record" in protocol
+    assert "native host" in protocol
+    command = (ROOT / "commands/meta-dev.md").read_text()
+    for forced in ["Follow `references/dev-swarms.md`", "`/meta-planner`",
+                   "`/meta-loop-gap`", "workflow-skills/waterfall-tracking/SKILL.md",
+                   "model: opus"]:
+        assert forced not in command
+
+
+@pytest.mark.parametrize("path,forced", [
+    ("skills/plan/SKILL.md", "workflow-skills/dod-contract/SKILL.md"),
+    ("skills/execute/SKILL.md", "workflow-skills/agentic-exec-loop/SKILL.md"),
+    ("skills/harden/SKILL.md", "commands/meta-loop-gap.md"),
+])
+def test_native_skills_do_not_automatically_stack_specialist_workflows(path, forced):
+    assert forced not in (ROOT / path).read_text()
+
+
+def test_default_plan_can_share_a_record_without_forced_ir_or_feature_folder():
+    skill = (ROOT / "skills/plan/SKILL.md").read_text()
+    guide = (ROOT / "references/codex-writing-plans.md").read_text()
+    assert "Do not write plan Markdown directly" not in skill
+    assert "Always create a feature folder" not in guide
+    assert "planctl" in guide
+    assert "plan-artifact-render.py" in guide
+
+
+def test_default_dispatch_brief_is_bounded_and_retains_execution_boundaries():
+    result = subprocess.run(
+        [sys.executable, str(ROOT / "scripts/lib/framework-preamble.py"), str(ROOT)],
+        capture_output=True, text=True, check=True,
+    )
+    assert len(result.stdout.split()) < 230
+    assert "Read-only work never edits or commits" in result.stdout
+    assert "Workers never push or farm sub-workers" in result.stdout
+    assert "PROTOCOLS (" not in result.stdout

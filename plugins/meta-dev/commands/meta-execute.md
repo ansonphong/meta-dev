@@ -3,15 +3,15 @@ name: meta-execute
 description: Execute an approved plan with adaptive task or slice ownership, focused verification, durable commits, and native review
 argument-hint: <plan-path> [--granularity auto|task|slice] [--inline] [--strict] [--review each|phase|end|auto] [--budget auto|low|medium|high] [--codex|--grok|--sonnet|--deep|--glm|--agy|--cursor] [--effort <level>]
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, TaskCreate, TaskUpdate]
-model: opus
 ---
 
 # /meta-execute
 
-Execute only with an explicit go for the scoped plan. Read
-`references/workflows/protocol.md`, `references/adaptive-workflow.md`, and
-`references/execute-charter.md` before dispatch. Source implementation is
-Stage 5; planning and review alone never authorize it.
+Execute the scoped plan under its existing implementation go. Use
+`references/execute-charter.md` for completion and repair; shared authority and
+stage outcomes live in `references/workflows/protocol.md`. Resolve depth/capacity
+through `references/adaptive-workflow.md` once. Read referenced detail when needed,
+not as a mandatory skill chain. Native tools and direct implementation are valid.
 
 ## Resolve and schedule
 
@@ -38,7 +38,7 @@ Stage 5; planning and review alone never authorize it.
    and nested workers against the host capacity. Keep other dependency-ready
    disjoint work moving while a causal branch is repaired or parked. Unknown
    write sets serialize.
-5. Dispatch using `references/execute-dispatch.md`. The worker owns local
+5. When delegating, use `references/execute-dispatch.md`. The worker owns local
    implementation, verification, and exact-path commits; the conductor owns
    plan state and authorized remote operations. Native delegation is preferred
    when useful and permitted. `--inline`, absent delegation, or a host
@@ -48,17 +48,9 @@ Stage 5; planning and review alone never authorize it.
    without an observed capability change. Preserve the single existing retry
    for transient infrastructure failure.
 
-## Host dispatch
-
-| Host | Native surface |
-| --- | --- |
-| Claude Code | available Agent/Task interface and configured model |
-| Codex | available native delegation, or explicitly configured headless runner |
-| Grok Build | available spawn_subagent surface and configured model |
-| Minimal/headless | sequential scoped ownership when delegation is unavailable |
-
-Tool presence, permissions, and capacity must be observed, not inferred from
-the model name. Backend loading details live in the runner/adapters.
+Use the current host's native tools and configured models. Headless runners
+are for deliberate CLI crossings. Tool presence, permissions and capacity must
+be observed; a model name does not prove a capability.
 
 ## Execute and accept
 
@@ -85,9 +77,9 @@ before implementation. For each task/slice:
 - Keep the current owner through ordinary repairs, reusing valid evidence.
   Record unresolved requirements explicitly and advance dependency-ready,
   disjoint work within capacity. Never treat exhaustion as success.
-- At committed slice/phase seams, use the session-bound context watchdog from
-  `workflow-skills/agentic-exec-loop/references/loop-protocol.md`. Unknown
-  telemetry is nonblocking. Drain running workers/verifiers before handoff.
+- Use available native session management at context seams, preserving evidence
+  and ownership. A watchdog/loop skill is optional, not an extra execution layer.
+  Do not abandon live workers or verifiers during handoff.
 
 `--strict` waits for focused verification before advancing dependencies; it
 does not broaden checks. No green verifier is repeated unless relevant source
@@ -140,9 +132,8 @@ Archive only after required acceptance/manual gates pass, using the state door.
 Push only when the user/project release contract authorizes it; never deploy
 implicitly. Report accepted/parked handles, critical path and remaining work,
 scoped commits, actual verification, review verdict, remaining manual gates,
-and the plan's current location. State observed repeated overhead and a concrete
-adjustment, or say none observed; do not invent metrics.
-Use `references/execute-report-card.md` when the host supports that presentation.
+and the plan's current location. Report a concrete bottleneck only when it
+changes the next action; do not invent metrics. A concise result is sufficient; no ceremonial report card.
 
 ## Additional flags
 

@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.5.19
+
+- Keep six stage outcomes in one shared contract; let native harnesses choose
+  methods and share one short record for bounded work.
+- Remove automatic specialist skill/command chains, forced plan artifacts,
+  context-watchdog calls and execution ceremony from the normal path.
+- Shorten the actual worker preamble while preserving completion ownership,
+  whole-task acceptance, configured budgets, permissions and independent review.
+- Keep both plugin manifests aligned at version 1.5.19.
+
 ## 1.5.18
 
 - Keep one implementation owner through ordinary repairs, whole-task acceptance,

@@ -1,155 +1,108 @@
-# Shared Workflow Protocol
+# Shared workflow contract
 
-This is the host-neutral contract for meta-dev. Host surfaces may expose commands,
-skills, agents, or plain files, but they adapt to this protocol rather than
-inventing different workflow semantics.
-
-## Permission boundary
-
-Classify the request before acting:
-
-- `read`: inspect, explain, diagnose, review, audit, design, or plan. Source
-  changes are not authorized.
-- `write`: an explicit change request or go-word (`go`, `execute`, `ship it`,
-  `--fix`). Changes are limited to the declared target.
-- `sensitive`: auth, schema/migrations, payments, destructive operations, and
-  cross-repo contracts need explicit authority covering the action and target.
-  Perform already-authorized sensitive work without redundant approval; a risk
-  label alone does not require a fresh confirmation.
-- Interactive desktop smoke tests require scheduled approval covering their
-  interactions and environment. Reuse that approval within its agreed limits.
-
-Explicit authorization persists across stages, workers, repairs, verification,
-and necessary integration within scope. Include that authority and its constraints
-in briefs and handoffs; a worker or stage transition does not reset it. Make
-reversible implementation decisions without asking. Release, deployment, live
-migration, spending, and sending need authority covering those actions and targets;
-existing authorization counts. Re-ask only for genuinely new authority or material
-scope ambiguity, never routine continuation of the approved job.
-
-Preserve the instruction hierarchy, mandatory environment protections, credentials
-boundaries, and explicitly reserved human gates. Do not bypass denied operations,
-obtain broader access, expose secrets, or claim unlimited authority. Unavailable
-capabilities and unobserved verification are not successes. Park the affected
-branch and dependents with evidence and an unblocking action; continue independent
-authorized work.
-
-Planning never implies execution. Review and audit are report-only by default.
-A finding, `NEEDS_FIX`, `CONDITIONAL_PASS`, or `FAIL` is evidence, not permission
-to edit or commit. Within an already-authorized implementation job, necessary
-remediation uses that existing authority, followed by focused verification and
-review of the changed scope. A standalone read-only review still needs fix
-authorization before edits.
-
-## Adaptive depth
-
-Read `references/adaptive-workflow.md` and resolve `scripts/workflow-policy.py`
-before authoring or dispatch. The intended executor selects capability depth;
-risk raises precision and gates. One task handle remains one acceptance record,
-not necessarily one worker. Core permissions, security, ownership, and state
-rules never depend on model strength.
+Meta-dev supplies stage outcomes, durable plan state and acceptance.
+The native host supplies tools, working method and session management. User/project
+instructions and mandatory environment protections take precedence.
 
 ## Six stages
 
-| Stage | Name | Required artifact | Exit |
-|---:|---|---|---|
-| 1 | Brainstorm | bounded intent and alternatives | direction selected |
-| 2 | Design | design/decision record | contracts and tradeoffs explicit |
-| 3 | Plan | dependency-ordered plan with focused verifiers | executable plan |
-| 4 | Harden | report-only gap record and disposition | no unresolved blocker |
-| 5 | Execute | scoped task commits and focused outcomes | usable artifacts landed |
-| 6 | Review | structured review verdict | `PASS`, or explicit disposition |
+| Stage | Required outcome |
+|---|---|
+| Brainstorm | Intent, scope, alternatives and consequential unknowns understood. |
+| Design | Approach, interfaces and meaningful tradeoffs decided. |
+| Plan | Concrete changes, dependencies and focused acceptance evidence identified. |
+| Harden | Plan checked against relevant live code; no unresolved blocker. |
+| Execute | Approved outcome implemented, repaired, verified and committed. |
+| Review | Independent review covers the actual result and integration seams. |
 
-`planctl` is the only write door for plan state. A worker owns scoped edits,
-verification, and its exact-path commit. The conductor owns stage transitions,
-ledger handles, dashboards, and archival.
+Small or well-understood work can satisfy early stages in one short record.
+Stages are outcomes, not mandatory commands, agents, documents or approvals.
+Reuse valid decisions/evidence; investigate only unresolved requirements.
+Do not automatically invoke brainstorming, design-eval, DOD, planner, gap-loop,
+execution-loop, audit or housekeeping skills because a stage has that name.
+These specialist workflows remain available when explicitly invoked or needed
+to answer a concrete question. Native planning and direct execution are valid.
 
-## Artifacts
+Use the project plan location and existing artifact/state conventions. Simple
+plans may be authored directly with one canonical task ledger; use existing
+IR rendering/validation for schema-managed plans or the explicit planner.
+Keep outcome, scope, relevant interfaces, acceptance and verification precise;
+there is no fixed number of sections or artifacts.
 
-Every workflow consumes only the artifacts it needs and preserves provenance:
+## Authority
 
-- request: subject, declared scope, permission class, constraints;
-- design: decisions, contracts, risks, falsifiers;
-- plan: ordered tasks, declared files, dependencies, focused `Verify:` hooks;
-- execution result: task id, commit SHA, verifier output, one result state;
-- review: base/target refs, reviewed files, five dimension results, structured
-  verdict, issues, confidence, and blast radius;
-- delivery/operations: gate evidence, release target, rollback, final state.
+A planning/review/diagnosis request is read-only with respect to source unless
+fixes are requested. An explicit scoped implementation request covers necessary
+reversible decisions, repairs, verification, commits and integration through
+completion. Carry authority across stages, workers and compaction; do not ask
+again merely because a stage changed or an ordinary test failed.
 
-Do not pass raw diffs through an orchestrator when a reviewer can compute the
-diff from refs. Scratch artifacts use unique per-run paths and atomic writes.
+Ask only for genuinely missing product decisions, new scope or authority.
+Deployment, live migration, external spending/sending, destructive operations
+and protected human actions require authority covering those actions/targets;
+existing authority counts. Sensitive work retains appropriate contract/security
+checks without automatically demanding another go. Desktop smoke tests require
+scheduled approval covering interactions, environment and rollback.
+Do not bypass denied operations, expose credentials or invent capabilities.
 
-## Result states
+The default `/meta-dev` ceiling is Stage 4 for planning-only work. A scoped
+implementation go or explicit execution request allows progression through
+implementation and closing review. Explicit stage ceilings and human gates
+still apply. Tool permission modes alone never grant source authority.
 
-Execution has exactly one causal result:
+## Execution and state
 
-- `FOCUSED_PASS`: the declared focused verifier passed.
-- `TASK_RED`: focused evidence proves the task caused the failure.
-- `BASELINE_RED`: the failure is pre-existing or outside declared scope.
-- `INFRA_RED`: tooling or worker infrastructure failed.
-- `BROAD_VERIFY_OMITTED`: a broad/manual check was intentionally not used as a
-  task gate.
+Completion ownership, focused verification, causal failures, same-cause
+reassessment, bounded escalation and genuine blockers are authoritative in
+`references/execute-charter.md`. Scheduling depth/capacity comes from
+`references/adaptive-workflow.md` and existing configured budgets/routes.
+Use native tools; no mandatory delegation, model switching or cross-family
+review. Apply explicit runner model/context flags without silently dropping them.
 
-Only causal failures hold their affected branches; unknown infrastructure or
-omitted/manual evidence never counts as a pass. Independent branches continue
-when their own acceptance is established.
-Review has exactly one uppercase verdict: `PASS`, `CONDITIONAL_PASS`, or `FAIL`;
-see `workflow-skills/code-review-protocol/`.
+Plan Markdown is git truth. `scripts/planctl.sh` is the only state write door.
+One conductor owns acceptance/state; workers own scoped implementation and
+exact-path commits. Keep one acceptance record per handle, even when one owner
+implements a coupled slice. Inspect the actual diff and whole-task evidence
+before accepting through planctl. Continue dependency-ready disjoint work.
 
-## Host capability adapters
+Return the existing causal result: `FOCUSED_PASS`, `TASK_RED`, `BASELINE_RED`,
+`INFRA_RED` or `BROAD_VERIFY_OMITTED`, with actual command, exit/output, commits
+and unresolved acceptance. A focused pass proves only its covered behavior;
+unavailable evidence and budgets never establish acceptance.
 
-### Claude Code
+## Review and closeout
 
-- `commands/*.md` remain the command names, flags, and canonical procedures.
-- Native Agent/Task and skill discovery implement delegation.
-- Claude keeps the reviewer/model configured by command or agent frontmatter
-  and project settings. This protocol does not replace it with a universal
-  model.
+Keep required independent review. The normal final gate is one native reviewer
+covering the complete change and integration seams. Reuse a covering phase
+review; do not add a second closing pass over unchanged content. External or
+cross-family reviewers are opt-in, not a default stage. If independent review
+is unavailable, label self-review honestly and leave the required gate open.
 
-### Codex
+Use `workflow-skills/code-review-protocol/SKILL.md` for the structured verdict
+and source-bound planctl review evidence. Batch findings and repairs; re-review
+only affected content/assumptions and retain unaffected evidence. A read-only
+review does not authorize fixes; an existing implementation go covers repairs.
 
-- Every canonical command is an exact native skill name. In Codex CLI/IDE,
-  invoke `$meta-dev:meta-planner`; on surfaces with the skill picker, select
-  `meta-dev:meta-planner` with `@`.
-- Pure Claude redirect aliases are not duplicated into Codex's limited initial
-  skill index. `skills/command-router/` remains the compatibility fallback for
-  those aliases and unknown spellings.
-- `routes.json` maps every Claude command name to exactly one workflow
-  subcommand, canonical procedure, and first-class native command skill.
-- Plan, harden, and review use native `gpt-6-sol` with `high` effort by
-  default, as configured under `meta_dev.codex.models`. Other workflows use
-  their configured native route.
-- The review default is native Codex. External/headless reviewers run only when
-  the user explicitly selects one; their output never silently replaces the
-  native verdict.
-- `references/workflows/command-adapter.md` defines the Codex efficiency
-  boundary. It overrides generic cross-family ladder recipes: stage names do
-  not invoke sibling commands, and ordinary Stage 6 uses one native reviewer.
+Update only affected declared context/docs and owning plan/runbook state.
+Archive only after required acceptance/manual gates pass. Batch bookkeeping
+at useful seams. Push only under release authority; never infer deployment.
+Report actual results and blockers briefly, without elaborate cards or ceremony.
+Do not claim measured savings from instruction changes alone.
 
-### Minimal/headless hosts
+## Host adapters and explicit commands
 
-Resolve `routes.json`, read the target procedure, and translate capabilities:
-filesystem reads, exact-path edits, shell checks, scoped commits, and optional
-delegation. When native delegation is absent or prohibited, use sequential
-scoped ownership for already-authorized implementation and report the host
-limitation. Never invent a tool or silently substitute an external service.
-Permission, result-state, review, and verification semantics never change.
+Codex uses exact native command skills (`$meta-dev:<command>`) or their skill
+picker equivalents; Claude Code uses its native command/agent surfaces.
+Translate unavailable vendor syntax to actual host tools, never simulate tools
+with invented capabilities. Headless runners are for deliberate CLI crossings.
+`references/workflows/command-adapter.md` describes the Codex adapter.
 
-### Campaign runbook (`/runbook`)
+`routes.json` remains the command routing source: each command maps to one real
+workflow/subcommand and procedure; aliases share targets, unknown names fail
+closed. Explicit model/backend selection uses existing configuration and runner
+validation, not a new routing framework.
 
-A campaign runbook sequences N member plans. `/runbook execute` is a **thin campaign
-conductor**: it farms host-native **member conductors** (same Host dispatch table).
-Inner checkboxes stay `/meta-execute`'s job. Grok and Codex get a direct brief that
-names `commands/meta-execute.md` — never a Claude slash. Share the resolved
-host-wide worker budget across members, task/slice workers, and fixers.
-File-disjoint members may run in parallel;
-overlapping write-sets serialize. Do not flatten the campaign into a host-specific
-workflow script. The `_runbook-*.md` file plus `planctl` is SSOT.
-
-## Routing
-
-`routes.json` is exhaustive over `commands/*.md`. A route target has the form
-`<workflow>.<subcommand>`. The target workflow must name a real curated Codex
-skill, the subcommand must be declared once, and its procedure must exist.
-Aliases deliberately share one target. Unknown names fail closed and must not
-be guessed.
+Campaign runbooks are only for related plans that need cross-plan ordering.
+One campaign conductor shares actual host capacity across members/workers/fixers;
+disjoint write sets may proceed concurrently and overlapping owners serialize.
+A campaign or model selection never expands authority.

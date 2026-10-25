@@ -1,45 +1,8 @@
 #!/usr/bin/env python3
-"""Emit the meta-dev FRAMEWORK preamble handed to every non-Claude worker.
+"""Emit a compact worker contract; the protocol catalog is explicit --full only.
 
-Why this exists
----------------
-A Claude Code worker is born inside the harness: it has the plugin's skills and
-slash commands, the hooks fire, and the host project doctrine is loaded. A Codex worker
-has NONE of that. Dispatch it a bare task and it will cheerfully freelance —
-inventing its own review process, hand-editing checkboxes, running `git add -A`
-— because it has no idea a harness exists.
-
-So we hand it the harness: WHERE the framework lives, WHAT protocols are
-available (generated from disk, so this roster can never drift from reality),
-which one to reach for, and the two or three laws that are non-negotiable.
-
-Token budget is the whole design constraint. The full skill descriptions run
-~4KB and the command list ~1KB; a worker that spends its context reading a menu
-has less left for the job. So descriptions are truncated to one clause and
-commands are emitted as bare names — enough to know a thing EXISTS and read it
-on demand, which is exactly how Codex surfaces its own skills.
-
-Two modes, and the default is the SMALL one
--------------------------------------------
-The first cut of this shipped the full roster — 16 protocol descriptions and all
-67 command names — to every worker. A Codex worker running under sol/high was
-asked to critique it and was blunt: the catalog is noise. Verbatim, it
-"increases search and invites accidental orchestration," while what actually
-constrained its behavior was the git rules, the framework root, the
-Claude→Codex translation, and the planctl-only law. It also judged
-``--command meta-execute`` a poor worker target, because that delegates
-conductor duties (checkbox flips, phase review, dashboards) a Codex worker
-cannot reliably perform.
-
-That matches the harness's own split: the conductor owns state, the worker owns
-none. So CORE is the default — laws and translation, no menu — and the roster
-is opt-in via ``--full`` for a genuinely exploratory run. When the conductor
-knows which protocol applies, it should NAME it (``--skill``/``--command``)
-rather than ship a catalog and hope.
-
-Usage:  framework-preamble.py <plugin-root> [--full]
-Stdout: the preamble. Stderr: nothing. Never fails the caller — a broken roster
-must not take down a dispatch, so any error degrades to the static core.
+A dispatch supplies task context. This adapter adds ownership/state boundaries
+and host translation, without requiring another lifecycle or specialist chain.
 """
 import os
 import re
@@ -105,28 +68,17 @@ def build(root, full=False):
     except OSError:
         pass
 
-    out = []
-    out.append("=== META-DEV HARNESS (you are a worker inside it) ===")
-    out.append("")
-    out.append("You are a BOUNDED WORKER, not an orchestrator. Do the task you were")
-    out.append("given, verify it, report evidence. Do NOT advance phases, flip")
-    out.append("checkboxes, render dashboards, or dispatch sub-workers — the conductor")
-    out.append("owns all of that, and it owns the state.")
-    out.append("")
-    out.append("Framework root: %s" % root)
-    out.append("  workflow-skills/<name>/SKILL.md — shared protocols")
-    out.append("  commands/<name>.md        — entry-point procedures")
-    out.append("  references/               — deep detail referenced by the above")
-    out.append("  scripts/planctl.sh        — THE state CLI (see LAWS below)")
-    out.append("")
-    out.append("If your task NAMES a protocol file, read it first and follow it")
-    out.append("exactly. Otherwise do not go shopping for one — a bounded task does")
-    out.append("not need the catalog, and searching it invites scope creep.")
-    out.append("")
+    out = [
+        "=== META-DEV HARNESS (worker contract) ===",
+        "Framework root: %s" % root,
+        "Do the supplied scoped task with native tools; no automatic skill chain.",
+        "Read a specialist protocol only when named or needed for an unresolved question.",
+        "The protocol catalog below is opt-in, not an execution checklist.",
+        "",
+    ]
 
     if full:
-        # Opt-in only. A bounded worker does not need this and is measurably
-        # worse with it (see module docstring).
+        # Explicit discovery aid; ordinary workers receive no catalog.
         if skills:
             out.append("PROTOCOLS (%d) — read %s/workflow-skills/<name>/SKILL.md" % (
                 len(skills), root))
@@ -147,17 +99,16 @@ def build(root, full=False):
             out.append("")
 
     out.extend([
-        "Worker contract: read references/execute-charter.md under the framework root.",
+        "Completion contract: references/execute-charter.md under the framework root.",
         "Keep ownership through ordinary repairs and whole-task acceptance checking.",
-        "The conductor alone changes plan state through scripts/planctl.sh.",
-        "Keep plans in the project plans/ tree and code in its source repository.",
-        "Commit exact scoped paths before stopping, even red; red is not completion.",
-        "Resolve changed technical assumptions within scope; report genuine scope",
-        "or authority conflicts. Preserve unrelated work and report evidence honestly.",
+        "Resolve changed technical assumptions within scope; the existing go covers repairs.",
+        "Run focused verification; return commits, actual results and unresolved requirements.",
+        "Commit exact paths before a genuine stop, even red; red is not completion.",
+        "Preserve peer work and exclusive file ownership. The conductor owns planctl state.",
         "Read-only work never edits or commits. Workers never push or farm sub-workers.",
-        "Translate unavailable Claude slash commands/tools to available host tools;",
-        "read a named protocol file and follow it inline. Do not invent capabilities.",
-        "  ${CLAUDE_PLUGIN_ROOT} = %s" % root,
+        "Keep plans in the project plans tree. Do not edit checkboxes or dashboards.",
+        "Translate named vendor procedures to available host tools; do not invent capabilities.",
+        "${CLAUDE_PLUGIN_ROOT} = %s" % root,
         "",
     ])
     out.append("=== END META-DEV HARNESS ===")

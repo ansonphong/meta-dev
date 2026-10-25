@@ -19,31 +19,16 @@ Integration joins: <producer → transport → consumer; adjacent read-only call
 Verification: <per-handle command, allowed paths, expected result>
 Budget: <resolved turns/time and task/slice limit>
 
-Read <plugin-root>/references/execute-charter.md. Keep ownership through ordinary
-repairs and whole-task self-check; the scoped go covers that continuation.
-
-Before an integration slice, trace its relevant producer → transport → consumer
-joins and adjacent read-only callers. Resolve concrete ownership/interface gaps
-within declared scope together; report an out-of-scope gap for rescheduling.
-Keep the trace bounded to the task. Re-anchor named symbols against live code
-before editing. Preserve unrelated changes; do not claim or commit a peer's
-overlapping edits. Resolve ownership before editing; continue independent work.
-Follow the project's branch policy.
-
-Implement only declared work. After edits, create an explicit-path local commit
-before returning, including a red/exhausted attempt; never push. Use:
-git -C <absolute-root> add -- <explicit-paths>
-git -C <absolute-root> commit --only -m "<message>" -- <same-paths>
-No tree-wide staging, stash, reset, restore, clean, rebase, or history rewrites.
-
-Run each declared focused verifier. Do not rerun unchanged green evidence.
-For changed behavior, verify the intended valid path and relevant refusal path
-with focused evidence; state when no refusal path applies.
-A task-caused failure is TASK_RED; pre-existing evidence is BASELINE_RED;
-tool failure is INFRA_RED. Do not silently substitute a broad suite or a
-different verifier. Manual gates stay unaccepted until observed.
-Return per handle: SHA, files, command, exit code, output tail, canonical state,
-remaining acceptance items, and surprises. Do not mutate the plan ledger.
+Follow <plugin-root>/references/execute-charter.md for completion and bounded
+repairs. Use native tools and the supplied task context; no mandatory skill
+chain or repeated whole-plan read. Own implementation, caller/fixture migrations,
+ordinary repairs, whole-task self-check, focused verification and exact-path
+commits under the existing go. Preserve peer work and exclusive ownership.
+Commit scoped changes before a genuine stop, even red; red is not completion.
+Workers never push or change plan state. Read-only tasks never edit/commit.
+Return per handle: SHA, files, actual verifier command/exit/output, causal state
+and any unresolved acceptance or genuine blocker. A narrow green check does
+not establish whole-task completion.
 ```
 
 A shared slice commit may support multiple handles, but never share an acceptance
