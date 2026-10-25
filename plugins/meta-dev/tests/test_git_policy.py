@@ -27,7 +27,7 @@ PRODUCTION_CODEX_BASH = {
     "hook_event_name": "PreToolUse",
     "tool_name": "Bash",
     "tool_input": {
-        "cmd": "git -C /work/repo add -A",
+        "cmd": "git -C /work/repo reset --hard",
         "yield_time_ms": 10000,
         "max_output_tokens": 2000,
     },
@@ -117,16 +117,38 @@ class GitPolicyTests(unittest.TestCase):
             "'src/a file.py' tests/test_a.py"
         )
 
+    def test_allows_non_destructive_git_without_flag_gymnastics(self) -> None:
+        """Phong 2026-10-25: only data loss is denied; sync, rebase, stash, tree-wide staging and amend all run."""
+        for command in (
+            "git -C /work/repo add -u",
+            "git -C /work/repo add .",
+            "git -C /work/repo add -A",
+            "git -C /work/repo commit -a -m sweep",
+            "git -C /work/repo commit --amend --no-edit",
+            "git -C /work/repo stash",
+            "git -C /work/repo stash pop",
+            "git -C /work/repo merge origin/main",
+            "git -C /work/repo merge --no-ff origin/main",
+            "git -C /work/repo pull origin main",
+            "git -C /work/repo pull --rebase",
+            "git -C /work/repo rebase origin/main",
+        ):
+            with self.subTest(command=command):
+                self.assert_allowed(command)
+
+    def test_data_loss_approval_switch_allows_destroyers(self) -> None:
+        import os
+        os.environ["META_DEV_ALLOW_DATA_LOSS"] = "1"
+        try:
+            self.assert_allowed("git -C /work/repo reset --hard")
+            self.assert_allowed("git -C /work/repo clean -fd")
+        finally:
+            del os.environ["META_DEV_ALLOW_DATA_LOSS"]
+
     def test_rejects_tree_wide_staging_even_when_chained(self) -> None:
         """The 2026-07-05 commit-sweep: staging that reaches unnamed files."""
         for command in (
-            "git -C /work/repo add -A && git -C /work/repo status",
-            "git -C /work/repo add -u",
-            "git -C /work/repo add .",
-            "git -C /work/repo add -- .",
-            "git -C /work/repo add -- plans/",
-            "git -C /work/repo commit -a -m sweep",
-            "git -C /work/repo commit -am sweep",
+            "git -C /work/repo reset --hard && git -C /work/repo status",
         ):
             with self.subTest(command=command):
                 self.assert_denied(command)
@@ -136,8 +158,6 @@ class GitPolicyTests(unittest.TestCase):
             "git -C /work/repo reset --hard",
             "git -C /work/repo reset --hard HEAD~3",
             "git -C /work/repo reset --merge",
-            "git -C /work/repo stash",
-            "git -C /work/repo stash pop",
             "git -C /work/repo stash drop",
             "git -C /work/repo checkout .",
             "git -C /work/repo checkout -- .",
@@ -145,7 +165,6 @@ class GitPolicyTests(unittest.TestCase):
             "git -C /work/repo restore .",
             "git -C /work/repo restore",
             "git -C /work/repo clean -fd",
-            "git -C /work/repo commit --amend --no-edit",
             "git -C /work/repo branch -D old-topic",
             "git -C /work/repo filter-branch --tree-filter true",
             "git -C /work/repo reflog expire --expire=now --all",
@@ -160,10 +179,6 @@ class GitPolicyTests(unittest.TestCase):
         self.assert_allowed("git -C /work/repo merge --ff-only")
         self.assert_allowed("git -C /work/repo pull --ff-only")
         for command in (
-            "git -C /work/repo merge origin/main",
-            "git -C /work/repo pull origin main",
-            "git -C /work/repo pull --rebase",
-            "git -C /work/repo rebase origin/main",
             "git -C /work/repo push --force origin main",
             "git -C /work/repo push -f",
             "git -C /work/repo push --delete origin topic",
@@ -189,10 +204,10 @@ class GitPolicyTests(unittest.TestCase):
             with self.subTest(command=command):
                 self.assert_allowed(command)
         for command in (
-            "sh -c 'git -C /work/repo add -A'",
-            'g=git; maybe="$g -C /work/repo add -A"; export maybe; bash -c \'$maybe\'',
-            "env MODE=safe $g -C /work/repo add -A",
-            'printf "%s" "$(git -C /work/repo add -A)"',
+            "sh -c 'git -C /work/repo reset --hard'",
+            'g=git; maybe="$g -C /work/repo reset --hard"; export maybe; bash -c \'$maybe\'',
+            "env MODE=safe $g -C /work/repo reset --hard",
+            'printf "%s" "$(git -C /work/repo reset --hard)"',
             "bash -c 'git clean -fd'",
         ):
             with self.subTest(command=command):
@@ -212,9 +227,9 @@ class GitPolicyTests(unittest.TestCase):
             with self.subTest(command=command):
                 self.assert_allowed(command)
         for command in (
-            "ls foo | git -C /work/repo stash",
-            "echo hi || git -C /work/repo add -A",
-            "git -C /work/repo rebase origin/main | cat",
+            "ls foo | git -C /work/repo clean -fd",
+            "echo hi || git -C /work/repo reset --hard",
+            "git -C /work/repo push --force origin main | cat",
             "true & git -C /work/repo reset --hard",
         ):
             with self.subTest(command=command):
@@ -255,7 +270,7 @@ class GitPolicyTests(unittest.TestCase):
     def test_newlines_and_path_qualified_git_are_governed(self) -> None:
         self.assert_allowed("/usr/bin/git -C /work/repo status\ngit -C /work/repo status")
         self.assert_allowed("/opt/git/bin/git -C /work/repo commit -m ordinary")
-        self.assert_denied("echo safe\n/usr/bin/git -C /work/repo add -A")
+        self.assert_denied("echo safe\n/usr/bin/git -C /work/repo reset --hard")
 
     def test_non_git_destroyers_are_checked_by_executable_not_by_text(self) -> None:
         """Prose describing a destructive command is prose.
@@ -289,7 +304,7 @@ class GitPolicyTests(unittest.TestCase):
                 self.assertEqual(seen, category)
 
     def test_codex_adapter_is_gated_without_plugin_root(self) -> None:
-        payload = json.dumps({"hook_event_name": "PreToolUse", "tool_name": "Bash", "tool_input": {"command": "git add -A"}})
+        payload = json.dumps({"hook_event_name": "PreToolUse", "tool_name": "Bash", "tool_input": {"command": "git reset --hard"}})
         result = subprocess.run([sys.executable, str(ADAPTER_PATH)], input=payload, text=True, capture_output=True, env=codex_env(plugin_root=False), check=True)
         self.assertEqual(result.stdout, "")
 
@@ -355,8 +370,8 @@ class GitPolicyTests(unittest.TestCase):
         # additive and recoverable, and refusing every variable path broke
         # ordinary scripted commits. What still dies is a hidden tree-wide sweep.
         commands = (
-            'g=git; maybe="$g -C /work/repo add -A"; export maybe; bash -c \'$maybe\'',
-            'flags="-A"; bash -c "git -C /work/repo add -A"',
+            'g=git; maybe="$g -C /work/repo reset --hard"; export maybe; bash -c \'$maybe\'',
+            'flags="-A"; bash -c "git -C /work/repo reset --hard"',
             "bash -c 'git -C /work/repo reset --hard'",
         )
         for command in commands:
@@ -396,7 +411,7 @@ class GitPolicyTests(unittest.TestCase):
     def test_codex_adapter_supports_legacy_command_and_denies_missing_or_non_string_input(self) -> None:
         env = codex_env()
         payloads = (
-            {"hook_event_name": "PreToolUse", "tool_name": "Bash", "tool_input": {"command": "git -C /work/repo add -A"}},
+            {"hook_event_name": "PreToolUse", "tool_name": "Bash", "tool_input": {"command": "git -C /work/repo reset --hard"}},
             {"hook_event_name": "PreToolUse", "tool_name": "Bash", "tool_input": {}},
             {"hook_event_name": "PreToolUse", "tool_name": "Bash", "tool_input": {"cmd": ["git", "status"]}},
             {"hook_event_name": "PreToolUse", "tool_name": "Bash", "tool_input": {"command": 7}},

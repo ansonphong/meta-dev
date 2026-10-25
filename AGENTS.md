@@ -53,8 +53,10 @@ bash plugins/meta-dev/scripts/planctl.sh <verb> [--json]
 ## Testing and git discipline
 
 Use focused checks during task work and report actual output. Use explicit paths
-for staging and commits. Never use tree-wide staging, stash, reset, restore,
-clean, rebase, or non-fast-forward merge. In a shared worktree, commit with:
+for staging and commits. Git is unrestricted except for data loss (Phong, 2026-10-25): the policy denies only
+forms that destroy work (reset --hard, clean, broad checkout/restore, force push,
+branch -D, stash drop/clear, reflog expire, filter-branch). Set
+`META_DEV_ALLOW_DATA_LOSS=1` to approve data loss explicitly. In a shared worktree, prefer:
 
 ```bash
 git -C <absolute-repository-root> commit --only -m "type: summary" -- <paths>
