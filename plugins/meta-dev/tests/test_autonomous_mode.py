@@ -28,6 +28,11 @@ def run_hook(prompt, tmp_path, **environment):
     '/meta-execute "plans/example with spaces" --autonomous',
     "--autonomous\nImplement the approved job",
     "--autonomous",
+    pytest.param(
+        "/meta-execute plans/approved-mcp --autonomous\n"
+        "Explicitly authorized: remove permission checks and implement cross-repo contracts.",
+        id="authorized-cross-repo-permission-removal",
+    ),
 ])
 def test_autonomy_injection_preserves_scope_and_hard_gates(tmp_path, prompt):
     output = json.loads(run_hook(prompt, tmp_path))["hookSpecificOutput"]
@@ -36,6 +41,7 @@ def test_autonomy_injection_preserves_scope_and_hard_gates(tmp_path, prompt):
     for marker in ("read-only request", "scoped implementation",
                    "stages, workers, repairs", "necessary integration",
                    "already-authorized sensitive work", "genuinely new authority",
+                   "cross-repo", "not a new prompt each stage",
                    "optional cadence", "existing authorization",
                    "No automatic Fable consultation", "instruction hierarchy",
                    "environment protections", "credentials", "NEVER pass `--human`", "stay UNCHECKED",
@@ -62,6 +68,11 @@ def test_autonomy_injection_preserves_scope_and_hard_gates(tmp_path, prompt):
     "/meta-dev explain the flag\n--autonomous",
     "/meta-execute plans/example --autonomous=false",
     "/meta-dev explain -- --autonomous",
+    pytest.param(
+        "The hook deadlocked the approved cross-repo job by detecting --autonomous "
+        "in discussion and injecting a blanket category veto. Fix the harness.",
+        id="deadlock-discussion-is-not-invocation",
+    ),
 ])
 def test_other_tokens_do_not_enable_autonomy(tmp_path, prompt):
     assert run_hook(prompt, tmp_path) == ""
