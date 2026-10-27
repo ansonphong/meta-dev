@@ -30,8 +30,9 @@ concurrency_notice() {
       printf '%s\n' "$claims" | jq -r '"      - " + (.scope|tostring) + "  (session=" + (.session|tostring) + " pid=" + (.pid|tostring) + ")"' 2>/dev/null | head -10 \
         || printf '%s\n' "$claims" | sed 's/^/      /'
     fi
-    echo "  Dispatch plan-editing workers with 'claude-headless-exec --claim <plan-dir>',"
-    echo "  partition by directory, and stage EXPLICIT file paths only (never 'git add -A'/'<dir>')."
+    echo "  Delegate with native subagents; never launch the current harness headlessly."
+    echo "  External headless routes require explicit user request; claims grant no exception."
+    echo "  Preserve claims, partition by directory, and stage EXPLICIT file paths only."
     [ -n "$ver" ] && echo "  • This session: meta-dev v${ver} — confirm other sessions run the same version."
   fi
 }
