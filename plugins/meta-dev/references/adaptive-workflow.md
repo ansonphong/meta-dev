@@ -18,8 +18,10 @@ it never grants authority or proves a model is available.
 Existing `--research`, `--harden` and `--granularity` overrides remain available.
 Focused depth uses the current owner to resolve bounded questions; specialist
 workers need a specific unanswered question whose answer can change the result.
-Full depth broadens relevant coverage, not a fixed swarm. Small work may share
-intent/design/plan/hardening notes in one record. No automatic skill chain.
+Full depth broadens relevant coverage, not a fixed swarm. Routine work keeps
+intent/design/approach/checks in chat. Apply the shared protocol's plan-file gate
+before creating a plan file; authoring depth does not require one.
+No automatic skill chain.
 
 ## Ownership and capacity
 

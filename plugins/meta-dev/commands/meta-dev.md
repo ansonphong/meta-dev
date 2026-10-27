@@ -9,14 +9,17 @@ allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, TaskCreate, TaskUpda
 
 Follow `references/workflows/protocol.md` for the six stage outcomes, authority
 and final review. Use the native host's tools and configured model; choose a
-working method proportional to the task. Small work shares one short record.
+working method proportional to the task. Routine work keeps intent, approach,
+checks and results in chat. Apply the protocol's plan-file gate before creating
+a plan; invoking `/meta-dev` does not itself request a plan file.
 Do not turn stages into mandatory specialist-command or skill invocations.
 
 Resolve relevant depth/capacity once through `references/adaptive-workflow.md`.
-Reuse existing valid artifacts and evidence. Planctl is the state write door;
-record meaningful stage changes with `scripts/stage-emit.sh <plan> <stage>
+Reuse existing valid artifacts and evidence. When a plan exists, planctl is the
+state write door; record meaningful stage changes with `scripts/stage-emit.sh <plan> <stage>
 <in_progress|completed|blocked>`. Dashboard failures do not establish acceptance
-or block independent implementation. Use an available native tracker without
+or block independent implementation. Without a plan, report progress/results in
+chat; do not create a plan for stage bookkeeping. Use an available native tracker without
 building another runtime ledger.
 
 Planning-only work defaults to Stage 4. An explicit scoped implementation go

@@ -15,7 +15,7 @@ instructions and mandatory environment protections take precedence.
 | Execute | Approved outcome implemented, repaired, verified and committed. |
 | Review | Independent review covers the actual result and integration seams. |
 
-Small or well-understood work can satisfy early stages in one short record.
+Routine work can satisfy early stages in chat and proceed directly.
 Stages are outcomes, not mandatory commands, agents, documents or approvals.
 Reuse valid decisions/evidence; investigate only unresolved requirements.
 Do not automatically invoke brainstorming, design-eval, DOD, planner, gap-loop,
@@ -23,8 +23,16 @@ execution-loop, audit or housekeeping skills because a stage has that name.
 These specialist workflows remain available when explicitly invoked or needed
 to answer a concrete question. Native planning and direct execution are valid.
 
-Use the project plan location and existing artifact/state conventions. Simple
-plans may be authored directly with one canonical task ledger; use existing
+Do not create a plan file by default. Write one when the user explicitly asks
+for a plan file or invokes the plan command/skill, or when a durable plan is
+necessary for consequential uncertainty, dependencies or coordination. Explain
+that concrete need before writing an unrequested plan. Small, straightforward
+edits do not need a plan file. Discussing an approach or entering a lifecycle
+stage does not request a saved plan; automatic skill chains do not override
+this gate. Follow stricter user/project constraints.
+
+When a plan is needed, use the project plan location and artifact/state
+conventions. Simple plans may be authored directly with one canonical task ledger; use existing
 IR rendering/validation for schema-managed plans or the explicit planner.
 Keep outcome, scope, relevant interfaces, acceptance and verification precise;
 there is no fixed number of sections or artifacts.
@@ -59,8 +67,12 @@ reassessment, bounded escalation and genuine blockers are authoritative in
 Use native tools; no mandatory delegation, model switching or cross-family
 review. Apply explicit runner model/context flags without silently dropping them.
 
-Plan Markdown is git truth. `scripts/planctl.sh` is the only state write door.
-One conductor owns acceptance/state; workers own scoped implementation and
+For existing or requested/necessary plans, Markdown is git truth and
+`scripts/planctl.sh` is the only state write door. Plan frontmatter, ledgers,
+stage tracking, review recording and archival apply only to those plans;
+never create a plan just to satisfy bookkeeping. Without a plan, report scope,
+verification, review and results in chat. File ownership claims remain applicable.
+When a plan exists, one conductor owns acceptance/state; workers own scoped implementation and
 exact-path commits. Keep one acceptance record per handle, even when one owner
 implements a coupled slice. Inspect the actual diff and whole-task evidence
 before accepting through planctl. Continue dependency-ready disjoint work.
@@ -79,8 +91,8 @@ cross-family reviewers are opt-in, not a default stage. If independent review
 is unavailable, label self-review honestly and leave the required gate open.
 
 Use `workflow-skills/code-review-protocol/SKILL.md` for the structured verdict
-and source-bound planctl review evidence. Batch findings and repairs; re-review
-only affected content/assumptions and retain unaffected evidence. A read-only
+and, when a plan exists, source-bound planctl review evidence. Batch findings
+and repairs; re-review only affected content/assumptions and retain unaffected evidence. A read-only
 review does not authorize fixes; an existing implementation go covers repairs.
 
 Update only affected declared context/docs and owning plan/runbook state.

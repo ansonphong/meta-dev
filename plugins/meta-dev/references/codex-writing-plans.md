@@ -1,10 +1,18 @@
 # Native planning
 
 Use `references/workflows/protocol.md` for authority and stage outcomes.
+Apply its plan-file gate first: an explicit request for a plan file or invocation
+of the plan command/skill requests a saved plan. Otherwise write one only when
+durable planning is necessary for consequential uncertainty, dependencies or
+coordination, explaining the concrete need first. Routine work proceeds directly
+with intent, focused checks and results in chat. Loading this reference or a
+generic planning skill does not itself request a file. If no plan is needed,
+stop this authoring workflow and continue the authorized task directly.
+
 Write a plan a skilled owner can execute without rediscovering the task.
 Use the project's central plan location and existing layout conventions.
-Ordinary work uses one short record; create a feature directory or phase files
-only when the project layout or the work needs them. Never relocate existing
+For a warranted plan, use one short record; create a feature directory or phase
+files only when the project layout or the work needs them. Never relocate existing
 unrelated artifacts merely to enforce a preferred shape.
 
 Include the outcome/non-goals, inspected revision and relevant live anchors,
