@@ -46,6 +46,7 @@
       "dedup_window_hours": 72
     },
     "overlord": {
+      "auto_start_campaign": false,
       "trigger": "on_plan_edit",
       "model": "native",
       "interval_minutes": null,

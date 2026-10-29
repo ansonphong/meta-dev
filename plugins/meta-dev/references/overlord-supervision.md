@@ -37,6 +37,25 @@ Resolve applicable AGENTS.md and routed project rules once at start; refresh
 only if they change. User instructions override plugin defaults. Supervision
 does not authorize source changes, broaden scope, or waive required reviews.
 
+## Project opt-in for campaign execution
+
+`meta_dev.overlord.auto_start_campaign` defaults to false. When true, the execution
+owner invokes this procedure once when starting an explicitly authorized campaign
+with multiple deliveries (one master plan or a runbook). This procedural entry
+point is not a background hook: installing settings alone starts nothing.
+Bind only that campaign and its existing owner, at 15 minutes, retaining the
+configured bounded review budget. Explicit user timing/stop instructions prevail.
+Inspect live state first: reuse a live watch for the same target; if a different
+watch is active, report the conflict and leave it untouched. Never restart a
+stopped watch automatically on resume; inspect its recorded stop reason.
+
+Use the scheduler/monitor capability checks below. Reserve monitor and reviewer
+capacity without displacing existing work. If unavailable, report the exact missing
+scheduler, cancellable native monitor/reviewer capacity or executor messaging
+capability; retain `/overlord <target> --every 15` as the manual retry command.
+Do not invent scheduling APIs, shell daemons or same-harness headless workers.
+No activation occurs for planning, ordinary edits or unapproved campaigns.
+
 ## A real timer, one owner
 
 For timed mode, name the actual host and available native capabilities. There is one active

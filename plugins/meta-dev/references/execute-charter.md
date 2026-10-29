@@ -115,15 +115,32 @@ workers and fixers against actual host capacity. `--review each`, unknown
 write sets, ownership overlap, and critical/human gates prevent unsafe slicing.
 Minimal hosts execute sequentially with the same acceptance contract.
 
+Claim the smallest coherent write set: exact files or a bounded coupled subtree,
+including necessary caller/fixture migrations. A directory/repository claim needs
+an actual shared-write or lifecycle reason in the brief, not scheduling convenience.
+Coordinate overlaps with the live owner before writing; continue disjoint work.
+At a safe committed handoff/completion boundary, release finished paths promptly;
+retain only paths still needed for coupled repairs. Stale claims are not permission
+to overwrite a peer's work.
+
 Resume from committed per-handle evidence and planctl state, re-anchoring relevant
 live symbols. A stale claim alone does not transfer ownership.
 The conductor inspects the actual scoped diff and evidence, accepts only completed
 requirements through planctl, and immediately advances dependency-ready disjoint
 work within capacity. Carry unresolved requirements explicitly. Use one conductor
 per task ledger; do routine inspection, bookkeeping and commits directly.
-A final native review covers the run including integration seams. Scoped phase
-passes are not a final PASS. Fix within granted authority, then re-review the
-changed scope. External consultants/review families remain explicit opt-ins.
+A final native review covers the run including integration seams. Reuse a covering
+review rather than reviewing unchanged content again. Preserve explicitly requested
+delivery and final reviews; scoped phase passes alone are not a final PASS.
+Dispatch with accepted evidence, baseline/delta refs and unresolved findings.
+Batch findings and repairs, then review affected deltas and invalidated assumptions;
+retain unaffected evidence. Fix within granted authority. External consultants/
+review families remain explicit opt-ins.
+
+At the start of explicitly authorized multi-delivery campaign execution, read
+`meta_dev.overlord.auto_start_campaign` from merged settings. When true, follow
+`references/overlord-supervision.md` campaign activation once; ordinary edits,
+planning-only work and unrelated tasks do not qualify.
 
 `--autonomous` removes routine prompts for authorized work; it never adds
 authority for source scope expansion, deployment, spending, destructive

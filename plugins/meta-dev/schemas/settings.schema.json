@@ -200,6 +200,11 @@
         "overlord": {
           "type": "object",
           "properties": {
+            "auto_start_campaign": {
+              "type": "boolean",
+              "default": false,
+              "description": "Opt in to one targeted native watch during explicitly authorized multi-delivery campaign execution; subject to live capability and capacity checks."
+            },
             "trigger": {
               "type": "string",
               "enum": [
