@@ -1,0 +1,5 @@
+interface:
+  display_name: "Meta Loop Gap"
+  short_description: "Use the meta-loop-gap workflow in Codex"
+policy:
+  allow_implicit_invocation: false

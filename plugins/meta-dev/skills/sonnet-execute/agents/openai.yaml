@@ -1,0 +1,5 @@
+interface:
+  display_name: "Sonnet Execute"
+  short_description: "Use the sonnet-execute workflow in Codex"
+policy:
+  allow_implicit_invocation: false

@@ -9,8 +9,8 @@ allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, TaskCreate, TaskUpda
 
 Execute the scoped plan under its existing implementation go. Use
 `references/execute-charter.md` for completion and repair; shared authority and
-stage outcomes live in `references/workflows/protocol.md`. Resolve depth/capacity
-through `references/adaptive-workflow.md` once. Read referenced detail when needed,
+stage outcomes live in `references/workflows/protocol.md`. Load `references/adaptive-workflow.md` only for depth/capacity decisions.
+Read referenced detail when needed,
 not as a mandatory skill chain. Native tools and direct implementation are valid.
 
 ## Resolve and schedule
@@ -101,32 +101,12 @@ self-review with independence unverified. When an independent verdict is require
 obtain a permitted reviewer or leave that gate pending; sequential implementation
 fallback does not authorize recording self-review as an independent PASS.
 
-Fixes require the existing scoped implementation authority. Preserve unchanged
-green evidence and clean findings; re-review repaired scope and impacted
-assumptions. Name any changed shared contract and why it widens review. Persist
-a covering PASS with exact reviewed refs and source scope:
-
-```bash
-bash ${PLUGIN_ROOT}/scripts/planctl.sh review <plan-file> pass --by <reviewer> \
-  --repo-root <absolute-source-repo> --base-ref <start-sha> --target-ref <reviewed-sha> \
-  --scope <repo-relative-file> --scope <another-file> --verdict-file <single-pass-json>
-```
-
-Include every file needed to cover the completed run; omit neither changed
-implementation nor its acceptance surface. Scoped working contents must match
-the reviewed commit. The verdict JSON must carry matching full commit SHAs,
-scope, and completed integration inspection as described in the review protocol;
-planctl refuses missing, malformed, partial, or contradictory PASS evidence.
-Only its digest enters the event, not the review narrative. Review evidence binds file content and the plan contract;
-source/contract changes invalidate it, while ledger-only commits do not.
-Old unbound PASS events require a fresh covering review. Cross-repository work
-must retain a separate covering verdict per source repository; do not use a
-single-repository event to claim review of another repo. Prefer repository-owned
-member plans; leave aggregate completion pending when the current single-repo
-evidence contract cannot cover the whole plan.
-There must be no unresolved blocking acceptance. Do not use a partial phase PASS as
-the final run verdict. The completion hook reconciles plan state and dirty
-runbook dashboards; it is a backstop, not evidence that a review happened.
+Fixes reuse existing scoped implementation authority. Batch repairs, retain
+unchanged evidence and review affected deltas. When recording final plan acceptance,
+follow `workflow-skills/code-review-protocol/references/verdict-routing.md` for
+source-bound verdict validation and the planctl command. There must be no unresolved
+blocking acceptance. The completion hook reconciles state and dashboards; it does
+not prove review occurred.
 
 Archive only after required acceptance/manual gates pass, using the state door.
 Push only when the user/project release contract authorizes it; never deploy

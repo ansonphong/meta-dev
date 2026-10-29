@@ -1,0 +1,5 @@
+interface:
+  display_name: "Meta Ux"
+  short_description: "Use the meta-ux workflow in Codex"
+policy:
+  allow_implicit_invocation: false

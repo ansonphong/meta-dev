@@ -1,0 +1,5 @@
+interface:
+  display_name: "Meta Visual Critique"
+  short_description: "Use the meta-visual-critique workflow in Codex"
+policy:
+  allow_implicit_invocation: false

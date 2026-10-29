@@ -1,0 +1,5 @@
+interface:
+  display_name: "Meta Canary"
+  short_description: "Use the meta-canary workflow in Codex"
+policy:
+  allow_implicit_invocation: false

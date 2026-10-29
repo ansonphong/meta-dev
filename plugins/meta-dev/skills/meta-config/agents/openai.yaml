@@ -1,0 +1,5 @@
+interface:
+  display_name: "Meta Config"
+  short_description: "Use the meta-config workflow in Codex"
+policy:
+  allow_implicit_invocation: false

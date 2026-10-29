@@ -1,0 +1,5 @@
+interface:
+  display_name: "Sniff Test"
+  short_description: "Use the sniff-test workflow in Codex"
+policy:
+  allow_implicit_invocation: false

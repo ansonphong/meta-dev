@@ -1,0 +1,5 @@
+interface:
+  display_name: "Meta Audit"
+  short_description: "Use the meta-audit workflow in Codex"
+policy:
+  allow_implicit_invocation: false

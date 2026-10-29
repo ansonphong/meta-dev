@@ -1,0 +1,5 @@
+interface:
+  display_name: "Grok Execute"
+  short_description: "Use the grok-execute workflow in Codex"
+policy:
+  allow_implicit_invocation: false

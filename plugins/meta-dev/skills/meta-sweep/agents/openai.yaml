@@ -1,0 +1,5 @@
+interface:
+  display_name: "Meta Sweep"
+  short_description: "Use the meta-sweep workflow in Codex"
+policy:
+  allow_implicit_invocation: false

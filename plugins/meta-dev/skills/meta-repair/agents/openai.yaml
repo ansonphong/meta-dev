@@ -1,0 +1,5 @@
+interface:
+  display_name: "Meta Repair"
+  short_description: "Use the meta-repair workflow in Codex"
+policy:
+  allow_implicit_invocation: false

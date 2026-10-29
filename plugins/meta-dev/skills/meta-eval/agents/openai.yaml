@@ -1,0 +1,5 @@
+interface:
+  display_name: "Meta Eval"
+  short_description: "Use the meta-eval workflow in Codex"
+policy:
+  allow_implicit_invocation: false

@@ -1,0 +1,5 @@
+interface:
+  display_name: "Command Router"
+  short_description: "Use the command-router workflow in Codex"
+policy:
+  allow_implicit_invocation: true

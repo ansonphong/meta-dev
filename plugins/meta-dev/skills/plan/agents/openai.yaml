@@ -1,0 +1,5 @@
+interface:
+  display_name: "Plan"
+  short_description: "Use the plan workflow in Codex"
+policy:
+  allow_implicit_invocation: true

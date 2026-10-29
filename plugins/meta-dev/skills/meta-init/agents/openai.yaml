@@ -1,0 +1,5 @@
+interface:
+  display_name: "Meta Init"
+  short_description: "Use the meta-init workflow in Codex"
+policy:
+  allow_implicit_invocation: false

@@ -1,0 +1,5 @@
+interface:
+  display_name: "Meta Security"
+  short_description: "Use the meta-security workflow in Codex"
+policy:
+  allow_implicit_invocation: false

@@ -1,0 +1,5 @@
+interface:
+  display_name: "Auto Execute"
+  short_description: "Use the auto-execute workflow in Codex"
+policy:
+  allow_implicit_invocation: false

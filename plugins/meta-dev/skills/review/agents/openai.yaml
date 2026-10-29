@@ -1,0 +1,5 @@
+interface:
+  display_name: "Review"
+  short_description: "Use the review workflow in Codex"
+policy:
+  allow_implicit_invocation: true

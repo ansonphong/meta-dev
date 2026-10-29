@@ -1,0 +1,5 @@
+interface:
+  display_name: "Ops"
+  short_description: "Use the ops workflow in Codex"
+policy:
+  allow_implicit_invocation: true

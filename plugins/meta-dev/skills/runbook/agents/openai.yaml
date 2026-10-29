@@ -1,0 +1,5 @@
+interface:
+  display_name: "Runbook"
+  short_description: "Use the runbook workflow in Codex"
+policy:
+  allow_implicit_invocation: true

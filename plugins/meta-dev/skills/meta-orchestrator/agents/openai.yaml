@@ -1,0 +1,5 @@
+interface:
+  display_name: "Meta Orchestrator"
+  short_description: "Use the meta-orchestrator workflow in Codex"
+policy:
+  allow_implicit_invocation: false

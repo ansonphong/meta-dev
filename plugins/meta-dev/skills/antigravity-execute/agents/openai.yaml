@@ -1,0 +1,5 @@
+interface:
+  display_name: "Antigravity Execute"
+  short_description: "Use the antigravity-execute workflow in Codex"
+policy:
+  allow_implicit_invocation: false

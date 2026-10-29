@@ -1,0 +1,5 @@
+interface:
+  display_name: "Meta Inbox"
+  short_description: "Use the meta-inbox workflow in Codex"
+policy:
+  allow_implicit_invocation: false

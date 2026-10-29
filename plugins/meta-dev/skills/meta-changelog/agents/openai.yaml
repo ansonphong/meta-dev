@@ -1,0 +1,5 @@
+interface:
+  display_name: "Meta Changelog"
+  short_description: "Use the meta-changelog workflow in Codex"
+policy:
+  allow_implicit_invocation: false

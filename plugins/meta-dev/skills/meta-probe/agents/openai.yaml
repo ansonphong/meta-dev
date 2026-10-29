@@ -1,0 +1,5 @@
+interface:
+  display_name: "Meta Probe"
+  short_description: "Use the meta-probe workflow in Codex"
+policy:
+  allow_implicit_invocation: false

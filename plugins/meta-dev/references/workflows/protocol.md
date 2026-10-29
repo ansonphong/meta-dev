@@ -15,27 +15,25 @@ instructions and mandatory environment protections take precedence.
 | Execute | Approved outcome implemented, repaired, verified and committed. |
 | Review | Independent review covers the actual result and integration seams. |
 
-Routine work can satisfy early stages in chat and proceed directly.
-Stages are outcomes, not mandatory commands, agents, documents or approvals.
-Reuse valid decisions/evidence; investigate only unresolved requirements.
-Do not automatically invoke brainstorming, design-eval, DOD, planner, gap-loop,
-execution-loop, audit or housekeeping skills because a stage has that name.
-These specialist workflows remain available when explicitly invoked or needed
-to answer a concrete question. Native planning and direct execution are valid.
+Routine work can satisfy early stages in chat. Stages are outcomes, not required
+commands, agents, documents or approvals. Keep user/project-required complexity
+checks; combined stages may share a check when that contract permits it.
 
-Do not create a plan file by default. Write one when the user explicitly asks
-for a plan file or invokes the plan command/skill, or when a durable plan is
-necessary for consequential uncertainty, dependencies or coordination. Explain
-that concrete need before writing an unrequested plan. Small, straightforward
-edits do not need a plan file. Discussing an approach or entering a lifecycle
-stage does not request a saved plan; automatic skill chains do not override
-this gate. Follow stricter user/project constraints.
+## Skill selection and context
 
-When a plan is needed, use the project plan location and artifact/state
-conventions. Simple plans may be authored directly with one canonical task ledger; use existing
-IR rendering/validation for schema-managed plans or the explicit planner.
-Keep outcome, scope, relevant interfaces, acceptance and verification precise;
-there is no fixed number of sections or artifacts.
+Load a skill for an explicit request, an unfamiliar tool, or a concrete unresolved
+question that could change the result. Explicitly selecting a command also
+selects the steps it requires; follow their native or canonical inline procedure.
+Reuse valid instructions and evidence;
+do not reload them at stage boundaries. A stage name or slight keyword overlap
+does not trigger a skill, mandatory workflow chain or new document. Project/user
+requirements remain binding. This rule also applies when optional external skill
+packs prescribe blanket invocation; do not let them expand the selected task.
+
+Create a plan file only when requested (including the plan command) or necessary
+for consequential uncertainty, dependencies or coordination. Explain an unrequested
+plan's concrete need first. Use the project's location and state conventions.
+Without a plan, keep scope, approach, checks and results in chat.
 
 ## Authority
 
@@ -90,10 +88,11 @@ review; do not add a second closing pass over unchanged content. External or
 cross-family reviewers are opt-in, not a default stage. If independent review
 is unavailable, label self-review honestly and leave the required gate open.
 
-Use `workflow-skills/code-review-protocol/SKILL.md` for the structured verdict
-and, when a plan exists, source-bound planctl review evidence. Batch findings
-and repairs; re-review only affected content/assumptions and retain unaffected evidence. A read-only
-review does not authorize fixes; an existing implementation go covers repairs.
+Use `workflow-skills/code-review-protocol/SKILL.md` when performing review.
+Load structured verdict and source-bound acceptance details only when recording
+acceptance or when requested. Batch findings/repairs, review affected deltas and
+retain unaffected evidence. A review does not authorize fixes; an existing scoped
+implementation go covers repairs.
 
 Update only affected declared context/docs and owning plan/runbook state.
 Archive only after required acceptance/manual gates pass. Batch bookkeeping
@@ -103,8 +102,11 @@ Do not claim measured savings from instruction changes alone.
 
 ## Host adapters and explicit commands
 
-Codex uses exact native command skills (`$meta-dev:<command>`) or their skill
-picker equivalents; Claude Code uses its native command/agent surfaces.
+The primary Codex menu is `meta-dev`, `plan`, `harden`, `execute`, `review`,
+`diagnose`, `runbook`, `ops`, and `command-router`. Other command skills remain
+explicitly invocable through `$meta-dev:<command>`; their metadata disables
+implicit invocation. This is not a promise to hide autocomplete entries or
+host-generated migration skills. Claude retains its native command surface.
 Translate unavailable vendor syntax to actual host tools, never simulate tools
 with invented capabilities. Headless runners are for deliberate CLI crossings.
 `references/workflows/command-adapter.md` describes the Codex adapter.

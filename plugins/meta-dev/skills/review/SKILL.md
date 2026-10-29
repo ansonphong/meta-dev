@@ -5,9 +5,8 @@ description: Review a scoped change through the shared protocol.
 
 # Review
 
-For host-neutral, non-slash-command review, read
-`../../references/workflows/protocol.md`,
-`../../workflow-skills/code-review-protocol/SKILL.md`, and
-`../../references/execute-charter.md`. Use the configured native review route
-(Codex defaults to Sol/high), honoring explicit available model selection.
-Report only absent fix permission; emit `PASS|CONDITIONAL_PASS|FAIL`.
+Apply `../../references/workflows/protocol.md` and
+`../../workflow-skills/code-review-protocol/SKILL.md` once. Use the configured
+native review route, honoring explicit available model selection.
+Report only absent existing scoped fix permission. Load structured acceptance
+details only when recording acceptance or when explicitly requested.

@@ -1,0 +1,5 @@
+interface:
+  display_name: "Meta Review Design"
+  short_description: "Use the meta-review-design workflow in Codex"
+policy:
+  allow_implicit_invocation: false

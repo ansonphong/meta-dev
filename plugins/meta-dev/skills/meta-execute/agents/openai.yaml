@@ -1,0 +1,5 @@
+interface:
+  display_name: "Meta Execute"
+  short_description: "Use the meta-execute workflow in Codex"
+policy:
+  allow_implicit_invocation: false

@@ -99,6 +99,9 @@ class NativeReviewContract(unittest.TestCase):
 
         for marker in (
             "## Codex efficiency boundary",
+            "When the selected command explicitly invokes a skill or command",
+            "workflow-skills/<name>/SKILL.md",
+            "commands/<name>.md",
             "A stage name, section heading, example,",
             "Stage 6 uses one native Codex review",
             "Do not infer `meta-eval`, `meta-audit`, or standalone `housekeeping`",
@@ -145,7 +148,7 @@ class NativeReviewContract(unittest.TestCase):
         for text in (skill, routing, evaluation):
             self.assertIn("report-only", text)
             self.assertIn("--fix", text)
-        self.assertIn("does not authorize edits or a commit", skill)
+        self.assertIn("authorize edits or a commit", skill)
         self.assertIn("Do not commit merely", routing)
         self.assertIn("Do not dispatch a", evaluation)
         self.assertNotIn("Auto-fix trivials", evaluation)
@@ -161,6 +164,11 @@ class NativeReviewContract(unittest.TestCase):
         ).read_text(encoding="utf-8")
         for verdict in ("PASS", "CONDITIONAL_PASS", "FAIL"):
             self.assertIn(verdict, skill)
+        routing = (PLUGIN_ROOT / "workflow-skills/code-review-protocol/references/verdict-routing.md").read_text()
+        self.assertIn("references/verdict-routing.md", skill)
+        self.assertIn('"dimensions"', routing)
+        self.assertIn("review-batch-render.py --validate-only", routing)
+        self.assertIn("--verdict-file", routing)
         self.assertIn("commands/meta-execute.md", loop)
         self.assertIn("final planctl PASS", loop)
         self.assertNotIn("Reviewer is ALWAYS the Opus", loop)

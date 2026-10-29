@@ -1,0 +1,5 @@
+interface:
+  display_name: "Meta Dev"
+  short_description: "Use the meta-dev workflow in Codex"
+policy:
+  allow_implicit_invocation: true

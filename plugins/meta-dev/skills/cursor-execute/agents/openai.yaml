@@ -1,0 +1,5 @@
+interface:
+  display_name: "Cursor Execute"
+  short_description: "Use the cursor-execute workflow in Codex"
+policy:
+  allow_implicit_invocation: false

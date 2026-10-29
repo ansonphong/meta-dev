@@ -1,0 +1,5 @@
+interface:
+  display_name: "Meta Planner"
+  short_description: "Use the meta-planner workflow in Codex"
+policy:
+  allow_implicit_invocation: false

@@ -22,6 +22,10 @@ PRESERVED_SKILLS = {
     "review",
     "runbook",
 }
+PRIMARY_SKILLS = {
+    "meta-dev", "plan", "execute", "review", "diagnose", "harden",
+    "runbook", "ops", "command-router",
+}
 REDIRECT_RE = re.compile(r"Execute /[a-z0-9-]+ \$ARGUMENTS")
 
 
@@ -68,9 +72,23 @@ def generated_paths() -> dict[Path, str]:
     }
 
 
+def metadata_paths() -> dict[Path, str]:
+    metadata = {}
+    for skill in sorted(SKILLS_ROOT.glob("*/SKILL.md")):
+        name = skill.parent.name
+        title = name.replace("-", " ").title()
+        implicit = "true" if name in PRIMARY_SKILLS else "false"
+        metadata[skill.parent / "agents/openai.yaml"] = (
+            f'interface:\n  display_name: "{title}"\n'
+            f'  short_description: "Use the {name} workflow in Codex"\n'
+            f'policy:\n  allow_implicit_invocation: {implicit}\n'
+        )
+    return metadata
+
+
 def check() -> int:
     failures = []
-    expected = generated_paths()
+    expected = generated_paths() | metadata_paths()
     for path, content in expected.items():
         if not path.is_file():
             failures.append(f"missing: {path.relative_to(PLUGIN_ROOT)}")
@@ -88,13 +106,14 @@ def check() -> int:
     print(
         "PASS: "
         f"{len(canonical_commands())} canonical commands, "
-        f"{len(expected)} generated command skills"
+        f"{len(generated_paths())} generated command skills, "
+        f"{len(metadata_paths())} skill metadata files"
     )
     return 0
 
 
 def write() -> int:
-    for path, content in generated_paths().items():
+    for path, content in (generated_paths() | metadata_paths()).items():
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content, encoding="utf-8")
     return check()

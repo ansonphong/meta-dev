@@ -1,0 +1,5 @@
+interface:
+  display_name: "Meta Dashboard"
+  short_description: "Use the meta-dashboard workflow in Codex"
+policy:
+  allow_implicit_invocation: false

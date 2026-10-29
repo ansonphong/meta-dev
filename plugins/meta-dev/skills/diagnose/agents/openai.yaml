@@ -1,0 +1,5 @@
+interface:
+  display_name: "Diagnose"
+  short_description: "Use the diagnose workflow in Codex"
+policy:
+  allow_implicit_invocation: true

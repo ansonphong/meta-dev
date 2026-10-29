@@ -1,0 +1,5 @@
+interface:
+  display_name: "Housekeeping"
+  short_description: "Use the housekeeping workflow in Codex"
+policy:
+  allow_implicit_invocation: false

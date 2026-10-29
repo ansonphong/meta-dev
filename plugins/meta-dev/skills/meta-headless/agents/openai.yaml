@@ -1,0 +1,5 @@
+interface:
+  display_name: "Meta Headless"
+  short_description: "Use the meta-headless workflow in Codex"
+policy:
+  allow_implicit_invocation: false

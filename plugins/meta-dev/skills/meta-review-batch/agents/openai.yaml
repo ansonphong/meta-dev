@@ -1,0 +1,5 @@
+interface:
+  display_name: "Meta Review Batch"
+  short_description: "Use the meta-review-batch workflow in Codex"
+policy:
+  allow_implicit_invocation: false

@@ -1,0 +1,5 @@
+interface:
+  display_name: "Meta Dod"
+  short_description: "Use the meta-dod workflow in Codex"
+policy:
+  allow_implicit_invocation: false

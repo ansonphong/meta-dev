@@ -1,0 +1,5 @@
+interface:
+  display_name: "Meta Compact"
+  short_description: "Use the meta-compact workflow in Codex"
+policy:
+  allow_implicit_invocation: false
