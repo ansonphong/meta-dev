@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.5.23
+
+- Allow supporting research during brainstorming and every other stage in the
+  subject directory's shared `research/` subfolder, linked from stage artifacts.
+- Keep required stage deliverables and ceilings; hardening checks supporting
+  research for stale or contradictory findings.
+- Align both plugin manifests at version 1.5.23.
+
 ## 1.5.22
 
 - Require Stage 1 `brainstorm.md`, Stage 2 `design.md` (plus optional supporting

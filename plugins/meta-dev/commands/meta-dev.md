@@ -10,12 +10,14 @@ allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, TaskCreate, TaskUpda
 Follow `references/workflows/protocol.md` for the six stage outcomes, authority
 and final review. Use the native host's tools and configured model; choose a
 working method proportional to the task. Follow the protocol's artifact contract:
-Stage 1 writes `brainstorm.md` only; Stage 2 requires `design.md` and may add
+Stage 1 requires `brainstorm.md` and may add supporting research; Stage 2 requires `design.md` and may add
 supporting files; Stage 3 creates `00-master-plan.md` and invokes
 `commands/meta-planner.md` when detailed task planning or phases are applicable,
 otherwise produces a one-page master plan. Stage 4 edits and hardens all
 applicable preceding artifacts, including planner output. Explicit user overrides
 apply. Never create a master plan in Stage 1 or Stage 2, even for bookkeeping.
+Any stage may save supporting research in the subject directory's `research/`
+subfolder; link it from the stage artifact without replacing required files.
 Do not turn other stage names into mandatory specialist-command invocations.
 
 Resolve relevant depth/capacity once through `references/adaptive-workflow.md`.

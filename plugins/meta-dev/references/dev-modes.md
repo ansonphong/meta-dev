@@ -13,6 +13,8 @@ lifecycle or adds model capabilities.
   required `design.md` and optional supporting files. Stage 3 creates
   `00-master-plan.md`, using meta-planner when applicable, otherwise one page.
   Stage 4 edits and hardens all applicable preceding artifacts. User overrides apply.
+- Any stage may add supporting research in the subject directory's `research/`
+  subfolder; research never replaces its required artifact or advances its ceiling.
 - Default `--to` is 4 for other planning-only requests. An implementation go permits
   execution and review; explicit stage ceilings remain binding.
 - `--gate all` selects stage checkpoints; `--gate exec` gates implementation

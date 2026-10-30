@@ -24,7 +24,7 @@ These are mandatory baseline deliverables, not examples. Unless the user
 explicitly specifies otherwise:
 
 - Stage 1 (Brainstorm): write `brainstorm.md` with intent, scope, alternatives
-  and unknowns. This is the only Stage 1 deliverable. Do not create a design or
+  and unknowns. Supporting research files belong in `research/`. Do not create a design or
   master plan yet.
 - Stage 2 (Design): write `design.md` with approach, interfaces and tradeoffs.
   Supporting design files are allowed, but never replace required `design.md`.
@@ -53,6 +53,14 @@ alias). Reuse valid existing artifacts and
 preserve unrelated files. Brainstorm and design documents are ordinary Markdown,
 not executable plans: do not add plan state/ledgers or call planctl/stage-emit on
 those files. Never create a placeholder master plan for early-stage tracking.
+
+Any stage may create supporting research files in a shared `research/` subfolder
+inside that subject directory. Create it only when research is needed; use
+descriptive filenames and link relevant findings from the stage artifact.
+Research supplements the required deliverables and never replaces them or
+advances the stage ceiling. Reuse relevant existing research across stages.
+Stage 4 checks research supporting its decisions and updates stale or
+contradictory findings as needed.
 
 A brainstorm/Stage 1 request stops at Stage 1; a design/Stage 2 request stops at
 Stage 2. Natural-language stage limits bind just like `--to 1` and `--to 2`.

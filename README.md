@@ -311,11 +311,13 @@ Never auto-selected.
 
 Claude Code, Codex, and Grok Build run the same six-stage waterfall (see the
 top of this README).
-Unless explicitly overridden, Stage 1 produces only `brainstorm.md`; Stage 2
+Unless explicitly overridden, Stage 1 requires `brainstorm.md`; Stage 2
 requires `design.md` and may include supporting files; Stage 3 creates
 `00-master-plan.md` using meta-planner when applicable, otherwise a one-page
 master plan. Stage 4 edits and hardens all applicable preceding artifacts.
 A brainstorm or design request stops at its named stage without a master plan.
+Any stage, including brainstorming, may add supporting research in the subject
+directory's shared `research/` subfolder and link it from its required artifact.
 Plans and their state remain host-neutral: `planctl` is the only state write
 door, and the conductor owns stage transitions and the checkbox ledger.
 
