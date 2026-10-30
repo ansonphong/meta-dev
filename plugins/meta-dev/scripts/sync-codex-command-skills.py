@@ -76,7 +76,12 @@ def metadata_paths() -> dict[Path, str]:
     metadata = {}
     for skill in sorted(SKILLS_ROOT.glob("*/SKILL.md")):
         name = skill.parent.name
-        title = name.replace("-", " ").title()
+        # Keep the main entry a direct match for both $me and $meta-dev.
+        title = name.removeprefix("meta-").replace("-", " ").title()
+        if name == "meta-dev":
+            title = "meta-dev"
+        elif name == "meta-execute":
+            title = "Execute Plan"
         implicit = "true" if name in PRIMARY_SKILLS else "false"
         metadata[skill.parent / "agents/openai.yaml"] = (
             f'interface:\n  display_name: "{title}"\n'

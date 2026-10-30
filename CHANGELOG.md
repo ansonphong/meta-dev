@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.5.25
+
+- Label the main Codex workflow `meta-dev` so `$me` matches its display name
+  directly and `$meta-dev` matches exactly, ahead of namespace-only matches.
+- Drop redundant Meta prefixes from other menu labels so the main workflow is
+  the sole display-name prefix match for `$me`; keep Execute Plan distinct.
+- Keep other command labels distinct and align manifests at version 1.5.25.
+
 ## 1.5.24
 
 - Disable automatic legacy command migration in the Codex manifest; native

@@ -1,5 +1,5 @@
 interface:
-  display_name: "Meta Init Check"
+  display_name: "Init Check"
   short_description: "Use the meta-init-check workflow in Codex"
 policy:
   allow_implicit_invocation: false

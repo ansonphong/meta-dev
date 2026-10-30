@@ -133,6 +133,10 @@ for name in sorted(native_dirs):
     assert isinstance(frontmatter["description"], str) and len(frontmatter["description"]) < 160
     metadata = yaml.safe_load((skills_root / name / "agents/openai.yaml").read_text())
     assert metadata["interface"]["display_name"]
+    if name == "meta-dev":
+        assert metadata["interface"]["display_name"] == "meta-dev", "main entry must directly match $me and $meta-dev"
+    else:
+        assert not metadata["interface"]["display_name"].lower().startswith("me"), "reserve $me display prefix for main workflow"
     assert metadata["interface"]["short_description"]
     implicit = metadata["policy"]["allow_implicit_invocation"]
     assert type(implicit) is bool

@@ -1,5 +1,5 @@
 interface:
-  display_name: "Meta Task Agent"
+  display_name: "Task Agent"
   short_description: "Use the meta-task-agent workflow in Codex"
 policy:
   allow_implicit_invocation: false

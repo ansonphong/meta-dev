@@ -1,5 +1,5 @@
 interface:
-  display_name: "Meta Dev"
+  display_name: "meta-dev"
   short_description: "Use the meta-dev workflow in Codex"
 policy:
   allow_implicit_invocation: true

@@ -1,5 +1,5 @@
 interface:
-  display_name: "Meta Classify"
+  display_name: "Classify"
   short_description: "Use the meta-classify workflow in Codex"
 policy:
   allow_implicit_invocation: false
