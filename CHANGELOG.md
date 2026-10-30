@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.5.24
+
+- Disable automatic legacy command migration in the Codex manifest; native
+  skills already cover the commands, so generated `source-command-*` duplicates
+  no longer pollute discovery. Preserve the Claude command surface.
+- Reject migrated duplicates in the real Codex package ingestion check.
+- Align both plugin manifests at version 1.5.24.
+
 ## 1.5.23
 
 - Allow supporting research during brainstorming and every other stage in the

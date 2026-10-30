@@ -38,6 +38,7 @@ assert {key: codex[key] for key in identity} == {key: claude[key] for key in ide
 assert codex["version"].split("+", 1)[0] == claude["version"].split("+", 1)[0], "manifest base versions drifted"
 assert claude["skills"] == "./workflow-skills/"
 assert codex["skills"] == "./skills/"
+assert codex.get("commands") == [], "disable legacy command migration; native skills already cover commands"
 assert "hooks" not in codex
 assert codex["interface"] == {
     "displayName": "Meta Dev",
@@ -286,6 +287,8 @@ if codex_cli:
         )
         assert install.returncode == 0, install.stdout + install.stderr
         installed_path = Path(json.loads(install.stdout)["installedPath"]).resolve()
+        migrated = installed_path / ".codex-plugin/migrated-command-skills"
+        assert not list(migrated.glob("*/SKILL.md")), "legacy commands leaked into generated skills"
         prompt = subprocess.run(
             [codex_cli, "debug", "prompt-input", "$meta-dev:meta-planner test"],
             cwd=repo_root, env=environment, text=True, capture_output=True, check=False,
@@ -306,10 +309,7 @@ if codex_cli:
         assert ordinary.returncode == 0, ordinary.stdout + ordinary.stderr
         # Check discovery entries, not arbitrary mentions in other skill bodies.
         entries = set(re.findall(r"meta-dev:([a-z0-9-]+):", ordinary.stdout))
-        # Host-created command migration skills are a separate compatibility
-        # surface; this package policy controls only its native skills directory.
-        native_entries = {name for name in entries if not name.startswith("source-command-")}
-        assert native_entries == primary_skills, native_entries
+        assert entries == primary_skills, entries
 else:
     print("SKIP: Codex CLI unavailable; local package ingestion was not exercised")
 

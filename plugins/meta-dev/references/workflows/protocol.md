@@ -160,8 +160,10 @@ Do not claim measured savings from instruction changes alone.
 The primary Codex menu is `meta-dev`, `plan`, `harden`, `execute`, `review`,
 `diagnose`, `runbook`, `ops`, and `command-router`. Other command skills remain
 explicitly invocable through `$meta-dev:<command>`; their metadata disables
-implicit invocation. This is not a promise to hide autocomplete entries or
-host-generated migration skills. Claude retains its native command surface.
+implicit invocation. The Codex manifest sets `commands: []` to disable automatic
+legacy-command migration: native skills already cover those commands, so
+`source-command-*` duplicates must not be generated. Claude retains its native
+command surface.
 Translate unavailable vendor syntax to actual host tools, never simulate tools
 with invented capabilities. Headless runners are for deliberate CLI crossings.
 `references/workflows/command-adapter.md` describes the Codex adapter.

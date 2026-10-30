@@ -307,6 +307,10 @@ Never auto-selected.
 
 `/meta-init` creates `plans/_dashboard/` with settings, versioning, changelog, state, and inbox — all validated against JSON schemas. Idempotent (safe to re-run).
 
+The Codex package disables legacy command migration with `"commands": []` in
+its manifest. Native skills provide the command surface without generated
+`source-command-*` duplicates; Claude retains its canonical commands.
+
 ## Shared workflow contract
 
 Claude Code, Codex, and Grok Build run the same six-stage waterfall (see the
