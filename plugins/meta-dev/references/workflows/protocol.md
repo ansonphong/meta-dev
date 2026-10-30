@@ -15,9 +15,52 @@ instructions and mandatory environment protections take precedence.
 | Execute | Approved outcome implemented, repaired, verified and committed. |
 | Review | Independent review covers the actual result and integration seams. |
 
-Routine work can satisfy early stages in chat. Stages are outcomes, not required
-commands, agents, documents or approvals. Keep user/project-required complexity
-checks; combined stages may share a check when that contract permits it.
+Stages do not require separate agents or approval prompts. Keep required
+complexity checks; combined stages may share a check where permitted.
+
+### Required stage artifacts
+
+These are mandatory baseline deliverables, not examples. Unless the user
+explicitly specifies otherwise:
+
+- Stage 1 (Brainstorm): write `brainstorm.md` with intent, scope, alternatives
+  and unknowns. This is the only Stage 1 deliverable. Do not create a design or
+  master plan yet.
+- Stage 2 (Design): write `design.md` with approach, interfaces and tradeoffs.
+  Supporting design files are allowed, but never replace required `design.md`.
+  Do not create a master plan yet.
+- Stage 3 (Plan): create `00-master-plan.md`. Invoke `commands/meta-planner.md`
+  through the native command adapter when multi-phase decomposition or detailed
+  task planning is applicable. For bounded work, write a one-page master plan
+  with concrete changes and focused acceptance checks using existing plan
+  tooling; do not force phases or invoke the planner just for ceremony.
+- Stage 4 (Harden): check and edit all applicable preceding artifacts, including
+  `brainstorm.md`, `design.md`, supporting design files, `00-master-plan.md` and
+  planner output. Resolve gaps, contradictions and live-code assumptions across
+  them; do not harden only the master plan or create a replacement master plan.
+
+Adapt depth, supporting files and phase structure to the work, but never silently
+rename, omit or substitute a required artifact or exceed the stage ceiling.
+
+Compact staged plans may use ordinary Markdown under project conventions. If
+using the IR renderer, use version `1.0` single-file layout with artifact_path
+ending in `00-master-plan.md`; version `1.1` requires dated filenames and must
+not silently override the staged workflow filename.
+
+Use one subject directory under the project's configured planning location
+(portable fallback: `plans/<repo>/<subject>/`, using the configured repository
+alias). Reuse valid existing artifacts and
+preserve unrelated files. Brainstorm and design documents are ordinary Markdown,
+not executable plans: do not add plan state/ledgers or call planctl/stage-emit on
+those files. Never create a placeholder master plan for early-stage tracking.
+
+A brainstorm/Stage 1 request stops at Stage 1; a design/Stage 2 request stops at
+Stage 2. Natural-language stage limits bind just like `--to 1` and `--to 2`.
+Only an explicitly broader range proceeds further, producing each requested
+stage's artifact in order. Resume from valid artifacts without repeating stages.
+Explicit user instructions may override filenames, omit files or combine records.
+Routine work outside an explicit staged workflow or individual stage request
+may keep one short record in chat.
 
 ## Skill selection and context
 
@@ -34,6 +77,8 @@ Create a plan file only when requested (including the plan command) or necessary
 for consequential uncertainty, dependencies or coordination. Explain an unrequested
 plan's concrete need first. Use the project's location and state conventions.
 Without a plan, keep scope, approach, checks and results in chat.
+This rule does not suppress required brainstorm/design artifacts; entering
+Stage 3 requests its master plan.
 
 ## Authority
 
@@ -51,7 +96,9 @@ checks without automatically demanding another go. Desktop smoke tests require
 scheduled approval covering interactions, environment and rollback.
 Do not bypass denied operations, expose credentials or invent capabilities.
 
-The default `/meta-dev` ceiling is Stage 4 for planning-only work. A scoped
+The default `/meta-dev` ceiling is Stage 4 for planning-only work without an
+earlier named stopping stage. Brainstorm/design requests retain their Stage 1/2
+ceilings. A scoped
 implementation go or explicit execution request allows progression through
 implementation and closing review. Explicit stage ceilings and human gates
 still apply. Tool permission modes alone never grant source authority.

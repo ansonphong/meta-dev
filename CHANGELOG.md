@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.5.22
+
+- Require Stage 1 `brainstorm.md`, Stage 2 `design.md` (plus optional supporting
+  files), and Stage 3 `00-master-plan.md`; invoke meta-planner when applicable,
+  otherwise use a one-page master plan. Honor explicit user overrides.
+- Stop brainstorm/design requests at their named stages, with no early master
+  plan for bookkeeping. Stage 4 edits and hardens all preceding artifacts.
+- Align both plugin manifests at version 1.5.22.
+
 ## 1.5.19
 
 - Keep six stage outcomes in one shared contract; let native harnesses choose

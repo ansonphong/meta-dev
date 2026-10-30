@@ -12,6 +12,9 @@ Read `references/workflows/protocol.md` and `references/adaptive-workflow.md`.
 This is report-only unless the user explicitly authorized scoped fixes.
 Plan hardening may repair the plan artifact under a planning request, using
 the IR renderer; it never authorizes source implementation before Stage 5.
+When serving Stage 4, harden and edit all applicable preceding artifacts under
+`references/workflows/protocol.md`, including brainstorm, design, supporting
+files and planner output; do not limit the repair scope to the master plan.
 
 ## Resolve
 

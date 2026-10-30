@@ -80,6 +80,14 @@ handle/ledger row and one task-detail section; no additional hand-written boxes.
 
 **Cross-host artifact contract (MANDATORY):** Before writing Markdown, emit a version `1.0` JSON IR conforming to `schemas/plan-artifact.schema.json`. **Set `target` in the IR to the tier resolved in step 0** (omit it only to accept the `standard` default); the renderer emits it as frontmatter so `/loop-gap` and `/meta-execute` read the same tier. Validate it with `python3 ${PLUGIN_ROOT}/scripts/plan-artifact-render.py <ir.json> --validate`, then render it with `python3 ${PLUGIN_ROOT}/scripts/plan-artifact-render.py <ir.json> --project-root <project-root>`. The renderer is the only plan-artifact writer: it emits deterministic frontmatter without `status:`, stable `` `T…` `` handles plus planctl-compatible `#hex` beads, and refuses overwrites by default. Use `layout: "multi-phase"` for a directory with `00-master-plan.md` as its sole checkbox ledger and checkbox-free phase files at `plans/<repo>/<feature>/`; use `layout: "single-file"` only for compact plans, written to `plans/<repo>/<feature>/YYYY-MM-DD-<slug>.md`. Never write a new plan at the repo-bucket root. Do not hand-render a host-specific variant.
 
+**Staged workflow exception:** When invoked for Stage 3 of `/meta-dev`, follow
+`references/workflows/protocol.md`: the required master filename is
+`00-master-plan.md`. For compact output, use the existing version `1.0`
+`single-file` IR with `artifact_path: plans/<repo>/<feature>/00-master-plan.md`
+instead of the dated filename above. Multi-phase output already uses that name.
+Preserve `brainstorm.md`, `design.md` and supporting design files; link them as
+inputs rather than replacing them. Explicit user overrides remain binding.
+
 ### 7. Generate `.loop-gap-config.md`
 
 Per `references/loopgap-config-gen.md`. Symbol anchors and invariants from ground-truth reads, affected files from grep, prioritized gap categories.

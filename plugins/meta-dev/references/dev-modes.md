@@ -9,7 +9,11 @@ lifecycle or adds model capabilities.
 - `--cruise`/autopilot proceeds within authorized scope; it never adds authority.
 - `--autonomous` or a scoped unattended implementation request permits execution
   for its scope. Read `references/autonomous-mode.md` when using that mode.
-- Default `--to` is 4 for planning-only requests. An implementation go permits
+- Brainstorm/Stage 1 stops with `brainstorm.md`; design/Stage 2 stops with
+  required `design.md` and optional supporting files. Stage 3 creates
+  `00-master-plan.md`, using meta-planner when applicable, otherwise one page.
+  Stage 4 edits and hardens all applicable preceding artifacts. User overrides apply.
+- Default `--to` is 4 for other planning-only requests. An implementation go permits
   execution and review; explicit stage ceilings remain binding.
 - `--gate all` selects stage checkpoints; `--gate exec` gates implementation
   when not already authorized; `--gate none` removes routine checkpoints but
