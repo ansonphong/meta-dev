@@ -1,6 +1,6 @@
 ---
 name: meta-goal
-description: Consolidate everything this conversation put in swing into one itemized ≤1000-char GOAL string to paste into Claude Code's /goal, so the session drives itself to completion instead of needing a prompt per step. Use when the user asks to "make a goal", "wrap this thread into a goal", "consolidate what's in swing", or wants to go autonomous on the current thread's open work.
+description: Consolidate everything this conversation put in swing into one itemized GOAL string to paste into Claude Code's /goal, so the session drives itself to completion instead of needing a prompt per step. Use when the user asks to "make a goal", "wrap this thread into a goal", "consolidate what's in swing", or wants to go autonomous on the current thread's open work. There is no character budget.
 ---
 
 # Meta-Goal — collapse the thread into one autonomous goal
@@ -48,15 +48,9 @@ This is the load-bearing step. The evaluator sees the transcript and nothing els
 
 Each proof must also be **reachable without the user** — a proof that requires human eyes (by-eye render check, GPU smoke test) belongs on the STOP line, not on an item.
 
-### 5. Compress to budget
+### 5. Write it complete
 
-Default **1000 characters**, hard. Compression rules, in order of preference:
-
-1. Drop articles and filler; digits not words; path stems not full paths (`library-trash-unification`, not `plans/app/2026-07-25-library-trash-unification.md` — unless the path is the deliverable)
-2. One line per item, no preamble, no blank lines
-3. Still over? **Cut whole items from the bottom** (lowest priority) and report exactly what was cut
-
-**Never compress by making items vaguer.** Trading precision for length reintroduces the step-2 failure. A goal of 6 sharp items beats 11 mushy ones — the 6 close, the 11 spin.
+There is no character budget and no length cap. Write every sharpened item in full, with its proof, files, commands, and stop rules. Do not shorten, summarize, or drop an item to fit a length. A vague item is still dropped under step 2, because it cannot be judged done. Do not trade precision for brevity.
 
 ### 6. Emit
 
@@ -72,10 +66,8 @@ STOP: no deploy/publish/prod-push; leave human-verify boxes unchecked + list the
 END: reply "GOAL MET" + item→sha table
 ```
 
-Under the fence, three lines and nothing more:
+Under the fence, one line:
 
-- `<n>/1000 chars`
-- `Dropped for budget: <items>` — omit the line entirely if nothing was dropped
 - `▶ **NEXT — you:** paste that into `/goal` and the thread runs itself to the end.`
 
 The three trailing directives are fixed and always present:
@@ -89,5 +81,5 @@ The three trailing directives are fixed and always present:
 - **Emit only — never invoke.** `/goal` is the user's to type. Print the block and stop.
 - **Thread scope is absolute.** Do not read the plan tree, inbox, or git for extra items. If the thread is thin, the goal is short — say so rather than padding it from project state.
 - **Never invent items.** Everything in the goal was in the conversation. A goal containing work the user never asked for is how an autonomous run wanders.
-- **Report the cut.** Anything dropped for budget is named under the fence. Silent truncation reads as "that's everything" when it isn't.
+- **No length cap.** Do not impose a character budget, count characters, or cut items for length. If step 2 drops an item because it has no observable end state, name that item under the fence.
 - **Re-runnable.** Called again later in the same thread, re-harvest from scratch — landed items fall out, new ones enter.

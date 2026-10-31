@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.5.28
+
+- Remove the meta-goal 1000-character budget. Goal prompts include every
+  sharpened item in full. Do not shorten or drop items to fit a length.
+- Align both plugin manifests at version 1.5.28.
+
 ## 1.5.27
 
 - Give DeepSeek workers a concise task contract covering objective, context,
