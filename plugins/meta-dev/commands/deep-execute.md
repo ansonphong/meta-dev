@@ -1,7 +1,7 @@
 ---
 name: deep-execute
-argument-hint: <task description> [--repo <name>] [--readonly] [--flash] [--pro] [--vision] [--tier <flash|pro|vision>] [--budget auto|low|medium|high] [--model <model>]  # --repo names from .meta-dev/repos.json
-description: Execute a task via headless DeepSeek Claude Code — default deepseek-v4-flash (V4.1 Flash as of 2026-09-10); --pro → pro; --vision → deepseek-v4-flash-vision-exp
+argument-hint: <task description> [--repo <name>] [--readonly] [--flash] [--pro] [--vision] [--tier <flash|pro|vision>] [--effort low|high|max] [--budget auto|low|medium|high] [--model <model>]  # --repo names from .meta-dev/repos.json
+description: Execute a task via headless DeepSeek Claude Code — default deepseek-flash (V4.1 Flash 1017) with Max reasoning; --pro selects V4 Pro; Flash supports images
 ---
 
 # /deep-execute — DeepSeek Headless Execution
@@ -12,7 +12,13 @@ Spawn a headless Claude Code worker on the **DeepSeek** backend to execute a tas
 
 Uses `scripts/claude-headless-exec --backend deep` under the hood.
 
-**Default model: `deepseek-v4-flash`** (DeepSeek-V4.1-Flash on this stable ID as of **2026-09-10**). DeepSeek serves the latest Flash weights on that ID — do not pin a dated preview name such as `deepseek-v4.1-flash-expires-on-0910`. Official testing showed V4.1 Flash surpassing V4 Pro on performance, cost, speed, and task completion time. **`--pro`** pins `deepseek-v4-pro` (until V4.1 Pro ships, DeepSeek routes Pro requests to V4.1 Flash and bills Flash prices). **`--vision`** pins `deepseek-v4-flash-vision-exp` (experimental multimodal; JPEG/PNG/GIF/WebP). Text Flash/Pro IDs still reject images (HTTP 400) unless/until official docs say otherwise. All three share a **1M** context window.
+**Default model: `deepseek-flash`; default reasoning: `max`.** The canonical API ID serves **DeepSeek-V4.1-Flash-1017** (verified 2026-10-30). It supports text and images with a **1M** context window. `--pro` selects the separate `deepseek-v4-pro` (V4 Pro 0813), which does not support vision. `--vision` remains a compatibility flag for the same multimodal Flash model. Legacy API IDs `deepseek-v4-flash` and `deepseek-v4-flash-vision-exp` are accepted by DeepSeek as aliases to Flash 1017; prefer `deepseek-flash` for new calls.
+
+**Max is explicit, not the provider default.** The runner sets `CLAUDE_CODE_EFFORT_LEVEL=max` and `alwaysThinkingEnabled: true` in the worker settings, and removes inherited `MAX_THINKING_TOKENS` so a value of `0` cannot disable thinking. Explicit `--effort low|high|max` overrides the default. `--budget` bounds turns and wall time without lowering DeepSeek effort. DeepSeek's API default is **high**; `medium` and `xhigh` map to **high**, while `max` maps to **max**. Asking for “think harder” in the prompt does not configure effort.
+
+**Evidence and limits.** [DeepSeek's Claude Code guide](https://api-docs.deepseek.com/quick_start/agent_integrations/claude_code/) documents `CLAUDE_CODE_EFFORT_LEVEL=max`. The [Anthropic API guide](https://api-docs.deepseek.com/guides/anthropic_api/) supports `thinking: {"type": "enabled"}` and `output_config: {"effort": "max"}`; `thinking.budget_tokens` is ignored. See the [effort mapping](https://api-docs.deepseek.com/guides/thinking_mode/) and [current model IDs](https://api-docs.deepseek.com/quick_start/pricing/). The focused stub test checks the child environment/settings; only a captured outgoing request proves what an installed Claude Code version sends. Never label a stub check as a live API verification or promise answer quality.
+
+[Artificial Analysis](https://artificialanalysis.ai/models/creators/deepseek) ranked Flash 1017 (Max) above Pro 0813 (Max) on 2026-10-30: Intelligence Index **32 vs 23**, roughly **175 vs 81 tokens/s**, and benchmark cost/task **$0.60 vs $1.77**. These are dated measurements, not a universal quality guarantee; recheck before making a new model recommendation.
 
 **The worker is a full Claude Code instance — it is not limited to code execution.** Its "task" can be any prompt (research, audit, summarize, refactor, investigate) **or an explicit meta-dev command to run internally** — `/meta-execute`, `/meta-planner`, `/loop-gap`, `/meta-eval`, `/sniff`, etc. Pair with `--readonly` for read-only ops (research/review/audit). This makes it a general worker for any waterfall stage, not just EXECUTE.
 
@@ -20,31 +26,29 @@ Uses `scripts/claude-headless-exec --backend deep` under the hood.
 
 **Brief:** provide the assigned task or slice, named files, acceptance criteria, and focused verification. Do not create a nested swarm unless independently useful and authorized. See `references/execute-briefs.md` and `references/adaptive-workflow.md`.
 
-## Flash vs Pro vs Vision — pick the tier
+## Flash vs Pro — pick the model
 
-| | **Flash** (`deepseek-v4-flash`) — **default** | **Pro** (`deepseek-v4-pro`) | **Vision** (`deepseek-v4-flash-vision-exp`) |
-|--|-----------------------------------------------|-----------------------------|--------------------------------------------|
-| Size / role | V4.1 Flash (default primary; Pro-class quality at Flash price/speed) | Pro ID (upgrade; may route to V4.1 Flash until V4.1 Pro) | Flash-class + image input (experimental) |
-| Context | 1M | 1M | 1M |
-| Images | No (HTTP 400) | No (HTTP 400) | JPEG, PNG, GIF, WebP |
-| Role | Default reasoning + agent + mechanical work | Explicit Pro-ID request | Screenshots, UI, charts, photos |
-| Flag | default / `--flash` | `--pro` | `--vision` |
+| | **Flash** (`deepseek-flash`) — **default** | **Pro** (`deepseek-v4-pro`) |
+|--|----------------------------------------|---------------------------|
+| Version | V4.1 Flash 1017 | V4 Pro 0813 |
+| Context | 1M | 1M |
+| Images | JPEG, PNG, GIF, WebP | Not supported |
+| Default effort | Max | Max |
+| Flag | default / `--flash` / `--vision` | `--pro` |
 
-**Flash-first.** Unflagged `/deep-execute` is Flash (V4.1). Force Pro with `--pro` (or `--tier pro`). Force Vision with `--vision` (or `--tier vision`). `--flash`, `--pro`, and `--vision` are exclusive. Nested Haiku/subagent slots stay Flash; on a Vision worker they pin to Vision so a screenshot Read cannot 400.
+**Flash-first. Conductor judgment:** use Flash for text and visual work. Use Pro when explicitly requested; do not assume its name means it outperforms the newer Flash. `--flash`, `--pro`, and `--vision` remain exclusive; `--tier flash|pro|vision` is equivalent. A user `--model` overrides tier selection, and an explicit `--effort` overrides Max. Nested worker slots default to multimodal Flash with the same process-wide effort setting.
 
-**Conductor judgment (only when the user did not pass a tier flag):** default Flash. You MAY add `--pro` when the user asks for Pro explicitly, or when a future V4.1 Pro is the better fit and the Pro ID is no longer a Flash route. You MAY add `--vision` when the task must look at images, screenshots, charts, or rendered UI — text Flash/Pro will 400. Unsure and not visual → Flash. A user `--flash` / `--pro` / `--vision` / `--tier` / `--model` is binding — do not override it.
-
-Say the chosen model and why in the Step 2 confirm line, so a Pro or Vision switch is visible.
+Report the selected model **and effort** before dispatch. For example:
 
 ```bash
-# default = Flash (V4.1 Flash on deepseek-v4-flash)
+# default = Flash 1017 + Max reasoning
 claude-headless-exec --backend deep --repo app -- "Hard multi-step agentic refactor"
 
-# force Pro ID
+# explicit Pro + Max reasoning
 claude-headless-exec --backend deep --pro --repo app -- "Use the Pro model ID"
 
-# force Vision (images)
-claude-headless-exec --backend deep --vision --repo app -- "Describe src/ui/screenshot.png"
+# explicit lower effort when requested
+claude-headless-exec --backend deep --effort high --repo app -- "Bounded task"
 ```
 
 ## Scope and routing
@@ -79,11 +83,12 @@ Parse these optional flags:
 - `--repo <name>` — target repo (default: auto-detect from cwd; names from .meta-dev/repos.json)
 - `--readonly` — expose only Read,Glob,Grep (no shell, writes, delegation, MCP, or skills)
 - `--claim <plan-dir>` — **concurrency safety (shared tree):** claim this plan directory before dispatch. The wrapper ABORTS if another live session holds an overlapping scope, and auto-releases on exit. Use whenever the worker edits `plans/**`. (`--claim-warn` warns instead of aborting.) See `references/execute-charter.md` → Concurrency Safety.
-- `--flash` — force Flash (`deepseek-v4-flash`). Alias of `--tier flash`. Redundant with the default; use it to lock Flash against a Pro or Vision judgment.
-- `--pro` — force Pro (`deepseek-v4-pro`). Alias of `--tier pro`. Binding when the user passed it.
-- `--vision` — force Vision (`deepseek-v4-flash-vision-exp`). Alias of `--tier vision`. Binding. Use when the worker must Read images (JPEG/PNG/GIF/WebP). Exclusive vs `--flash` / `--pro`.
-- `--tier <flash|pro|vision>` — DeepSeek model tier (default: **`flash`** → `deepseek-v4-flash`; `pro` → `deepseek-v4-pro`; `vision` → `deepseek-v4-flash-vision-exp`). `--flash`, `--pro`, and `--vision` are boolean sugars.
-- `--model <model>` — exact model ID override (`deepseek-v4-flash`, `deepseek-v4-pro`, or `deepseek-v4-flash-vision-exp`); wins over `--tier` / `--flash` / `--pro` / `--vision`
+- `--flash` — force `deepseek-flash`; alias of `--tier flash`.
+- `--pro` — force `deepseek-v4-pro`; alias of `--tier pro`.
+- `--vision` — compatibility alias of `--tier vision`, selecting the same multimodal `deepseek-flash`. No separate vision model is needed.
+- `--tier <flash|pro|vision>` — default **flash**; `--model` takes precedence.
+- `--model <model>` — exact API model ID override; forwarded unchanged. Prefer `deepseek-flash` or `deepseek-v4-pro`; DeepSeek also accepts the legacy Flash aliases above.
+- `--effort <low|high|max>` — reasoning effort, default **max**. The shared runner also accepts `medium` / `xhigh`, but DeepSeek maps both to **high**. An explicit override is binding.
 - `--budget auto|low|medium|high` — depth cap (default `auto`). Classify the actual task; use focused bounds and configured capability policy. See `references/execute-budget.md`.
 - `--max-turns <n>` — cap agent turns (default: from `--budget`)
 
@@ -94,7 +99,7 @@ If no task description is provided, ask the user what task to execute.
 ## Step 2: Confirm the Plan
 
 Summarize what will be executed:
-- **Backend:** DeepSeek (`deepseek-v4-flash` by default, or `--pro` / `--vision` / `--tier` / `--model` as specified). If you judged Pro or Vision, say why.
+- **Backend/model/effort:** DeepSeek (`deepseek-flash`, **max** by default); report explicit model/tier and effort overrides.
 - **Repo:** (detected or specified)
 - **Task:** (the task description)
 - **Mode:** read-only or read-write
@@ -113,7 +118,7 @@ Run the headless worker. Always background it — these jobs routinely take 30�
 - Waiting on the job: `timeout_ms` ≥ 1800000 (30 min) or poll until exit. `timeout_ms: 300000` is a 5-minute cut-off.
 
 ```bash
-# Build the command (default model = deepseek-v4-flash)
+# Build the command (defaults: deepseek-flash + max effort)
 ${PLUGIN_ROOT}/scripts/claude-headless-exec \
   --backend deep \
   --repo <repo> \
@@ -122,6 +127,7 @@ ${PLUGIN_ROOT}/scripts/claude-headless-exec \
   ${VISION:+--vision} \
   ${TIER:+--tier "$TIER"} \
   ${MODEL:+--model "$MODEL"} \
+  ${EFFORT:+--effort "$EFFORT"} \
   ${READONLY:+--readonly} \
   --budget "$BUDGET" \
   ${MAX_TURNS:+--max-turns "$MAX_TURNS"} \

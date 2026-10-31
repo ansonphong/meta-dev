@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.5.26
+
+- Default DeepSeek workers to `deepseek-flash` (V4.1 Flash 1017) with explicit
+  Max reasoning and thinking enabled; preserve Max under every execution budget.
+- Honor explicit effort overrides and clear inherited thinking-token limits so
+  `MAX_THINKING_TOKENS=0` cannot disable DeepSeek thinking.
+- Refresh deep-execute guidance with official effort mappings, canonical and
+  legacy model IDs, multimodal Flash support, dated benchmark evidence and
+  verification limits. Keep `--vision` as a Flash compatibility flag.
+- Verify launch environment/settings with a local stub and align both plugin
+  manifests at version 1.5.26.
+
 ## 1.5.25
 
 - Label the main Codex workflow `meta-dev` so `$me` matches its display name

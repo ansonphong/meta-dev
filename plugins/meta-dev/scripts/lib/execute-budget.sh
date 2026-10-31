@@ -249,7 +249,7 @@ md_resolve_budget() {
     if [[ "${EFFORT_EXPLICIT:-0}" != "1" && "${EFFORT_EXPLICIT:-false}" != "true" ]]; then
         if [[ -n "$suggested_effort" ]]; then
             if [[ "${BACKEND:-}" == "deep" ]]; then
-                : # DeepSeek has no effort knob
+                : # Preserve DeepSeek max default; budget caps turns/wall, not effort
             else
                 EFFORT="$suggested_effort"
             fi

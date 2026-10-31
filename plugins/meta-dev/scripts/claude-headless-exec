@@ -11,11 +11,11 @@
 #   --repo <name>            Resolve via topology config; unresolvable => abort.
 #                            Omit to run at the PROJECT ROOT (never the caller's cwd).
 #   --model <model>          Override default model for this backend
-#   --tier <flash|pro>       DeepSeek-only convenience: map to deepseek-v4-flash|pro
+#   --tier <flash|pro|vision> DeepSeek-only convenience: Flash or Pro
 #                            (ignored on other backends; --model wins over --tier)
 #   --flash / --pro          DeepSeek-only boolean sugars for --tier flash|pro
-#                            (default is Flash / V4.1; --pro upgrades to Pro ID)
-#   --vision                 DeepSeek-only: deepseek-v4-flash-vision-exp (multimodal)
+#                            (default is Flash 1017; --pro selects the separate Pro model)
+#   --vision                 DeepSeek-only: Flash with image input (compatibility flag)
 #   --timeout <ms|30s|30m|2h>  Session wall (default: from --budget; medium=90 min)
 #   --tools <list>           Comma-separated tool list (default: Read,Write,Edit,Bash,Grep,Glob)
 #   --readonly               Restrict available tools to Read,Glob,Grep (no shell/delegation)
@@ -30,12 +30,8 @@
 #   claude-headless-exec --backend deep --flash -- "Rename getCwd across the project"
 #
 # Backend defaults:
-#   deep   → deepseek-v4-flash (default primary; V4.1 Flash on this stable ID as of
-#            2026-09-10 — surpassed V4 Pro on performance/cost/speed; do not pin
-#            the preview ID deepseek-v4.1-flash-expires-on-0910)
-#            --pro → deepseek-v4-pro (until V4.1 Pro ships, DeepSeek routes Pro
-#            requests to V4.1 Flash at Flash price)
-#            --vision → deepseek-v4-flash-vision-exp (JPEG/PNG/GIF/WebP; experimental)
+#   deep   → deepseek-flash (V4.1 Flash 1017; text + images), effort max
+#            --pro → deepseek-v4-pro; --vision is a Flash compatibility flag
 #   glm    → glm-5.2 (opus/sonnet/subagent), glm-4.5 (haiku) — routed via local beta-strip proxy
 #   sonnet → claude-sonnet-5-5; REAL Anthropic via ambient login (1M context)
 #   opus   → claude-opus-5-5; REAL Anthropic via ambient login (1M context)
@@ -76,17 +72,14 @@ declare -A BACKEND_LABEL
 
 BACKEND_BASE_URL[deep]="https://api.deepseek.com/anthropic"
 BACKEND_AUTH_KEY_ENV[deep]="DEEPSEEK_API_KEY"
-# DeepSeek V4 / V4.1 (both 1M context). Default primary is Flash: as of
-# 2026-09-10 DeepSeek ships V4.1 Flash on the stable ID deepseek-v4-flash
-# (surpassed V4 Pro on performance, cost, speed, and task time). Do not pin
-# the preview ID deepseek-v4.1-flash-expires-on-0910. --pro upgrades to
-# deepseek-v4-pro; until V4.1 Pro ships, DeepSeek routes Pro → V4.1 Flash
-# at Flash price. Nested/haiku slots stay Flash.
-BACKEND_OPUS_MODEL[deep]="deepseek-v4-flash"           # same as default primary
-BACKEND_SONNET_MODEL[deep]="deepseek-v4-flash"         # DEFAULT primary worker (V4.1 Flash)
-BACKEND_HAIKU_MODEL[deep]="deepseek-v4-flash"
-BACKEND_SUBAGENT_MODEL[deep]="deepseek-v4-flash"      # nested stay Flash
-BACKEND_EFFORT[deep]=""                               # DECIDED: no effort knob on this backend — see the resolve block, which warns rather than forwarding
+# DeepSeek: canonical Flash ID serves V4.1 Flash 1017 (verified 2026-10-30).
+# DeepSeek documents CLAUDE_CODE_EFFORT_LEVEL=max for Claude Code. API default
+# is high; xhigh also maps to high, so request max explicitly.
+BACKEND_OPUS_MODEL[deep]="deepseek-flash"
+BACKEND_SONNET_MODEL[deep]="deepseek-flash"
+BACKEND_HAIKU_MODEL[deep]="deepseek-flash"
+BACKEND_SUBAGENT_MODEL[deep]="deepseek-flash"
+BACKEND_EFFORT[deep]="max"
 BACKEND_LABEL[deep]="DeepSeek"
 
 BACKEND_BASE_URL[glm]="https://api.z.ai/api/anthropic"   # real upstream; worker talks to the local beta-strip proxy (see GLM_PROXY block below)
@@ -190,12 +183,12 @@ Options:
   --model <model>           Override the default model
   --tier <flash|pro|vision> DeepSeek-only: flash | pro | vision
                             (ignored on other backends; --model wins over --tier)
-  --flash                   DeepSeek-only: force deepseek-v4-flash (already default)
-  --pro                     DeepSeek-only: force deepseek-v4-pro (upgrade)
-  --vision                  DeepSeek-only: force deepseek-v4-flash-vision-exp
+  --flash                   DeepSeek-only: force deepseek-flash (already default)
+  --pro                     DeepSeek-only: force deepseek-v4-pro
+  --vision                  DeepSeek-only: force deepseek-flash (same as --flash)
                             (multimodal; JPEG/PNG/GIF/WebP. Exclusive vs --flash/--pro)
   --effort <level>          Thinking effort: low|medium|high|xhigh|max
-                            (per-backend default: sonnet/opus/fable=high, glm=high, deep=none)
+                            (per-backend default: sonnet/opus/fable=high, glm=high, deep=max)
   --budget auto|low|medium|high
                             Depth cap (default auto → medium at the runner).
                             Turns/wall/don't-wander rules. NOT --effort and
@@ -229,9 +222,9 @@ auto-reset, instead of idling out the full wall-clock cap):
   -h, --help                Show this help
 
 Backend defaults (model · effort):
-  deep   → deepseek-v4-flash        (DeepSeek API · V4.1 Flash · effort n/a)
-           --pro / --tier pro → deepseek-v4-pro (upgrade; Pro→Flash route until V4.1 Pro)
-           --vision → deepseek-v4-flash-vision-exp (images; experimental)
+  deep   → deepseek-flash           (DeepSeek API · V4.1 Flash 1017 · effort max)
+           --pro / --tier pro → deepseek-v4-pro
+           --vision / --tier vision → deepseek-flash (text + images)
   glm    → glm-5.2                    (Z.AI API · effort high · via local beta-strip proxy)
   sonnet → claude-sonnet-5-5        (Anthropic · ambient login · effort high)
   opus   → claude-opus-5-5          (Anthropic · ambient login · effort high)
@@ -246,7 +239,7 @@ Examples:
   claude-headless-exec --backend sonnet --repo app -- "Review the diff"
   claude-headless-exec --backend opus --repo app -- "Redesign the render-node lineage"
   claude-headless-exec --backend fable --repo app -- "Untangle the hardest coherence bug"
-  claude-headless-exec --backend deep --model deepseek-v4-flash -- \
+  claude-headless-exec --backend deep --model deepseek-flash -- \
     "Rename getCwd across the project"  # same as --flash
 
 Prerequisites:
@@ -468,9 +461,9 @@ if [[ -n "$TIER" ]]; then
         echo "[WARN] --tier '$TIER' ignored: --model '$MODEL' already set and wins." >&2
     else
         case "$TIER" in
-            flash)  MODEL="deepseek-v4-flash" ;;
+            flash)  MODEL="deepseek-flash" ;;
             pro)    MODEL="deepseek-v4-pro" ;;
-            vision) MODEL="deepseek-v4-flash-vision-exp" ;;
+            vision) MODEL="deepseek-flash" ;;
             *)
                 echo "[ERROR] Invalid --tier '$TIER' for deep backend. Use: flash, pro, vision." >&2
                 exit 1
@@ -488,22 +481,12 @@ if [[ "$BACKEND" == "opus" && "$MODEL_EXPLICIT" == "1" ]]; then
     BACKEND_SONNET_MODEL[opus]="$MODEL"
     BACKEND_SUBAGENT_MODEL[opus]="$MODEL"
 fi
-# Vision model rejects images on any other DeepSeek ID (HTTP 400). Pin every
-# nested slot so a subagent Read of a screenshot cannot fall through to Flash.
-if [[ "$BACKEND" == "deep" && "$MODEL" == "deepseek-v4-flash-vision-exp" ]]; then
-    BACKEND_OPUS_MODEL[deep]="$MODEL"
-    BACKEND_SONNET_MODEL[deep]="$MODEL"
-    BACKEND_HAIKU_MODEL[deep]="$MODEL"
-    BACKEND_SUBAGENT_MODEL[deep]="$MODEL"
-fi
-
 # ── Resolve effort (per-backend default unless --effort given) ───────────
 # Per-backend defaults live in the BACKEND_EFFORT table above — that table is the
 # SINGLE definition point for effort in this harness; don't add a second one.
 # A backend whose BACKEND_EFFORT is EMPTY has declared "no effort knob": we do
 # NOT forward an effort level to it, and if the caller asked for one we say so
-# instead of dropping it silently (the old behaviour contradicted the docs,
-# which promised --effort was a no-op for deep while the script forwarded it).
+# instead of dropping it silently.
 if [[ -z "${BACKEND_EFFORT[$BACKEND]}" ]]; then
     if [[ "$EFFORT_EXPLICIT" == "1" ]]; then
         echo "[WARN] --effort '$EFFORT' ignored: backend '$BACKEND' has no effort knob (BACKEND_EFFORT is empty for it). Dropping it rather than forwarding a level the backend does not honour." >&2
@@ -557,17 +540,21 @@ MANIFEST_FILE="${OUTPUT_FILE}.manifest.jsonl"
 WORKER_SETTINGS_FILE="${OUTPUT_FILE}.worker-settings.json"
 HOOKS_DIR="$PLUGIN_ROOT/hooks/scripts"
 : > "$MANIFEST_FILE"   # start empty so the conductor always finds the file
-python3 - "$WORKER_SETTINGS_FILE" "$HOOKS_DIR" <<'PYEOF'
+python3 - "$WORKER_SETTINGS_FILE" "$HOOKS_DIR" "$BACKEND" <<'PYEOF'
 import json, sys
 settings_file, hooks_dir = sys.argv[1], sys.argv[2]
 def cmd(name):
     return {"type": "command", "command": f'bash "{hooks_dir}/{name}"', "timeout": 10}
-json.dump({
+settings = {
     "hooks": {
         "PreToolUse":  [{"matcher": "Bash",              "hooks": [cmd("worker-git-guard.sh")]}],
         "PostToolUse": [{"matcher": "Edit|Write|MultiEdit", "hooks": [cmd("worker-manifest-record.sh")]}],
     }
-}, open(settings_file, "w"))
+}
+if sys.argv[3] == "deep":
+    settings["alwaysThinkingEnabled"] = True
+with open(settings_file, "w") as output:
+    json.dump(settings, output)
 PYEOF
 
 # ── GLM beta-strip proxy ────────────────────────────────────────────────
@@ -660,6 +647,11 @@ else
     )
 fi
 
+# DeepSeek must not inherit MAX_THINKING_TOKENS=0, which disables thinking.
+if [[ "$BACKEND" == "deep" ]]; then
+    ENV_UNSET+=(-u MAX_THINKING_TOKENS)
+fi
+
 # Thinking/reasoning effort — resolved per-backend above (see BACKEND_EFFORT)
 # or overridden with --effort. Empty means "leave the CLI default alone".
 # NOTE: this is process-wide, so it also covers the worker's Haiku-tier calls
@@ -727,19 +719,11 @@ START_TIME=$(date +%s)
 # Keeping the two streams apart is what makes OUTPUT_FILE cleanly parseable.
 cd "$WORK_DIR"
 
-VISION_NOTE=""
-if [[ "$MODEL" == "deepseek-v4-flash-vision-exp" ]]; then
-    VISION_NOTE="
-VISION (binding): You are on deepseek-v4-flash-vision-exp. You can Read JPEG, PNG, GIF, and WebP images. Open local image files with Read. Do not farm image inspection to a text-only subagent. Pro and Flash return HTTP 400 on images — you are the vision worker.
-"
-fi
-
 PROMPT="HARD WORKER PERSISTENCE RULE (binding): If you edit any scoped file,
 stage only those exact paths and create a LOCAL commit before every return,
 including red verification, failed review, BLOCKED, or exhausted repair. Red
 blocks DONE/checkbox/remote push, never the local commit. Never push, pull, or
 rebase; the conductor owns the remote. Read-only work creates no empty commit.
-${VISION_NOTE}
 ${PROMPT}"
 if [[ "$READONLY" == "true" ]]; then
     PROMPT="READ-ONLY WORKER: Only Read, Glob, and Grep are available. No shell,
