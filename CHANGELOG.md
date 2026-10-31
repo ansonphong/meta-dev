@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.5.27
+
+- Give DeepSeek workers a concise task contract covering objective, context,
+  ownership, constraints, focused acceptance and evidence, with a short example.
+- Preserve coherent task ownership and independent review; adapt assignment scope
+  from observed results rather than fixed model-specific limits.
+- Align both plugin manifests at version 1.5.27.
+
 ## 1.5.26
 
 - Default DeepSeek workers to `deepseek-flash` (V4.1 Flash 1017) with explicit

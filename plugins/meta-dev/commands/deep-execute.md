@@ -24,7 +24,20 @@ Uses `scripts/claude-headless-exec --backend deep` under the hood.
 
 **Harness:** this worker **is** Claude Code, so Claude slash commands work inside it. Interactive Grok and Codex hosts **also** have meta-dev (Grok skills/slash; Codex `$meta-dev:*`). A **headless** `/grok-execute` or `/codex-execute` worker is not Claude Code — brief those with a direct task (Codex: `--skill`/`--command`), not "run `/loop-gap`". Host loading and routing: `references/work-ladder.md` and `references/adaptive-workflow.md`.
 
-**Brief:** provide the assigned task or slice, named files, acceptance criteria, and focused verification. Do not create a nested swarm unless independently useful and authorized. See `references/execute-briefs.md` and `references/adaptive-workflow.md`.
+**Brief:** prepare a concise, task-proportional contract for the worker; the user need not write it. Reuse the shared brief in `references/execute-briefs.md` rather than duplicating project policy. Include:
+
+- **Objective:** observable behavior or outcome required.
+- **Context:** relevant files, interfaces, versions and established decisions; give useful anchors and let the worker inspect adjacent code needed for understanding.
+- **Scope and authority:** the coherent work and owned paths, routine decisions and repairs it may make, and consequential decisions or conflicts to escalate.
+- **Constraints:** behavior to preserve and applicable project gates, including build, desktop/GPU, ownership and external-action restrictions where relevant.
+- **Acceptance:** concrete outcomes and focused checks; identify unavailable evidence and any human-only checks. For `--readonly`, supply the necessary diff and evidence because the worker has no shell.
+- **Report:** files changed, actual commands and results, and unresolved issues or missing evidence.
+
+Describe outcomes and boundaries first. Supply a design when already decided or required for compatibility; otherwise let the worker choose routine implementation details. Bound ambiguity and ownership rather than assigning arbitrary tiny tasks; keep coupled implementation, callers and verification together. Start with a coherent, verifiable assignment and adjust scope based on actual results, not a fixed model hierarchy. A difficult well-specified task is valid. Do not add mandatory checkpoints or automatically spawn nested workers. See `references/adaptive-workflow.md` for routing and capacity.
+
+**Example brief:** “Fix the retry handler so a cancelled request never retries. Own `src/retry.ts` and its directly affected callers; preserve the public API. Inspect the existing cancellation path before choosing the implementation. Run the named focused retry test, report the command and result, and escalate if cancellation requires a public-interface change.” Adapt paths, checks and gates to the real task; do not invent them.
+
+The conductor inspects the actual change against the whole objective and obtains the required independent review. A focused passing check is evidence for its covered behavior, not acceptance of the whole task; retain and report uncovered requirements.
 
 ## Flash vs Pro — pick the model
 
